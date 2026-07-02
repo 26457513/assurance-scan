@@ -28,6 +28,16 @@ open "<worktree-path>/.asvs-scanner/runtime/reports/$(ls -t <worktree-path>/.asv
 
 First scan in a project downloads vulnerability databases (Trivy / Grype / OSV), so expect it to be slower. Subsequent scans reuse the cache.
 
+### Where to find the docs
+
+- This README is also rendered on the Docker Hub image page (`hub.docker.com/r/<dockerhub-user>/asvs-scanner`) once you link the source repo under Repository → General → Description.
+- Inside a terminal, `<dockerhub-user>/asvs-scanner:latest help` prints the supported subcommands and key flags.
+- The README is baked into the image at `/opt/asvs-scanner/README.md`. Extract it without a browser:
+  ```bash
+  docker run --rm --entrypoint cat <dockerhub-user>/asvs-scanner:latest /opt/asvs-scanner/README.md
+  ```
+- Source, issues, and release notes live at `https://github.com/jondowson/asvs-scanner`.
+
 ## Prerequisites
 
 - **Docker Desktop** (or `docker` + `docker compose`) running on the host. Every scanner executes in its own container.

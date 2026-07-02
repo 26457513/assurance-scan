@@ -14,6 +14,13 @@ RUN apk add --no-cache \
     tar
 
 WORKDIR /opt/asvs-scanner
+
+LABEL org.opencontainers.image.source="https://github.com/jondowson/asvs-scanner" \
+      org.opencontainers.image.url="https://github.com/jondowson/asvs-scanner" \
+      org.opencontainers.image.documentation="https://github.com/jondowson/asvs-scanner/blob/main/README.md" \
+      org.opencontainers.image.title="asvs-scanner" \
+      org.opencontainers.image.description="Portable security scan and evidence bundle generator for application codebases, built around the OWASP Application Security Verification Standard."
+
 COPY . /opt/asvs-scanner
 
 RUN rm -rf /opt/asvs-scanner/reports /opt/asvs-scanner/scripts/__pycache__ \
