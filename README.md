@@ -236,7 +236,27 @@ The image is private on Docker Hub. Two paths:
 
 ### Automatic (recommended)
 
-The `publish-image` GitHub Actions workflow (`.github/workflows/publish-image.yml`) rebuilds and pushes on every push to `main` (tags `latest` + short sha) and on every `v*` git tag (adds a version tag). Build cache lives in Docker Hub under the `:build-cache` tag to keep rebuilds fast.
+The `publish-image` GitHub Actions workflow (`.github/workflows/publish-image.yml`) handles everything. Build cache lives in the GitHub Actions cache (repository-scoped, not exposed on Docker Hub).
+
+**Triggers and what each produces:**
+
+| Trigger | Job | Tags published |
+|---|---|---|
+| Pull request | `validate` (build only, no push) | none |
+| Push to `main` | `publish` | `latest`, `:<short-sha>` |
+| `v*` git tag | `publish` | `:<version>`, `stable`, `:<short-sha>` |
+| Manual dispatch (Actions tab) | `publish` | same as push to `main`, or same as a tag if dispatched from a tag |
+
+**Tag policy for teams pulling the image:**
+
+| Tag | Use when |
+|---|---|
+| `<user>/asvs-scanner:latest` | You want every merged change to main, accepts some churn |
+| `<user>/asvs-scanner:stable` | You want only intentional releases — only advances when you cut a `v*` tag |
+| `<user>/asvs-scanner:<version>` | You want to pin a specific release (e.g. `:1.2.3`) for reproducibility |
+| `<user>/asvs-scanner:<short-sha>` | You want to pin a specific commit, e.g. for incident forensics |
+
+To cut a release: `git tag v1.2.3 && git push --tags` — the workflow publishes `:1.2.3` plus advances `:stable`.
 
 **Required GitHub secrets** (repo → Settings → Secrets and variables → Actions):
 
@@ -246,8 +266,6 @@ The `publish-image` GitHub Actions workflow (`.github/workflows/publish-image.ym
 | `DOCKERHUB_TOKEN` | Personal access token (hub.docker.com → Account Settings → Security) |
 
 The image repo on Docker Hub must already exist (create it as private first).
-
-To cut a release: `git tag v1.2.3 && git push --tags` — the workflow publishes `<user>/asvs-scanner:1.2.3` plus a refresh of `:latest`.
 
 ### Manual
 

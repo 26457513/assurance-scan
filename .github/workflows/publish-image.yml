@@ -1,10 +1,22 @@
 name: publish-image
 
-# Builds the asvs-scanner Docker image for linux/amd64 + linux/arm64 and pushes
-# to Docker Hub. Tags produced:
-#   - <user>/asvs-scanner:latest            on every push to main
-#   - <user>/asvs-scanner:<short-sha>       on every build (always)
-#   - <user>/asvs-scanner:<tag-without-v>   on git tag v* (e.g. v1.2.3 -> 1.2.3)
+# Builds the asvs-scanner Docker image for linux/amd64 + linux/arm64.
+#
+# Two jobs:
+#   - validate: runs on PRs. Builds both arches but never pushes. Cache via
+#     GitHub Actions cache (repository-scoped, not visible on Docker Hub).
+#   - publish:  runs on push to main, on v* tags, and on manual dispatch.
+#     Pushes to Docker Hub.
+#
+# Tags produced by `publish`:
+#   - <user>/asvs-scanner:<short-sha>   on every publish (always)
+#   - <user>/asvs-scanner:latest        on every push to main
+#   - <user>/asvs-scanner:<version>     on git tag v* (e.g. v1.2.3 -> 1.2.3)
+#   - <user>/asvs-scanner:stable        on git tag v* (only advanced on releases)
+#
+# Use :stable for teams that want to pin and update deliberately.
+# Use :latest for teams that want every main push.
+# Use :<short-sha> or :<version> for reproducible pinned deployments.
 #
 # Required GitHub secrets (Settings -> Secrets and variables -> Actions):
 #   DOCKERHUB_USERNAME  Docker Hub account with push access to the image repo
@@ -17,11 +29,39 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  pull_request:
   workflow_dispatch:        # manual trigger from the Actions tab
 
 jobs:
-  publish:
+  validate:
+    name: Build (no push)
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for cross-arch builds)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build both architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish:
+    name: Build and push
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
@@ -52,7 +92,7 @@ jobs:
           fi
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
-            TAGS="$TAGS,$REPO:$VERSION"
+            TAGS="$TAGS,$REPO:$VERSION,$REPO:stable"
           fi
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
 
@@ -63,5 +103,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/asvs-scanner:build-cache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/asvs-scanner:build-cache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
