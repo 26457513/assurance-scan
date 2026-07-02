@@ -7,3 +7,7 @@ reports/
 
 # Per-project scannerignore (copy .scannerignore.example into the target repo)
 .scannerignore
+
+# Python bytecode caches
+__pycache__/
+*.pyc

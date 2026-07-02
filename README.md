@@ -4,23 +4,37 @@ ASVS Scanner is a portable security scan and evidence bundle generator for appli
 
 The scanner is built around the **Application Security Verification Standard (ASVS)** — an OWASP standard that lists security requirements an application should satisfy. Automated checks produce the evidence they can; manual ASVS evidence remains visible and trackable alongside them. The tool is designed for repeatable assurance work, not as a magic compliance stamp.
 
+> **Image location placeholder:** commands below use `<dockerhub-user>/asvs-scanner`. Substitute your Docker Hub username or org name when you copy them.
+
 ## Quick Start
 
 ```bash
-cd /path/to/asvs-scanner
-chmod +x run-local.sh scripts/*.sh
-./run-local.sh /path/to/project
-open reports/$(ls -t reports | head -1)/dashboard.html
+# One-time per machine: authenticate + pull the image
+docker login
+docker pull <dockerhub-user>/asvs-scanner:latest
+
+# Scan a project
+cd /path/to/project
+git switch branch-to-scan
+docker run --rm -it \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$(dirname "$PWD"):$(dirname "$PWD")" \
+  -w "$PWD" \
+  <dockerhub-user>/asvs-scanner:latest scan "$PWD"
+
+# Open the dashboard (path is printed at the end of the scan)
+open "<worktree-path>/.asvs-scanner/runtime/reports/$(ls -t <worktree-path>/.asvs-scanner/runtime/reports | head -1)/dashboard.html"
 ```
 
-First run downloads scanner images and vulnerability databases (a few GB), so expect it to be slow. Subsequent runs reuse the cache.
+First scan in a project downloads vulnerability databases (Trivy / Grype / OSV), so expect it to be slower. Subsequent scans reuse the cache.
 
 ## Prerequisites
 
 - **Docker Desktop** (or `docker` + `docker compose`) running on the host. Every scanner executes in its own container.
-- **Internet access** on first run, to pull scanner images and seed Trivy / Grype / OSV / ClamAV databases. Later scans are offline-tolerant.
+- **Access to the image.** The image is private on Docker Hub, so each user needs credentials with read access. Run `docker login` once per machine.
+- **Internet access** on first run, to pull scanner images and seed vulnerability databases. Later scans are offline-tolerant.
 - **Disk:** budget ~5 GB for caches plus the size of any built scan images.
-- For target repos with uncommitted changes you want scanned: **commit or stash first.** The Docker scan path only copies committed files into the safe worktree (see below).
+- For target repos with uncommitted changes you want scanned: **commit or stash first.** The scanner creates a safe worktree from the current branch and only committed files end up in the scan.
 
 ## What It Produces
 
@@ -37,7 +51,16 @@ Each run creates a report directory containing:
 | `sbom/` | CycloneDX SBOMs |
 | `hashes/` | SHA-256 hashes for generated evidence |
 
-The location of the report directory depends on how you run the scanner — see [Two Ways To Run](#two-ways-to-run).
+The scanner creates a safe Git worktree beside your repo (sibling directory) and writes outputs inside it:
+
+```text
+<project-parent>/
+  your-project/                                              ← your repo, untouched
+  your-project-asvs-scan-<RUN_ID>/                           ← safe worktree (created by the scan)
+    .asvs-scanner/runtime/reports/<RUN_ID>/                  ← dashboard + all outputs
+```
+
+`<RUN_ID>` has the format `<UTCstamp>_<sha8>` (e.g. `20260702T104215Z_3e675e29`) — the same string the dashboard shows as "Run ID", so you can grep for it on disk.
 
 ## Scanner Coverage
 
@@ -53,50 +76,9 @@ The location of the report directory depends on how you run the scanner — see 
 
 When an optional surface is not supplied, its scanners are shown as `SKIPPED` in the dashboard with a reason.
 
-## Two Ways To Run
+## Running The Scanner
 
-There are two entry points. **They behave differently** — pick the one that matches your workflow.
-
-| | Option A: `run-local.sh` | Option B: Docker image (`asvs-scanner scan`) |
-|---|---|---|
-| Where it scans | Your target directory **in place** | A **safe Git worktree** created beside your repo |
-| Where reports land | `asvs-scanner/reports/<run-id>/` | `<worktree>/.asvs-scanner/runtime/reports/<run-id>/` |
-| Affects your working tree | No (read-only scan) | No (separate worktree and branch) |
-| Best for | Iterating on the scanner itself, quick local scans | Repeatable scans on a clean commit; sharing the image with colleagues |
-
-Both eventually invoke the same scanner containers, so coverage is identical — only the source-snapshot and report-location behavior differs.
-
-### Option A: `run-local.sh`
-
-Best for development or local modification of the scanner. Reports land inside this repo.
-
-```bash
-cd /path/to/asvs-scanner
-./run-local.sh /path/to/project
-```
-
-Optional surfaces:
-
-```bash
-./run-local.sh /path/to/project \
-  --image app:local \
-  --url http://host.docker.internal:3000 \
-  --uploads /path/to/upload-samples
-```
-
-Use `host.docker.internal` for apps running on the laptop, because the runtime scanners run inside Docker containers.
-
-### Option B: Docker image (`asvs-scanner scan`)
-
-Best for repeatable scans of a clean commit. Builds a distributable image once, then runs it against any checkout. The scanner creates a fresh branch and worktree from your currently checked-out branch, and scans that safe copy — your main checkout is untouched.
-
-Build the image (see [Distributable Image Builds](#distributable-image-builds) for multi-arch / tarball variants):
-
-```bash
-docker build -t asvs-scanner:latest .
-```
-
-Run a scan from inside the project you want to scan:
+The scanner creates a fresh branch and worktree from your currently checked-out branch, scans the safe copy, and writes outputs inside it. Your main checkout is untouched.
 
 ```bash
 cd /path/to/project
@@ -108,36 +90,33 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$(dirname "$PWD"):$(dirname "$PWD")" \
   -w "$PWD" \
-  asvs-scanner:latest scan "$PWD"
+  <dockerhub-user>/asvs-scanner:latest scan "$PWD"
 ```
 
-The scan creates a branch like `asvs/scan-1a2b3c4d` and a timestamped sibling worktree:
+### Common Variations
 
-```text
-../project-asvs-scan-20260702-104215Z-1a2b3c4d/
-  .asvs-scanner/runtime/reports/<run-id>/    ← dashboard.html and other outputs
-```
-
-**Why the mount incantation?** `"$(dirname "$PWD"):$(dirname "$PWD")"` mounts your project's **parent directory** at the same absolute path inside the scanner container. The scanner launches other Docker containers through the host Docker socket, and those sibling containers need host-visible paths for the safe worktree, scripts, reports, and upload samples. Mounting only `$PWD` would break the sibling-worktree creation.
-
-## Docker Workflow
-
-Once you have the image built, one subcommand covers the common cases: `scan`. It auto-discovers Dockerfiles, builds scan images, and runs the appropriate scanners. Use the flags to opt in to optional surfaces or to disable auto-build.
-
-### Decision Table
-
-| Your situation | Command |
+| Situation | Add to `scan "$PWD"` |
 |---|---|
-| Dockerfiles in standard locations, want everything | `scan "$PWD"` (auto-builds and scans images) |
-| Source-only scan | `scan "$PWD" --no-auto-build-images` |
-| Scan a specific prebuilt image | `scan "$PWD" --image app:tag` (disables auto-build) |
-| Scan a running local app | `scan "$PWD" --url http://host.docker.internal:3000` |
-| Full scan | `scan "$PWD" --image app:local --url https://staging.example.com --uploads "$PWD/sample-uploads"` |
-| Repo needs temporary Dockerfile/build changes | Run `safe-image-worktree` first (see below) |
+| Source-only scan (skip image scanners) | `--no-auto-build-images` |
+| Scan a specific prebuilt image | `--image app:tag` (disables auto-build) |
+| Scan a running local web app | `--url http://host.docker.internal:3000` |
+| Full scan | `--image app:local --url https://staging.example.com --uploads "$PWD/sample-uploads"` |
 
-### Automatic Image Discovery
+### Why the mount incantation?
 
-By default, `scan` looks for Dockerfiles in the safe worktree and builds scan images before running image scanners. Discovery checks:
+`"$(dirname "$PWD"):$(dirname "$PWD")"` mounts your project's **parent directory** at the same absolute path inside the scanner container. The scanner launches other Docker containers through the host Docker socket, and those sibling containers need host-visible paths for the safe worktree, scripts, reports, and upload samples. Mounting only `$PWD` would break the sibling-worktree creation.
+
+### Pulling updates
+
+`docker run` uses the local image cache and will not auto-pull newer versions. When you publish or pull a new `latest`, refresh explicitly:
+
+```bash
+docker pull <dockerhub-user>/asvs-scanner:latest
+```
+
+## Image Scan Workflow
+
+By default, `scan` looks for Dockerfiles in the safe worktree and builds scan images automatically before running image scanners. Discovery checks:
 
 - `Dockerfile`
 - `services/*/Dockerfile`
@@ -157,44 +136,11 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$(dirname "$PWD"):$(dirname "$PWD")" \
   -w "$PWD" \
-  asvs-scanner:latest safe-image-worktree "$PWD"           # auto branch name
-asvs-scanner:latest safe-image-worktree "$PWD" asvs/image-scan-my-check   # specific branch
+  <dockerhub-user>/asvs-scanner:latest safe-image-worktree "$PWD"                              # auto branch name
+  <dockerhub-user>/asvs-scanner:latest safe-image-worktree "$PWD" asvs/image-scan-my-check   # specific branch
 ```
 
-That prints the new worktree path and branch name. Then `cd` into it, add whatever temporary build files you need, and run the normal `scan` command from there.
-
-### Distributable Image Builds
-
-Build for the laptop you are on:
-
-```bash
-docker build -t asvs-scanner:latest .
-```
-
-Build for both Intel and ARM laptops:
-
-```bash
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t your-registry/asvs-scanner:latest \
-  --push .
-```
-
-For a local tarball handoff instead of a registry:
-
-```bash
-docker buildx build --platform linux/amd64 -t asvs-scanner:amd64 --load .
-docker save asvs-scanner:amd64 -o asvs-scanner-amd64.tar
-
-docker buildx build --platform linux/arm64 -t asvs-scanner:arm64 --load .
-docker save asvs-scanner:arm64 -o asvs-scanner-arm64.tar
-```
-
-Colleagues can load a tarball with:
-
-```bash
-docker load -i asvs-scanner-amd64.tar
-```
+That prints the new worktree path and branch name. Then `cd` into it, add whatever temporary build files you need, commit, and run the normal `scan` command from there.
 
 ## Scanner Databases
 
@@ -225,7 +171,7 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$PWD:$PWD" \
   -w "$PWD" \
-  asvs-scanner:latest prefetch
+  <dockerhub-user>/asvs-scanner:latest prefetch
 ```
 
 Or refresh selected databases:
@@ -235,7 +181,7 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$PWD:$PWD" \
   -w "$PWD" \
-  asvs-scanner:latest prefetch --only trivy,grype,osv,clamav
+  <dockerhub-user>/asvs-scanner:latest prefetch --only trivy,grype,osv,clamav
 ```
 
 ## Ignoring Source Paths
@@ -283,3 +229,68 @@ Configuration precedence is:
 3. `scanner-config.yaml`
 4. `.env`
 5. Built-in defaults
+
+## Publishing A New Version (Maintainers)
+
+The image is private on Docker Hub. Two paths:
+
+### Automatic (recommended)
+
+The `publish-image` GitHub Actions workflow (`.github/workflows/publish-image.yml`) rebuilds and pushes on every push to `main` (tags `latest` + short sha) and on every `v*` git tag (adds a version tag). Build cache lives in Docker Hub under the `:build-cache` tag to keep rebuilds fast.
+
+**Required GitHub secrets** (repo → Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub account with push access to the image repo |
+| `DOCKERHUB_TOKEN` | Personal access token (hub.docker.com → Account Settings → Security) |
+
+The image repo on Docker Hub must already exist (create it as private first).
+
+To cut a release: `git tag v1.2.3 && git push --tags` — the workflow publishes `<user>/asvs-scanner:1.2.3` plus a refresh of `:latest`.
+
+### Manual
+
+One-time setup on a maintainer machine:
+
+```bash
+docker buildx create --use --name asvs-builder   # enables multi-arch builds
+docker login                                     # Docker Hub username + access token
+```
+
+Build for both Intel and ARM, tag with `latest` plus a commit-stable sha, push in one go:
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t <dockerhub-user>/asvs-scanner:latest \
+  -t <dockerhub-user>/asvs-scanner:"$(git rev-parse --short=8 HEAD)" \
+  --push .
+```
+
+### Tarball handoff (airgapped machines)
+
+For airgapped machines or skipping the registry entirely:
+
+```bash
+docker buildx build --platform linux/amd64 -t <dockerhub-user>/asvs-scanner:amd64 --load .
+docker save <dockerhub-user>/asvs-scanner:amd64 -o asvs-scanner-amd64.tar
+
+docker buildx build --platform linux/arm64 -t <dockerhub-user>/asvs-scanner:arm64 --load .
+docker save <dockerhub-user>/asvs-scanner:arm64 -o asvs-scanner-arm64.tar
+```
+
+Colleagues load a tarball with:
+
+```bash
+docker load -i asvs-scanner-amd64.tar
+```
+
+### Granting pull access
+
+Docker Hub private images require each user to authenticate. Either:
+
+- Add colleagues as **collaborators** on the image repo (per-user, simplest for small teams), or
+- Move the image to a **Docker Hub org** and add a **team** with read access (better for groups, supports member turnover).
+
+Colleagues then run `docker login` once with their own Docker Hub creds to pull.
