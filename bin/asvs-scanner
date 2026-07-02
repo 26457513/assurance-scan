@@ -1,0 +1,568 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+IMAGE_BUNDLE_DIR="${ASVS_IMAGE_BUNDLE_DIR:-/opt/asvs-scanner}"
+
+if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
+  C_RESET=$'\033[0m'
+  C_DIM=$'\033[2m'
+  C_BOLD=$'\033[1m'
+  C_GREEN=$'\033[32m'
+  C_YELLOW=$'\033[33m'
+  C_RED=$'\033[31m'
+  C_CYAN=$'\033[36m'
+  C_BLUE=$'\033[34m'
+else
+  C_RESET=""
+  C_DIM=""
+  C_BOLD=""
+  C_GREEN=""
+  C_YELLOW=""
+  C_RED=""
+  C_CYAN=""
+  C_BLUE=""
+fi
+
+DIVIDER="────────────────────────────────────────────────────────────"
+
+wrapper_banner() {
+  printf '\n%s\n' "${C_CYAN}${C_BOLD}╭────────────────────────────────────────────╮${C_RESET}"
+  printf '%s\n' "${C_CYAN}${C_BOLD}│              ASVS Scanner                  │${C_RESET}"
+  printf '%s\n' "${C_CYAN}${C_BOLD}╰────────────────────────────────────────────╯${C_RESET}"
+  printf '%s\n\n' "${C_DIM}Application Security Verification Standard security scanner${C_RESET}"
+}
+
+wrapper_section() {
+  printf '\n%s\n' "${C_DIM}${DIVIDER}${C_RESET}"
+  printf '%s\n' "${C_BOLD}${C_BLUE}$*${C_RESET}"
+}
+
+wrapper_ok() {
+  printf '  %-28s %s%s%s\n' "$1" "$C_GREEN" "$2" "$C_RESET"
+}
+
+wrapper_warn() {
+  printf '  %-28s %s%s%s\n' "$1" "$C_YELLOW" "$2" "$C_RESET"
+}
+
+wrapper_info() {
+  printf '  %-28s %s%s%s\n' "$1" "$C_DIM" "$2" "$C_RESET"
+}
+
+format_seconds() {
+  local total="$1"
+  local mins secs
+  mins=$((total / 60))
+  secs=$((total % 60))
+  if [ "$mins" -gt 0 ]; then
+    printf '%dm %02ds' "$mins" "$secs"
+  else
+    printf '%ds' "$secs"
+  fi
+}
+
+usage() {
+  cat <<'USAGE'
+ASVS Scanner
+
+Usage:
+  asvs-scanner scan <host-project-dir> [--image <name>]... [--url <url>]... [--uploads <host-dir>]... [--no-auto-build-images]
+  asvs-scanner safe-image-worktree <host-project-dir> [branch-name]
+  asvs-scanner prefetch [--only trivy,grype,osv,clamav]
+  asvs-scanner help
+
+Docker image example:
+  docker run --rm -it \
+    -e ASVS_IMAGE_BUILD_PARALLELISM=2 \
+    -e ASVS_PARALLELISM=4 \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "$(dirname "$PWD"):$(dirname "$PWD")" \
+    -w "$PWD" \
+    asvs-scanner:latest scan "$PWD"
+
+Mount the parent directory at the same absolute path inside the container. The
+scanner creates a fresh ASVS Git worktree beside the repo and scans that copy.
+Reports are written to the safe worktree under .asvs-scanner/runtime/reports.
+
+When no --image flags are supplied, scan automatically builds images from
+Dockerfiles found in the safe worktree and scans those images too.
+Built scan images are tagged by source commit and reused on later scans of the
+same commit. Set ASVS_FORCE_IMAGE_BUILD=1 to rebuild them.
+Image builds run in parallel by default with ASVS_IMAGE_BUILD_PARALLELISM=2.
+
+Scanner containers run concurrently by default. Set ASVS_PARALLELISM=1 for
+sequential troubleshooting, or raise it on machines with more CPU/RAM.
+
+Scanner databases are cached in Docker named volumes and refresh at most once
+every 24 hours during normal scans. Set ASVS_DB_REFRESH_TTL_HOURS=0 to refresh
+every run, or run "asvs-scanner prefetch" to force a refresh.
+
+For repos that need temporary Dockerfile/build changes before image scanning,
+safe-image-worktree creates a separate Git worktree and branch without
+switching the main checkout.
+USAGE
+}
+
+die() {
+  echo "ERROR: $*" >&2
+  exit 2
+}
+
+to_abs_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "$PWD" "$1" ;;
+  esac
+}
+
+ensure_runtime() {
+  local runtime_dir="${ASVS_WORKDIR:-$PWD/.asvs-scanner/runtime}"
+  mkdir -p "$runtime_dir"
+  (
+    cd "$IMAGE_BUNDLE_DIR"
+    tar \
+      --exclude='./.git' \
+      --exclude='./.asvs-scanner' \
+      --exclude='./reports' \
+      --exclude='./scripts/__pycache__' \
+      -cf - .
+  ) | (
+    cd "$runtime_dir"
+    tar -xf -
+  )
+  chmod +x "$runtime_dir/run-local.sh" "$runtime_dir"/scripts/*.sh "$runtime_dir"/bin/asvs-scanner 2>/dev/null || true
+  printf '%s\n' "$runtime_dir"
+}
+
+create_source_snapshot() {
+  local worktree_dir="$1"
+  local snapshot_dir="$worktree_dir/.asvs-scanner/source-snapshot"
+  mkdir -p "$(dirname "$snapshot_dir")"
+  rm -rf "$snapshot_dir"
+  mkdir -p "$snapshot_dir"
+  (
+    cd "$worktree_dir"
+    tar \
+      --exclude='./.git' \
+      --exclude='./.asvs-scanner' \
+      -cf - .
+  ) | (
+    cd "$snapshot_dir"
+    tar -xf -
+  )
+  printf '%s\n' "$snapshot_dir"
+}
+
+safe_image_worktree() {
+  local target_dir="$1"
+  local requested_branch="${2:-}"
+  create_safe_worktree "$target_dir" "image-scan" "$requested_branch"
+
+  wrapper_section "Safe image-build worktree"
+  wrapper_ok "source repo" "$SAFE_REPO_ROOT"
+  wrapper_ok "base ref" "$SAFE_CURRENT_REF"
+  wrapper_ok "branch" "$SAFE_BRANCH"
+  wrapper_ok "worktree" "$SAFE_WORKTREE_DIR"
+  echo ""
+  printf '%s\n' "${C_CYAN}${C_BOLD}Next command:${C_RESET}"
+  printf '  cd "%s"\n' "$SAFE_WORKTREE_DIR"
+  printf '  docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock -v "$(dirname "$PWD"):$(dirname "$PWD")" -w "$PWD" asvs-scanner:latest scan "$PWD"\n'
+}
+
+create_safe_worktree() {
+  local target_dir="$1"
+  local scan_kind="$2"
+  local requested_branch="${3:-}"
+
+  [ -d "$target_dir" ] || die "target directory is not visible: $target_dir"
+  git -C "$target_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "target is not a Git worktree: $target_dir"
+
+  local repo_root
+  repo_root="$(git -C "$target_dir" rev-parse --show-toplevel)"
+
+  local current_ref
+  current_ref="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'HEAD')"
+  if [ "$current_ref" = "HEAD" ]; then
+    current_ref="$(git -C "$repo_root" rev-parse --short HEAD)"
+  fi
+
+  local nonce branch worktree_parent repo_name worktree_dir sha8
+  nonce="$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
+  sha8="$(git -C "$repo_root" rev-parse --short=8 HEAD 2>/dev/null || printf '%s' "$nonce")"
+  RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)_${sha8}"
+  export RUN_ID
+  repo_name="$(basename "$repo_root")"
+  if [ -n "$requested_branch" ]; then
+    branch="$requested_branch"
+  elif [ "$scan_kind" = "image-scan" ]; then
+    branch="asvs/image-scan-$nonce"
+  else
+    branch="asvs/scan-$nonce"
+  fi
+  worktree_parent="$(dirname "$repo_root")"
+  if [ "$scan_kind" = "image-scan" ]; then
+    worktree_dir="${ASVS_IMAGE_WORKTREE_DIR:-$worktree_parent/${repo_name}-asvs-image-scan-$RUN_ID}"
+  else
+    worktree_dir="${ASVS_SCAN_WORKTREE_DIR:-$worktree_parent/${repo_name}-asvs-scan-$RUN_ID}"
+  fi
+
+  [ ! -e "$worktree_dir" ] || die "worktree path already exists: $worktree_dir"
+  if git -C "$repo_root" show-ref --verify --quiet "refs/heads/$branch"; then
+    die "branch already exists: $branch"
+  fi
+
+  if [ -n "$(git -C "$repo_root" status --porcelain)" ]; then
+    wrapper_section "Source state"
+    wrapper_warn "uncommitted changes" "not included"
+    wrapper_info "advice" "commit or stash changes that should be scanned"
+  fi
+
+  wrapper_section "Preparing safe scan branch"
+  if git -C "$repo_root" worktree add --quiet -b "$branch" "$worktree_dir" HEAD >/dev/null 2>&1; then
+    wrapper_ok "branch" "$branch"
+    wrapper_ok "worktree" "$worktree_dir"
+  else
+    die "failed to create safe worktree at $worktree_dir"
+  fi
+
+  SAFE_REPO_ROOT="$repo_root"
+  SAFE_CURRENT_REF="$current_ref"
+  SAFE_BRANCH="$branch"
+  SAFE_WORKTREE_DIR="$worktree_dir"
+  SAFE_REPO_NAME="$repo_name"
+  SAFE_NONCE="$nonce"
+  SAFE_COMMIT="$(git -C "$worktree_dir" rev-parse --short=12 HEAD 2>/dev/null || printf '%s' "$nonce")"
+}
+
+sanitize_tag_part() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9_.-]+/-/g; s/^-+//; s/-+$//; s/-+/-/g'
+}
+
+dockerfile_for_build() {
+  local dockerfile="$1"
+  local context="$2"
+  local component="$3"
+  local build_root="$4"
+  local generated_dir generated_dockerfile
+
+  if grep -Eq '^[[:space:]]*COPY[[:space:]]+dist[[:space:]]+' "$dockerfile" \
+    && [ ! -d "$context/dist" ] \
+    && [ -f "$context/package.json" ] \
+    && grep -q '"build:prod"' "$context/package.json"; then
+    generated_dir="$build_root/generated-dockerfiles"
+    generated_dockerfile="$generated_dir/$(sanitize_tag_part "$component").Dockerfile"
+    mkdir -p "$generated_dir"
+    cat > "$generated_dockerfile" <<'DOCKERFILE'
+FROM node:20.12.2-alpine3.19 AS build
+
+WORKDIR /app
+
+RUN apk add --no-cache \
+  python3 \
+  make \
+  g++ \
+  cairo-dev \
+  pango-dev \
+  jpeg-dev \
+  giflib-dev \
+  pixman-dev \
+  librsvg-dev \
+  chromium \
+  nss \
+  freetype \
+  harfbuzz \
+  ca-certificates \
+  ttf-freefont
+
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+COPY package.json package-lock.json* ./
+RUN npm install
+COPY . .
+RUN npm run build:prod
+
+FROM node:20.12.2-alpine3.19
+
+WORKDIR /app
+
+RUN apk add --no-cache \
+  python3 \
+  make \
+  g++ \
+  cairo-dev \
+  pango-dev \
+  jpeg-dev \
+  giflib-dev \
+  pixman-dev \
+  librsvg-dev \
+  chromium \
+  nss \
+  freetype \
+  harfbuzz \
+  ca-certificates \
+  ttf-freefont
+
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+COPY --from=build /app/dist/package.json ./
+RUN rm -rf node_modules
+RUN npm install && npm cache clean --force
+COPY --from=build /app/dist .
+
+CMD [ "node", "dist/bundle.js" ]
+DOCKERFILE
+    printf '%s\n' "$generated_dockerfile"
+  else
+    printf '%s\n' "$dockerfile"
+  fi
+}
+
+auto_build_images() {
+  local worktree_dir="$1"
+  local repo_name="$2"
+  local nonce="$3"
+  local build_root="$worktree_dir/.asvs-scanner"
+  local build_log="$build_root/image-build.log"
+  local jobs_dir="$build_root/image-build-jobs"
+  local dockerfiles=()
+  local base_dir dockerfile build_dockerfile context rel component tag builds_started_at image_key
+  local build_parallelism job_index job_id
+
+  builds_started_at="$(date +%s)"
+  AUTO_IMAGE_BUILD_SECONDS=0
+  build_parallelism="${ASVS_IMAGE_BUILD_PARALLELISM:-2}"
+  if ! [[ "$build_parallelism" =~ ^[0-9]+$ ]] || [ "$build_parallelism" -lt 1 ]; then
+    build_parallelism=1
+  fi
+  image_key="${ASVS_IMAGE_CACHE_KEY:-$(git -C "$worktree_dir" rev-parse --short=12 HEAD 2>/dev/null || printf '%s' "$nonce")}"
+  mkdir -p "$build_root" "$jobs_dir"
+  : > "$build_log"
+
+  if [ -f "$worktree_dir/Dockerfile" ]; then
+    dockerfiles+=("$worktree_dir/Dockerfile")
+  fi
+
+  for base_dir in services apps packages; do
+    if [ -d "$worktree_dir/$base_dir" ]; then
+      while IFS= read -r dockerfile; do
+        dockerfiles+=("$dockerfile")
+      done < <(find "$worktree_dir/$base_dir" -mindepth 2 -maxdepth 2 -type f -name 'Dockerfile' | sort)
+    fi
+  done
+
+  if [ ${#dockerfiles[@]} -eq 0 ]; then
+    wrapper_section "Image build"
+    wrapper_warn "dockerfiles" "none found; image scanners skipped"
+    return 0
+  fi
+
+  wrapper_section "Image build"
+  wrapper_ok "dockerfiles" "${#dockerfiles[@]} discovered"
+  wrapper_info "parallelism" "$build_parallelism"
+  printf '%s\n' "${C_DIM}  Log: $build_log${C_RESET}"
+  AUTO_IMAGE_ARGS=()
+  IMAGE_JOB_IDS=()
+  IMAGE_JOB_RELS=()
+  IMAGE_JOB_TAGS=()
+
+  build_image_job() {
+    local job_id="$1"
+    local rel="$2"
+    local build_dockerfile="$3"
+    local tag="$4"
+    local context="$5"
+    local job_log="$jobs_dir/$job_id.log"
+    local job_rc="$jobs_dir/$job_id.rc"
+    local job_seconds="$jobs_dir/$job_id.seconds"
+    local started_at elapsed rc
+
+    {
+      if [ "$build_dockerfile" != "$context/Dockerfile" ]; then
+        echo "==> generated scan Dockerfile: $build_dockerfile"
+      fi
+      echo "==> docker build -f $build_dockerfile -t $tag $context"
+    } > "$job_log"
+
+    started_at="$(date +%s)"
+    docker build -f "$build_dockerfile" -t "$tag" "$context" >> "$job_log" 2>&1
+    rc=$?
+    elapsed=$(( $(date +%s) - started_at ))
+    printf '%s\n' "$rc" > "$job_rc"
+    printf '%s\n' "$elapsed" > "$job_seconds"
+  }
+
+  job_index=0
+  for dockerfile in "${dockerfiles[@]}"; do
+    context="$(dirname "$dockerfile")"
+    rel="${context#$worktree_dir/}"
+    if [ "$context" = "$worktree_dir" ]; then
+      component="app"
+    else
+      component="$(basename "$context")"
+    fi
+    tag="$(sanitize_tag_part "$repo_name-$component"):asvs-v2-$image_key"
+    build_dockerfile="$(dockerfile_for_build "$dockerfile" "$context" "$component" "$build_root")"
+
+    if [ "${ASVS_FORCE_IMAGE_BUILD:-0}" != "1" ] && docker image inspect "$tag" >/dev/null 2>&1; then
+      wrapper_ok "$rel" "$tag (cached)"
+      AUTO_IMAGE_ARGS+=("--image" "$tag")
+      continue
+    fi
+
+    job_index=$((job_index + 1))
+    job_id="$(printf '%03d' "$job_index")"
+    IMAGE_JOB_IDS+=("$job_id")
+    IMAGE_JOB_RELS+=("$rel")
+    IMAGE_JOB_TAGS+=("$tag")
+    while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$build_parallelism" ]; do
+      wait -n 2>/dev/null || true
+    done
+    printf '  %-28s %sbuilding%s\n' "$rel" "$C_YELLOW" "$C_RESET"
+    build_image_job "$job_id" "$rel" "$build_dockerfile" "$tag" "$context" &
+  done
+
+  while [ "$(jobs -pr | wc -l | tr -d ' ')" -gt 0 ]; do
+    sleep 20
+    for i in "${!IMAGE_JOB_IDS[@]}"; do
+      job_id="${IMAGE_JOB_IDS[$i]}"
+      rel="${IMAGE_JOB_RELS[$i]}"
+      if [ ! -f "$jobs_dir/$job_id.rc" ]; then
+        latest_line="$(tail -1 "$jobs_dir/$job_id.log" 2>/dev/null | cut -c1-76)"
+        printf '  %-28s %sbuilding%s %s%s\n' "$rel" "$C_DIM" "$C_RESET" "$C_DIM" "$latest_line"
+      fi
+    done
+    wait -n 2>/dev/null || true
+  done
+
+  for i in "${!IMAGE_JOB_IDS[@]}"; do
+    job_id="${IMAGE_JOB_IDS[$i]}"
+    rel="${IMAGE_JOB_RELS[$i]}"
+    tag="${IMAGE_JOB_TAGS[$i]}"
+    {
+      echo ""
+      cat "$jobs_dir/$job_id.log" 2>/dev/null || true
+    } >> "$build_log"
+    rc="$(cat "$jobs_dir/$job_id.rc" 2>/dev/null || printf '1')"
+    build_elapsed="$(cat "$jobs_dir/$job_id.seconds" 2>/dev/null || printf '0')"
+    if [ "$rc" -eq 0 ]; then
+      wrapper_ok "$rel" "$tag"
+      printf '  %-28s %s%s%s\n' "$rel build time" "$C_DIM" "$(format_seconds "$build_elapsed")" "$C_RESET"
+      AUTO_IMAGE_ARGS+=("--image" "$tag")
+    else
+      printf '  %-28s %sfailed%s\n' "$rel" "$C_RED" "$C_RESET"
+      echo ""
+      echo "Image build failed for: $rel"
+      echo "Log: $jobs_dir/$job_id.log"
+      echo ""
+      tail -40 "$jobs_dir/$job_id.log" || true
+      exit 1
+    fi
+  done
+  AUTO_IMAGE_BUILD_SECONDS=$(( $(date +%s) - builds_started_at ))
+}
+
+if [ "${1:-}" = "" ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
+  usage
+  exit 0
+fi
+
+cmd="$1"
+shift
+
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-asvs-scanner}"
+
+case "$cmd" in
+  scan)
+    [ "${1:-}" != "" ] || die "scan requires a host project directory"
+    export ASVS_RUN_START_EPOCH="${ASVS_RUN_START_EPOCH:-$(date +%s)}"
+    wrapper_banner
+    target_dir="$(to_abs_path "$1")"
+    shift
+    [ -d "$target_dir" ] || die "target directory is not visible inside the container: $target_dir
+
+Mount it at the same absolute path, for example:
+  docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock -v \"\$(dirname \"\$PWD\"):\$(dirname \"\$PWD\")\" -w \"\$PWD\" asvs-scanner:latest scan \"\$PWD\""
+
+    rewritten_args=()
+    explicit_image_count=0
+    auto_build_images_enabled=1
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --image)
+          [ "${2:-}" != "" ] || die "--image requires an image name"
+          explicit_image_count=$((explicit_image_count + 1))
+          rewritten_args+=("--image" "$2")
+          shift 2
+          ;;
+        --uploads)
+          [ "${2:-}" != "" ] || die "--uploads requires a directory"
+          rewritten_args+=("--uploads" "$(to_abs_path "$2")")
+          shift 2
+          ;;
+        --no-auto-build-images)
+          auto_build_images_enabled=0
+          shift
+          ;;
+        *)
+          rewritten_args+=("$1")
+          shift
+          ;;
+      esac
+    done
+
+    create_safe_worktree "$target_dir" "scan" ""
+    wrapper_section "Scan context"
+    wrapper_ok "source repo" "$SAFE_REPO_ROOT"
+    wrapper_ok "base ref" "$SAFE_CURRENT_REF"
+    wrapper_ok "commit" "$SAFE_COMMIT"
+
+    scan_source_dir="$(create_source_snapshot "$SAFE_WORKTREE_DIR")"
+    wrapper_ok "source snapshot" "$scan_source_dir"
+
+    if [ "$explicit_image_count" -eq 0 ] && [ "$auto_build_images_enabled" -eq 1 ]; then
+      auto_build_images "$SAFE_WORKTREE_DIR" "$SAFE_REPO_NAME" "$SAFE_NONCE"
+      export ASVS_IMAGE_BUILD_SECONDS="${AUTO_IMAGE_BUILD_SECONDS:-0}"
+      if [ ${#AUTO_IMAGE_ARGS[@]} -gt 0 ]; then
+        rewritten_args+=("${AUTO_IMAGE_ARGS[@]}")
+        echo ""
+      fi
+    elif [ "$explicit_image_count" -gt 0 ]; then
+      wrapper_section "Image build"
+      wrapper_ok "mode" "using explicit --image tag(s)"
+      export ASVS_IMAGE_BUILD_SECONDS=0
+    else
+      wrapper_section "Image build"
+      wrapper_warn "mode" "skipped by --no-auto-build-images"
+      export ASVS_IMAGE_BUILD_SECONDS=0
+    fi
+
+    export ASVS_WORKDIR="$SAFE_WORKTREE_DIR/.asvs-scanner/runtime"
+    export SCAN_SOURCE_DIR="$scan_source_dir"
+    export ASVS_REPOSITORY_NAME="$SAFE_REPO_NAME"
+    export ASVS_ORIGINAL_BRANCH="$SAFE_CURRENT_REF"
+    export ASVS_SAFE_SCAN_BRANCH="$SAFE_BRANCH"
+    export ASVS_SOURCE_REPO="$SAFE_REPO_ROOT"
+    export ASVS_IMAGE_CACHE_KEY="$SAFE_COMMIT"
+    export ASVS_BANNER_SHOWN=1
+    runtime_dir="$(ensure_runtime)"
+    exec "$runtime_dir/run-local.sh" "$SAFE_WORKTREE_DIR" "${rewritten_args[@]}"
+    ;;
+  safe-image-worktree)
+    [ "${1:-}" != "" ] || die "safe-image-worktree requires a host project directory"
+    target_dir="$(to_abs_path "$1")"
+    shift
+    branch_name="${1:-}"
+    safe_image_worktree "$target_dir" "$branch_name"
+    ;;
+  prefetch)
+    runtime_dir="$(ensure_runtime)"
+    exec "$runtime_dir/run-local.sh" prefetch "$@"
+    ;;
+  *)
+    die "unknown command: $cmd"
+    ;;
+esac

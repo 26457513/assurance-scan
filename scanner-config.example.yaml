@@ -1,0 +1,18 @@
+# ASVS Scanner — configuration
+#
+# Copy this file to scanner-config.yaml and fill in your keys.
+# Precedence: command-line flags > environment variables > scanner-config.yaml > defaults.
+# Missing optional configuration NEVER fails the run; it falls back to WARNING/INFO.
+#
+# v4 no longer requires an NVD API key — dependency-check was replaced by
+# osv-scanner, which uses OSV.dev (no key, no rate limit).
+
+# Optional tokens — most users do not need these for local scans.
+github_token: ""
+trivy_token: ""
+semgrep_app_token: ""
+zap_api_key: ""
+
+# Per-scanner timeout in seconds (used as a fallback; some scanners like ZAP
+# also enforce their own internal timeout via flags).
+scanner_timeout_default: 600

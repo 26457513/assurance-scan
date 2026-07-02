@@ -1,0 +1,53 @@
+# Tapestry Security Scanner — ignore patterns
+#
+# Copy to .scannerignore at the project root to customise.
+#
+# Format:
+#   - One glob pattern per line
+#   - # starts a comment
+#   - Blank lines ignored
+#   - Patterns are matched against file paths in scanner output
+#   - Use ** for multi-segment matching (e.g. **/fixtures/**)
+#
+# Scope: applies to SOURCE and CONFIG scanners (semgrep, trivy-config, gitleaks).
+# It does NOT apply to DEPENDENCY scanners (trivy-fs, syft, grype) — those need
+# full filesystem coverage to detect vulnerable dependencies in node_modules etc.
+
+# --- Standard build artifacts and dependency dirs --------------------------
+node_modules/
+dist/
+build/
+.next/
+.cache/
+coverage/
+out/
+target/
+tmp/
+
+# --- Generated/vendored code -----------------------------------------------
+vendor/
+third_party/
+*.min.js
+*.min.css
+*.bundle.js
+
+# --- Test fixtures with fake secrets/data ---------------------------------
+test/fixtures/
+tests/fixtures/
+**/__fixtures__/
+**/fixtures/**
+
+# --- Migration seed data ---------------------------------------------------
+migrations/seed/
+seeders/
+
+# --- Scanner's own output (avoid recursive scans) -------------------------
+reports/
+
+# --- Lockfile defaults are kept; uncomment to skip -------------------------
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# --- Environment templates are KEPT by default (real .env files are too) --
+# .env.example

@@ -1,0 +1,8 @@
+.git
+.asvs-scanner
+reports
+**/__pycache__
+*.pyc
+.env
+scanner-config.yaml
+.DS_Store

@@ -1,0 +1,9 @@
+# Local secrets — never commit
+.env
+scanner-config.yaml
+
+# Scanner output
+reports/
+
+# Per-project scannerignore (copy .scannerignore.example into the target repo)
+.scannerignore

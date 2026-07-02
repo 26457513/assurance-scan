@@ -1,0 +1,251 @@
+# ---------------------------------------------------------------------------
+# ASVS Scanner — Compose
+#
+# Two profiles:
+#   - default: scan services (use via `./run-local.sh <target>`)
+#   - prefetch: one-time DB pre-download (use via `./run-local.sh prefetch`)
+#
+# All scan-time services skip mid-run DB updates. Run `prefetch` first to
+# populate the named volumes; subsequent scans are offline-tolerant.
+# ---------------------------------------------------------------------------
+
+services:
+
+  # ==========================================================================
+  # Level 1 — Local codebase assurance (always run)
+  # ==========================================================================
+
+  semgrep:
+    image: semgrep/semgrep:latest
+    volumes:
+      - ${SCAN_SOURCE_DIR:?SCAN_SOURCE_DIR is required}:/src:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+    working_dir: /src
+    command: >
+      semgrep scan
+      --config auto
+      --sarif
+      --output /reports/semgrep.sarif
+      /src
+
+  gitleaks:
+    image: zricethezav/gitleaks:latest
+    volumes:
+      - ${SCAN_SOURCE_DIR:?SCAN_SOURCE_DIR is required}:/src:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+    working_dir: /src
+    command: >
+      detect
+      --source /src
+      --report-format json
+      --report-path /reports/gitleaks.json
+      --no-banner
+      --no-git
+
+  trivy-fs:
+    image: aquasec/trivy:latest
+    volumes:
+      - ${SCAN_SOURCE_DIR:?SCAN_SOURCE_DIR is required}:/src:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+      - trivy-cache:/root/.cache/
+    command: >
+      fs
+      --skip-db-update
+      --scanners ${TRIVY_FS_SCANNERS:-vuln}
+      --format json
+      --output /reports/trivy-fs.json
+      /src
+
+  trivy-config:
+    image: aquasec/trivy:latest
+    volumes:
+      - ${SCAN_SOURCE_DIR:?SCAN_SOURCE_DIR is required}:/src:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+      - trivy-cache:/root/.cache/
+    command: >
+      config
+      --skip-check-update
+      --format json
+      --output /reports/trivy-config.json
+      /src
+
+  syft:
+    image: anchore/syft:latest
+    volumes:
+      - ${SCAN_SOURCE_DIR:?SCAN_SOURCE_DIR is required}:/src:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/sbom:/reports
+    command: >
+      /src
+      -o cyclonedx-json=/reports/sbom.cyclonedx.json
+
+  grype:
+    image: anchore/grype:latest
+    environment:
+      GRYPE_DB_AUTO_UPDATE: "false"
+      TMPDIR: /worktmp
+    volumes:
+      - ${SCAN_SOURCE_DIR:?SCAN_SOURCE_DIR is required}:/src:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+      - ./reports/${RUN_ID:?RUN_ID is required}/tmp:/worktmp
+      - grype-db:/.cache/grype
+    command: >
+      dir:/src
+      -o json
+      --file /reports/grype.json
+
+  osv-scanner:
+    image: ghcr.io/google/osv-scanner:latest
+    volumes:
+      - ${SCAN_SOURCE_DIR:?SCAN_SOURCE_DIR is required}:/src:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+      - osv-scanner-db:/root/.cache/osv-scanner
+    working_dir: /src
+    command: >
+      scan source
+      --offline-vulnerabilities
+      --recursive
+      --format json
+      --output-file /reports/osv-scanner.json
+      /src
+
+  # ==========================================================================
+  # Level 2 — Runtime assurance (conditional, flag-driven)
+  # ==========================================================================
+
+  trivy-image:
+    image: aquasec/trivy:latest
+    volumes:
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+      - trivy-cache:/root/.cache/
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      image
+      --skip-db-update
+      --scanners ${TRIVY_IMAGE_SCANNERS:-vuln}
+      --format json
+      --output /reports/trivy-image${OUTPUT_SUFFIX:-}.json
+      ${IMAGE_NAME:-}
+
+  syft-image:
+    image: anchore/syft:latest
+    environment:
+      TMPDIR: /worktmp
+    volumes:
+      - ./reports/${RUN_ID:?RUN_ID is required}/sbom:/reports
+      - ./reports/${RUN_ID:?RUN_ID is required}/tmp:/worktmp
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      ${IMAGE_NAME:-}
+      -o cyclonedx-json=/reports/image-sbom${OUTPUT_SUFFIX:-}.cyclonedx.json
+
+  grype-image:
+    image: anchore/grype:latest
+    environment:
+      GRYPE_DB_AUTO_UPDATE: "false"
+      TMPDIR: /worktmp
+    volumes:
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+      - ./reports/${RUN_ID:?RUN_ID is required}/tmp:/worktmp
+      - grype-db:/.cache/grype
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      ${IMAGE_NAME:-}
+      -o json
+      --file /reports/grype-image${OUTPUT_SUFFIX:-}.json
+
+  zap-baseline:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/zap/wrk
+    command: >
+      zap-baseline.py
+      -t ${TARGET_URL:-}
+      -J zap-baseline${OUTPUT_SUFFIX:-}.json
+      -T 10
+      -I
+
+  testssl:
+    image: drwetter/testssl:latest
+    platform: linux/amd64
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+    entrypoint: sh
+    command: >
+      -c "/testssl.sh/testssl.sh --json --warnings OFF --color 0 ${TARGET_URL:-} > /reports/testssl${OUTPUT_SUFFIX:-}.jsonl 2> /reports/testssl${OUTPUT_SUFFIX:-}.txt || true"
+
+  clamav:
+    image: clamav/clamav:latest
+    platform: linux/amd64
+    volumes:
+      - ${UPLOADS_DIR:-/tmp/empty}:/uploads:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+      - clamav-db:/var/lib/clamav
+    entrypoint: sh
+    command: >
+      -c "clamscan -r --infected /uploads > /reports/clamav${OUTPUT_SUFFIX:-}.txt || true"
+
+  security-headers:
+    image: python:3.12-slim
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
+    command: >
+      python3 /scripts/security-headers.py
+      --url ${TARGET_URL:-}
+      --output /reports/security-headers${OUTPUT_SUFFIX:-}.json
+
+  # ==========================================================================
+  # Prefetch profile — one-time DB pre-download
+  # ==========================================================================
+
+  prefetch-trivy:
+    image: aquasec/trivy:latest
+    profiles: ["prefetch"]
+    volumes:
+      - trivy-cache:/root/.cache/
+    # --download-db-only is a subcommand flag, not global
+    command: ["image", "--download-db-only"]
+
+  prefetch-grype:
+    image: anchore/grype:latest
+    profiles: ["prefetch"]
+    volumes:
+      - grype-db:/.cache/grype
+    command: ["db", "update"]
+
+  prefetch-osv:
+    image: ghcr.io/google/osv-scanner:latest
+    profiles: ["prefetch"]
+    volumes:
+      - osv-scanner-db:/root/.cache/osv-scanner
+    # Image entrypoint is /osv-scanner. /tmp always exists; the scan finds
+    # nothing but the --download-offline-databases flag seeds the DB first.
+    command:
+      - scan
+      - source
+      - --download-offline-databases
+      - --offline-vulnerabilities
+      - --recursive
+      - --allow-no-lockfiles
+      - /tmp
+
+  prefetch-clamav:
+    image: clamav/clamav:latest
+    platform: linux/amd64
+    profiles: ["prefetch"]
+    volumes:
+      - clamav-db:/var/lib/clamav
+    entrypoint: freshclam
+    command: ["--stdout"]
+
+volumes:
+  trivy-cache:
+  grype-db:
+  osv-scanner-db:
+  clamav-db:
