@@ -289,6 +289,10 @@ def _chapter_title(chapter: str) -> str:
 def call_claude(system: str, user: str, model: str, dry_run: bool) -> dict:
     """Call Claude with the given prompts and return the parsed JSON response.
 
+    Honors both standard API key auth (ANTHROPIC_API_KEY) and bearer token
+    auth (ANTHROPIC_AUTH_TOKEN, used by Claude Code and proxies like z.ai).
+    Also honors ANTHROPIC_BASE_URL for routing through proxies.
+
     In dry-run mode, prints the prompts and returns an empty response without
     making an API call.
     """
@@ -308,13 +312,18 @@ def call_claude(system: str, user: str, model: str, dry_run: bool) -> dict:
             "anthropic is not installed. Run: pip install -r requirements-mapping.txt"
         ) from exc
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
+    # Let the SDK pick up auth from env vars. Don't pass api_key/auth_token
+    # explicitly so the right header type is used:
+    #   ANTHROPIC_API_KEY   -> x-api-key header (standard Anthropic API)
+    #   ANTHROPIC_AUTH_TOKEN -> Authorization: Bearer header (Claude Code, z.ai)
+    # The SDK honours ANTHROPIC_BASE_URL for proxy routing automatically.
+    if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
         raise RuntimeError(
-            "ANTHROPIC_API_KEY is not set. Export it before running the generator."
+            "No Anthropic auth found. Set ANTHROPIC_API_KEY (standard) or "
+            "ANTHROPIC_AUTH_TOKEN (Claude Code / proxy) before running."
         )
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.Anthropic()  # picks up auth + base_url from env
     message = client.messages.create(
         model=model,
         max_tokens=8192,
@@ -550,10 +559,10 @@ def main() -> int:
             print(f"\n== {chapter} × {scanner} ==", file=sys.stderr)
             if scanner in CATALOGUED_SCANNERS and scanner_rules_cache.get(scanner):
                 rules = list(scanner_rules_cache[scanner].values())
-                # Skip LLM call if no API key (unless --dry-run, which already skips).
-                api_key = os.environ.get("ANTHROPIC_API_KEY")
-                if not api_key and not args.dry_run:
-                    print(f"  no ANTHROPIC_API_KEY — skipping LLM call, emitting zero mappings for {scanner}", file=sys.stderr)
+                # Skip LLM call if no auth env var (unless --dry-run, which already skips).
+                has_auth = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
+                if not has_auth and not args.dry_run:
+                    print(f"  no ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN — skipping LLM call for {scanner}", file=sys.stderr)
                     mappings = []
                 else:
                     system = SYSTEM_PROMPT

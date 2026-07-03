@@ -1,6 +1,6 @@
 version: 1
 asvs_version: 5.0.0
-generated_at: '2026-07-03T07:49:14Z'
+generated_at: '2026-07-03T08:48:23Z'
 requirements:
   v5.0.0-1.2.1:
     scanners:
@@ -656,6 +656,32 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.1.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Compromised dependencies can exfiltrate or alter sensitive data identified per V14.1.1. CVE-* is a weak
+          signal — presence of CVEs doesn't directly verify classification, but absence reduces one risk class.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
+      gitleaks:
+      - asvs_id: v5.0.0-14.1.1
+        rule_id: '*api-key*'
+        confidence: low
+        reasoning: Gitleaks API-key rules detect one category of sensitive data (API keys). V14.1.1 requires identification/classification
+          of ALL sensitive data — gitleaks is a partial signal.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.1.1
+        rule_id: '*private-key*'
+        confidence: low
+        reasoning: Gitleaks private-key rules detect one category of sensitive data. Partial signal for V14.1.1 classification.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
     chapter: V14
     section: V14.1
     level: L2
@@ -691,6 +717,16 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.1.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: V14.1.2 requires documented protection requirements per data class. Dependency CVEs don't verify documentation,
+          but unpatched high-severity CVEs undermine any protection requirement.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
     chapter: V14
     section: V14.1
     level: L2
@@ -726,6 +762,16 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.2.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: V14.2.1 requires sensitive data only in HTTP body/headers. CVEs in HTTP libraries (e.g. request smuggling)
+          can leak URL params; presence of CVEs is weak signal.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
     chapter: V14
     section: V14.2
     level: L1
@@ -761,6 +807,15 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.2.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: V14.2.2 requires no caching of sensitive data. CVEs in caching layers can leak cached data; weak signal.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
     chapter: V14
     section: V14.2
     level: L2
@@ -796,6 +851,16 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.2.3
+        rule_id: CVE-*
+        confidence: low
+        reasoning: V14.2.3 requires no sensitive data to untrusted parties. CVEs in analytics/tracking SDKs could exfiltrate;
+          weak signal.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
     chapter: V14
     section: V14.2
     level: L2
@@ -831,6 +896,16 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.2.4
+        rule_id: CVE-*
+        confidence: low
+        reasoning: V14.2.4 requires encryption/integrity controls. Crypto library CVEs directly undermine these; weak-to-medium
+          signal but conservatively marked low.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
     chapter: V14
     section: V14.2
     level: L2
@@ -866,6 +941,16 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.3.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: V14.3.1 requires clearing authenticated data from client storage. Browser/storage library CVEs could leave
+          residue; weak signal.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
     chapter: V14
     section: V14.3
     level: L1
@@ -901,6 +986,15 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.3.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: V14.3.2 requires anti-caching headers. CVEs don't directly verify header presence; weak signal.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
     chapter: V14
     section: V14.3
     level: L2
@@ -936,6 +1030,15 @@ requirements:
         csv_hint_agreement: modified
         review:
           status: unreviewed
+      trivy-vuln:
+      - asvs_id: v5.0.0-14.3.3
+        rule_id: CVE-*
+        confidence: low
+        reasoning: V14.3.3 requires no sensitive data in browser storage. CVEs in storage libraries could leak; weak signal.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:4f4e0c8c5d83506b5510b8ec28f1f06d193c1991fcafeaf875e44054e5c75a8b
     chapter: V14
     section: V14.3
     level: L2
@@ -1133,3 +1236,93 @@ requirements:
     chapter: V2
     section: V2.4
     level: L2
+  v5.0.0-13.3.1:
+    scanners:
+      trivy-config:
+      - asvs_id: v5.0.0-13.3.1
+        rule_id: DS-0031
+        confidence: high
+        reasoning: DS-0031 directly detects secrets passed via Dockerfile build-args, envs, or copied secret files — exactly
+          what V13.3.1 requires a secrets management solution to prevent.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+          rule_hash: sha256:524a00d687f8412d11362fbd86f44baf77325c832cbe0bd08daacf0dda97c647
+      gitleaks:
+      - asvs_id: v5.0.0-13.3.1
+        rule_id: '*api-key*'
+        confidence: high
+        reasoning: Gitleaks API-key rules directly detect hardcoded API keys in source — a primary form of secret that V13.3.1
+          requires a secrets management solution to handle.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-13.3.1
+        rule_id: '*token*'
+        confidence: high
+        reasoning: Gitleaks token rules detect hardcoded OAuth tokens, JWTs, service-account tokens, etc. — all categories
+          V13.3.1 requires be stored in a secrets manager rather than source.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-13.3.1
+        rule_id: '*secret*'
+        confidence: high
+        reasoning: Gitleaks generic secret rules catch a long tail of hardcoded secret patterns (Stripe, Twilio, Mailgun,
+          etc.) that V13.3.1 requires be managed externally.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-13.3.1
+        rule_id: '*private-key*'
+        confidence: high
+        reasoning: Gitleaks private-key rules detect hardcoded RSA/EC/PGP private keys — high-sensitivity secrets that must
+          never appear in source per V13.3.1.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-13.3.1
+        rule_id: '*password*'
+        confidence: high
+        reasoning: Gitleaks password rules detect hardcoded passwords — basic secret-management hygiene required by V13.3.1.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+  v5.0.0-13.3.2:
+    scanners:
+      trivy-config:
+      - asvs_id: v5.0.0-13.3.2
+        rule_id: DS-0002
+        confidence: medium
+        reasoning: DS-0002 (Image user should not be 'root') is one concrete implementation of least-privilege operation,
+          which V13.3.2 requires for secret access. Containers running as non-root reduce the blast radius if a secret is
+          leaked.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+          rule_hash: sha256:78225f3e296198a6fe415ce627eab08c59160e7630f737db7fb0412c58a76d98
+  v5.0.0-13.4.5:
+    scanners:
+      trivy-config:
+      - asvs_id: v5.0.0-13.4.5
+        rule_id: DS-0004
+        confidence: low
+        reasoning: DS-0004 (Port 22 exposed) flags one specific case of unintended endpoint exposure — SSH access into a container.
+          V13.4.5 is broader (any documentation/monitoring endpoints), so this is a partial signal only.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:522a79cd088cb44d614f22dba827bbfc9f4725ca7c2a01e0ef5e656f2e31d85a
+  v5.0.0-13.4.2:
+    scanners:
+      trivy-config:
+      - asvs_id: v5.0.0-13.4.2
+        rule_id: DS-0026
+        confidence: low
+        reasoning: DS-0026 (No HEALTHCHECK defined) is a weak proxy for V13.4.2 production hardening — HEALTHCHECK presence
+          indicates production-ready configuration, but doesn't directly verify debug modes are disabled.
+        csv_hint_agreement: no_hint
+        review:
+          status: unreviewed
+          rule_hash: sha256:ef547a60672273d8b1bc75929e272374307132c1597d034b57468c006e04e665
+enrichment_source: Path B (direct LLM analysis in conversation) for catalogued scanners; heuristic/fallback for uncatalogued

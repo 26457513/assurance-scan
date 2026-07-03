@@ -2,114 +2,89 @@
 
 Scanner rules in source snapshots that are NOT referenced by any ASVS
 mapping entry. These are candidates for new mappings — see the plan §1.5.
-Total: **426 of 426 catalog rules unreferenced**.
+Total: **242 of 426 catalog rules unreferenced**.
 
 
 Generated: `data/sources/coverage-gaps.md`
 
-## gitleaks (222 of 222 rules unreferenced)
+## gitleaks (38 of 222 rules unreferenced)
 
-- `1password-secret-key`
-  Uncovered a possible 1Password secret key, potentially compromising access to secrets in vaults.
-- `1password-service-account-token`
-  Uncovered a possible 1Password service account token, potentially compromising access to secrets in vaults.
-- `adafruit-api-key`
-  Identified a potential Adafruit API Key, which could lead to unauthorized access to Adafruit services and sensitive data exposure.
 - `adobe-client-id`
   Detected a pattern that resembles an Adobe OAuth Web Client ID, posing a risk of compromised Adobe integrations and data breaches.
-- `adobe-client-secret`
-  Discovered a potential Adobe Client Secret, which, if exposed, could allow unauthorized Adobe service access and data manipulation.
-- `age-secret-key`
-  Discovered a potential Age encryption tool secret key, risking data decryption and unauthorized access to sensitive information.
-- `airtable-api-key`
-  Uncovered a possible Airtable API Key, potentially compromising database access and leading to data leakage or alteration.
-- `airtable-personnal-access-token`
-  Uncovered a possible Airtable Personal AccessToken, potentially compromising database access and leading to data leakage or alteration.
-- `algolia-api-key`
-  Identified an Algolia API Key, which could result in unauthorized search operations and data exposure on Algolia-managed platforms.
 - `alibaba-access-key-id`
   Detected an Alibaba Cloud AccessKey ID, posing a risk of unauthorized cloud resource access and potential data compromise.
-- `alibaba-secret-key`
-  Discovered a potential Alibaba Cloud Secret Key, potentially allowing unauthorized operations and data access within Alibaba Cloud.
-- `anthropic-admin-api-key`
-  Detected an Anthropic Admin API Key, risking unauthorized access to administrative functions and sensitive AI model configurations.
-- `anthropic-api-key`
-  Identified an Anthropic API Key, which may compromise AI assistant integrations and expose sensitive data to unauthorized access.
-- `artifactory-api-key`
-  Detected an Artifactory api key, posing a risk unauthorized access to the central repository.
-- `artifactory-reference-token`
-  Detected an Artifactory reference token, posing a risk of impersonation and unauthorized access to the central repository.
 - `asana-client-id`
   Discovered a potential Asana Client ID, risking unauthorized access to Asana projects and sensitive task information.
-- `asana-client-secret`
-  Identified an Asana Client Secret, which could lead to compromised project management integrity and unauthorized access.
-- `atlassian-api-token`
-  Detected an Atlassian API token, posing a threat to project management and collaboration tool security and data confidentiality.
 - `authress-service-client-access-key`
   Uncovered a possible Authress Service Client Access Key, which may compromise access control services and sensitive data.
-- `aws-access-token`
-  Identified a pattern that may indicate AWS credentials, risking unauthorized cloud resource access and data breaches on AWS platforms.
-- `aws-amazon-bedrock-api-key-long-lived`
-  Identified a pattern that may indicate long-lived Amazon Bedrock API keys, risking unauthorized Amazon Bedrock usage
-- `aws-amazon-bedrock-api-key-short-lived`
-  Identified a pattern that may indicate short-lived Amazon Bedrock API keys, risking unauthorized Amazon Bedrock usage
-- `azure-ad-client-secret`
-  Azure AD Client Secret
-- `beamer-api-token`
-  Detected a Beamer API token, potentially compromising content management and exposing sensitive notifications and updates.
 - `bitbucket-client-id`
   Discovered a potential Bitbucket Client ID, risking unauthorized repository access and potential codebase exposure.
-- `bitbucket-client-secret`
-  Discovered a potential Bitbucket Client Secret, posing a risk of compromised code repositories and unauthorized access.
 - `bittrex-access-key`
   Identified a Bittrex Access Key, which could lead to unauthorized access to cryptocurrency trading accounts and financial loss.
-- `bittrex-secret-key`
-  Detected a Bittrex Secret Key, potentially compromising cryptocurrency transactions and financial security.
-- `cisco-meraki-api-key`
-  Cisco Meraki is a cloud-managed IT solution that provides networking, security, and device management through an easy-to-use interface.
-- `clickhouse-cloud-api-secret-key`
-  Identified a pattern that may indicate clickhouse cloud API secret key, risking unauthorized clickhouse cloud api access and data breaches on ClickHouse Cloud platforms.
-- `clojars-api-token`
-  Uncovered a possible Clojars API token, risking unauthorized access to Clojure libraries and potential code manipulation.
-- `cloudflare-api-key`
-  Detected a Cloudflare API Key, potentially compromising cloud application deployments and operational security.
-- `cloudflare-global-api-key`
-  Detected a Cloudflare Global API Key, potentially compromising cloud application deployments and operational security.
 - `cloudflare-origin-ca-key`
   Detected a Cloudflare Origin CA Key, potentially compromising cloud application deployments and operational security.
-- `codecov-access-token`
-  Found a pattern resembling a Codecov Access Token, posing a risk of unauthorized access to code coverage reports and sensitive data.
-- `cohere-api-token`
-  Identified a Cohere Token, posing a risk of unauthorized access to AI services and data manipulation.
-- `coinbase-access-token`
-  Detected a Coinbase Access Token, posing a risk of unauthorized access to cryptocurrency accounts and financial transactions.
-- `confluent-access-token`
-  Identified a Confluent Access Token, which could compromise access to streaming data platforms and sensitive data flow.
-- `confluent-secret-key`
-  Found a Confluent Secret Key, potentially risking unauthorized operations and data access within Confluent services.
-- `contentful-delivery-api-token`
-  Discovered a Contentful delivery API token, posing a risk to content management systems and data integrity.
 - `curl-auth-header`
   Discovered a potential authorization token provided in a curl command header, which could compromise the curl accessed resource.
 - `curl-auth-user`
   Discovered a potential basic authorization token provided in a curl command, which could compromise the curl accessed resource.
-- `databricks-api-token`
-  Uncovered a Databricks API token, which may compromise big data analytics platforms and sensitive data processing.
-- `datadog-access-token`
-  Detected a Datadog Access Token, potentially risking monitoring and analytics data exposure and manipulation.
-- `defined-networking-api-token`
-  Identified a Defined Networking API token, which could lead to unauthorized network operations and data breaches.
-- `digitalocean-access-token`
-  Found a DigitalOcean OAuth Access Token, risking unauthorized cloud resource access and data compromise.
 - `digitalocean-pat`
   Discovered a DigitalOcean Personal Access Token, posing a threat to cloud infrastructure security and data privacy.
-- `digitalocean-refresh-token`
-  Uncovered a DigitalOcean OAuth Refresh Token, which could allow prolonged unauthorized access and resource manipulation.
-- `discord-api-token`
-  Detected a Discord API key, potentially compromising communication channels and user data privacy on Discord.
 - `discord-client-id`
   Identified a Discord client ID, which may lead to unauthorized integrations and data exposure in Discord applications.
-- _...and 172 more_
+- `flutterwave-encryption-key`
+  Uncovered a Flutterwave Encryption Key, which may compromise payment processing and sensitive financial information.
+- `flutterwave-public-key`
+  Detected a Finicity Public Key, potentially exposing public cryptographic operations and integrations.
+- `github-fine-grained-pat`
+  Found a GitHub Fine-Grained Personal Access Token, risking unauthorized repository access and code manipulation.
+- `github-oauth`
+  Discovered a GitHub OAuth Access Token, posing a risk of compromised GitHub account integrations and data leaks.
+- `github-pat`
+  Uncovered a GitHub Personal Access Token, potentially leading to unauthorized repository access and sensitive content exposure.
+- `gitlab-pat`
+  Identified a GitLab Personal Access Token, risking unauthorized access to GitLab repositories and codebase exposure.
+- `gitlab-pat-routable`
+  Identified a GitLab Personal Access Token (routable), risking unauthorized access to GitLab repositories and codebase exposure.
+- `gitlab-ptt`
+  Found a GitLab Pipeline Trigger Token, potentially compromising continuous integration workflows and project security.
+- `gitlab-rrt`
+  Discovered a GitLab Runner Registration Token, posing a risk to CI/CD pipeline integrity and unauthorized access.
+- `gitlab-session-cookie`
+  Discovered a GitLab Session Cookie, posing a risk to unauthorized access to a user account.
+- `jwt`
+  Uncovered a JSON Web Token, which may lead to unauthorized access to web applications and sensitive user data.
+- `jwt-base64`
+  Detected a Base64-encoded JSON Web Token, posing a risk of exposing encoded authentication and data exchange information.
+- `linkedin-client-id`
+  Found a LinkedIn Client ID, risking unauthorized access to LinkedIn integrations and professional data exposure.
+- `looker-client-id`
+  Found a Looker Client ID, risking unauthorized access to a Looker account and exposing sensitive data.
+- `mailgun-pub-key`
+  Discovered a Mailgun public validation key, which could expose email verification processes and associated data.
+- `mailgun-signing-key`
+  Uncovered a Mailgun webhook signing key, potentially compromising email automation and data integrity.
+- `maxmind-license-key`
+  Discovered a potential MaxMind license key.
+- `messagebird-client-id`
+  Discovered a MessageBird client ID, potentially compromising API integrations and sensitive communication data.
+- `microsoft-teams-webhook`
+  Uncovered a Microsoft Teams Webhook, which could lead to unauthorized access to team collaboration tools and data leaks.
+- `new-relic-insert-key`
+  Discovered a New Relic insight insert key, compromising data injection into the platform.
+- `new-relic-user-api-id`
+  Found a New Relic user API ID, posing a risk to application monitoring services and data integrity.
+- `pkcs12-file`
+  Found a PKCS #12 file, which commonly contain bundled private keys.
+- `plaid-client-id`
+  Uncovered a Plaid Client ID, which could lead to unauthorized financial service integrations and data breaches.
+- `sendbird-access-id`
+  Discovered a Sendbird Access ID, which could compromise chat and messaging platform integrations.
+- `sidekiq-sensitive-url`
+  Uncovered a Sidekiq Sensitive URL, potentially exposing internal job queues and sensitive operation details.
+- `slack-webhook-url`
+  Discovered a Slack Webhook, which could lead to unauthorized message posting and data leakage in Slack channels.
+- `sumologic-access-id`
+  Discovered a SumoLogic Access ID, potentially compromising log management services and data analytics integrity.
 
 ## security_headers (6 of 6 rules unreferenced)
 
