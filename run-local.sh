@@ -327,6 +327,8 @@ while [ $# -gt 0 ]; do
       TARGET_URLS+=("${2:-}"); shift 2 ;;
     --uploads)
       UPLOADS_DIRS+=("${2:-}"); shift 2 ;;
+    --compliance-matrix)
+      COMPLIANCE_MATRIX="${2:-}"; shift 2 ;;
     *)
       echo "ERROR: unknown argument: $1" >&2
       usage
@@ -775,8 +777,18 @@ done_line "agent prompt"
 
 echo "==> Generating dashboard" >> "$REPORT_DIR/run.log"
 step_started_at="$(date +%s)"
+DASHBOARD_ARGS=(--report-dir "$REPORT_DIR")
+if [ -n "${COMPLIANCE_MATRIX:-${ASVS_COMPLIANCE_MATRIX:-}}" ]; then
+  MATRIX_PATH="${COMPLIANCE_MATRIX:-${ASVS_COMPLIANCE_MATRIX}}"
+  if [ -f "$MATRIX_PATH" ]; then
+    DASHBOARD_ARGS+=(--compliance-matrix "$MATRIX_PATH")
+    echo "Using compliance matrix: $MATRIX_PATH" >> "$REPORT_DIR/run.log"
+  else
+    echo "WARN: compliance matrix not found at $MATRIX_PATH — skipping" >> "$REPORT_DIR/run.log"
+  fi
+fi
 python3 "$SCRIPT_DIR/scripts/generate-dashboard.py" \
-  --report-dir "$REPORT_DIR" >> "$REPORT_DIR/run.log" 2>&1
+  "${DASHBOARD_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1
 record_timing "dashboard" "$(( $(date +%s) - step_started_at ))"
 done_line "dashboard"
 

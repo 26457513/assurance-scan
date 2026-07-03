@@ -733,6 +733,28 @@ code { font-family:var(--mono); font-size:11px; background:#183236; color:#baf4e
 .empty-state { padding:16px; color:var(--muted); text-align:center; }
 @media (max-width:1100px) { .topbar, .command-strip, .overview-grid { grid-template-columns:1fr; } .nav { display:grid; grid-template-columns:1fr 1fr; justify-self:stretch; } .scan-meta table { table-layout:auto; } }
 @media (max-width:760px) { .shell { padding:12px 12px 28px; } .topbar { grid-template-columns:1fr; } .scan-meta table, .scan-meta tbody, .scan-meta tr, .scan-meta th, .scan-meta td { display:block; width:100%; } .scan-meta th, .scan-meta td { border-right:0; } .scan-meta td { border-bottom:1px solid var(--line); } .scan-meta tr:last-child td:last-child { border-bottom:0; } .metric-grid { grid-template-columns:repeat(3,1fr); } .two-col { grid-template-columns:1fr; } .matrix { min-width:840px; } .card { overflow:auto; } .nav { grid-template-columns:1fr; } .tab-btn { height:38px; } }
+
+/* Compliance Matrix tab */
+.tl-badge { display:inline-flex; align-items:center; justify-content:center; min-width:78px; height:22px; padding:0 10px; border-radius:5px; font-size:10px; font-weight:900; letter-spacing:.05em; text-transform:uppercase; }
+.tl-cell { width:88px; }
+.lvl-badge { display:inline-block; min-width:24px; padding:2px 6px; border-radius:4px; background:#183236; color:#baf4ea; font-family:var(--mono); font-size:10px; font-weight:700; text-align:center; }
+.compliance-card .matrix { table-layout:auto; }
+.compliance-card .req-text { color:var(--ink-2); line-height:1.35; }
+.compliance-row:hover { background:#243039; cursor:pointer; }
+.compliance-row td:focus { outline:2px solid var(--primary); outline-offset:-2px; }
+.row-detail { margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); color:var(--ink-3); font-size:11px; line-height:1.5; }
+.row-detail strong { color:var(--ink-2); }
+.row-full-req { margin:6px 0; color:var(--ink-2); }
+.culprit-list { list-style:none; padding-left:0; margin:8px 0 0; display:grid; gap:5px; }
+.culprit-item { padding:6px 8px; background:rgba(255,77,109,.07); border-left:3px solid var(--fail); border-radius:4px; font-size:11px; line-height:1.4; }
+.culprit-item code { background:rgba(255,255,255,.06); }
+.culprit-msg { color:var(--ink-3); }
+.compliance-filter-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:10px 12px; }
+.compliance-search, .compliance-select { background:var(--surface-2); border:1px solid var(--line); color:var(--ink-2); border-radius:6px; padding:6px 10px; font-size:12px; min-width:140px; }
+.compliance-search { flex:1; min-width:200px; }
+.compliance-search:focus, .compliance-select:focus { outline:none; border-color:var(--primary); }
+.scanner-count { text-align:center; color:var(--ink-3); font-family:var(--mono); }
+.compliance-row.hidden-by-filter { display:none; }
 """
 
 
@@ -1703,10 +1725,423 @@ def kpi(label: str, value: str, accent: str, icon: str, sub: str = "") -> str:
 
 
 # ===========================================================================
+# Compliance Matrix (ASVS traceability)
+# ===========================================================================
+
+ASVS_MAPPING_PATH = Path(__file__).resolve().parent.parent / "data" / "asvs_mapping.yaml"
+
+
+def parse_compliance_csv(csv_path: Path) -> list[dict]:
+    """Parse the project compliance CSV into a list of row dicts.
+
+    Skips preamble rows until the header (containing 'ASVS ID') is found.
+    Required columns: 'ASVS ID', 'Requirement', 'Applicability'. Others optional.
+    """
+    import csv as _csv
+    rows: list[dict] = []
+    with csv_path.open("r", encoding="utf-8-sig", errors="replace", newline="") as fh:
+        reader = _csv.reader(fh)
+        header_idx: dict[str, int] = {}
+        for row in reader:
+            if not row:
+                continue
+            if not header_idx:
+                if any(cell.strip() == "ASVS ID" for cell in row):
+                    header_idx = {cell.strip(): i for i, cell in enumerate(row) if cell.strip()}
+                continue
+            entry: dict[str, str] = {}
+            for col_name, idx in header_idx.items():
+                if idx < len(row):
+                    entry[col_name] = row[idx].strip()
+            if entry.get("ASVS ID"):
+                rows.append(entry)
+    return rows
+
+
+def load_asvs_mapping() -> dict:
+    """Load asvs_mapping.yaml from the bundled location. Returns {} if missing."""
+    if not ASVS_MAPPING_PATH.exists():
+        return {}
+    try:
+        import yaml  # type: ignore
+    except ImportError:
+        return {}
+    return yaml.safe_load(ASVS_MAPPING_PATH.read_text()) or {}
+
+
+def _scanner_finding_index(report_dir: Path) -> dict[str, list[dict]]:
+    """Return {scanner_key: [finding_dicts]} by parsing each scanner output.
+
+    Each finding dict has: rule_id, severity, location, message. Used by the
+    traffic-light computation to check whether mapped rule patterns match
+    actual findings.
+    """
+    out: dict[str, list[dict]] = {}
+
+    # Semgrep
+    sarif = load_json(report_dir / "reports" / "semgrep.sarif") or {}
+    semgrep_findings: list[dict] = []
+    for run in sarif.get("runs", []) or []:
+        for result in run.get("results", []) or []:
+            loc = (result.get("locations") or [{}])[0].get("physicalLocation") or {}
+            artifact = (loc.get("artifactLocation") or {}).get("uri", "-")
+            line = (loc.get("region") or {}).get("startLine")
+            semgrep_findings.append({
+                "rule_id": result.get("ruleId", ""),
+                "severity": "WARNING",
+                "location": f"{artifact}:{line}" if line else artifact,
+                "message": (result.get("message") or {}).get("text", ""),
+            })
+    out["semgrep"] = semgrep_findings
+
+    # Gitleaks
+    gitleaks = load_json(report_dir / "reports" / "gitleaks.json")
+    if isinstance(gitleaks, list):
+        out["gitleaks"] = [
+            {
+                "rule_id": f.get("RuleID", ""),
+                "severity": "HIGH",
+                "location": f"{f.get('File', '-')}:{f.get('StartLine', '')}",
+                "message": f.get("Description", ""),
+            }
+            for f in gitleaks
+        ]
+    else:
+        out["gitleaks"] = []
+
+    # Trivy (combine all trivy-* outputs, split by result type)
+    trivy_vuln_findings: list[dict] = []
+    trivy_config_findings: list[dict] = []
+    trivy_secret_findings: list[dict] = []
+    for rel in ("reports/trivy-fs.json", "reports/trivy-config.json"):
+        data = load_json(report_dir / rel) or {}
+        for path in output_candidates(report_dir, rel, include_suffixed=True):
+            d = load_json(path) or {}
+            for result in d.get("Results", []) or []:
+                target = result.get("Target", "-")
+                for vuln in result.get("Vulnerabilities") or []:
+                    pkg = vuln.get("PkgName", target)
+                    ver = vuln.get("InstalledVersion", "")
+                    trivy_vuln_findings.append({
+                        "rule_id": vuln.get("VulnerabilityID", ""),
+                        "severity": str(vuln.get("Severity", "UNKNOWN")).upper(),
+                        "location": f"{pkg} {ver}".strip(),
+                        "message": vuln.get("Title", vuln.get("VulnerabilityID", "")),
+                    })
+                for secret in result.get("Secrets") or []:
+                    trivy_secret_findings.append({
+                        "rule_id": secret.get("RuleID", ""),
+                        "severity": str(secret.get("Severity", "UNKNOWN")).upper(),
+                        "location": location_label(target, secret.get("StartLine")),
+                        "message": secret.get("Title") or secret.get("Category", "Secret"),
+                    })
+                for misconf in result.get("Misconfigurations") or []:
+                    if misconf.get("Status") and misconf.get("Status") != "FAIL":
+                        continue
+                    trivy_config_findings.append({
+                        "rule_id": misconf.get("ID", ""),
+                        "severity": str(misconf.get("Severity", "UNKNOWN")).upper(),
+                        "location": target,
+                        "message": misconf.get("Title", misconf.get("Message", "")),
+                    })
+    # Image scans add vulns too
+    for path in output_candidates(report_dir, "reports/trivy-image.json", include_suffixed=True):
+        d = load_json(path) or {}
+        for result in d.get("Results", []) or []:
+            target = result.get("Target", "-")
+            for vuln in result.get("Vulnerabilities") or []:
+                trivy_vuln_findings.append({
+                    "rule_id": vuln.get("VulnerabilityID", ""),
+                    "severity": str(vuln.get("Severity", "UNKNOWN")).upper(),
+                    "location": f"{vuln.get('PkgName', target)} {vuln.get('InstalledVersion', '')}".strip(),
+                    "message": vuln.get("Title", vuln.get("VulnerabilityID", "")),
+                })
+    out["trivy-vuln"] = trivy_vuln_findings
+    out["trivy-config"] = trivy_config_findings
+    out["trivy-secret"] = trivy_secret_findings
+
+    # Grype (CVE-style like trivy-vuln)
+    grype_findings: list[dict] = []
+    for path in output_candidates(report_dir, "reports/grype.json", include_suffixed=True):
+        d = load_json(path) or {}
+        for match in d.get("matches", []) or []:
+            vuln = match.get("vulnerability") or {}
+            artifact = match.get("artifact") or {}
+            grype_findings.append({
+                "rule_id": vuln.get("id", ""),
+                "severity": str(vuln.get("severity", "UNKNOWN")).upper(),
+                "location": f"{artifact.get('name', '-')} {artifact.get('version', '')}".strip(),
+                "message": vuln.get("description", ""),
+            })
+    out["grype"] = grype_findings
+
+    # OSV-scanner (similar shape — handled same as grype)
+    out["osv-scanner"] = []  # OSV output parsing deferred — usually overlaps with grype/trivy
+
+    # Security headers
+    sh = load_json(report_dir / "reports" / "security-headers.json") or {}
+    sh_findings: list[dict] = []
+    for finding in sh.get("findings", []) or []:
+        if finding.get("status") == "MISSING":
+            sh_findings.append({
+                "rule_id": finding.get("header", ""),
+                "severity": finding.get("severity", "UNKNOWN"),
+                "location": sh.get("url", "-"),
+                "message": finding.get("advice", ""),
+            })
+    out["security-headers"] = sh_findings
+
+    # Syft — SBOM only, no findings
+    out["syft"] = []
+
+    return out
+
+
+def _match_findings(patterns: list[str], findings: list[dict]) -> list[dict]:
+    """Return findings whose rule_id matches any of the fnmatch patterns."""
+    import fnmatch
+    matched: list[dict] = []
+    for finding in findings:
+        rid = finding.get("rule_id", "")
+        if not rid:
+            continue
+        if any(fnmatch.fnmatch(rid, p) for p in patterns):
+            matched.append(finding)
+    return matched
+
+
+def compute_traffic_light(
+    csv_row: dict,
+    mapping: dict,
+    scanner_health: dict,
+    finding_index: dict[str, list[dict]],
+) -> tuple[str, list[dict]]:
+    """Return (status, culprit_findings) for a CSV row.
+
+    status is one of: 'NA', 'RED', 'AMBER', 'GREEN', 'GREY'.
+    culprit_findings is the list of matching findings (non-empty only when RED).
+    """
+    applicability = (csv_row.get("Applicability") or "").strip().lower()
+    if applicability in ("n/a", "na", "not applicable", "no"):
+        return "NA", []
+
+    asvs_id = csv_row.get("ASVS ID", "")
+    req_mapping = (mapping.get("requirements") or {}).get(asvs_id) or {}
+    scanners = req_mapping.get("scanners") or {}
+    if not scanners:
+        return "GREY", []
+
+    all_culprits: list[dict] = []
+    saw_skipped = False
+    saw_clean = False
+
+    for scanner, mappings in scanners.items():
+        patterns = [m.get("rule_id", "") for m in mappings if m.get("rule_id")]
+        if not patterns:
+            continue
+        # Map scanner key to scanner_health key (trivy-* are all under "trivy-fs" / etc.)
+        health_key = scanner
+        if scanner.startswith("trivy-"):
+            # Any trivy scanner running means trivy-config / trivy-vuln / trivy-secret could be active
+            health_key = "trivy-config" if scanner == "trivy-config" else scanner
+        health = scanner_health.get(health_key) or scanner_health.get(scanner)
+        # Treat syft as always-healthy (SBOM only, no findings expected)
+        if scanner == "syft":
+            saw_clean = True
+            continue
+        # Treat osv-scanner / grype as healthy if any vuln scanner ran (best-effort)
+        if scanner in ("grype", "osv-scanner") and not health:
+            for k in ("grype", "osv-scanner", "trivy-fs", "trivy-image"):
+                if scanner_health.get(k):
+                    health = scanner_health.get(k)
+                    break
+        if not health:
+            saw_skipped = True
+            continue
+        # Scanner ran — check findings
+        findings = finding_index.get(scanner, [])
+        matched = _match_findings(patterns, findings)
+        if matched:
+            for f in matched:
+                f = dict(f)
+                f["scanner"] = scanner
+                all_culprits.append(f)
+        else:
+            saw_clean = True
+
+    if all_culprits:
+        return "RED", all_culprits
+    if saw_skipped and not saw_clean:
+        return "AMBER", []
+    if saw_clean:
+        return "GREEN", []
+    return "GREY", []
+
+
+def _traffic_light_badge(status: str) -> str:
+    """Render a traffic-light badge with aria-label and distinct visuals."""
+    styles = {
+        "RED": ("background:#ff4d6d;color:#fff", "fail"),
+        "AMBER": ("background:#ffd166;color:#081014", "manual"),
+        "GREEN": ("background:#35d07f;color:#081014", "pass"),
+        "GREY": ("background:#718096;color:#fff", "no coverage"),
+        "NA": ("background:repeating-linear-gradient(45deg,#718096,#718096 4px,#3a4750 4px,#3a4750 8px);color:#fff", "N/A"),
+    }
+    css, label = styles.get(status, styles["GREY"])
+    return (
+        f'<span class="tl-badge" style="{css}" '
+        f'aria-label="{html.escape(label)}" role="status">{html.escape(label)}</span>'
+    )
+
+
+def render_compliance_matrix(csv_path: str, report_dir: Path) -> str:
+    """Render the Compliance Matrix tab as HTML."""
+    csv_rows = parse_compliance_csv(Path(csv_path))
+    if not csv_rows:
+        return '<section class="card"><div class="empty-state">No rows found in compliance CSV.</div></section>'
+
+    mapping = load_asvs_mapping()
+    if not mapping:
+        return (
+            '<section class="card"><div class="empty-state">'
+            'asvs_mapping.yaml not found. The Compliance Matrix tab requires '
+            'the bundled mapping file. Rebuild the image after running '
+            'scripts/generate-mapping.py.'
+            '</div></section>'
+        )
+
+    evidence = load_json(report_dir / "evidence-manifest.json") or {}
+    scanner_health = evidence.get("scanner_health", {})
+    finding_index = _scanner_finding_index(report_dir)
+
+    # Compute traffic lights per row
+    rows_with_status = []
+    counts = {"RED": 0, "AMBER": 0, "GREEN": 0, "GREY": 0, "NA": 0}
+    for row in csv_rows:
+        status, culprits = compute_traffic_light(row, mapping, scanner_health, finding_index)
+        counts[status] = counts.get(status, 0) + 1
+        rows_with_status.append((row, status, culprits))
+
+    # Group by chapter (V1, V2, etc.) extracted from the ASVS ID
+    from collections import defaultdict
+    by_chapter: dict[str, list] = defaultdict(list)
+    for row, status, culprits in rows_with_status:
+        asvs_id = row.get("ASVS ID", "")
+        # v5.0.0-1.2.3 -> chapter V1
+        m = re.match(r"v[\d.]+-(\d+)\.", asvs_id)
+        chapter = f"V{m.group(1)}" if m else "?"
+        by_chapter[chapter].append((row, status, culprits))
+
+    # KPI: ASVS Coverage = GREEN / (RED+AMBER+GREEN+GREY)
+    applicable = counts["RED"] + counts["AMBER"] + counts["GREEN"] + counts["GREY"]
+    coverage_pct = (counts["GREEN"] / applicable * 100) if applicable else 0
+
+    # Summary tiles
+    tiles = (
+        f'<div class="metric"><b style="color:#ff4d6d">{counts["RED"]}</b><span>Fail</span></div>'
+        f'<div class="metric"><b style="color:#ffd166">{counts["AMBER"]}</b><span>Manual</span></div>'
+        f'<div class="metric"><b style="color:#35d07f">{counts["GREEN"]}</b><span>Pass</span></div>'
+        f'<div class="metric"><b style="color:#718096">{counts["GREY"]}</b><span>No coverage</span></div>'
+        f'<div class="metric"><b style="color:#718096">{counts["NA"]}</b><span>N/A</span></div>'
+        f'<div class="metric"><b style="color:#56c7b7">{coverage_pct:.0f}%</b>'
+        f'<span>{counts["GREEN"]} of {applicable} applicable covered</span></div>'
+    )
+
+    # Filter bar
+    filter_bar = """
+    <div class="card-head compliance-filter-bar">
+      <input type="search" id="compliance-search" placeholder="Search ASVS ID or requirement..." class="compliance-search">
+      <select id="compliance-chapter-filter" class="compliance-select">
+        <option value="">All chapters</option>
+      </select>
+      <select id="compliance-status-filter" class="compliance-select">
+        <option value="">All statuses</option>
+        <option value="RED">Fail</option>
+        <option value="AMBER">Manual</option>
+        <option value="GREEN">Pass</option>
+        <option value="GREY">No coverage</option>
+        <option value="NA">N/A</option>
+      </select>
+      <select id="compliance-level-filter" class="compliance-select">
+        <option value="1,2,3">All levels</option>
+        <option value="1,2" selected>L1+L2</option>
+        <option value="1">L1 only</option>
+      </select>
+      <input type="search" id="compliance-culprit-filter" placeholder="Filter by culprit location..." class="compliance-search">
+    </div>
+    """
+
+    # Build rows grouped by chapter
+    rows_html = []
+    for chapter in sorted(by_chapter.keys(), key=lambda c: int(c[1:]) if c[1:].isdigit() else 99):
+        chapter_rows = by_chapter[chapter]
+        rows_html.append(
+            f'<tr class="category-row compliance-chapter-header" data-chapter="{html.escape(chapter)}">'
+            f'<td colspan="6">{html.escape(chapter)} '
+            f'<span class="category-meta">· {len(chapter_rows)} requirements</span></td></tr>'
+        )
+        for row, status, culprits in chapter_rows:
+            asvs_id = html.escape(row.get("ASVS ID", ""))
+            section = html.escape(row.get("Section") or "")
+            level = html.escape(row.get("Level") or "")
+            req_text = html.escape(short_text(row.get("Requirement") or "-", 120))
+            applicability = html.escape(row.get("Applicability") or "")
+            csv_status = html.escape(row.get("Status") or "")
+            scanner_count = len((mapping.get("requirements") or {}).get(row.get("ASVS ID", ""), {}).get("scanners") or {})
+
+            # Build culprit details (hidden by default, expanded on row click)
+            culprit_html = ""
+            if culprits:
+                culprit_items = []
+                for c in culprits:
+                    sev = c.get("severity", "")
+                    sev_b = sev_badge(sev) if sev else ""
+                    culprit_items.append(
+                        f'<li class="culprit-item">{sev_b} '
+                        f'<code>{html.escape(c.get("rule_id", ""))}</code> '
+                        f'<code>{html.escape(short_text(c.get("location", "-"), 80))}</code> '
+                        f'<span class="culprit-msg">{html.escape(short_text(c.get("message", ""), 120))}</span></li>'
+                    )
+                culprit_html = (
+                    f'<ul class="culprit-list" role="list">{"".join(culprit_items)}</ul>'
+                )
+
+            rows_html.append(
+                f'<tr class="compliance-row" data-status="{status}" data-asvs-id="{asvs_id}" '
+                f'data-chapter="{html.escape(chapter)}" data-level="{level}" '
+                f'data-culprits="{html.escape(" ".join(c.get("location", "") for c in culprits))}">'
+                f'<td class="tl-cell">{_traffic_light_badge(status)}</td>'
+                f'<td><code>{asvs_id}</code></td>'
+                f'<td>{section}</td>'
+                f'<td><span class="lvl-badge">L{level}</span></td>'
+                f'<td><div class="req-text" title="{html.escape(row.get("Requirement", ""))}">{req_text}</div>'
+                f'<div class="row-detail" hidden>'
+                f'<div><strong>Applicability:</strong> {applicability or "—"} | '
+                f'<strong>CSV Status:</strong> {csv_status or "—"}</div>'
+                f'<div class="row-full-req">{html.escape(row.get("Requirement", ""))}</div>'
+                f'{culprit_html}'
+                f'</div></td>'
+                f'<td class="scanner-count">{scanner_count}</td>'
+                f'</tr>'
+            )
+
+    body = (
+        f'<section class="card compliance-card">'
+        f'<div class="metric-grid" style="grid-template-columns:repeat(6,minmax(110px,1fr));margin-bottom:12px">{tiles}</div>'
+        f'{filter_bar}'
+        f'<table class="matrix compliance-table"><thead><tr>'
+        f'<th>Status</th><th>ASVS ID</th><th>Section</th><th>Level</th><th>Requirement</th><th>Scanners</th>'
+        f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table>'
+        f'</section>'
+    )
+    return body
+
+
+# ===========================================================================
 # Top-level
 # ===========================================================================
 
-def render(*, report_dir: Path) -> str:
+def render(*, report_dir: Path, compliance_matrix_path: str | None = None) -> str:
     evidence = load_json(report_dir / "evidence-manifest.json") or {}
     scanner_health = evidence.get("scanner_health", {})
     findings = evidence.get("findings_summary", {})
@@ -1735,6 +2170,7 @@ def render(*, report_dir: Path) -> str:
 
     overview_html = render_overview(evidence, report_dir, ignored)
     fixplan_html = render_fixplan(report_dir)
+    compliance_html = render_compliance_matrix(compliance_matrix_path, report_dir) if compliance_matrix_path else ""
 
     run_id = html.escape(str(evidence.get("run_id", "-")))
     generated = html.escape(str(evidence.get("generated_at", "-"))[:19].replace("T", " "))
@@ -1778,6 +2214,7 @@ def render(*, report_dir: Path) -> str:
     </div>
     <nav class="nav">
       <button class="tab-btn" data-overview-filter="coverage">{ICONS['list']}<span>Evidence Files</span></button>
+      {'<button class="tab-btn" data-tab="compliance">' + ICONS['shield'] + '<span>Compliance Matrix</span></button>' if compliance_html else ''}
       <button class="tab-btn" data-tab="fixplan">{ICONS['doc']}<span>Agentic Fix Prompt</span></button>
     </nav>
     <div class="scan-meta">
@@ -1806,6 +2243,7 @@ def render(*, report_dir: Path) -> str:
 
   <main>
     <div class="panel active" id="tab-overview">{overview_html}</div>
+    {f'<div class="panel" id="tab-compliance">{compliance_html}</div>' if compliance_html else ''}
     <div class="panel" id="tab-fixplan">{fixplan_html}</div>
   </main>
 </div>
@@ -1954,6 +2392,85 @@ function setupManualChecklist() {{
   updateManualMetrics();
 }}
 setupManualChecklist();
+function setupComplianceMatrix() {{
+  const card = document.querySelector('.compliance-card');
+  if (!card) return;
+  const search = document.getElementById('compliance-search');
+  const chapterFilter = document.getElementById('compliance-chapter-filter');
+  const statusFilter = document.getElementById('compliance-status-filter');
+  const levelFilter = document.getElementById('compliance-level-filter');
+  const culpritFilter = document.getElementById('compliance-culprit-filter');
+
+  // Populate chapter dropdown from data-chapter values
+  const chapters = new Set();
+  document.querySelectorAll('.compliance-chapter-header').forEach(h => {{
+    chapters.add(h.dataset.chapter);
+  }});
+  [...chapters].sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1))).forEach(c => {{
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    chapterFilter.appendChild(opt);
+  }});
+
+  function applyFilters() {{
+    const q = (search.value || '').toLowerCase();
+    const ch = chapterFilter.value;
+    const st = statusFilter.value;
+    const lvls = new Set((levelFilter.value || '').split(',').filter(Boolean));
+    const cf = (culpritFilter.value || '').toLowerCase();
+    document.querySelectorAll('.compliance-row').forEach(row => {{
+      const matchesSearch = !q || row.dataset.asvsId.toLowerCase().includes(q) ||
+                            row.querySelector('.req-text').textContent.toLowerCase().includes(q);
+      const matchesChapter = !ch || row.dataset.chapter === ch;
+      const matchesStatus = !st || row.dataset.status === st;
+      const rowLvl = row.dataset.level.replace('L', '');
+      const matchesLevel = !lvls.size || lvls.has(rowLvl);
+      const matchesCulprit = !cf || (row.dataset.culprits || '').toLowerCase().includes(cf);
+      const visible = matchesSearch && matchesChapter && matchesStatus && matchesLevel && matchesCulprit;
+      row.classList.toggle('hidden-by-filter', !visible);
+    }});
+    // Hide chapter headers whose all rows are hidden
+    document.querySelectorAll('.compliance-chapter-header').forEach(h => {{
+      const next = h.nextElementSibling;
+      let anyVisible = false;
+      let n = next;
+      while (n && !n.classList.contains('compliance-chapter-header')) {{
+        if (n.classList.contains('compliance-row') && !n.classList.contains('hidden-by-filter')) {{
+          anyVisible = true; break;
+        }}
+        n = n.nextElementSibling;
+      }}
+      h.classList.toggle('hidden-by-filter', !anyVisible);
+    }});
+  }}
+
+  [search, culpritFilter].forEach(el => el.addEventListener('input', applyFilters));
+  [chapterFilter, statusFilter, levelFilter].forEach(el => el.addEventListener('change', applyFilters));
+
+  // Click row to expand
+  document.querySelectorAll('.compliance-row').forEach(row => {{
+    row.addEventListener('click', e => {{
+      if (e.target.closest('a, button')) return;
+      const detail = row.querySelector('.row-detail');
+      if (detail) {{
+        const isHidden = detail.hasAttribute('hidden');
+        if (isHidden) detail.removeAttribute('hidden');
+        else detail.setAttribute('hidden', '');
+        row.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+      }}
+    }});
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-expanded', 'false');
+    row.addEventListener('keydown', e => {{
+      if (e.key === 'Enter' || e.key === ' ') {{
+        e.preventDefault();
+        row.click();
+      }}
+    }});
+  }});
+}}
+setupComplianceMatrix();
 function setupTooltips() {{
   const tooltip = document.createElement('div');
   tooltip.className = 'ui-tooltip';
@@ -2013,10 +2530,12 @@ function copyPrompt() {{
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report-dir", required=True)
+    ap.add_argument("--compliance-matrix", default=None,
+                    help="Path to project compliance CSV (enables Compliance Matrix tab)")
     args = ap.parse_args()
     report_dir = Path(args.report_dir)
     out = report_dir / "dashboard.html"
-    out.write_text(render(report_dir=report_dir))
+    out.write_text(render(report_dir=report_dir, compliance_matrix_path=args.compliance_matrix))
     print(f"dashboard: written to {out.name}")
     return 0
 
