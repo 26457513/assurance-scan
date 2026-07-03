@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "source": "scripts/security-headers.py (in-repo)",
+    "fetched_at": "2026-07-03T07:29:26Z",
+    "source_ref": "in-repo",
+    "license": "project",
+    "count": 6
+  },
+  "entries": [
+    {
+      "id": "content-security-policy",
+      "title": "content-security-policy",
+      "description": "Set a Content-Security-Policy to mitigate XSS and injection.",
+      "severity": "HIGH",
+      "kind": "missing_header"
+    },
+    {
+      "id": "permissions-policy",
+      "title": "permissions-policy",
+      "description": "Set a Permissions-Policy to lock down browser features.",
+      "severity": "LOW",
+      "kind": "missing_header"
+    },
+    {
+      "id": "referrer-policy",
+      "title": "referrer-policy",
+      "description": "Set a Referrer-Policy to limit referrer leakage.",
+      "severity": "LOW",
+      "kind": "missing_header"
+    },
+    {
+      "id": "strict-transport-security",
+      "title": "strict-transport-security",
+      "description": "Enable HSTS to enforce HTTPS.",
+      "severity": "HIGH",
+      "kind": "missing_header"
+    },
+    {
+      "id": "x-content-type-options",
+      "title": "x-content-type-options",
+      "description": "Set 'nosniff' to prevent MIME-type sniffing.",
+      "severity": "MEDIUM",
+      "kind": "missing_header"
+    },
+    {
+      "id": "x-frame-options",
+      "title": "x-frame-options",
+      "description": "Set DENY or SAMEORIGIN to prevent clickjacking.",
+      "severity": "MEDIUM",
+      "kind": "missing_header"
+    }
+  ]
+}

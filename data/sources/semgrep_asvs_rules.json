@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "source": "https://github.com/semgrep/semgrep-rules",
+    "fetched_at": "2026-07-03T07:30:47Z",
+    "source_ref": "deferred",
+    "license": "Semgrep Rules License",
+    "count": 0,
+    "note": "Semgrep rule enumeration deferred for v1. The mapping generator will rely on ASVS section names + CSV hints + LLM knowledge of common Semgrep rule namespaces. See source code comment in build-mapping-sources.py for details."
+  },
+  "entries": []
+}

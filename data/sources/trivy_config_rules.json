@@ -1,0 +1,1784 @@
+{
+  "meta": {
+    "source": "https://github.com/aquasecurity/trivy-checks/tree/main/checks",
+    "fetched_at": "2026-07-03T07:30:47Z",
+    "source_ref": "main",
+    "license": "Apache-2.0",
+    "count": 197
+  },
+  "entries": [
+    {
+      "id": "DS-0001",
+      "aliases": [],
+      "title": "\"':latest' tag used\"",
+      "description": "\"When using a 'FROM' statement you should use a specific tag to avoid uncontrolled behavior when the image is updated.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Add a tag to the image in the 'FROM' statement\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0002",
+      "aliases": [],
+      "title": "\"Image user should not be 'root'\"",
+      "description": "\"Running containers with 'root' user can lead to a container escape situation. It is a best practice to run containers as non-root users, which can be done by adding a 'USER' statement to the Dockerfile.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Add 'USER <non root user name>' line to the Dockerfile\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0004",
+      "aliases": [],
+      "title": "\"Port 22 exposed\"",
+      "description": "\"Exposing port 22 might allow users to SSH into the container.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Remove 'EXPOSE 22' statement from the Dockerfile\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0005",
+      "aliases": [],
+      "title": "ADD instead of COPY",
+      "description": "You should use COPY instead of ADD unless you want to extract a tar file. Note that an ADD command will extract a tar file, which adds the risk of Zip-based vulnerabilities. Accordingly, it is advised to use a COPY command, which does not extract tar files.",
+      "severity": "LOW",
+      "recommended_action": "Use COPY instead of ADD",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0006",
+      "aliases": [],
+      "title": "\"COPY '--from' referring to the current image\"",
+      "description": "\"COPY '--from' should not mention the current FROM alias, since it is impossible to copy from itself.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change the '--from' so that it will not refer to itself\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0007",
+      "aliases": [],
+      "title": "\"Multiple ENTRYPOINT instructions listed\"",
+      "description": "\"There can only be one ENTRYPOINT instruction in a Dockerfile. Only the last ENTRYPOINT instruction in the Dockerfile will have an effect.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Remove unnecessary ENTRYPOINT instruction.\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0008",
+      "aliases": [],
+      "title": "\"Exposed port out of range\"",
+      "description": "\"UNIX ports outside the range 0-65535 are exposed.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Use port number within range\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0009",
+      "aliases": [],
+      "title": "\"WORKDIR path not absolute\"",
+      "description": "\"For clarity and reliability, you should always use absolute paths for your WORKDIR.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Use absolute paths for your WORKDIR\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0010",
+      "aliases": [],
+      "title": "\"RUN using 'sudo'\"",
+      "description": "\"Avoid using 'RUN' with 'sudo' commands, as it can lead to unpredictable behavior.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Don't use sudo\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0011",
+      "aliases": [],
+      "title": "\"COPY with more than two arguments not ending with slash\"",
+      "description": "\"When a COPY command has more than two arguments, the last one should end with a slash.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Add slash to last COPY argument\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0012",
+      "aliases": [],
+      "title": "\"Duplicate aliases defined in different FROMs\"",
+      "description": "\"Different FROMs can't have the same alias defined.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change aliases to make them different\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0013",
+      "aliases": [],
+      "title": "\"'RUN cd ...' to change directory\"",
+      "description": "\"Use WORKDIR instead of proliferating instructions like 'RUN cd … && do-something', which are hard to read, troubleshoot, and maintain.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Use WORKDIR to change directory\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0014",
+      "aliases": [],
+      "title": "\"RUN using 'wget' and 'curl'\"",
+      "description": "\"Avoid using both 'wget' and 'curl' since these tools have the same effect.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Pick one util, either 'wget' or 'curl'\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0015",
+      "aliases": [],
+      "title": "\"'yum clean all' missing\"",
+      "description": "\"You should use 'yum clean all' after using a 'yum install' command to clean package cached data and reduce image size.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Add 'yum clean all' to Dockerfile\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0016",
+      "aliases": [],
+      "title": "\"Multiple CMD instructions listed\"",
+      "description": "\"There can only be one CMD instruction in a Dockerfile. If you list more than one CMD then only the last CMD will take effect.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Dockerfile should only have one CMD instruction. Remove all the other CMD instructions\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0017",
+      "aliases": [],
+      "title": "\"'RUN <package-manager> update' instruction alone\"",
+      "description": "\"The instruction 'RUN <package-manager> update' should always be followed by '<package-manager> install' in the same RUN statement.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Combine '<package-manager> update' and '<package-manager> install' instructions to single one\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0019",
+      "aliases": [],
+      "title": "\"'dnf clean all' missing\"",
+      "description": "\"Cached package data should be cleaned after installation to reduce image size.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Add 'dnf clean all' to Dockerfile\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0020",
+      "aliases": [],
+      "title": "\"'zypper clean' missing\"",
+      "description": "\"The layer and image size should be reduced by deleting unneeded caches after running zypper.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Add 'zypper clean' to Dockerfile\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0021",
+      "aliases": [],
+      "title": "\"'apt-get' missing '-y' to avoid manual input\"",
+      "description": "\"'apt-get' calls should use the flag '-y' to avoid manual user input.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Add '-y' flag to 'apt-get'\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0022",
+      "aliases": [],
+      "title": "\"Deprecated MAINTAINER used\"",
+      "description": "\"MAINTAINER has been deprecated since Docker 1.13.0.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Use LABEL instead of MAINTAINER\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0023",
+      "aliases": [],
+      "title": "\"Multiple HEALTHCHECK defined\"",
+      "description": "\"Providing more than one HEALTHCHECK instruction per stage is confusing and error-prone.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"One HEALTHCHECK instruction must remain in Dockerfile. Remove all other instructions.\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0024",
+      "aliases": [],
+      "title": "\"'apt-get dist-upgrade' used\"",
+      "description": "\"'apt-get dist-upgrade' upgrades a major version so it doesn't make more sense in Dockerfile.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Just use different image\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0025",
+      "aliases": [],
+      "title": "\"'apk add' is missing '--no-cache'\"",
+      "description": "\"You should use 'apk add' with '--no-cache' to clean package cached data and reduce image size.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Add '--no-cache' to 'apk add' in Dockerfile\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0026",
+      "aliases": [],
+      "title": "\"No HEALTHCHECK defined\"",
+      "description": "\"You should add HEALTHCHECK instruction in your docker container images to perform the health check on running containers.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Add HEALTHCHECK instruction in Dockerfile\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0027",
+      "aliases": [],
+      "title": "\"'microdnf clean all' missing\"",
+      "description": "\"Cached package data should be cleaned after installation to reduce image size.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Add 'microdnf clean all' to Dockerfile\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0029",
+      "aliases": [],
+      "title": "\"'apt-get' missing '--no-install-recommends'\"",
+      "description": "\"'apt-get' install should use '--no-install-recommends' to minimize image size.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Add '--no-install-recommends' flag to 'apt-get'\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0030",
+      "aliases": [],
+      "title": "\"WORKDIR should not be mounted on system dirs\"",
+      "description": "\"WORKDIR should not be mounted on system directories to avoid container breakouts\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Avoid using system directories to mount WORKDIR\"",
+      "family": "docker"
+    },
+    {
+      "id": "DS-0031",
+      "aliases": [],
+      "title": "Secrets passed via `build-args` or envs or copied secret files",
+      "description": "Passing secrets via `build-args` or envs or copying secret files can leak them out",
+      "severity": "CRITICAL",
+      "recommended_action": "Use secret mount if secrets are needed during image build. Use volume mount if secret files are needed during container runtime.",
+      "family": "docker"
+    },
+    {
+      "id": "KCV-0001",
+      "aliases": [],
+      "title": "\"Ensure that the --anonymous-auth argument is set to false\"",
+      "description": "\"Disable anonymous requests to the API server.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Set '--anonymous-auth' to 'false'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0002",
+      "aliases": [],
+      "title": "\"Ensure that the --token-auth-file parameter is not set\"",
+      "description": "\"Do not use token based authentication.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the documentation and configure alternate mechanisms for authentication. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the master node and remove the --token-auth-file=<filename> parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0003",
+      "aliases": [],
+      "title": "\"Ensure that the --DenyServiceExternalIPs is not set\"",
+      "description": "\"This admission controller rejects all net-new usage of the Service field externalIPs.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file $apiserverconf on the control plane node and remove the `DenyServiceExternalIPs` from enabled admission plugins.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0004",
+      "aliases": [],
+      "title": "\"Ensure that the --kubelet-https argument is set to true\"",
+      "description": "\"Use https for kubelet connections.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and remove the --kubelet-https parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0005",
+      "aliases": [],
+      "title": "\"Ensure that the --kubelet-client-certificate and --kubelet-client-key arguments are set as appropriate\"",
+      "description": "\"Enable certificate based kubelet authentication.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and set up the TLS connection between the apiserver and kubelets.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0006",
+      "aliases": [],
+      "title": "\"Ensure that the --kubelet-certificate-authority argument is set as appropriate\"",
+      "description": "\"Verify kubelet's certificate before establishing connection.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and setup the TLS connection between the apiserver and kubelets. \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0007",
+      "aliases": [],
+      "title": "\"Ensure that the --authorization-mode argument is not set to AlwaysAllow\"",
+      "description": "\"Do not always authorize all requests.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --authorization-mode parameter to values other than AlwaysAllow. \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0008",
+      "aliases": [],
+      "title": "\"Ensure that the --authorization-mode argument includes Node\"",
+      "description": "\"Restrict kubelet nodes to reading only objects associated with them.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --authorization-mode parameter to a value that includes Node.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0009",
+      "aliases": [],
+      "title": "\"Ensure that the --authorization-mode argument includes RBAC\"",
+      "description": "\"Turn on Role Based Access Control.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --authorization-mode parameter to a value that includes RBAC.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0010",
+      "aliases": [],
+      "title": "\"Ensure that the admission control plugin EventRateLimit is set\"",
+      "description": "\"Limit the rate at which the API server accepts requests.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and set the desired limits in a configuration file. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml and set the below parameters.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0011",
+      "aliases": [],
+      "title": "\"Ensure that the admission control plugin AlwaysAdmit is not set\"",
+      "description": "\"Do not allow all requests.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and either remove the --enable-admission- plugins parameter, or set it to a value that does not include AlwaysAdmit.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0012",
+      "aliases": [],
+      "title": "\"Ensure that the admission control plugin AlwaysPullImages is set\"",
+      "description": "\"Always pull images.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --enable-admission-plugins parameter to include AlwaysPullImages.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0013",
+      "aliases": [],
+      "title": "\"Ensure that the admission control plugin SecurityContextDeny is set if PodSecurityPolicy is not used\"",
+      "description": "\"The SecurityContextDeny admission controller can be used to deny pods which make use of some SecurityContext fields which could allow for privilege escalation in the cluster. This should be used where PodSecurityPolicy is not in place within the cluster.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --enable-admission-plugins parameter to include SecurityContextDeny, unless PodSecurityPolicy is already in place.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0014",
+      "aliases": [],
+      "title": "\"Ensure that the admission control plugin ServiceAccount is set\"",
+      "description": "\"Automate service accounts management.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the documentation and create ServiceAccount objects as per your environment. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the master node and ensure that the --disable-admission-plugins parameter is set to a value that does not include ServiceAccount.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0015",
+      "aliases": [],
+      "title": "\"Ensure that the admission control plugin NamespaceLifecycle is set\"",
+      "description": "\"Reject creating objects in a namespace that is undergoing termination.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --disable-admission-plugins parameter to ensure it does not include NamespaceLifecycle.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0016",
+      "aliases": [],
+      "title": "\"Ensure that the admission control plugin NodeRestriction is set\"",
+      "description": "\"Limit the Node and Pod objects that a kubelet could modify.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and configure NodeRestriction plug-in on kubelets. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the master node and set the --enable-admission-plugins parameter to a value that includes NodeRestriction.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0017",
+      "aliases": [],
+      "title": "\"Ensure that the --secure-port argument is not set to 0\"",
+      "description": "\"Do not disable the secure port.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and either remove the --secure-port parameter or set it to a different (non-zero) desired port.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0018",
+      "aliases": [],
+      "title": "\"Ensure that the --profiling argument is set to false\"",
+      "description": "\"Disable profiling, if not needed.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the below parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0019",
+      "aliases": [],
+      "title": "\"Ensure that the --audit-log-path argument is set\"",
+      "description": "\"Enable auditing on the Kubernetes API Server and set the desired audit log path.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --audit-log-path parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0020",
+      "aliases": [],
+      "title": "\"Ensure that the --audit-log-maxage argument is set to 30 or as appropriate\"",
+      "description": "\"Retain the logs for at least 30 days or as appropriate.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --audit-log-maxage parameter to 30 or as an appropriate number of days.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0021",
+      "aliases": [],
+      "title": "\"Ensure that the --audit-log-maxbackup argument is set to 10 or as appropriate\"",
+      "description": "\"Retain 10 or an appropriate number of old log files.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --audit-log-maxbackup parameter to 10 or to an appropriate value.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0022",
+      "aliases": [],
+      "title": "\"Ensure that the --audit-log-maxsize argument is set to 100 or as appropriate\"",
+      "description": "\"Rotate log files on reaching 100 MB or as appropriate.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --audit-log-maxsize parameter to an appropriate size in MB\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0024",
+      "aliases": [],
+      "title": "\"Ensure that the --service-account-lookup argument is set to true\"",
+      "description": "\"Validate service account before validating token.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the below parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0025",
+      "aliases": [],
+      "title": "\"Ensure that the --service-account-key-file argument is set as appropriate\"",
+      "description": "\"Explicitly set a service account public key file for service accounts on the apiserver.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the Control Plane node and set the --service-account-key-file parameter to the public key file for service accounts.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0026",
+      "aliases": [],
+      "title": "\"Ensure that the --etcd-certfile and --etcd-keyfile arguments are set as appropriate\"",
+      "description": "\"etcd should be configured to make use of TLS encryption for client connections.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and set up the TLS connection between the apiserver and etcd. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the master node and set the etcd certificate and key file parameters.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0027",
+      "aliases": [],
+      "title": "\"Ensure that the --tls-cert-file and --tls-private-key-file arguments are set as appropriate\"",
+      "description": "\"Setup TLS connection on the API server.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and set up the TLS connection on the apiserver. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the master node and set the TLS certificate and private key file parameters.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0028",
+      "aliases": [],
+      "title": "\"Ensure that the --client-ca-file argument is set as appropriate\"",
+      "description": "\"Setup TLS connection on the API server.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and set up the TLS connection on the apiserver. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the master node and set the client certificate authority file.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0029",
+      "aliases": [],
+      "title": "\"Ensure that the --etcd-cafile argument is set as appropriate\"",
+      "description": "\"etcd should be configured to make use of TLS encryption for client connections.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and set up the TLS connection between the apiserver and etcd. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the master node and set the etcd certificate authority file parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0030",
+      "aliases": [],
+      "title": "\"Ensure that the --encryption-provider-config argument is set as appropriate\"",
+      "description": "\"Encrypt etcd key-value store.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the Kubernetes documentation and configure a EncryptionConfig file. Then, edit the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml on the master node and set the --encryption-provider-config parameter to the path of that file\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0033",
+      "aliases": [],
+      "title": "\"Ensure that the --terminated-pod-gc-threshold argument is set as appropriate\"",
+      "description": "\"Activate garbage collector on pod termination, as appropriate.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Controller Manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml on the Control Plane node and set the --terminated-pod-gc-threshold to an appropriate threshold.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0034",
+      "aliases": [],
+      "title": "\"Ensure that the --profiling argument is set to false\"",
+      "description": "\"Disable profiling, if not needed.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Controller Manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml on the Control Plane node and set the below parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0035",
+      "aliases": [],
+      "title": "\"Ensure that the --use-service-account-credentials argument is set to true\"",
+      "description": "\"Use individual service account credentials for each controller.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Controller Manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml on the Control Plane node to set the below parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0036",
+      "aliases": [],
+      "title": "\"Ensure that the --service-account-private-key-file argument is set as appropriate\"",
+      "description": "\"Explicitly set a service account private key file for service accounts on the controller manager.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Controller Manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml on the Control Plane node and set the --service-account-private-key-file parameter to the private key file for service accounts.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0037",
+      "aliases": [],
+      "title": "\"Ensure that the --root-ca-file argument is set as appropriate\"",
+      "description": "\"Allow pods to verify the API server's serving certificate before establishing connections.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Controller Manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml on the Control Plane node and set the --root-ca-file parameter to the certificate bundle file`.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0038",
+      "aliases": [],
+      "title": "\"Ensure that the RotateKubeletServerCertificate argument is set to true\"",
+      "description": "\"Enable kubelet server certificate rotation on controller-manager.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Controller Manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml on the Control Plane node and set the --feature-gates parameter to include RotateKubeletServerCertificate=true .\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0039",
+      "aliases": [],
+      "title": "\"Ensure that the --bind-address argument is set to 127.0.0.1\"",
+      "description": "\"Do not bind the scheduler service to non-loopback insecure addresses.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Controller Manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml on the Control Plane node and ensure the correct value for the --bind-address parameter\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0040",
+      "aliases": [],
+      "title": "\"Ensure that the --profiling argument is set to false\"",
+      "description": "\"Disable profiling, if not needed.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Scheduler pod specification file /etc/kubernetes/manifests/kube-scheduler.yaml file on the Control Plane node and set the below parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0041",
+      "aliases": [],
+      "title": "\"Ensure that the --bind-address argument is set to 127.0.0.1\"",
+      "description": "\"Do not bind the scheduler service to non-loopback insecure addresses.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the Scheduler pod specification file /etc/kubernetes/manifests/kube-scheduler.yaml on the Control Plane node and ensure the correct value for the --bind-address parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0042",
+      "aliases": [],
+      "title": "\"Ensure that the --cert-file and --key-file arguments are set as appropriate\"",
+      "description": "\"Configure TLS encryption for the etcd service.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the etcd service documentation and configure TLS encryption. Then, edit the etcd pod specification file /etc/kubernetes/manifests/etcd.yaml on the master node and set the below parameters.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0043",
+      "aliases": [],
+      "title": "\"Ensure that the --client-cert-auth argument is set to true\"",
+      "description": "\"Enable client authentication on etcd service.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the etcd pod specification file /etc/kubernetes/manifests/etcd.yaml on the master node and set the below parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0044",
+      "aliases": [],
+      "title": "\"Ensure that the --auto-tls argument is not set to true\"",
+      "description": "\"Do not use self-signed certificates for TLS.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the etcd pod specification file /etc/kubernetes/manifests/etcd.yaml on the master node and either remove the --auto-tls parameter or set it to false.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0045",
+      "aliases": [],
+      "title": "\"Ensure that the --peer-cert-file and --peer-key-file arguments are set as appropriate\"",
+      "description": "\"etcd should be configured to make use of TLS encryption for peer connections.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Follow the etcd service documentation and configure peer TLS encryption as appropriate for your etcd cluster. Then, edit the etcd pod specification file /etc/kubernetes/manifests/etcd.yaml on the master node and set the below parameters.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0046",
+      "aliases": [],
+      "title": "\"Ensure that the --peer-client-cert-auth argument is set to true\"",
+      "description": "\"etcd should be configured for peer authentication.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the etcd pod specification file /etc/kubernetes/manifests/etcd.yaml on the master node and set the below parameter.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0047",
+      "aliases": [],
+      "title": "\"Ensure that the --peer-auto-tls argument is not set to true\"",
+      "description": "\"Do not use self-signed certificates for TLS.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Edit the etcd pod specification file /etc/kubernetes/manifests/etcd.yaml on the master node and either remove the --peer-auto-tls parameter or set it to false.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0048",
+      "aliases": [],
+      "title": "\"Ensure that the API server pod specification file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the API server pod specification file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0049",
+      "aliases": [],
+      "title": "\"Ensure that the API server pod specification file ownership is set to root:root\"",
+      "description": "\"Ensure that the API server pod specification file ownership is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the API server pod specification file /etc/kubernetes/manifests/kube-apiserver.yaml ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0050",
+      "aliases": [],
+      "title": "\"Ensure that the controller manager pod specification file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the controller manager pod specification file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the controller manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0051",
+      "aliases": [],
+      "title": "\"Ensure that the controller manager pod specification file ownership is set to root:root\"",
+      "description": "\"Ensure that the controller manager pod specification file ownership is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the controller manager pod specification file /etc/kubernetes/manifests/kube-controller-manager.yaml ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0052",
+      "aliases": [],
+      "title": "\"Ensure that the scheduler pod specification file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the scheduler pod specification file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the scheduler pod specification file /etc/kubernetes/manifests/kube-scheduler.yaml permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0053",
+      "aliases": [],
+      "title": "\"Ensure that the scheduler pod specification file ownership is set to root:root\"",
+      "description": "\"Ensure that the scheduler pod specification file ownership is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the scheduler pod specification file /etc/kubernetes/manifests/kube-scheduler.yaml ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0054",
+      "aliases": [],
+      "title": "\"Ensure that the etcd pod specification file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the etcd pod specification file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the etcd pod specification file /etc/kubernetes/manifests/etcd.yaml permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0055",
+      "aliases": [],
+      "title": "\"Ensure that the etcd pod specification file ownership is set to root:root\"",
+      "description": "\"Ensure that the etcd pod specification file ownership is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the etcd pod specification file /etc/kubernetes/manifests/etcd.yaml ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0056",
+      "aliases": [],
+      "title": "\"Ensure that the container network interface file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the container network interface file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the container network interface file path/to/cni/files permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0057",
+      "aliases": [],
+      "title": "\"Ensure that the container network interface file ownership is set to root:root\"",
+      "description": "\"Ensure that the container network interface file ownership is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the container network interface file path/to/cni/files ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0058",
+      "aliases": [],
+      "title": "\"Ensure that the etcd data directory permissions are set to 700 or more restrictive\"",
+      "description": "\"Ensure that the etcd data directory has permissions of 700 or more restrictive.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Change the etcd data directory /var/lib/etcd permissions of 700 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0059",
+      "aliases": [],
+      "title": "\"Ensure that the etcd data directory ownership is set to etcd:etcd\"",
+      "description": "\"Ensure that the etcd data directory ownership is set to etcd:etcd.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Change the etcd data directory /var/lib/etcd ownership to etcd:etcd\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0060",
+      "aliases": [],
+      "title": "\"Ensure that the admin config file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the admin config file has permissions of 600 or more restrictive.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change the admin config file /etc/kubernetes/admin.conf permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0061",
+      "aliases": [],
+      "title": "\"Ensure that the admin config  file ownership is set to root:root\"",
+      "description": "\"Ensure that the admin config  file ownership is set to root:root.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change the admin config  file /etc/kubernetes/admin.conf ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0062",
+      "aliases": [],
+      "title": "\"Ensure that the scheduler config file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the scheduler config file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the scheduler config file /etc/kubernetes/scheduler.conf permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0063",
+      "aliases": [],
+      "title": "\"Ensure that the scheduler config  file ownership is set to root:root\"",
+      "description": "\"Ensure that the scheduler config  file ownership is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the scheduler config  file /etc/kubernetes/scheduler.conf ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0064",
+      "aliases": [],
+      "title": "\"Ensure that the controller-manager config file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the controller-manager config file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the controller manager config file /etc/kubernetes/controller-manager.conf permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0065",
+      "aliases": [],
+      "title": "\"Ensure that the controller-manager config  file ownership is set to root:root\"",
+      "description": "\"Ensure that the controller-manager config  file ownership is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the controller-manager config  file /etc/kubernetes/controller-manager.conf ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0066",
+      "aliases": [],
+      "title": "\"Ensure that the Kubernetes PKI directory and file file ownership is set to root:root\"",
+      "description": "\"Ensure that the Kubernetes PKI directory and file file ownership is set to root:root.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change the Kubernetes PKI directory and file file /etc/kubernetes/pki/ ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0067",
+      "aliases": [],
+      "title": "\"Ensure that the Kubernetes PKI key file permission is set to 600\"",
+      "description": "\"Ensure that the Kubernetes PKI key file permission is set to 600.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change the Kubernetes PKI key file /etc/kubernetes/pki/*.key permission to 600\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0068",
+      "aliases": [],
+      "title": "\"Ensure that the Kubernetes PKI certificate file permission is set to 600\"",
+      "description": "\"Ensure that the Kubernetes PKI certificate file permission is set to 600.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the Kubernetes PKI certificate file /etc/kubernetes/pki/*.crt permission to 600\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0069",
+      "aliases": [],
+      "title": "\"Ensure that the kubelet service file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the kubelet service file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the kubelet service file /etc/systemd/system/kubelet.service.d/10-kubeadm.conf permissions of 600 or more restrictive \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0070",
+      "aliases": [],
+      "title": "\"Ensure that the kubelet service file ownership is set to root:root\"",
+      "description": "\"Ensure that the kubelet service file ownership is set to root:root.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change the kubelet service file /etc/systemd/system/kubelet.service.d/10-kubeadm.conf ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0071",
+      "aliases": [],
+      "title": "\"If proxy kubeconfig file exists ensure permissions are set to 600 or more restrictive\"",
+      "description": "\"If kube-proxy is running, and if it is using a file-based kubeconfig file, ensure that the proxy kubeconfig file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the proxy kubeconfig file <path><filename> permissions to 600 or more restrictive if exist\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0072",
+      "aliases": [],
+      "title": "\"if proxy kubeconfig file exists ensure ownership is set to root:root\"",
+      "description": "\"If kube-proxy is running, ensure that the file ownership of its kubeconfig file is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the proxy kubeconfig file <path><filename> ownership to root:root if exist\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0073",
+      "aliases": [],
+      "title": "\"Ensure that the --kubeconfig kubelet.conf file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the kubelet.conf file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the kubelet.conf file permissions to 600 or more restrictive if exist\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0074",
+      "aliases": [],
+      "title": "\"Ensure that the --kubeconfig kubelet.conf file ownership is set to root:root\"",
+      "description": "\"Ensure that the kubelet.conf file ownership is set to root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the --kubeconfig kubelet.conf file ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0075",
+      "aliases": [],
+      "title": "\"Ensure that the certificate authorities file permissions are set to 600 or more restrictive\"",
+      "description": "\"Ensure that the certificate authorities file has permissions of 600 or more restrictive.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change the certificate authorities file permissions to 600 or more restrictive if exist\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0076",
+      "aliases": [],
+      "title": "\"Ensure that the client certificate authorities file ownership is set to root:root\"",
+      "description": "\"Ensure that the certificate authorities file ownership is set to root:root.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Change the certificate authorities file ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0077",
+      "aliases": [],
+      "title": "\"If the kubelet config.yaml configuration file is being used validate permissions set to 600 or more restrictive\"",
+      "description": "\"Ensure that if the kubelet refers to a configuration file with the --config argument, that file has permissions of 600 or more restrictive.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the kubelet config yaml permissions to 600 or more restrictive if exist\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0078",
+      "aliases": [],
+      "title": "\"If the kubelet config.yaml configuration file is being used validate file ownership is set to root:root \"",
+      "description": "\"Ensure that if the kubelet refers to a configuration file with the --config argument, that file is owned by root:root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change the kubelet config.yaml file ownership to root:root\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0079",
+      "aliases": [],
+      "title": "\"Ensure that the --anonymous-auth argument is set to false\"",
+      "description": "\"Disable anonymous requests to the Kubelet server.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Disable anonymous requests to the Kubelet server\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0080",
+      "aliases": [],
+      "title": "\"Ensure that the --authorization-mode argument is not set to AlwaysAllow\"",
+      "description": "\"Do not allow all requests. Enable explicit authorization.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"edit Kubelet config and set authorization: mode to Webhook.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0081",
+      "aliases": [],
+      "title": "\"Ensure that the --client-ca-file argument is set as appropriate\"",
+      "description": "\"Enable Kubelet authentication using certificates.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"If using a Kubelet config file, edit  the --client-ca-file argument ito appropriate value\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0082",
+      "aliases": [],
+      "title": "\"Verify that the --read-only-port argument is set to 0\"",
+      "description": "\"Disable the read-only port.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Disable the read-only port\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0083",
+      "aliases": [],
+      "title": "\"Ensure that the --protect-kernel-defaults is set to true\"",
+      "description": "\"Protect tuned kernel parameters from overriding kubelet default kernel parameter values.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"If using a Kubelet config file, edit the file to set protectKernelDefaults: true\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0084",
+      "aliases": [],
+      "title": "\"Ensure that the --make-iptables-util-chains argument is set to true\"",
+      "description": "\"Allow Kubelet to manage iptables.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"If using a Kubelet config file, edit the file to set makeIPTablesUtilChains: true\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0085",
+      "aliases": [],
+      "title": "\"Ensure that the --streaming-connection-idle-timeout argument is not set to 0\"",
+      "description": "\"Do not disable timeouts on streaming connections.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Edit the kubelet service file /etc/kubernetes/kubelet.conf and set --streaming-connection-idle-timeout=5m \"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0086",
+      "aliases": [],
+      "title": "\"Ensure that the --hostname-override argument is not set\"",
+      "description": "\"Do not override node hostnames.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Edit the kubelet service file /etc/systemd/system/kubelet.service.d/10-kubeadm.conf on each worker node and remove the --hostname-override argument\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0087",
+      "aliases": [],
+      "title": "\"Ensure that the --event-qps argument is set to 0 or a level which ensures appropriate event capture\"",
+      "description": "\"Security relevant information should be captured. The --event-qps flag on the Kubelet can be used to limit the rate at which events are gathered\"",
+      "severity": "HIGH",
+      "recommended_action": "\"If using a Kubelet config file, edit the file to set eventRecordQPS: to an appropriate level. If using command line arguments, edit the kubelet service file\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0088",
+      "aliases": [],
+      "title": "\"Ensure that the --tls-cert-file argument are set as appropriate\"",
+      "description": "\"Setup TLS connection on the Kubelets.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"If using a Kubelet config file, edit the file to set tlsCertFile to the location\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0089",
+      "aliases": [],
+      "title": "\"Ensure that the --tls-key-file argument are set as appropriate\"",
+      "description": "\"Setup TLS connection on the Kubelets.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"If using a Kubelet config file, edit the file to set tlskeyFile to the location\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0090",
+      "aliases": [],
+      "title": "\"Ensure that the --rotate-certificates argument is not set to false\"",
+      "description": "\"Enable kubelet client certificate rotation.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"If using a Kubelet config file, edit the file to add the line rotateCertificates: true or remove it altogether to use the default value.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0091",
+      "aliases": [],
+      "title": "\"Verify that the RotateKubeletServerCertificate argument is set to true\"",
+      "description": "\"Enable kubelet server certificate rotation.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Edit the kubelet service file /etc/kubernetes/kubelet.conf and set --feature-gates=RotateKubeletServerCertificate=true\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0092",
+      "aliases": [],
+      "title": "\"Ensure that the Kubelet only makes use of Strong Cryptographic Ciphers\"",
+      "description": "\"Ensure that the Kubelet is configured to only use strong cryptographic ciphers.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"If using a Kubelet config file, edit the file to set TLSCipherSuites\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KCV-0093",
+      "aliases": [],
+      "title": "\"Ensure ingress-nginx annotations are secure\"",
+      "description": "\"Check for insecure annotations in ingress-nginx configurations.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Ensure that ingress-nginx annotations do not contain suspicious characters.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0001",
+      "aliases": [],
+      "title": "\"Can elevate its own privileges\"",
+      "description": "\"A program inside the container can elevate its own privileges and run as root, which might give the program control over the container and node.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Set 'set containers[].securityContext.allowPrivilegeEscalation' to 'false'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0002",
+      "aliases": [],
+      "title": "\"Runtime/Default AppArmor profile not set\"",
+      "description": "\"According to pod security standard 'AppArmor', the AppArmor key must be set to the runtime/default profile or to be undefined.\"",
+      "severity": "LOW",
+      "recommended_action": "\"set the 'runtime/default' value from 'container.apparmor.security.beta.kubernetes.io'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0003",
+      "aliases": [],
+      "title": "\"Default capabilities: some containers do not drop all\"",
+      "description": "\"The container should drop all default capabilities and add only those that are needed for its execution.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Add 'ALL' to containers[].securityContext.capabilities.drop.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0004",
+      "aliases": [],
+      "title": "\"Default capabilities: some containers do not drop any\"",
+      "description": "\"Security best practices require containers to run with minimal required capabilities.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Specify at least one unneeded capability in 'containers[].securityContext.capabilities.drop'\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0005",
+      "aliases": [],
+      "title": "\"SYS_ADMIN capability added\"",
+      "description": "\"SYS_ADMIN gives the processes running inside the container privileges that are equivalent to root.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Remove the SYS_ADMIN capability from 'containers[].securityContext.capabilities.add'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0006",
+      "aliases": [],
+      "title": "\"hostPath volume mounted with docker.sock\"",
+      "description": "\"Mounting docker.sock from the host can give the container full root access to the host.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Do not specify /var/run/docker.socket in 'spec.template.volumes.hostPath.path'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0007",
+      "aliases": [],
+      "title": "\"Manages /etc/hosts\"",
+      "description": "\"Managing /etc/hosts aliases can prevent the container engine from modifying the file after a pod’s containers have already been started.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Do not set 'spec.template.spec.hostAliases'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0008",
+      "aliases": [],
+      "title": "Access to host IPC namespace",
+      "description": "Sharing the host’s IPC namespace allows container processes to communicate with processes on the host.",
+      "severity": "HIGH",
+      "recommended_action": "Do not set 'spec.template.spec.hostIPC' to true.",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0009",
+      "aliases": [],
+      "title": "\"Access to host network\"",
+      "description": "\"Sharing the host’s network namespace permits processes in the pod to communicate with processes bound to the host’s loopback adapter.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Do not set 'spec.template.spec.hostNetwork' to true.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0010",
+      "aliases": [],
+      "title": "\"Access to host PID\"",
+      "description": "\"Sharing the host’s PID namespace allows visibility on host processes, potentially leaking information such as environment variables and configuration.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Do not set 'spec.template.spec.hostPID' to true.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0011",
+      "aliases": [],
+      "title": "\"CPU not limited\"",
+      "description": "\"Enforcing CPU limits prevents DoS via resource exhaustion.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set a limit value under 'containers[].resources.limits.cpu'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0012",
+      "aliases": [],
+      "title": "\"Runs as root user\"",
+      "description": "\"Force the running image to run as a non-root user to ensure least privileges.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Set 'containers[].securityContext.runAsNonRoot' to true.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0013",
+      "aliases": [],
+      "title": "\"Image tag \\\":latest\\\" used\"",
+      "description": "\"It is best to avoid using the ':latest' image tag when deploying containers in production. Doing so makes it hard to track which version of the image is running, and hard to roll back the version.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Use a specific container image tag that is not 'latest'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0014",
+      "aliases": [],
+      "title": "\"Root file system is not read-only\"",
+      "description": "\"An immutable root file system prevents applications from writing to their local disk. This can limit intrusions, as attackers will not be able to tamper with the file system or write foreign executables to disk.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change 'containers[].securityContext.readOnlyRootFilesystem' to 'true'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0015",
+      "aliases": [],
+      "title": "\"CPU requests not specified\"",
+      "description": "\"When containers have resource requests specified, the scheduler can make better decisions about which nodes to place pods on, and how to deal with resource contention.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set 'containers[].resources.requests.cpu'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0016",
+      "aliases": [],
+      "title": "\"Memory requests not specified\"",
+      "description": "\"When containers have memory requests specified, the scheduler can make better decisions about which nodes to place pods on, and how to deal with resource contention.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set 'containers[].resources.requests.memory'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0017",
+      "aliases": [],
+      "title": "\"Privileged\"",
+      "description": "\"Privileged containers share namespaces with the host system and do not offer any security. They should be used exclusively for system containers that require high privileges.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Change 'containers[].securityContext.privileged' to 'false'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0018",
+      "aliases": [],
+      "title": "\"Memory not limited\"",
+      "description": "\"Enforcing memory limits prevents DoS via resource exhaustion.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set a limit value under 'containers[].resources.limits.memory'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0020",
+      "aliases": [],
+      "title": "\"Runs with UID <= 10000\"",
+      "description": "\"Force the container to run with user ID > 10000 to avoid conflicts with the host’s user table.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set 'containers[].securityContext.runAsUser' to an integer > 10000.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0021",
+      "aliases": [],
+      "title": "\"Runs with GID <= 10000\"",
+      "description": "\"Force the container to run with group ID > 10000 to avoid conflicts with the host’s user table.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set 'containers[].securityContext.runAsGroup' to an integer > 10000.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0022",
+      "aliases": [],
+      "title": "\"Specific capabilities added\"",
+      "description": "\"According to pod security standard 'Capabilities', capabilities beyond the default set must not be added.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Do not set spec.containers[*].securityContext.capabilities.add and spec.initContainers[*].securityContext.capabilities.add.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0023",
+      "aliases": [],
+      "title": "\"hostPath volumes mounted\"",
+      "description": "\"According to pod security standard 'HostPath Volumes', HostPath volumes must be forbidden.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Do not set 'spec.volumes[*].hostPath'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0024",
+      "aliases": [],
+      "title": "\"Access to host ports\"",
+      "description": "\"According to pod security standard 'Host Ports', hostPorts should be disallowed, or at minimum restricted to a known list.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Do not set spec.containers[*].ports[*].hostPort and spec.initContainers[*].ports[*].hostPort.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0025",
+      "aliases": [],
+      "title": "\"SELinux custom options set\"",
+      "description": "\"According to pod security standard 'SElinux', setting custom SELinux options should be disallowed.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Do not set 'spec.securityContext.seLinuxOptions', spec.containers[*].securityContext.seLinuxOptions and spec.initContainers[*].securityContext.seLinuxOptions.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0026",
+      "aliases": [],
+      "title": "\"Unsafe sysctl options set\"",
+      "description": "\"Sysctls can disable security mechanisms or affect all containers on a host, and should be disallowed except for an allowed 'safe' subset. A sysctl is considered safe if it is namespaced in the container or the Pod, and it is isolated from other Pods or processes on the same Node.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Do not set 'spec.securityContext.sysctls' or set to values in an allowed subset\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0027",
+      "aliases": [],
+      "title": "\"Non-default /proc masks set\"",
+      "description": "\"According to pod security standard '/proc Mount Type', the default /proc masks are set up to reduce attack surface, and should be required.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Do not set spec.containers[*].securityContext.procMount and spec.initContainers[*].securityContext.procMount.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0028",
+      "aliases": [],
+      "title": "\"Non-core volume types used.\"",
+      "description": "\"According to pod security standard 'Volume types', non-core volume types must not be used.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Do not Set 'spec.volumes[*]' to any of the disallowed volume types.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0030",
+      "aliases": [],
+      "title": "\"Runtime/Default Seccomp profile not set\"",
+      "description": "\"According to pod security standard 'Seccomp', the RuntimeDefault seccomp profile must be required, or allow specific additional profiles.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set 'spec.securityContext.seccompProfile.type', 'spec.containers[*].securityContext.seccompProfile' and 'spec.initContainers[*].securityContext.seccompProfile' to 'RuntimeDefault' or undefined.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0032",
+      "aliases": [],
+      "title": "\"All container images must start with the *.azurecr.io domain\"",
+      "description": "\"Containers should only use images from trusted registries.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Use images from trusted Azure registries.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0033",
+      "aliases": [],
+      "title": "\"All container images must start with a GCR domain\"",
+      "description": "\"Containers should only use images from trusted GCR registries.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Use images from trusted GCR registries.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0034",
+      "aliases": [],
+      "title": "\"Container images from public registries used\"",
+      "description": "\"Container images must not start with an empty prefix or a defined public registry domain.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Use images from private registries.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0035",
+      "aliases": [],
+      "title": "\"All container images must start with an ECR domain\"",
+      "description": "\"Container images from non-ECR registries should be forbidden.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Container image should be used from Amazon container Registry\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0036",
+      "aliases": [],
+      "title": "\"Protecting Pod service account tokens\"",
+      "description": "\"ensure that Pod specifications disable the secret token being mounted by setting automountServiceAccountToken: false\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Disable the mounting of service account secret token by setting automountServiceAccountToken to false\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0037",
+      "aliases": [],
+      "title": "\"User resources should not be placed in kube-system namespace\"",
+      "description": "\"ensure that user resources are not placed in kube-system namespace\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Deploy the user resources into a designated namespace which is not kube-system.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0038",
+      "aliases": [],
+      "title": "\"Selector usage in network policies\"",
+      "description": "\"ensure that network policies selectors are applied to pods or namespaces to restricted ingress and egress traffic within the pod network\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"create network policies and ensure that pods are selected using the podSelector and/or the namespaceSelector options\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0039",
+      "aliases": [],
+      "title": "limit range usage",
+      "description": "Ensure that a LimitRange policy is configured to limit resource usage for namespaces or nodes",
+      "severity": "LOW",
+      "recommended_action": "Create a LimitRange policy with default requests and limits for each container",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0040",
+      "aliases": [],
+      "title": "resource quota usage",
+      "description": "Ensure that a ResourceQuota policy is configured to limit aggregate resource usage within a namespace",
+      "severity": "LOW",
+      "recommended_action": "Create a ResourceQuota policy with memory and CPU quotas for each namespace",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0041",
+      "aliases": [],
+      "title": "\"Manage secrets\"",
+      "description": "\"Viewing secrets at the cluster-scope is akin to cluster-admin in most clusters as there are typically at least one service accounts (their token stored in a secret) bound to cluster-admin directly or a role/clusterrole that gives similar permissions.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0042",
+      "aliases": [],
+      "title": "\"Delete pod logs\"",
+      "description": "\"Used to cover attacker’s tracks, but most clusters ship logs quickly off-cluster.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Remove verbs 'delete' and 'deletecollection' for resource 'pods/log' for Role and ClusterRole\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0043",
+      "aliases": [],
+      "title": "\"Do not allow impersonation of privileged groups\"",
+      "description": "\"Check whether role permits impersonating privileged groups\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Create a role which does not permit to impersonate privileged groups if not needed\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0044",
+      "aliases": [],
+      "title": "\"No wildcard verb and resource roles\"",
+      "description": "\"Check whether role permits wildcard verb on wildcard resource\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Create a role which does not permit wildcard verb on wildcard resource\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0045",
+      "aliases": [],
+      "title": "\"No wildcard verb roles\"",
+      "description": "\"Check whether role permits wildcard verb on specific resources\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Create a role which does not permit wildcard verb on specific resources\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0046",
+      "aliases": [],
+      "title": "\"Manage all resources\"",
+      "description": "\"Full control of the cluster resources, and therefore also root on all nodes where workloads can run and has access to all pods, secrets, and data.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0047",
+      "aliases": [],
+      "title": "\"Do not allow privilege escalation from node proxy\"",
+      "description": "\"Check whether role permits privilege escalation from node proxy\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Create a role which does not permit privilege escalation from node proxy\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0048",
+      "aliases": [],
+      "title": "\"Manage Kubernetes workloads and pods\"",
+      "description": "\"Depending on the policies enforced by the admission controller, this permission ranges from the ability to steal compute (crypto) by running workloads or allowing for creating workloads that escape to the node as root and escalation to cluster-admin.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Kubernetes workloads resources are only allowed for verbs 'list', 'watch', 'get'\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0049",
+      "aliases": [],
+      "title": "\"Manage configmaps\"",
+      "description": "\"Some workloads leverage configmaps to store sensitive data or configuration parameters that affect runtime behavior that can be modified by an attacker or combined with another issue to potentially lead to compromise.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Remove write permission verbs for resource 'configmaps'\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0050",
+      "aliases": [],
+      "title": "\"Do not allow privilege escalation via RBAC resources\"",
+      "description": "\"Check whether role permits escalate, bind, or impersonate on roles/rolebindings, which can lead to privilege escalation.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Remove permissions for escalate, bind, and impersonate verbs on roles and rolebindings\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0051",
+      "aliases": [],
+      "title": "\"Do not allow role binding creation and association with privileged role/clusterrole\"",
+      "description": "\"Check whether role permits creating role bindings and associating to privileged role/clusterrole\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Create a role which does not permit creation of role bindings and associating with privileged cluster role\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0052",
+      "aliases": [],
+      "title": "\"Do not allow role to create ClusterRoleBindings and association with privileged role\"",
+      "description": "\"Check whether role permits creating role ClusterRoleBindings and association with privileged cluster role\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Create a role which does not permit to create role clusterrolebindings and associate to privileged cluster role\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0053",
+      "aliases": [],
+      "title": "\"Exec into Pods\"",
+      "description": "\"The ability to exec into a container with privileged access to the host or with an attached SA with higher RBAC permissions is a common escalation path to cluster-admin.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Remove write permission verbs for resource 'pods/exec'\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0054",
+      "aliases": [],
+      "title": "\"Do not allow attaching to shell on pods\"",
+      "description": "\"Check whether role permits attaching to shell on pods\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Create a role which does not permit attaching to shell on pods\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0055",
+      "aliases": [],
+      "title": "\"Do not allow users in a rolebinding to add other users to their rolebindings\"",
+      "description": "\"Check whether role permits allowing users in a rolebinding to add other users to their rolebindings\"",
+      "severity": "LOW",
+      "recommended_action": "\"Create a role which does not permit allowing users in a rolebinding to add other users to their rolebindings if not needed\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0056",
+      "aliases": [],
+      "title": "\"Manage Kubernetes networking\"",
+      "description": "\"The ability to control which pods get service traffic directed to them allows for interception attacks. Controlling network policy allows for bypassing lateral movement restrictions.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Networking resources are only allowed for verbs 'list', 'watch', 'get'\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-01010",
+      "aliases": [],
+      "title": "\"ConfigMap with sensitive content\"",
+      "description": "\"Storing sensitive content such as usernames and email addresses in configMaps is unsafe\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Remove sensitive content from configMap data value\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-01011",
+      "aliases": [],
+      "title": "\"system:authenticate group access binding\"",
+      "description": "\"Binding to system:authenticate group to any clusterrole or role is a security risk.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Remove system:authenticated group binding from clusterrolebinding or rolebinding.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0102",
+      "aliases": [],
+      "title": "\"Tiller Is Deployed\"",
+      "description": "\"Check if Helm Tiller component is deployed.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Migrate to Helm v3 which no longer has Tiller component\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0103",
+      "aliases": [],
+      "title": "\"Access to host process\"",
+      "description": "\"Windows pods offer the ability to run HostProcess containers which enable privileged access to the Windows node.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Do not enable 'hostProcess' on any securityContext\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0104",
+      "aliases": [],
+      "title": "\"Seccomp policies disabled\"",
+      "description": "\"A program inside the container can bypass Seccomp protection policies.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Specify seccomp either by annotation or by seccomp profile type having allowed values as per pod security standards\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0105",
+      "aliases": [],
+      "title": "\"Containers must not set runAsUser to 0\"",
+      "description": "\"Containers should be forbidden from running with a root UID.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set 'securityContext.runAsUser' to a non-zero integer or leave undefined.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0106",
+      "aliases": [],
+      "title": "\"Container capabilities must only include NET_BIND_SERVICE\"",
+      "description": "\"Containers must drop ALL capabilities, and are only permitted to add back the NET_BIND_SERVICE capability.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set 'spec.containers[*].securityContext.capabilities.drop' to 'ALL' and only add 'NET_BIND_SERVICE' to 'spec.containers[*].securityContext.capabilities.add'.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0107",
+      "aliases": [],
+      "title": "The deprecated 'apiVersion' and 'kind' should not be used",
+      "description": "The specified 'apiVersion' and 'kind' are deprecated and are planned to be removed",
+      "severity": "LOW",
+      "recommended_action": "Migrate resource to new API",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0108",
+      "aliases": [],
+      "title": "\"Service with External IP\"",
+      "description": "\"Services with external IP addresses allows direct access from the internet and might expose risk for CVE-2020-8554\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Do not set spec.externalIPs\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0109",
+      "aliases": [],
+      "title": "\"ConfigMap with secrets\"",
+      "description": "\"Storing secrets in configMaps is unsafe\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Remove password/secret from configMap data value\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0110",
+      "aliases": [],
+      "title": "\"Workloads in the default namespace\"",
+      "description": "\"Checks whether a workload is running in the default namespace.\"",
+      "severity": "LOW",
+      "recommended_action": "\"Set 'metadata.namespace' to a non-default namespace.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0111",
+      "aliases": [],
+      "title": "\"User with admin access\"",
+      "description": "\"Either cluster-admin or those granted powerful permissions.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Remove binding for clusterrole 'cluster-admin', 'admin' or 'edit'\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0112",
+      "aliases": [],
+      "title": "\"Manage all resources at the namespace\"",
+      "description": "\"Full control of the resources within a namespace.  In some cluster configurations, this is excessive. In others, this is normal (a gitops deployment operator like flux)\"",
+      "severity": "CRITICAL",
+      "recommended_action": "",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0113",
+      "aliases": [],
+      "title": "\"Manage namespace secrets\"",
+      "description": "\"Viewing secrets at the namespace scope can lead to escalation if another service account in that namespace has a higher privileged rolebinding or clusterrolebinding bound.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0114",
+      "aliases": [],
+      "title": "\"Manage webhookconfigurations\"",
+      "description": "\"Webhooks can silently intercept or actively mutate/block resources as they are being created or updated. This includes secrets and pod specs.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0115",
+      "aliases": [],
+      "title": "\"Manage EKS IAM Auth ConfigMap\"",
+      "description": "\"Ability to add AWS IAM to RBAC bindings via special EKS configmap.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0116",
+      "aliases": [],
+      "title": "\"Runs with a root primary or supplementary GID\"",
+      "description": "\"According to pod security standard 'Non-root groups', containers should be forbidden from running with a root primary or supplementary GID.\"",
+      "severity": "LOW",
+      "recommended_action": "",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0117",
+      "aliases": [],
+      "title": "\"Prevent binding to privileged ports\"",
+      "description": "\"The ports which are lower than 1024 receive and transmit various sensitive and privileged data. Allowing containers to use them can bring serious implications.\"",
+      "severity": "MEDIUM",
+      "recommended_action": "\"Do not map the container ports to privileged host ports when starting a container.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0118",
+      "aliases": [],
+      "title": "\"Default security context configured\"",
+      "description": "\"Security context controls the allocation of security parameters for the pod/container/volume, ensuring the appropriate level of protection. Relying on default security context may expose vulnerabilities to potential attacks that rely on privileged access.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"To enhance security, it is strongly recommended not to rely on the default security context. Instead, it is advisable to explicitly define the required security parameters (such as runAsNonRoot, capabilities, readOnlyRootFilesystem, etc.) within the security context.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0119",
+      "aliases": [],
+      "title": "\"NET_RAW capability added\"",
+      "description": "\"The NET_RAW capability grants attackers the ability to eavesdrop on network traffic or generate IP traffic with falsified source addresses, posing serious security risks.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"To mitigate potential security risks, it is strongly recommended to remove the NET_RAW capability from 'containers[].securityContext.capabilities.add'. It is advisable to follow the practice of dropping all capabilities and only adding the necessary ones.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0120",
+      "aliases": [],
+      "title": "\"SYS_MODULE capability added\"",
+      "description": "\"The SYS_MODULE capability grants attackers the ability to install and remove kernel modules, posing serious security risks.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"To mitigate potential security risks, it is strongly recommended to remove the SYS_MODULE capability from 'containers[].securityContext.capabilities.add'. It is advisable to follow the practice of dropping all capabilities and only adding the necessary ones.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0121",
+      "aliases": [],
+      "title": "\"Kubernetes resource with disallowed volumes mounted\"",
+      "description": "\"HostPath present many security risks and as a security practice it is better to avoid critical host paths mounts.\"",
+      "severity": "HIGH",
+      "recommended_action": "\"Do not Set 'spec.volumes[*].hostPath.path' to any of the disallowed volumes.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0122",
+      "aliases": [],
+      "title": "\"Anonymous user access binding\"",
+      "description": "\"Binding to anonymous user to any clusterrole or role is a security risk.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Remove anonymous user binding from clusterrolebinding or rolebinding.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0123",
+      "aliases": [],
+      "title": "\"system:masters group access binding\"",
+      "description": "\"Binding to system:masters group to any clusterrole or role is a security risk.\"",
+      "severity": "CRITICAL",
+      "recommended_action": "\"Remove system:masters group binding from clusterrolebinding or rolebinding.\"",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0124",
+      "aliases": [],
+      "title": "Gatekeeper repo reference is ambiguously open-ended",
+      "description": "A Gatekeeper policy that references image repositories for prefix-matching is using open-ended and ambiguous pattern, and can potentially match unintended repositories.",
+      "severity": "HIGH",
+      "recommended_action": "",
+      "family": "kubernetes"
+    },
+    {
+      "id": "KSV-0125",
+      "aliases": [],
+      "title": "Restrict container images to trusted registries",
+      "description": "Ensure that all containers use images only from trusted registry domains.",
+      "severity": "MEDIUM",
+      "recommended_action": "Use images from trusted registries.",
+      "family": "kubernetes"
+    }
+  ]
+}

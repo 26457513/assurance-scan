@@ -179,9 +179,299 @@ def _write_snapshot(filename: str, payload: dict, entry_key: str, id_field: str 
     target = SOURCES_DIR / filename
     prev = _previous_entry_ids(target, entry_key, id_field)
     curr = {entry.get(id_field, "") for entry in payload.get(entry_key, [])}
+    if prev == curr and target.exists():
+        # Entries unchanged — don't rewrite, just report.
+        print(f"  unchanged: {target.relative_to(REPO_ROOT)} ({payload['meta']['count']} entries)")
+        return
     target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     print(f"  wrote {target.relative_to(REPO_ROOT)} ({payload['meta']['count']} entries)")
     _diff_ids(filename, prev, curr)
+
+
+# ---------------------------------------------------------------------------
+# security-headers (in-repo)
+# ---------------------------------------------------------------------------
+
+def fetch_security_headers() -> dict:
+    """Extract the 6 hardcoded header checks from scripts/security-headers.py."""
+    import importlib.util
+
+    sh_path = REPO_ROOT / "scripts" / "security-headers.py"
+    spec = importlib.util.spec_from_file_location("security_headers", sh_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load {sh_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+
+    entries = []
+    for name, spec_dict in sorted(mod.EXPECTED_HEADERS.items()):  # type: ignore[attr-defined]
+        entries.append(
+            {
+                "id": name,
+                "title": name,
+                "description": spec_dict.get("advice", ""),
+                "severity": spec_dict.get("severity", "UNKNOWN"),
+                "kind": "missing_header",
+            }
+        )
+    return {
+        "meta": {
+            "source": "scripts/security-headers.py (in-repo)",
+            "fetched_at": _utc_now_iso(),
+            "source_ref": "in-repo",
+            "license": "project",
+            "count": len(entries),
+        },
+        "entries": entries,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Gitleaks (TOML)
+# ---------------------------------------------------------------------------
+
+GITLEAKS_TOML_URL = (
+    "https://raw.githubusercontent.com/gitleaks/gitleaks/master/config/gitleaks.toml"
+)
+
+
+def fetch_gitleaks() -> dict:
+    """Fetch and parse gitleaks default rules from the TOML config."""
+    try:
+        import tomllib  # Python 3.11+
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("tomllib requires Python 3.11+; update your interpreter") from exc
+
+    raw = _http_get(GITLEAKS_TOML_URL)
+    data = tomllib.loads(raw.decode("utf-8", errors="replace"))
+    entries = []
+    for rule in data.get("rules", []) or []:
+        entries.append(
+            {
+                "id": rule.get("id", ""),
+                "title": rule.get("id", ""),  # gitleaks rules have no separate title
+                "description": rule.get("description", ""),
+                "severity": "HIGH",  # gitleaks doesn't ship per-rule severity; treat all as HIGH
+                "keywords": rule.get("keywords", []),
+            }
+        )
+    entries.sort(key=lambda r: r["id"])
+    return {
+        "meta": {
+            "source": GITLEAKS_TOML_URL,
+            "fetched_at": _utc_now_iso(),
+            "source_ref": "master",
+            "license": "MIT",
+            "count": len(entries),
+        },
+        "entries": entries,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Trivy misconfiguration checks (Rego metadata from aquasecurity/trivy-checks)
+# ---------------------------------------------------------------------------
+
+TRIVY_CHECKS_REPO = "aquasecurity/trivy-checks"
+TRIVY_CHECKS_API_BASE = f"https://api.github.com/repos/{TRIVY_CHECKS_REPO}/contents/checks"
+TRIVY_CHECKS_RAW = f"https://raw.githubusercontent.com/{TRIVY_CHECKS_REPO}/main/checks"
+
+
+def _trivy_api_url(path: str = "") -> str:
+    """Build a Trivy checks API URL with the ref query param correctly placed."""
+    url = TRIVY_CHECKS_API_BASE
+    if path:
+        url += f"/{path}"
+    return f"{url}?ref=main"
+
+# METADATA block keys we care about (parsed from # comment lines in .rego files).
+_TRIVY_METADATA_LINE_RE = re.compile(r"^#\s*(\w[\w\s]*?):\s*(.*)$")
+
+
+def _list_trivy_families() -> list[str]:
+    raw = _http_get(_trivy_api_url())
+    items = json.loads(raw)
+    if not isinstance(items, list):
+        return []
+    return [
+        item["name"]
+        for item in items
+        if item.get("type") == "dir" and not item["name"].startswith(".")
+    ]
+
+
+def _list_trivy_family_files(family: str) -> list[str]:
+    raw = _http_get(_trivy_api_url(family))
+    items = json.loads(raw)
+    if not isinstance(items, list):
+        return []
+    return [
+        item["name"]
+        for item in items
+        if item.get("type") == "file" and item["name"].endswith(".rego")
+    ]
+
+
+def _parse_rego_metadata(rego_text: str) -> dict:
+    """Parse the `# METADATA` block at the top of a Trivy Rego file."""
+    meta: dict = {"aliases": []}
+    in_metadata = False
+    for line in io.StringIO(rego_text):
+        stripped = line.rstrip()
+        if stripped == "# METADATA":
+            in_metadata = True
+            continue
+        if not in_metadata:
+            if stripped.startswith("#"):
+                continue
+            break  # hit the first non-comment line; metadata block is over
+        # We're inside the metadata block.
+        if not stripped.startswith("#"):
+            break  # block ended
+        m = _TRIVY_METADATA_LINE_RE.match(stripped)
+        if not m:
+            continue
+        key, value = m.group(1).strip(), m.group(2).strip()
+        if key == "title":
+            meta["title"] = value
+        elif key == "description":
+            meta["description"] = value
+        elif key == "id":
+            meta["short_id"] = value  # e.g. "DS-0002"
+        elif key == "severity":
+            meta["severity"] = value
+        elif key == "recommended_action":
+            meta["recommended_action"] = value
+        elif key == "aliases":
+            # next non-empty `- ` lines belong to aliases; handled by a simple
+            # lookahead in the loop below
+            pass
+        elif key.startswith("-"):
+            meta["aliases"].append(key[1:].strip())
+    return meta
+
+
+def fetch_trivy_config() -> dict:
+    """Fetch all Trivy misconfig rules across all families (docker, kubernetes, cloud, ...)."""
+    families = _list_trivy_families()
+    entries: list[dict] = []
+    for family in families:
+        rego_files = _list_trivy_family_files(family)
+        for rego_file in rego_files:
+            url = f"{TRIVY_CHECKS_RAW}/{family}/{rego_file}"
+            try:
+                rego_text = _http_get(url).decode("utf-8", errors="replace")
+            except Exception as exc:
+                print(f"    WARN: failed to fetch {family}/{rego_file}: {exc}", file=sys.stderr)
+                continue
+            meta = _parse_rego_metadata(rego_text)
+            if not meta.get("short_id"):
+                # Rego file without a custom.id — skip (likely a helper module, not a check).
+                continue
+            entries.append(
+                {
+                    "id": meta.get("short_id", rego_file.removesuffix(".rego")),
+                    "aliases": meta.get("aliases", []),
+                    "title": meta.get("title", ""),
+                    "description": meta.get("description", ""),
+                    "severity": meta.get("severity", "UNKNOWN"),
+                    "recommended_action": meta.get("recommended_action", ""),
+                    "family": family,
+                }
+            )
+        print(f"  trivy-config/{family}: {len([e for e in entries if e['family'] == family])} rules")
+    entries.sort(key=lambda r: (r["family"], r["id"]))
+    return {
+        "meta": {
+            "source": f"https://github.com/{TRIVY_CHECKS_REPO}/tree/main/checks",
+            "fetched_at": _utc_now_iso(),
+            "source_ref": "main",
+            "license": "Apache-2.0",
+            "count": len(entries),
+        },
+        "entries": entries,
+    }
+
+
+def fetch_trivy_vuln() -> dict:
+    """Trivy vuln findings are CVE IDs from external feeds — no static catalog.
+
+    Emit a single wildcard entry that the mapping can glob against as `CVE-*`.
+    """
+    return {
+        "meta": {
+            "source": "NVD + GitHub Advisories (via Trivy)",
+            "fetched_at": _utc_now_iso(),
+            "source_ref": "external",
+            "license": "external",
+            "count": 1,
+        },
+        "entries": [
+            {
+                "id": "CVE-*",
+                "title": "Any CVE discovered by Trivy dependency scanning",
+                "description": (
+                    "Trivy vulnerabilities are CVE IDs sourced from NVD and GitHub "
+                    "Advisories at scan time. There is no static rule catalog — map "
+                    "ASVS requirements to this entry with the glob 'CVE-*'."
+                ),
+                "severity": "VARIES",
+                "family": "vulnerability",
+            }
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Semgrep rules
+# ---------------------------------------------------------------------------
+#
+# The original semgrep-old/rules-owasp-asvs repo has been gutted (only LICENSE,
+# README, and cheatsheet-asvs-mapping.md remain — no rule YAML files). The
+# community rules live at semgrep/semgrep-rules (4000+ rules organised by
+# language). Scraping all of those and filtering to ASVS-relevant rules is a
+# curation effort that is deferred to a follow-up task (see plan §1.1, Phase
+# 1.1c).
+#
+# For v1, the mapping generator (Phase 1.2) will rely on:
+#   1. The ASVS section name + description (already in asvs_requirements.json)
+#   2. The Barkley CSV's "Automated Scan Tool" hint column
+#   3. The LLM's knowledge of common Semgrep rule namespaces
+#      (e.g. python.django.security.injection.sql.* for SQL injection rows)
+#
+# This is sufficient for v1 because Semgrep rule IDs are semantically named
+# and the LLM can suggest glob patterns that will match real rules at scan
+# time without us needing to enumerate the full rule catalog up front.
+#
+# To re-enable enumeration in a future iteration:
+#   - Pull from semgrep/semgrep-rules (default branch: develop)
+#   - Filter to security-affecting rules via metadata.confidence/impact/owasp
+#   - Or query the Semgrep Registry API once one is documented
+
+
+def fetch_semgrep_asvs() -> dict:
+    """Placeholder for Semgrep ASVS-mapped rules.
+
+    See module docstring above for why this is intentionally empty for v1.
+    Mapping generation will rely on ASVS section names + CSV hints + LLM
+    knowledge of Semgrep rule namespaces.
+    """
+    return {
+        "meta": {
+            "source": "https://github.com/semgrep/semgrep-rules",
+            "fetched_at": _utc_now_iso(),
+            "source_ref": "deferred",
+            "license": "Semgrep Rules License",
+            "count": 0,
+            "note": (
+                "Semgrep rule enumeration deferred for v1. The mapping "
+                "generator will rely on ASVS section names + CSV hints + LLM "
+                "knowledge of common Semgrep rule namespaces. See source code "
+                "comment in build-mapping-sources.py for details."
+            ),
+        },
+        "entries": [],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +480,11 @@ def _write_snapshot(filename: str, payload: dict, entry_key: str, id_field: str 
 
 FETCHERS = {
     "asvs": ("asvs_requirements.json", "requirements", fetch_asvs),
+    "security-headers": ("security_headers_rules.json", "entries", fetch_security_headers),
+    "gitleaks": ("gitleaks_rules.json", "entries", fetch_gitleaks),
+    "trivy-config": ("trivy_config_rules.json", "entries", fetch_trivy_config),
+    "trivy-vuln": ("trivy_vuln_rules.json", "entries", fetch_trivy_vuln),
+    "semgrep-asvs": ("semgrep_asvs_rules.json", "entries", fetch_semgrep_asvs),
 }
 
 

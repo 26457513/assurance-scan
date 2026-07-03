@@ -1,0 +1,18 @@
+{
+  "meta": {
+    "source": "NVD + GitHub Advisories (via Trivy)",
+    "fetched_at": "2026-07-03T07:30:47Z",
+    "source_ref": "external",
+    "license": "external",
+    "count": 1
+  },
+  "entries": [
+    {
+      "id": "CVE-*",
+      "title": "Any CVE discovered by Trivy dependency scanning",
+      "description": "Trivy vulnerabilities are CVE IDs sourced from NVD and GitHub Advisories at scan time. There is no static rule catalog — map ASVS requirements to this entry with the glob 'CVE-*'.",
+      "severity": "VARIES",
+      "family": "vulnerability"
+    }
+  ]
+}
