@@ -1,0 +1,11 @@
+# Maintainer-side dependencies for the ASVS traceability mapping lifecycle.
+# Not used at scan time — install on the maintainer machine with:
+#   pip install -r requirements-mapping.txt
+#
+# Scan-time deps (pyyaml for reading the mapping) are handled separately
+# in the Dockerfile.
+
+pyyaml>=6.0
+requests>=2.31
+anthropic>=0.40
+prompt_toolkit>=3.0

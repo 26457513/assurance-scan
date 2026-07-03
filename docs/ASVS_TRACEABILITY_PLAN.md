@@ -60,13 +60,26 @@ Both read the same intermediate data: a mapping (`asvs_mapping.yaml`) that links
 
 ## Phase 1 — Mapping generation
 
-**Goal:** produce `data/asvs_mapping.yaml` covering ASVS V5 (Input/Output), V8 (Data Protection), and V14 (Configuration & Dependencies) at high quality, plus a thin layer of section-level fallback for the other 11 chapters.
+**Goal:** produce `data/asvs_mapping.yaml` covering the four ASVS 5.0 chapters most tractable to automated mapping, at high quality, plus a thin layer of section-level fallback for the other 13 chapters.
+
+**ASVS 5.0 chapter scope for v1** (chapter numbering changed between ASVS 4.0 and 5.0 — this plan uses 5.0):
+
+| Chapter | Title | Req count (L1+L2 / all) | Why in v1 scope |
+|---|---|---|---|
+| V1 | Encoding and Sanitization | 23 / 30 | Covered well by Semgrep (injection, encoding, deserialization) |
+| V2 | Validation and Business Logic | 13 / 13 | Covered well by Semgrep (input validation, business logic) |
+| V13 | Configuration | 16 / 21 | Covered by Trivy config (Dockerfile / k8s / IaC misconfigs) |
+| V14 | Data Protection | 11 / 13 | Covered by Grype / Trivy vuln / Gitleaks / Trivy secret |
+
+**v1 curated-mapping scope:** 63 L1+L2 requirements (77 if we include L3). Total ASVS 5.0 universe is 345 requirements (253 L1+L2 / 92 L3), so v1 covers 25% of the L1+L2 surface — the quarter most tractable to automated verification.
+
+Other chapters (V3 Web Frontend, V4 API, V5 File Handling, V6 Authentication, V7 Sessions, V8 Authorization, V9 Tokens, V10 OAuth, V11 Crypto, V12 Comms, V15 Secure Coding, V16 Logging, V17 WebRTC) get section-level fallback only in v1.
 
 ### 1.1 Inputs (download once, commit to repo under `data/sources/`)
 
 | Source | URL | Format | Notes |
 |---|---|---|---|
-| ASVS 5.0.0 standard | `https://github.com/OWASP/ASVS/tree/v5.0.0` (look in `5.0/` folder) | CSV / JSON | ~990 requirements total; we use V5, V8, V14 (~200 rows) for v1. **Empirical count must be confirmed before §1.1 starts.** |
+| ASVS 5.0.0 standard | `https://github.com/OWASP/ASVS/tree/v5.0.0` under `5.0/en/` | Markdown per chapter (e.g. `0x10-V1-Encoding-and-Sanitization.md`) | Parsed in-repo (no pandoc/dicttoxml dep). Tables with `\| # \| Description \| Level \|` per section. Confirm empirical row counts during §1.1. |
 | Project CSV (Barkley) | supplied by user via `--compliance-matrix` at generation time | CSV | Has `Automated Scan Tool` column already encoding mapping hints — feeds LLM as critique target, not as ground truth |
 | Semgrep ASVS rules | `https://github.com/semgrep-old/rules-owasp-asvs` | YAML rules | MPL 2.0 license — attribution in `data/sources/LICENSES.md` |
 | Semgrep community rules | `https://github.com/semgrep/semgrep-rules` | YAML rules | 4000+ rules; filter to `security-affecting` rulesets (categorisation lives in each rule's `metadata` block — filter on `confidence`, `impact`, `owasp` keys) |
@@ -94,12 +107,13 @@ A small Python script `scripts/build-mapping-sources.py` clones/fetches each, no
 
 Script: `scripts/generate-mapping.py`. Reads the intermediate JSON files + the project CSV, calls Claude per ASVS chapter, produces a candidate YAML.
 
-**Chunking strategy:** one LLM call per ASVS chapter × per scanner sub-type. For the v1 scope:
-- V5 × {semgrep, gitleaks} → 2 calls
-- V8 × {semgrep, trivy-config, trivy-secret, gitleaks} → 4 calls
-- V14 × {trivy-vuln, trivy-config, grype, syft, osv-scanner} → 5 calls
+**Chunking strategy:** one LLM call per ASVS chapter × per scanner sub-type. For the v1 scope (ASVS 5.0 chapters):
+- V1 × {semgrep} → 1 call
+- V2 × {semgrep} → 1 call
+- V13 × {trivy-config} → 1 call
+- V14 × {trivy-vuln, trivy-secret, grype, gitleaks, syft, osv-scanner} → 6 calls
 
-~11 calls total. Each call sends the chapter's ASVS rows + the relevant scanner's rules with descriptions, asks the model to emit JSON. The model is told explicitly which (chapter, scanner) pair it's working on; out-of-scope emissions are dropped by the validator.
+~9 calls total. Each call sends the chapter's ASVS rows + the relevant scanner's rules with descriptions, asks the model to emit JSON. The model is told explicitly which (chapter, scanner) pair it's working on; out-of-scope emissions are dropped by the validator.
 
 **LLM input hint — the project CSV column.** The Barkley CSV already has an `Automated Scan Tool` column with values like `"Semgrep (SAST) + manual code review"`. The LLM is given this column as a starting hypothesis per row ("the existing spreadsheet claims Semgrep covers this — do you agree? If yes, with what rule patterns?"). This turns the LLM task from open-ended generation to critique-and-refine, which is more reliable and faster to review.
 
