@@ -550,11 +550,17 @@ def main() -> int:
             print(f"\n== {chapter} × {scanner} ==", file=sys.stderr)
             if scanner in CATALOGUED_SCANNERS and scanner_rules_cache.get(scanner):
                 rules = list(scanner_rules_cache[scanner].values())
-                system = SYSTEM_PROMPT
-                user = build_user_prompt(chapter, scanner, reqs, rules, csv_hints)
-                response = call_claude(system, user, args.model, args.dry_run)
-                mappings = response.get("mappings", [])
-                print(f"  LLM returned {len(mappings)} mappings", file=sys.stderr)
+                # Skip LLM call if no API key (unless --dry-run, which already skips).
+                api_key = os.environ.get("ANTHROPIC_API_KEY")
+                if not api_key and not args.dry_run:
+                    print(f"  no ANTHROPIC_API_KEY — skipping LLM call, emitting zero mappings for {scanner}", file=sys.stderr)
+                    mappings = []
+                else:
+                    system = SYSTEM_PROMPT
+                    user = build_user_prompt(chapter, scanner, reqs, rules, csv_hints)
+                    response = call_claude(system, user, args.model, args.dry_run)
+                    mappings = response.get("mappings", [])
+                    print(f"  LLM returned {len(mappings)} mappings", file=sys.stderr)
             else:
                 mappings = _fallback_mappings_for_uncatalogued(chapter, scanner, reqs, csv_hints)
                 source = "heuristic" if mappings and mappings[0].get("_source") == "heuristic" else "fallback"
@@ -581,7 +587,8 @@ def main() -> int:
     for asvs_id, entry in merged["requirements"].items():
         req = req_lookup.get(asvs_id)
         if req:
-            entry.setdefault("chapter", req.get("section", ""))
+            entry.setdefault("chapter", req.get("chapter", ""))
+            entry.setdefault("section", req.get("section", ""))
             entry["level"] = f"L{req.get('level', '')}"
 
     _write_yaml(merged, args.output)

@@ -1,0 +1,1135 @@
+version: 1
+asvs_version: 5.0.0
+generated_at: '2026-07-03T07:49:14Z'
+requirements:
+  v5.0.0-1.2.1:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.1
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.1
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L1
+  v5.0.0-1.2.2:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.2
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.2
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L1
+  v5.0.0-1.2.3:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.3
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.3
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L1
+  v5.0.0-1.2.4:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.4
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.4
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L1
+  v5.0.0-1.2.5:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.5
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.5
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L1
+  v5.0.0-1.2.6:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.6
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.6
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L2
+  v5.0.0-1.2.7:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.7
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.7
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L2
+  v5.0.0-1.2.8:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.8
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.8
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L2
+  v5.0.0-1.2.9:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.2.9
+        rule_id: '*.security.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.2.9
+        rule_id: '*.security.audit.*injection*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.2
+    level: L2
+  v5.0.0-1.3.1:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.1
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.1
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.1
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L1
+  v5.0.0-1.3.10:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.10
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.10
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.10
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.3.11:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.11
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.11
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.11
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.3.2:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.2
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.2
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.2
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L1
+  v5.0.0-1.3.3:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.3
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.3
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.3
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.3.4:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.4
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.4
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.4
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.3.5:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.5
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.5
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.5
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.3.6:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.6
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.6
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.6
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.3.7:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.7
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.7
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.7
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.3.8:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.8
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.8
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.8
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.3.9:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.3.9
+        rule_id: '*.security.*xss*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.9
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.3.9
+        rule_id: '*.security.*escape*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.3
+    level: L2
+  v5.0.0-1.4.1:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.4.1
+        rule_id: '*.security.*overflow*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.4 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.4.1
+        rule_id: '*.security.*memory*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.4 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.4
+    level: L2
+  v5.0.0-1.4.2:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.4.2
+        rule_id: '*.security.*overflow*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.4 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.4.2
+        rule_id: '*.security.*memory*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.4 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.4
+    level: L2
+  v5.0.0-1.4.3:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.4.3
+        rule_id: '*.security.*overflow*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.4 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-1.4.3
+        rule_id: '*.security.*memory*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.4 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.4
+    level: L2
+  v5.0.0-1.5.1:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.5.1
+        rule_id: '*.security.*deserializ*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.5 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.5
+    level: L1
+  v5.0.0-1.5.2:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-1.5.2
+        rule_id: '*.security.*deserializ*'
+        confidence: low
+        reasoning: Heuristic pattern for V1.5 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V1
+    section: V1.5
+    level: L2
+  v5.0.0-14.1.1:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.1.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.1.1
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.1.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.1.1
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.1
+    level: L2
+  v5.0.0-14.1.2:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.1.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.1.2
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.1.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.1.2
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.1
+    level: L2
+  v5.0.0-14.2.1:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.2.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.2.1
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.2.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.2.1
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.2
+    level: L1
+  v5.0.0-14.2.2:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.2.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.2.2
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.2.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.2.2
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.2
+    level: L2
+  v5.0.0-14.2.3:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.2.3
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.2.3
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.2.3
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.2.3
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.2
+    level: L2
+  v5.0.0-14.2.4:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.2.4
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.2.4
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.2.4
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.2.4
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.2
+    level: L2
+  v5.0.0-14.3.1:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.3.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.3.1
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.3.1
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.3.1
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.3
+    level: L1
+  v5.0.0-14.3.2:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.3.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.3.2
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.3.2
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.3.2
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.3
+    level: L2
+  v5.0.0-14.3.3:
+    scanners:
+      grype:
+      - asvs_id: v5.0.0-14.3.3
+        rule_id: CVE-*
+        confidence: low
+        reasoning: Grype matches CVEs from NVD/GHSA. Globbed here pending per-CVE mapping.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.3.3
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: Grype also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      osv-scanner:
+      - asvs_id: v5.0.0-14.3.3
+        rule_id: CVE-*
+        confidence: low
+        reasoning: osv-scanner queries OSV.dev which aggregates CVEs.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-14.3.3
+        rule_id: GHSA-*
+        confidence: low
+        reasoning: osv-scanner also surfaces GitHub Security Advisories.
+        csv_hint_agreement: modified
+        review:
+          status: unreviewed
+    chapter: V14
+    section: V14.3
+    level: L2
+  v5.0.0-2.1.1:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.1.1
+        rule_id: '*.security.*validation*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.1 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.1
+    level: L1
+  v5.0.0-2.1.2:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.1.2
+        rule_id: '*.security.*validation*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.1 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.1
+    level: L2
+  v5.0.0-2.1.3:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.1.3
+        rule_id: '*.security.*validation*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.1 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.1
+    level: L2
+  v5.0.0-2.2.1:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.2.1
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.2
+    level: L1
+  v5.0.0-2.2.2:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.2.2
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.2
+    level: L1
+  v5.0.0-2.2.3:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.2.3
+        rule_id: '*.security.*sanitiz*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.2 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.2
+    level: L2
+  v5.0.0-2.3.1:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.3.1
+        rule_id: '*.security.*regex*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-2.3.1
+        rule_id: '*.security.*redos*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.3
+    level: L1
+  v5.0.0-2.3.2:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.3.2
+        rule_id: '*.security.*regex*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-2.3.2
+        rule_id: '*.security.*redos*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.3
+    level: L2
+  v5.0.0-2.3.3:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.3.3
+        rule_id: '*.security.*regex*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-2.3.3
+        rule_id: '*.security.*redos*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.3
+    level: L2
+  v5.0.0-2.3.4:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.3.4
+        rule_id: '*.security.*regex*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-2.3.4
+        rule_id: '*.security.*redos*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.3 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.3
+    level: L2
+  v5.0.0-2.4.1:
+    scanners:
+      semgrep:
+      - asvs_id: v5.0.0-2.4.1
+        rule_id: '*.security.*upload*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.4 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+      - asvs_id: v5.0.0-2.4.1
+        rule_id: '*.security.*file*'
+        confidence: low
+        reasoning: Heuristic pattern for V2.4 (Semgrep catalog pending). Replace with specific rule IDs after Semgrep catalog
+          build.
+        csv_hint_agreement: agree
+        review:
+          status: unreviewed
+    chapter: V2
+    section: V2.4
+    level: L2
