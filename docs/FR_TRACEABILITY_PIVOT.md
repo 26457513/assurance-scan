@@ -56,6 +56,15 @@ FRs are supplied as a JSON file in the project repo. The scanner reads it via a 
   "version": 1,
   "project": "tapestry-mono",
   "generated_at": "2026-07-15T...",
+  "scope": {
+    "ASVS": {"levels": ["L1", "L2"]},
+    "NIST-800-53": {"baselines": ["MODERATE"]},
+    "PCI-DSS": {"saq": ["A"]}
+  },
+  "na_rows": [
+    {"framework": "ASVS", "row": "v5.0.0-6.2.x", "reason": "Biometric auth not implemented"},
+    {"framework": "ASVS", "row": "v5.0.0-17.x.x", "reason": "WebRTC not used"}
+  ],
   "requirements": [
     {
       "id": "FR-001",
@@ -133,6 +142,42 @@ These refinements come from comparing ASVS (testable "Verify that" statements wi
 **Why JSON and not YAML?** JSON is universally parseable (no PyYAML dep), more familiar to engineers contributing to project repos, and the file is auto-generated/edited anyway (vs hand-curated like the universal mapping). If reviewers want comments, they can use JSON5 or JSON-C; we'll support whichever the project picks.
 
 **Why per-project?** FRs ARE the project. Each project owns its FR catalog, version-controlled alongside the code. The scanner just reads it.
+
+**Project-level scope and N/A declarations:**
+
+Two top-level fields in the FR catalog drive which compliance rows are in scope for this project:
+
+- **`scope`** — declares the project's target level / baseline / tier per framework. Different frameworks use different scoping dimensions (ASVS uses Levels L1/L2/L3; NIST 800-53 uses Baselines LOW/MODERATE/HIGH/PRIVACY; PCI-DSS uses SAQ types; NIST CSF uses Implementation Tiers; ISO 27001 has no scoping dimension — all Annex A controls apply). The dashboard filters visible compliance rows per tab using this.
+
+  ```json
+  "scope": {
+    "ASVS": {"levels": ["L1", "L2"]},
+    "NIST-800-53": {"baselines": ["MODERATE"]},
+    "PCI-DSS": {"saq": ["A"]}
+  }
+  ```
+
+  Frameworks not in `scope` either default to "all rows in scope" (for frameworks without levels) or are hidden from view. Adding new frameworks = adding new keys here.
+
+- **`na_rows`** — explicit per-project out-of-scope declarations for compliance rows that have no related FR. Example: ASVS V17 (WebRTC) — project doesn't use WebRTC, no FR exists, but we still need to mark V17 rows as N/A.
+
+  ```json
+  "na_rows": [
+    {"framework": "ASVS", "row": "v5.0.0-6.2.x", "reason": "Biometric auth not implemented"},
+    {"framework": "ASVS", "row": "v5.0.0-17.x.x", "reason": "WebRTC not used"}
+  ]
+  ```
+
+  Distinct from per-FR `satisfies` entries with `status: "na"` (which are for cases where an FR exists but doesn't address all related compliance rows).
+
+**Compliance row state machine** (how the dashboard treats each row per framework tab):
+
+| State | Trigger | Dashboard treatment |
+|---|---|---|
+| **In scope, satisfied** | FR has `satisfies` entry for the row | Traffic light (green/red/amber) |
+| **In scope, unaddressed** | No FR claims this row, no N/A mark | Coverage gap (highlighted as "needs FR") |
+| **Out of scope (filtered)** | Project's `scope` excludes this level/baseline | Hidden or greyed out |
+| **Out of scope (explicit)** | Row listed in `na_rows`, or FR `satisfies` has `status: "na"` | "Not applicable" badge + reason |
 
 ## Multi-framework loaders
 
