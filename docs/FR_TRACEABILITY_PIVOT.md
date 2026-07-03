@@ -110,6 +110,7 @@ FRs are supplied as a JSON file in the project repo. The scanner reads it via a 
 - `id` — project-unique, stable identifier (`FR-001`, `FR-AUTH-001`, anything consistent)
 - `category` — free-form label for grouping in the UI ("authentication", "data-export", etc.)
 - `status` — one of `draft`, `active`, `deprecated`, `proposed`. Drives UI filtering.
+- `parent` — **optional**. Present only for sub-requirements (mirrors NIST enhancement hierarchy). Rendered as a collapsible child in the UI.
 - `implemented_by` — list of code references. Each has a `type`:
   - `glob` — pattern matched against the codebase (`src/auth/**`)
   - `file` — specific file
@@ -117,8 +118,17 @@ FRs are supplied as a JSON file in the project repo. The scanner reads it via a 
 - `verified_by` — list of test references. Each has a `type`:
   - `unit`, `integration`, `e2e` — file path or `file::test_name` reference, resolved against the project's test runner output
   - `scanner` — `<scanner-name>:<rule_id_or_glob>` reference, resolved against scanner outputs from the current scan
-- `satisfies` — list of `{framework, row}` pairs. Cross-links the FR to compliance framework rows.
-- `evidence` — list of manual artifacts. Free-form references to docs, screenshots, design files.
+- `satisfies` — list of `{framework, row, status?, reason?}` pairs. `status` defaults to `satisfied`; can be `na` (out of scope) with a `reason` for explicit per-project scoping. Cross-links the FR to compliance framework rows.
+- `evidence` — list of typed artifacts matching `verified_by` semantics. Each has `type` (`scanner`, `test`, `manual`, `screenshot`) and `status` (`auto` = pass/fail driven by result, `manual` = always green if file exists):
+  ```json
+  "evidence": [
+    {"type": "scanner", "ref": "semgrep:python.security.injection.sql.*", "status": "auto"},
+    {"type": "test", "ref": "tests/auth/test_login.py::test_valid_credentials", "status": "auto"},
+    {"type": "manual", "ref": "docs/auth-design.md", "status": "manual"}
+  ]
+  ```
+
+These refinements come from comparing ASVS (testable "Verify that" statements with maturity levels) and NIST 800-53 (imperative controls with hierarchical enhancements and baseline allocations). See [FRAMEWORK_COMPARISON.md](FRAMEWORK_COMPARISON.md) for the full analysis. The schema now accommodates both styles without framework-specific code in the FR layer.
 
 **Why JSON and not YAML?** JSON is universally parseable (no PyYAML dep), more familiar to engineers contributing to project repos, and the file is auto-generated/edited anyway (vs hand-curated like the universal mapping). If reviewers want comments, they can use JSON5 or JSON-C; we'll support whichever the project picks.
 

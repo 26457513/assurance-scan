@@ -475,11 +475,116 @@ def fetch_semgrep_asvs() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# NIST 800-53 Rev 5 (OSCAL JSON from usnistgov/oscal-content)
+# ---------------------------------------------------------------------------
+
+NIST_800_53_OSCAL_URL = (
+    "https://raw.githubusercontent.com/usnistgov/oscal-content/main/"
+    "nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog-min.json"
+)
+
+
+def _extract_control_text(parts: list) -> str:
+    """Extract the statement text from a control's parts list (best-effort)."""
+    for part in parts or []:
+        if not isinstance(part, dict):
+            continue
+        if part.get("name") == "statement":
+            # The statement may have nested parts; flatten to prose.
+            prose = part.get("prose", "")
+            if prose:
+                return prose
+            sub_parts = part.get("parts") or []
+            chunks = [p.get("prose", "") for p in sub_parts if isinstance(p, dict) and p.get("prose")]
+            if chunks:
+                return " ".join(chunks)
+    # Fall back to any prose in any part
+    for part in parts or []:
+        if isinstance(part, dict) and part.get("prose"):
+            return part["prose"]
+    return ""
+
+
+def _walk_nist_controls(groups: list) -> list[dict]:
+    """Walk all groups + nested controls + enhancements, return flat list."""
+    out: list[dict] = []
+    for group in groups or []:
+        family_id = (group.get("id") or "").upper()  # e.g. "AC"
+        family_title = group.get("title", "")
+        for control in group.get("controls") or []:
+            base = {
+                "id": control.get("id", ""),  # e.g. "ac-1"
+                "family": family_id,
+                "family_title": family_title,
+                "title": control.get("title", ""),
+                "description": _extract_control_text(control.get("parts") or []),
+                "class": control.get("class", ""),
+            }
+            out.append(base)
+            # Enhancements — e.g. ac-2(1), ac-2(2)
+            for enh in control.get("controls") or []:
+                out.append({
+                    "id": enh.get("id", ""),
+                    "family": family_id,
+                    "family_title": family_title,
+                    "parent": control.get("id", ""),
+                    "title": enh.get("title", ""),
+                    "description": _extract_control_text(enh.get("parts") or []),
+                    "class": enh.get("class", "SP800-53-enhancement"),
+                })
+    return out
+
+
+def fetch_nist_800_53() -> dict:
+    """Fetch NIST SP 800-53 Rev 5 from the OSCAL content repo and normalize."""
+    raw = _http_get(NIST_800_53_OSCAL_URL)
+    data = json.loads(raw.decode("utf-8", errors="replace"))
+    catalog = data.get("catalog") or {}
+    groups = catalog.get("groups") or []
+    meta_block = catalog.get("metadata") or {}
+
+    reqs = _walk_nist_controls(groups)
+    # Sort by family then numeric id; enhancements after base
+    def sort_key(r: dict) -> tuple:
+        rid = r["id"]
+        parts = rid.split("-")
+        family = parts[0] if len(parts) > 0 else ""
+        num_and_enh = parts[1] if len(parts) > 1 else ""
+        # Split "2(1)" -> (2, 1)
+        if "(" in num_and_enh:
+            base_num, enh = num_and_enh.split("(", 1)
+            enh_num = enh.rstrip(")")
+            return (family, int(base_num) if base_num.isdigit() else 999, int(enh_num) if enh_num.isdigit() else 0)
+        return (family, int(num_and_enh) if num_and_enh.isdigit() else 999, 0)
+    reqs.sort(key=sort_key)
+
+    # Count by family for visibility
+    from collections import Counter
+    by_family = Counter(r["family"] for r in reqs)
+    print(f"  NIST 800-53: {len(reqs)} total controls across {len(by_family)} families")
+    for fam in sorted(by_family):
+        print(f"    {fam}: {by_family[fam]}")
+
+    return {
+        "meta": {
+            "source": NIST_800_53_OSCAL_URL,
+            "fetched_at": _utc_now_iso(),
+            "source_ref": f"oscal rev5 (metadata title: {meta_block.get('title', '?')})",
+            "license": "NIST Public (US Government Work, public domain)",
+            "version": str(meta_block.get("version", "rev5")),
+            "count": len(reqs),
+        },
+        "requirements": reqs,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 
 FETCHERS = {
     "asvs": ("asvs_requirements.json", "requirements", fetch_asvs),
+    "nist-800-53": ("nist_800_53_requirements.json", "requirements", fetch_nist_800_53),
     "security-headers": ("security_headers_rules.json", "entries", fetch_security_headers),
     "gitleaks": ("gitleaks_rules.json", "entries", fetch_gitleaks),
     "trivy-config": ("trivy_config_rules.json", "entries", fetch_trivy_config),
