@@ -9,6 +9,7 @@ RUN apk add --no-cache \
     gawk \
     git \
     grep \
+    py3-yaml \
     python3 \
     sed \
     tar
