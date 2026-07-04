@@ -397,25 +397,40 @@ These would give richer data but multiply the implementation cost. Stick with st
 
 Tests are evidence. We need to ingest their results without forcing a specific test runner.
 
-**Supported test types (each with a parser):**
+**Universal format: JUnit XML.** Every major test runner can emit it (pytest via `--junit-xml`, jest via `--reporters=default --reporters=jest-junit`, cypress via `cypress-multi-reporters`, go test via `go-junit-report`, Kotlin/Java via surefire). Stable, parseable, includes pass/fail/skip + timing per test. The user runs their own tests in CI, drops the JUnit XML at a known location, and the scanner picks it up.
 
-| Type | Output format | Parser |
-|---|---|---|
-| `pytest` | JUnit XML | `scripts/parse_pytest.py` |
-| `jest` | JUnit XML or custom JSON | `scripts/parse_jest.py` |
-| `cypress` | JUnit XML | `scripts/parse_cypress.py` |
-| `go test` | JUnit XML | `scripts/parse_go_test.py` |
-| `kotlin/test` (JUnit) | JUnit XML | same parser |
-| Generic JUnit XML | JUnit XML | works for any runner that emits JUnit |
+**Parser spec (`scripts/parse_junit.py`):**
 
-**Why JUnit XML as the common format?** Every major test runner can emit it. It's stable, parseable, and includes pass/fail/skip + timing per test. The user runs their own tests (CI does this anyway), drops the JUnit XML in a known location (e.g. `<report-dir>/tests/junit.xml`), and the scanner picks it up.
+```
+Input: one or more JUnit XML files supplied via --junit-xml
+       (can be repeated; parser concatenates results from all files)
 
-**Lookup:** given a `verified_by` reference like `services/tapestry-backend/test/auth/test_login.py::test_valid_credentials`, the parser:
-1. Loads the JUnit XML
-2. Finds the `<testcase>` with matching classname + name
-3. Returns: pass/fail/skip, duration, failure message
+Processing:
+  1. Parse each <testsuite> and <testcase> element
+  2. Normalise to flat list of test result dicts:
+     {
+       "classname": "tests.auth.test_login",        # from <testcase classname=...>
+       "name": "test_valid_credentials",            # from <testcase name=...>
+       "file": "tests/auth/test_login.py",          # from testcase file= attr OR derived from classname
+       "status": "pass" | "fail" | "skip" | "error",
+       "duration_ms": 142,
+       "failure_message": "...",                    # present only when fail/error
+       "skip_reason": "..."                         # present only when skip
+     }
+  3. Build lookup index: {(file_or_classname, name): result_dict}
 
-If no JUnit XML is supplied, the `verified_by` reference is marked "evidence missing" — not failed, just unverified.
+Output: serialised to test_results section of the dashboard payload
+```
+
+**Reference resolution.** Given a `verified_by` reference like `tests/auth/test_login.py::test_valid_credentials`, the resolver:
+1. Splits on `::` — left side is the file path, right side is the test name
+2. Looks up `(file, name)` in the index
+3. If not found, falls back to classname matching (some runners put the file path in classname)
+4. Returns the result dict, or `None` if no match
+
+**Missing test behavior.** If `verified_by` has a test reference but no JUnit XML was supplied at scan time, the evidence state is **"missing"** — distinct from "failed". The dashboard shows amber with hint: "Supply JUnit XML via `--junit-xml <path>` to verify N test references."
+
+**Multi-file concatenation.** Users with multiple test runners (e.g. pytest + jest) supply multiple `--junit-xml` flags. The parser merges all into one index. Test name collisions across runners are resolved by including the source file in the lookup key.
 
 ## Scanner integration
 
@@ -430,6 +445,266 @@ What we've already built fits in cleanly. Scanners become "automated test types"
 | etc. | | |
 
 The current `asvs_mapping.yaml` becomes one possible mapping source — it links ASVS rows directly to scanners. In the FR-driven model, that link is decomposed: ASVS row ← FR ← scanner. Both models coexist; the FR model is richer.
+
+## Dashboard input payload
+
+The single contract between `generate-dashboard.py` (backend) and the dashboard's JavaScript (frontend). One JSON document, embedded in `dashboard.html` as `<script type="application/json" id="dashboard-data">`, plus written to disk as `dashboard-data.json` for snapshot tests and scan history.
+
+**Top-level shape:**
+
+```json
+{
+  "scan": {
+    "run_id": "20260704T1432Z_<sha8>",
+    "timestamp": "2026-07-04T14:32:00Z",
+    "project": "tapestry-mono",
+    "target_dir": "/path/to/project",
+    "git_commit": "abc12345",
+    "scanner_image_tag": "namenottaken/asvs-scanner:latest"
+  },
+  "scope": {
+    "ASVS": {"levels": ["L1", "L2"]},
+    "NIST-800-53": {"baselines": ["MODERATE"]}
+  },
+  "fr_catalog": {
+    "version": 1,
+    "requirements": [...],
+    "na_rows": [...]
+  },
+  "frameworks": {
+    "ASVS": {
+      "version": "5.0.0",
+      "rows": [
+        {"id": "v5.0.0-1.1.1", "chapter": "V1", "level": 2, "title": "...", "description": "...", "state": "unaddressed|satisfied|failed|na|filtered", "claimed_by": ["FR-AUTH-OAUTH"]}
+      ],
+      "coverage": {
+        "satisfied": 45, "failed": 3, "unaddressed": 187, "na": 12, "filtered": 6,
+        "applicable": 235, "coverage_pct": 19.1
+      }
+    },
+    "NIST-800-53": {...}
+  },
+  "scanner_findings": {
+    "semgrep": [{"rule_id": "...", "file": "...", "line": 42, "severity": "HIGH", "message": "..."}, ...],
+    "gitleaks": [...],
+    "trivy-config": [...],
+    "trivy-vuln": [...],
+    "grype": [...],
+    "security-headers": [...]
+  },
+  "test_results": {
+    "tests_run": 234, "passed": 231, "failed": 2, "skipped": 1,
+    "results": [
+      {"file": "tests/auth/test_login.py", "name": "test_valid_credentials", "status": "pass", "duration_ms": 142}
+    ]
+  },
+  "derived": {
+    "coverage_heatmap": {
+      "ASVS": {"V1": {"satisfied": 5, "applicable": 23, "pct": 21.7}, "V2": {...}, ...},
+      "NIST-800-53": {"AC": {...}, "AT": {...}, ...}
+    },
+    "framework_equivalences": [
+      {"fr_ids": ["FR-AUTH"], "rows": [{"framework": "ASVS", "row": "v5.0.0-6.1.1"}, {"framework": "NIST-800-53", "row": "IA-2"}]}
+    ],
+    "reverse_lookup": {
+      "by_finding": {"semgrep:python.security.injection.sql.sql-injection": [{"fr_id": "FR-AUTH-OAUTH", "compliance_rows": [{"framework": "ASVS", "row": "v5.0.0-1.2.4"}]}]},
+      "by_file": {"src/auth/oauth.ts": [{"fr_id": "FR-AUTH-OAUTH", "compliance_rows": [...]}]}
+    },
+    "audit_chains": {
+      "v5.0.0-6.1.1": {"fr_ids": ["FR-AUTH-OAUTH"], "ordered_chain": ["FR-AUTH-OAUTH", "src/auth/oauth.ts", "tests/auth/test_login.py::test_valid_credentials"]}
+    }
+  },
+  "graph": {
+    "nodes": [
+      {"id": "fr:FR-AUTH-OAUTH", "type": "fr", "label": "OAuth login", "status": "satisfied", "needs_attention": false},
+      {"id": "file:src/auth/oauth.ts", "type": "file", "label": "oauth.ts", "needs_attention": false},
+      {"id": "test:tests/auth/test_login.py::test_valid_credentials", "type": "test", "label": "test_valid_credentials", "status": "pass"}
+    ],
+    "edges": [
+      {"source": "fr:FR-AUTH-OAUTH", "target": "file:src/auth/oauth.ts", "type": "implements", "strength": "strong"},
+      {"source": "fr:FR-AUTH-OAUTH", "target": "test:tests/auth/test_login.py::test_valid_credentials", "type": "verified_by", "strength": "strong"}
+    ]
+  },
+  "validation_warnings": [
+    {"severity": "error|warn", "code": "fr_catalog.schema_invalid|scanner_output.missing|...", "message": "...", "fr_id": "FR-X (optional)"}
+  ]
+}
+```
+
+**Size budget:** target <2MB compressed. The largest contributor is `scanner_findings` (potentially thousands of entries on big scans). If over budget: paginate findings (load on demand via separate JSON file), or strip failure messages (frontend fetches on click). Monitored via CI; >2MB triggers a warning in `run.log`.
+
+**Computation.** `generate-dashboard.py` produces this payload at scan time by:
+1. Loading the FR catalog + validating against JSON Schema
+2. Loading framework snapshots from bundled `data/frameworks/<fw>/requirements.json`
+3. Reading scanner outputs (`reports/*.json`)
+4. Reading JUnit XML (if supplied)
+5. Computing per-framework `coverage` and per-row `state`
+6. Building `derived` indices (see "Derived indices" section)
+7. Building `graph.nodes` and `graph.edges`
+8. Emitting the consolidated JSON
+
+**Validation warnings** are non-fatal problems surfaced to the UI: schema validation issues, missing evidence files, scanner outputs that didn't parse. The dashboard renders these as a dismissible banner — never blocks the dashboard from loading.
+
+## Scan history retention
+
+For time travel and cross-scan navigation. The frontend assumes the dashboard can load any past scan and compare two scans.
+
+**Path layout** (per project):
+
+```
+<project-root>/.asvs-scanner/
+├── runtime/                              # current scan's runtime (existing)
+│   └── reports/<RUN_ID>/                 # current scan's report dir (existing)
+└── scan-history/                         # NEW — retained scans
+    ├── index.json                        # scan picker reads this
+    ├── <RUN_ID_1>/
+    │   ├── evidence-manifest.json
+    │   ├── dashboard-data.json           # the consolidated payload (from above)
+    │   ├── fr-catalog.snapshot.json      # FR catalog at scan time (NEW)
+    │   └── scope.snapshot.json           # project scope at scan time
+    ├── <RUN_ID_2>/
+    │   └── ...
+    └── <RUN_ID_N>/                        # up to retention limit
+```
+
+**`index.json` shape:**
+
+```json
+{
+  "project": "tapestry-mono",
+  "retention_policy": {"max_scans": 5, "max_age_days": null},
+  "scans": [
+    {
+      "run_id": "20260704T1432Z_abc12345",
+      "timestamp": "2026-07-04T14:32:00Z",
+      "git_commit": "abc12345",
+      "git_branch": "main",
+      "scope": {"ASVS": {"levels": ["L1","L2"]}},
+      "fr_catalog_sha": "sha256:...",     # for change detection
+      "coverage_summary": {"ASVS": {"satisfied": 45, "failed": 3, "coverage_pct": 19.1}}
+    }
+  ]
+}
+```
+
+**Retention policy:** default keep last 5 scans per project (`ASVS_SCAN_HISTORY_MAX=5` env var). Configurable by age (`ASVS_SCAN_HISTORY_MAX_AGE_DAYS=90`). Older scans evicted FIFO on each new scan completion.
+
+**FR catalog snapshot.** Every scan copies the active `fr-catalog.json` into `<RUN_ID>/fr-catalog.snapshot.json` at scan start. This is the source of truth for "what FRs existed when this scan ran" — enables:
+- Comparing scans even if FRs were added/removed between them
+- Time travel without "FR definitions changed, comparison invalid" failures
+- Reproducing past audit findings exactly
+
+**Backend changes required:**
+- `run-local.sh`: after dashboard generation, copy `evidence-manifest.json`, `dashboard-data.json`, `fr-catalog.snapshot.json`, `scope.snapshot.json` to `scan-history/<RUN_ID>/`
+- New helper: `scripts/record-scan-history.py` updates `scan-history/index.json`, evicts old scans per retention policy
+- Dashboard reads `scan-history/index.json` (via embedded data in the payload, or a separate fetch) to populate the scan picker
+
+**Comparison mode** (frontend computes diffs):
+- Two scans' `dashboard-data.json` files are both available
+- Frontend diffs FR catalogs (added/removed/changed), compliance row states (newly-satisfied/failed/NA), findings (new/resolved)
+- No backend "diff computation" — pure frontend given both snapshots
+- Rationale: keeps backend simple, lets users adjust comparison logic via filter ("show only changes" etc.)
+
+## Derived indices
+
+Computed at scan time by `generate-dashboard.py`, embedded in the `derived` block of the dashboard payload. Each is a small JSON the frontend reads directly — no runtime computation needed.
+
+### `coverage_heatmap`
+
+Chapter × framework matrix showing per-cell coverage stats. Powers the Overview tab's heatmap view.
+
+```json
+{
+  "ASVS": {
+    "V1": {"satisfied": 5, "failed": 1, "unaddressed": 18, "na": 2, "filtered": 0, "applicable": 24, "coverage_pct": 20.8},
+    "V2": {"satisfied": 3, ...},
+    ...
+  },
+  "NIST-800-53": {
+    "AC": {"satisfied": 12, "failed": 2, "unaddressed": 89, "na": 5, "filtered": 39, "applicable": 103, "coverage_pct": 11.7},
+    "AT": {...}
+  }
+}
+```
+
+Computation: iterate every in-scope compliance row, bucket by chapter/family, count states. O(rows) — cheap.
+
+### `framework_equivalences`
+
+Groups of compliance rows across frameworks that share FRs. Powers the "Cross-framework equivalents" graph entry point.
+
+```json
+[
+  {
+    "fr_ids": ["FR-AUTH"],
+    "rows": [
+      {"framework": "ASVS", "row": "v5.0.0-6.1.1"},
+      {"framework": "ASVS", "row": "v5.0.0-6.1.2"},
+      {"framework": "NIST-800-53", "row": "IA-2"}
+    ]
+  },
+  {
+    "fr_ids": ["FR-AUTH", "FR-AUDIT"],
+    "rows": [{"framework": "ASVS", "row": "v5.0.0-7.1.1"}]
+  }
+]
+```
+
+Computation: invert the FR→`satisfies` mapping to get compliance_row→FRs. Group compliance rows by their FR set. Two rows are "equivalent" if they share at least one FR.
+
+### `reverse_lookup`
+
+Two indices for "what does this X impact?" queries. Powers the Findings → "Find ASVS impact" button and the file → FRs view in the Graph tab.
+
+```json
+{
+  "by_finding": {
+    "semgrep:python.security.injection.sql.sql-injection": [
+      {"fr_id": "FR-AUTH-OAUTH", "compliance_rows": [{"framework": "ASVS", "row": "v5.0.0-1.2.4"}]}
+    ],
+    "trivy-config:DS-0031": [...]
+  },
+  "by_file": {
+    "src/auth/oauth.ts": [
+      {"fr_id": "FR-AUTH-OAUTH", "compliance_rows": [...]}
+    ]
+  }
+}
+```
+
+Computation:
+- `by_finding`: iterate scanner findings, for each finding's rule_id match against FR `verified_by: scanner` patterns via fnmatch. For each matching FR, collect its `satisfies` rows.
+- `by_file`: iterate code files claimed by FRs (`implemented_by`), invert to file→FRs, attach each FR's `satisfies` rows.
+
+### `audit_chains`
+
+Ordered traversal per compliance row, for Audit Mode step-through in the Graph tab.
+
+```json
+{
+  "v5.0.0-6.1.1": {
+    "fr_ids": ["FR-AUTH-OAUTH"],
+    "ordered_chain": [
+      "fr:FR-AUTH-OAUTH",
+      "file:src/auth/oauth.ts",
+      "test:tests/auth/test_login.py::test_valid_credentials",
+      "evidence:docs/auth-design.md"
+    ]
+  }
+}
+```
+
+Computation: for each in-scope compliance row that has at least one claiming FR, build the deterministic chain:
+1. FR node(s) claiming this row
+2. Code file(s) those FRs implement (depth-first, sorted by file path)
+3. Test(s) those FRs are verified by (sorted by test file path)
+4. Evidence artifact(s) attached to those FRs (sorted by type: scanner, test, manual, screenshot)
+
+Deterministic order ensures Audit Mode's prev/next is stable across renders.
+
+### Computation cost
+
+All four indices run at scan time as part of `generate-dashboard.py`. Combined cost: O(rows + findings + files) — linear in scan size. On a Tapestry-scale scan (~253 ASVS rows + ~1000 findings + ~500 files), expect <2 seconds added to dashboard generation. Acceptable.
 
 ## D3 graph visualization
 
@@ -527,28 +802,43 @@ The scanner-driven Compliance Matrix built on `develop` (Phase 2) is **being rep
 
 ## Critical files (planned)
 
-**New:**
+**New (data + schemas):**
 - `data/schemas/fr-catalog.schema.json` — formal JSON Schema for the FR catalog ✅ created
+- `data/schemas/dashboard-payload.schema.json` — formal JSON Schema for the consolidated dashboard input payload (see "Dashboard input payload" section)
 - `data/frameworks/asvs/requirements.json` (moved from `data/sources/asvs_requirements.json`)
 - `data/frameworks/asvs/scanner_mapping.yaml` (moved from `data/asvs_mapping.yaml`)
 - `data/frameworks/nist_800_53/requirements.json` ✅ exists at `data/sources/nist_800_53_requirements.json` (will move)
+- `tests/fixtures/sample-scan/` — fixture scan with FR catalog + scanner outputs + JUnit XML + framework snapshots. Powers dashboard snapshot tests.
+
+**New (scripts):**
 - `scripts/build-framework-sources.py` (rename of `build-mapping-sources.py`)
-- `scripts/parse_junit.py` — JUnit XML parser
+- `scripts/parse_junit.py` — JUnit XML parser (spec in "Test integration" section)
 - `scripts/resolve_code_refs.py` — glob/file/symbol resolver
 - `scripts/load_fr_catalog.py` — FR JSON validator + loader (uses jsonschema)
 - `scripts/validate_fr_catalog.py` — CI-runnable validator (validates + reports errors/warnings)
-- `scripts/generate-dashboard.py` extensions: new FR Catalog tab, per-framework tabs, D3 graph tab
+- `scripts/compute_derived_indices.py` — produces coverage_heatmap, framework_equivalences, reverse_lookup, audit_chains
+- `scripts/record_scan_history.py` — copies scan artifacts to scan-history/, updates index.json, evicts per retention policy
+- `scripts/generate-dashboard.py` extensions: new FR Catalog tab, per-framework tabs, D3 graph tab; emits consolidated dashboard-data.json payload
 
 **Modified:**
 - `bin/asvs-scanner` — add `--fr-catalog <path>` and `--junit-xml <path>` flags; **remove** `--compliance-matrix` flag (deleted per "no backward compat")
-- `run-local.sh` — thread new flags; remove old `--compliance-matrix`
-- `scripts/generate-dashboard.py` — **remove** `render_compliance_matrix` (Phase 2 code); replace with FR-driven equivalents
+- `run-local.sh` — thread new flags; remove old `--compliance-matrix`; call `record_scan_history.py` after dashboard generation
+- `scripts/generate-dashboard.py` — **remove** `render_compliance_matrix` (Phase 2 code); replace with FR-driven equivalents; emit consolidated `dashboard-data.json` payload
 - `Dockerfile` — add `py3-jsonschema` to apk install
 
 **Existing (no change):**
 - All scanner wiring (Semgrep, Gitleaks, Trivy, Grype, etc.)
 - All scanner output parsers — reframed as test types via `verified_by: scanner`
 - The dashboard's existing tabs (Overview, Scanners, Findings, Fix Plan)
+
+**Per-project artifacts created at scan time:**
+- `<report-dir>/dashboard-data.json` — consolidated payload (also embedded in dashboard.html)
+- `<report-dir>/fr-catalog.snapshot.json` — FR catalog at scan time (for time travel)
+- `<report-dir>/scope.snapshot.json` — project scope at scan time
+- `<project>/.asvs-scanner/scan-history/<RUN_ID>/` — retained copy of the above
+- `<project>/.asvs-scanner/scan-history/index.json` — scan picker index
+
+
 
 ## Open questions
 
