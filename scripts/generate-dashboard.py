@@ -735,6 +735,25 @@ code { font-family:var(--mono); font-size:11px; background:#183236; color:#baf4e
 @media (max-width:760px) { .shell { padding:12px 12px 28px; } .topbar { grid-template-columns:1fr; } .scan-meta table, .scan-meta tbody, .scan-meta tr, .scan-meta th, .scan-meta td { display:block; width:100%; } .scan-meta th, .scan-meta td { border-right:0; } .scan-meta td { border-bottom:1px solid var(--line); } .scan-meta tr:last-child td:last-child { border-bottom:0; } .metric-grid { grid-template-columns:repeat(3,1fr); } .two-col { grid-template-columns:1fr; } .matrix { min-width:840px; } .card { overflow:auto; } .nav { grid-template-columns:1fr; } .tab-btn { height:38px; } }
 
 /* (Phase 2 Compliance Matrix CSS removed — pivot to FR-driven model) */
+
+/* FR Catalog tab (Phase 1.5) */
+.fr-status-badge { display:inline-flex; align-items:center; min-width:62px; height:20px; padding:0 8px; border-radius:5px; color:#081014; font-size:10px; font-weight:900; letter-spacing:.05em; text-transform:uppercase; }
+.fr-row { cursor:pointer; transition:background .1s; }
+.fr-row:hover { background:#243039; }
+.fr-row:focus { outline:2px solid var(--primary); outline-offset:-2px; }
+.fr-row-child td:first-child { padding-left:24px; }
+.fr-link-count { display:inline-block; min-width:32px; padding:2px 6px; margin-right:4px; border-radius:4px; background:rgba(86,199,183,.08); color:var(--ink-3); font-family:var(--mono); font-size:10px; font-weight:700; text-align:center; }
+.fr-detail { padding:12px 14px; background:#172025; border:1px solid var(--line); border-radius:var(--radius); }
+.fr-detail-desc { color:var(--ink-2); margin-bottom:10px; line-height:1.5; }
+.fr-detail-section { margin-top:8px; font-size:11px; color:var(--ink-3); }
+.fr-detail-section strong { color:var(--ink-2); text-transform:uppercase; letter-spacing:.05em; font-size:10px; }
+.fr-detail-section ul { padding-left:18px; margin:4px 0 0; }
+.fr-detail-section li { margin:2px 0; }
+.fr-filter-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:10px 12px; }
+.fr-search-input, .fr-select { background:var(--surface-2); border:1px solid var(--line); color:var(--ink-2); border-radius:6px; padding:6px 10px; font-size:12px; min-width:140px; }
+.fr-search-input { flex:1; min-width:200px; }
+.fr-search-input:focus, .fr-select:focus { outline:none; border-color:var(--primary); }
+.fr-row.hidden-by-filter, .fr-detail-row.hidden-by-filter, .fr-category-header.hidden-by-filter { display:none; }
 """
 
 
@@ -1704,6 +1723,201 @@ def kpi(label: str, value: str, accent: str, icon: str, sub: str = "") -> str:
     )
 
 
+# ===========================================================================
+# FR Catalog tab (Phase 1.5 — minimal list view)
+# ===========================================================================
+
+def render_fr_catalog(fr_catalog_path: str) -> str:
+    """Render the FR Catalog tab as HTML."""
+    import importlib.util
+    loader_path = Path(__file__).resolve().parent / "load_fr_catalog.py"
+    spec = importlib.util.spec_from_file_location("load_fr_catalog", loader_path)
+    if spec is None or spec.loader is None:
+        return _fr_catalog_error("Could not load FR catalog loader module.")
+    loader = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loader)  # type: ignore[union-attr]
+
+    try:
+        catalog = loader.load_fr_catalog(Path(fr_catalog_path))
+    except loader.FrCatalogError as exc:
+        return _fr_catalog_error(str(exc))
+
+    requirements = catalog.requirements
+    if not requirements:
+        return (
+            '<section class="card"><div class="empty-state">'
+            'No functional requirements defined. Add an FR to fr-catalog.json and rescan.'
+            '</div></section>'
+        )
+
+    # Index by parent for hierarchy rendering
+    by_parent: dict[str | None, list[dict]] = {}
+    for req in requirements:
+        parent = req.get("parent")
+        by_parent.setdefault(parent, []).append(req)
+
+    valid_ids = {r["id"] for r in requirements}
+    top_level = [r for r in requirements if not r.get("parent") or r.get("parent") not in valid_ids]
+
+    from collections import defaultdict
+    by_category: dict[str, list[dict]] = defaultdict(list)
+    for req in top_level:
+        cat = req.get("category", "uncategorized")
+        by_category[cat].append(req)
+
+    total = len(requirements)
+    with_code = sum(1 for r in requirements if r.get("implemented_by"))
+    with_tests = sum(1 for r in requirements if r.get("verified_by"))
+    with_compliance = sum(1 for r in requirements if r.get("satisfies"))
+    tiles = (
+        f'<div class="metric"><b>{total}</b><span>Total FRs</span></div>'
+        f'<div class="metric"><b>{with_code}</b><span>With code refs</span></div>'
+        f'<div class="metric"><b>{with_tests}</b><span>With test refs</span></div>'
+        f'<div class="metric"><b>{with_compliance}</b><span>With compliance links</span></div>'
+    )
+
+    filter_bar = """
+    <div class="card-head fr-filter-bar">
+      <input type="search" id="fr-search" placeholder="Search FR ID or title..." class="fr-search-input">
+      <select id="fr-category-filter" class="fr-select">
+        <option value="">All categories</option>
+      </select>
+      <select id="fr-status-filter" class="fr-select">
+        <option value="">All statuses</option>
+        <option value="active" selected>Active</option>
+        <option value="draft">Draft</option>
+        <option value="deprecated">Deprecated</option>
+        <option value="proposed">Proposed</option>
+      </select>
+    </div>
+    """
+
+    rows_html: list[str] = []
+    for category in sorted(by_category.keys()):
+        cat_reqs = by_category[category]
+        rows_html.append(
+            f'<tr class="category-row fr-category-header" data-category="{html.escape(category)}">'
+            f'<td colspan="5">{html.escape(category)} '
+            f'<span class="category-meta">· {len(cat_reqs)} top-level FRs</span></td></tr>'
+        )
+        for req in cat_reqs:
+            rows_html.extend(_render_fr_row(req, by_parent, depth=0))
+
+    warning_banner = ""
+    warn_items = [w for w in catalog.warnings if w.severity == "warn"]
+    if warn_items:
+        items = "".join(
+            f'<li>[{w.severity}] {html.escape(w.code)}: {html.escape(w.message)}</li>'
+            for w in warn_items
+        )
+        warning_banner = (
+            f'<div class="callout"><strong>{len(warn_items)} validation warning(s):</strong>'
+            f'<ul>{items}</ul></div>'
+        )
+
+    body = (
+        f'{warning_banner}'
+        f'<section class="card fr-card">'
+        f'<div class="metric-grid" style="grid-template-columns:repeat(4,minmax(120px,1fr));margin-bottom:12px">{tiles}</div>'
+        f'{filter_bar}'
+        f'<table class="matrix fr-table"><thead><tr>'
+        f'<th>ID</th><th>Title</th><th>Status</th><th>Owner</th><th>Links</th>'
+        f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table>'
+        f'</section>'
+    )
+    return body
+
+
+def _render_fr_row(req: dict, by_parent: dict, depth: int) -> list[str]:
+    """Render one FR row + its child rows (recursive)."""
+    indent = "&nbsp;" * (depth * 4)
+    rid = html.escape(req.get("id", ""))
+    title = html.escape(req.get("title", ""))
+    status = html.escape(req.get("status", ""))
+    owner = html.escape(req.get("owner", "") or "—")
+    impl_count = len(req.get("implemented_by") or [])
+    verified_count = len(req.get("verified_by") or [])
+    satisfies_count = len(req.get("satisfies") or [])
+
+    status_color = {"active": "#35d07f", "draft": "#ffd166",
+                    "deprecated": "#718096", "proposed": "#56c7b7"}.get(status, "#718096")
+    status_badge = (f'<span class="fr-status-badge" style="background:{status_color}">'
+                    f'{status}</span>')
+
+    links = (
+        f'<span class="fr-link-count" title="Code refs">{impl_count} F</span> '
+        f'<span class="fr-link-count" title="Test refs">{verified_count} T</span> '
+        f'<span class="fr-link-count" title="Compliance rows">{satisfies_count} C</span>'
+    )
+
+    detail_parts: list[str] = []
+    if req.get("description"):
+        detail_parts.append(f'<div class="fr-detail-desc">{html.escape(req["description"])}</div>')
+    if req.get("implemented_by"):
+        items = []
+        for r in req["implemented_by"]:
+            path = html.escape(r.get("path", ""))
+            label = r.get("label")
+            label_str = f" &mdash; {html.escape(label)}" if label else ""
+            items.append(f'<li><code>{path}</code>{label_str}</li>')
+        detail_parts.append(f'<div class="fr-detail-section"><strong>Code:</strong><ul>{"".join(items)}</ul></div>')
+    if req.get("verified_by"):
+        items = []
+        for r in req["verified_by"]:
+            rtype = html.escape(r.get("type", ""))
+            rref = html.escape(r.get("ref", ""))
+            items.append(f'<li><code>{rtype}</code>: <code>{rref}</code></li>')
+        detail_parts.append(f'<div class="fr-detail-section"><strong>Verified by:</strong><ul>{"".join(items)}</ul></div>')
+    if req.get("satisfies"):
+        items = []
+        for s in req["satisfies"]:
+            fw = html.escape(s.get("framework", ""))
+            row = html.escape(s.get("row", ""))
+            reason = s.get("reason")
+            reason_str = f" <em>({html.escape(reason)})</em>" if s.get("status") == "na" and reason else ""
+            items.append(f'<li>{fw} &rarr; <code>{row}</code>{reason_str}</li>')
+        detail_parts.append(f'<div class="fr-detail-section"><strong>Satisfies:</strong><ul>{"".join(items)}</ul></div>')
+    if req.get("evidence"):
+        items = "".join(
+            f'<li>{html.escape(e.get("type", ""))}: <code>{html.escape(e.get("ref", ""))}</code></li>'
+            for e in req["evidence"]
+        )
+        detail_parts.append(f'<div class="fr-detail-section"><strong>Evidence:</strong><ul>{items}</ul></div>')
+
+    detail_html = ""
+    if detail_parts:
+        detail_html = f'<div class="fr-detail">{"".join(detail_parts)}</div>'
+
+    row_class = "fr-row" + (" fr-row-child" if depth > 0 else "")
+    rows = [
+        f'<tr class="{row_class}" data-fr-id="{rid}" data-status="{status}" '
+        f'data-category="{html.escape(req.get("category", ""))}" tabindex="0" role="button" aria-expanded="false">'
+        f'<td><code>{rid}</code></td>'
+        f'<td>{indent}{title}</td>'
+        f'<td>{status_badge}</td>'
+        f'<td>{owner}</td>'
+        f'<td>{links}</td>'
+        f'</tr>'
+    ]
+    if detail_html:
+        rows.append(
+            f'<tr class="fr-detail-row" data-fr-id="{rid}" hidden>'
+            f'<td colspan="5">{detail_html}</td></tr>'
+        )
+    for child in by_parent.get(req["id"], []):
+        rows.extend(_render_fr_row(child, by_parent, depth + 1))
+    return rows
+
+
+def _fr_catalog_error(message: str) -> str:
+    return (
+        '<section class="card"><div class="callout"><strong>FR catalog error:</strong><br>'
+        f'{html.escape(message)}<br><br>'
+        'Fix the catalog and rescan.</div></section>'
+    )
+
+
+# ===========================================================================
 # Top-level
 # ===========================================================================
 
@@ -1736,6 +1950,7 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_pa
 
     overview_html = render_overview(evidence, report_dir, ignored)
     fixplan_html = render_fixplan(report_dir)
+    fr_catalog_html = render_fr_catalog(fr_catalog_path) if fr_catalog_path else ""
 
     run_id = html.escape(str(evidence.get("run_id", "-")))
     generated = html.escape(str(evidence.get("generated_at", "-"))[:19].replace("T", " "))
@@ -1779,6 +1994,7 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_pa
     </div>
     <nav class="nav">
       <button class="tab-btn" data-overview-filter="coverage">{ICONS['list']}<span>Evidence Files</span></button>
+      {'<button class="tab-btn" data-tab="frcatalog">' + ICONS['shield'] + '<span>FR Catalog</span></button>' if fr_catalog_html else ''}
       <button class="tab-btn" data-tab="fixplan">{ICONS['doc']}<span>Agentic Fix Prompt</span></button>
     </nav>
     <div class="scan-meta">
@@ -1807,6 +2023,7 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_pa
 
   <main>
     <div class="panel active" id="tab-overview">{overview_html}</div>
+    {f'<div class="panel" id="tab-frcatalog">{fr_catalog_html}</div>' if fr_catalog_html else ''}
     <div class="panel" id="tab-fixplan">{fixplan_html}</div>
   </main>
 </div>
@@ -1997,6 +2214,70 @@ function setupTooltips() {{
   window.addEventListener('scroll', hideTooltip, {{ passive: true }});
 }}
 setupTooltips();
+function setupFrCatalog() {{
+  const card = document.querySelector('.fr-card');
+  if (!card) return;
+  const search = document.getElementById('fr-search');
+  const catFilter = document.getElementById('fr-category-filter');
+  const statusFilter = document.getElementById('fr-status-filter');
+
+  // Populate category dropdown
+  const cats = new Set();
+  document.querySelectorAll('.fr-category-header').forEach(h => cats.add(h.dataset.category));
+  [...cats].sort().forEach(c => {{
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    catFilter.appendChild(opt);
+  }});
+
+  function applyFilters() {{
+    const q = (search.value || '').toLowerCase();
+    const cat = catFilter.value;
+    const st = statusFilter.value;
+    document.querySelectorAll('.fr-row').forEach(row => {{
+      const rid = row.dataset.frId.toLowerCase();
+      const titleCell = row.querySelector('td:nth-child(2)');
+      const title = (titleCell ? titleCell.textContent : '').toLowerCase();
+      const matchesSearch = !q || rid.includes(q) || title.includes(q);
+      const matchesCat = !cat || row.dataset.category === cat;
+      const matchesStatus = !st || row.dataset.status === st;
+      const visible = matchesSearch && matchesCat && matchesStatus;
+      row.classList.toggle('hidden-by-filter', !visible);
+      const detail = document.querySelector('.fr-detail-row[data-fr-id="' + row.dataset.frId + '"]');
+      if (detail) detail.classList.toggle('hidden-by-filter', !visible);
+    }});
+    // Hide category headers whose all rows are hidden
+    document.querySelectorAll('.fr-category-header').forEach(h => {{
+      let any = false;
+      let n = h.nextElementSibling;
+      while (n && !n.classList.contains('fr-category-header')) {{
+        if (n.classList.contains('fr-row') && !n.classList.contains('hidden-by-filter')) {{
+          any = true; break;
+        }}
+        n = n.nextElementSibling;
+      }}
+      h.classList.toggle('hidden-by-filter', !any);
+    }});
+  }}
+
+  [search].forEach(el => el.addEventListener('input', applyFilters));
+  [catFilter, statusFilter].forEach(el => el.addEventListener('change', applyFilters));
+
+  // Click row to expand detail
+  document.querySelectorAll('.fr-row').forEach(row => {{
+    row.addEventListener('click', () => {{
+      const detail = document.querySelector('.fr-detail-row[data-fr-id="' + row.dataset.frId + '"]');
+      if (!detail) return;
+      const isHidden = detail.hasAttribute('hidden');
+      if (isHidden) detail.removeAttribute('hidden'); else detail.setAttribute('hidden', '');
+      row.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+    }});
+    row.addEventListener('keydown', e => {{
+      if (e.key === 'Enter' || e.key === ' ') {{ e.preventDefault(); row.click(); }}
+    }});
+  }});
+}}
+setupFrCatalog();
 function copyPrompt() {{
   const btn = document.querySelector('.copy-btn');
   const label = btn.querySelector('.btn-label');

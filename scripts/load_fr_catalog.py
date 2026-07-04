@@ -27,7 +27,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -39,38 +38,46 @@ FRAMEWORKS_DIR = REPO_ROOT / "data" / "frameworks"
 KNOWN_FRAMEWORKS = {"ASVS", "NIST-800-53", "PCI-DSS", "ISO-27001", "NIST-CSF"}
 
 
-@dataclass
 class FrCatalogError(Exception):
     """Raised when the catalog fails JSON Schema validation (unrecoverable)."""
 
-    errors: list[str]
+    def __init__(self, errors: list[str]) -> None:
+        self.errors = errors
+        super().__init__(self._format())
 
-    def __str__(self) -> str:
+    def _format(self) -> str:
         return f"FR catalog schema validation failed ({len(self.errors)} error(s)):\n" + "\n".join(
             f"  - {e}" for e in self.errors
         )
 
+    def __str__(self) -> str:
+        return self._format()
 
-@dataclass
+
 class FrCatalogWarning:
     """A recoverable issue (unknown framework, dangling reference, etc.)."""
 
-    severity: str  # "warn" | "info"
-    code: str
-    message: str
+    def __init__(self, severity: str, code: str, message: str) -> None:
+        self.severity = severity  # "warn" | "info"
+        self.code = code
+        self.message = message
 
 
-@dataclass
 class FrCatalog:
     """Validated FR catalog with helper accessors."""
 
-    raw: dict[str, Any]
-    project: str
-    version: int
-    requirements: list[dict[str, Any]]
-    scope: dict[str, Any] = field(default_factory=dict)
-    na_rows: list[dict[str, Any]] = field(default_factory=list)
-    warnings: list[FrCatalogWarning] = field(default_factory=list)
+    def __init__(self, raw: dict[str, Any], project: str, version: int,
+                 requirements: list[dict[str, Any]],
+                 scope: dict[str, Any] | None = None,
+                 na_rows: list[dict[str, Any]] | None = None,
+                 warnings: list[FrCatalogWarning] | None = None) -> None:
+        self.raw = raw
+        self.project = project
+        self.version = version
+        self.requirements = requirements
+        self.scope = scope or {}
+        self.na_rows = na_rows or []
+        self.warnings = warnings or []
 
     @property
     def requirement_ids(self) -> set[str]:
