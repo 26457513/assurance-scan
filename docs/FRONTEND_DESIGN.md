@@ -463,7 +463,7 @@ Each frontend feature implies specific backend support. Listing here so backend 
 
 ## Phased delivery
 
-Frontend ships in slices, each independently useful. **MVP = Phases 1-2** (FR Catalog + at least one framework tab working end-to-end). Graph and power features build on that foundation.
+Phase numbering is **shared with [FR_TRACEABILITY_PIVOT.md](FR_TRACEABILITY_PIVOT.md#phased-scope)** — "Phase N" means the same thing in both docs. Each phase ships backend + frontend together so the slice is independently useful. **MVP = Phases 1-2** (FR Catalog + at least one framework tab working end-to-end). Graph and power features build on that foundation.
 
 | Phase | Frontend slice | Backend dependency |
 |---|---|---|

@@ -4,6 +4,43 @@
 
 **Draft.** Proposed pivot from the current scanner-driven Compliance Matrix (Phase 2, shipped) to a requirements-driven traceability platform with compliance as one view. This doc supersedes the long-term vision in [ASVS_TRACEABILITY_PLAN.md](ASVS_TRACEABILITY_PLAN.md) — the existing plan remains valid as the migration path for what we've already built.
 
+**Doc structure** (use this map to navigate — doc is intentionally one file rather than split, to keep the contract closed):
+
+| Section cluster | What's there |
+|---|---|
+| **Meta** (Status, Glossary, Context, Vision, Phased scope, Risks, Decisions) | Why we're pivoting, what we're building, in what order |
+| **Data model** (FR JSON schema, Evidence resolution, Multi-framework loaders, Code mapping, Test integration, Scanner integration) | What the data looks like |
+| **Contracts** (Dashboard input payload, Scan history retention, Derived indices, CI workflow, Fixture scan spec) | The bridge between backend and frontend |
+| **Migration** (Migration path, Critical files) | What changes from current code |
+
+For frontend UX details, see [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md). For schema rationale, see [FRAMEWORK_COMPARISON.md](FRAMEWORK_COMPARISON.md) (historical).
+
+## Glossary
+
+Terms used across this doc and [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md). New contributors should read this first.
+
+| Term | Meaning |
+|---|---|
+| **FR** | Functional Requirement. The central abstraction. Project-defined, lives in `fr-catalog.json`. |
+| **FR catalog** | The project's `fr-catalog.json` file containing all FRs + scope + na_rows. Supplied via `--fr-catalog` flag. |
+| **Framework** | A compliance framework: ASVS, NIST 800-53, PCI-DSS, ISO 27001, NIST CSF. Each has a snapshot in `data/frameworks/<fw>/`. |
+| **Compliance row** (or framework row) | A single requirement within a framework. E.g. `v5.0.0-6.1.1` is an ASVS row; `IA-2` is a NIST 800-53 row. |
+| **satisfies** | FR → compliance row relationship. Says "this FR addresses this compliance row". |
+| **implemented_by** | FR → code relationship. Glob, file, or symbol reference. |
+| **verified_by** | FR → test/scanner relationship. The thing that proves the FR works. |
+| **evidence** | Typed artifact supporting an FR. Auto (scanner/test) or manual (doc/screenshot). |
+| **Traffic light** | 4-state UI indicator: green=satisfied, red=failed, amber=unaddressed, NA=not applicable. Plus grey=filtered out. |
+| **Scope** | Project-level declaration of which framework levels/baselines/SAQs are in scope. E.g. `ASVS: {levels: [L1, L2]}`. |
+| **na_rows** | Top-level list of compliance rows explicitly marked not-applicable for this project, with reasons. |
+| **Scanner** | A security tool that produces findings: Semgrep, Trivy, Grype, Gitleaks, etc. |
+| **Finding** | A single issue from a scanner. Has rule_id + file:line + severity. |
+| **Audit chain** | Ordered traversal: compliance row → FR → code → test → evidence. Powers Audit Mode step-through. |
+| **Dashboard payload** | The consolidated JSON `generate-dashboard.py` emits. The contract between backend and frontend. |
+| **Scan history** | Retained past scans under `<project>/.asvs-scanner/scan-history/`. Enables time travel. |
+| **Attention ring** | Red dashed ring around a graph node indicating "needs attention" (orphan, stale evidence, etc.) — distinct from red fill (failed evidence). |
+| **Audit mode** | Graph tab toggle that locks to one compliance row + step-through chain. |
+| **Time travel** | Comparing two scans to see what changed. |
+
 ## Context
 
 We shipped a Compliance Matrix tab that maps ASVS requirements → scanner rules → findings, with traffic lights per row. It works, but it's a **single-framework, scanner-only** view of traceability. The actual engineering reality is broader:
@@ -45,11 +82,49 @@ A traceability platform where the **functional requirement** is the hub. Everyth
 4. **Scanners are just a test type.** Semgrep, Trivy, Gitleaks become "automated test runners" whose results feed the same evidence pipeline as unit tests.
 5. **D3 graph is the primary visualization.** Force-directed graph with multi-hop traversal: click any node, see its full chain in any direction.
 
+### Alice the auditor — a 90-second walkthrough
+
+To make the design concrete. Alice is auditing Tapestry for ASVS L2 compliance. She opens the dashboard URL after a scan finishes.
+
+**0:00 — Lands on Overview tab.** Sees 6 KPI tiles. ASVS Coverage reads "45 of 235 applicable (19%)". NIST-800-53 Coverage reads "12 of 103 applicable (12%)". FR Catalog tile reads "28 functional requirements, 23 with test coverage". She clicks the ASVS Coverage tile.
+
+**0:05 — Jumps to ASVS tab** with filter pre-set to "show only failing/unaddressed". Seides 187 amber rows (unaddressed) and 3 red rows (failed). The 3 red rows are at the top. She clicks the first: `v5.0.0-13.3.1` Secrets management.
+
+**0:15 — Row expands.** Shows: claimed by FR-AUTH. FR-AUTH is implemented by 2 files. Verified by 3 tests + 1 scanner. Scanner `trivy-config:DS-0031` failed. Below the chain: culprit finding details — `Dockerfile:5`, severity HIGH, message "Secrets passed via build-args".
+
+**0:30 — Clicks "Show in graph".** Graph tab opens, centred on `v5.0.0-13.3.1`. She sees the node, plus edges to FR-AUTH (teal), FR-AUTH to two files (lavender), FR-AUTH to three tests + one scanner (gold). All green except the scanner node — red fill, red ring. Clicks the scanner finding.
+
+**0:45 — Detail panel opens** with finding message, file path, line number, remediation advice. She clicks "Open file" to view the Dockerfile.
+
+**1:00 — Confirms the issue.** Adds an annotation to the scanner node: "Confirmed — Dockerfile has hardcoded API key in build-args. Notifying auth team." Annotation saves to localStorage.
+
+**1:15 — Switches to Findings tab.** Filters by `Dockerfile`. Sees the same finding plus two gitleaks findings on the same file. Clicks "Find ASVS impact" on each — both jump back to the Graph with the FRs/compliance rows they threaten.
+
+**1:30 — Exports.** Clicks "Export" → "PDF of chain for v5.0.0-13.3.1". Gets a tidy PDF with the compliance row, FR, code references, failing scanner finding, and her annotation. Drops into the audit report.
+
+**Total elapsed: ~90 seconds.** Without this platform, the same audit step takes Alice 30+ minutes of cross-referencing the spreadsheet, the scanner outputs, the codebase, and Jira.
+
+That's the design target. Every feature in this doc exists to make that walkthrough fast.
+
 ## FR JSON schema (config-driven)
 
 FRs are supplied as a JSON file in the project repo. The scanner reads it via a new `--fr-catalog <path>` flag. This is the simplest possible input — no parser, no discovery logic, no heuristics. Just JSON in, JSON out.
 
-**Example `fr-catalog.json`** (lives in the project repo):
+**Minimal viable catalog** — the smallest valid catalog. Start here, expand as you go:
+
+```json
+{
+  "version": 1,
+  "project": "my-app",
+  "requirements": [
+    {"id": "FR-001", "title": "First requirement", "status": "active"}
+  ]
+}
+```
+
+That's it. Five lines. The dashboard will show one FR with no compliance links, no code claims, no evidence. From here you add `implemented_by`, `verified_by`, `satisfies`, `evidence`, `parent`, `scope`, `na_rows` as your project needs them.
+
+**Example `fr-catalog.json`** (lives in the project repo) — a fuller example with hierarchical FRs, multiple frameworks in scope, and explicit out-of-scope declarations:
 
 ```json
 {
@@ -708,33 +783,68 @@ All four indices run at scan time as part of `generate-dashboard.py`. Combined c
 
 ## D3 graph visualization
 
-D3 force-directed graph (not ECharts — D3 gives more flexibility for the multi-hop traversal we need). Layered on the same data as the Compliance Matrix.
+The full graph design — node/edge types, layout modes, visual encoding (color=status, shape=type, edge colour/style), entry-point picker, audit mode, power features, performance — lives in [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md#the-graph-tab--full-design).
 
-**Node types:**
-- `framework` (e.g. "ASVS 5.0", "NIST 800-53") — large, perimeter
-- `framework_row` (e.g. "v5.0.0-6.1.1") — small, grouped by framework
-- `fr` (e.g. "FR-001") — medium, central
-- `category` (e.g. "authentication") — grouping label
-- `code_file` — small
-- `test` — small, coloured by pass/fail
-- `scanner_finding` — small, coloured by severity
-- `evidence_artifact` — small
+Backend produces the graph data via `dashboard-data.json → graph.nodes + graph.edges` (see "Dashboard input payload" section). Frontend renders it. The two are linked by that contract; no graph-related logic on the backend side.
 
-**Edge types:**
-- `satisfies` (fr → framework_row)
-- `implements` (fr → code_file)
-- `verified_by` (fr → test/scanner)
-- `evidenced_by` (fr → evidence_artifact)
-- `contains` (framework → framework_row)
-- `belongs_to` (fr → category)
+**Why D3 over ECharts:** more flexibility for multi-hop traversal and custom layouts (force-directed, hierarchical, concentric, Sankey). ECharts is easier for standard chart types; this isn't a standard chart type.
 
-**Interactions:**
-- Click any node → highlight its full chain in both directions
-- Filter by framework, category, status, FR
-- "Show me the chain for ASVS row X" or "Show me the chain for file Y" — bidirectional entry points
-- Per-FR subgraph (avoid hairballs)
+**Soft cap, not hard cap:** D3 force layout becomes janky above ~500 simultaneous nodes on commodity hardware. We soft-cap with a non-blocking banner ("Displaying 500 of N — narrow filters to see all") and default to per-FR subgraphs (one FR + neighbours = ~20-50 nodes) rather than rendering the whole graph at once.
 
-**Performance:** hard cap ~500 visible nodes; lazy-load deeper subgraphs on click.
+## CI workflow
+
+Backend CI runs on every PR. Workflow file: `.github/workflows/ci.yml`. Jobs:
+
+| Job | Triggers on | What it checks |
+|---|---|---|
+| `validate-fr-schema` | Any PR touching `data/schemas/fr-catalog.schema.json` or `**/fr-catalog.json` | Runs `scripts/validate_fr_catalog.py` against the schema; reports errors |
+| `validate-mapping` | PRs touching `data/asvs_mapping.yaml` or `data/sources/**` | Runs existing `scripts/validate-mapping.py` |
+| `dashboard-snapshot` | PRs touching `scripts/generate-dashboard.py` or `assets/dashboard.js` | Regenerates dashboard from fixture scan; diffs against `tests/fixtures/expected-dashboard.html`. Snapshot updates require explicit `--update-snapshot` flag. |
+| `payload-size` | PRs touching `scripts/generate-dashboard.py` or `data/sources/**` | Asserts `dashboard-data.json` <2MB for the fixture scan |
+| `bundle-size` | PRs touching `assets/**` | Asserts total JS bundle <500KB |
+| `scan-history` | PRs touching `scripts/record_scan_history.py` or `run-local.sh` | Runs scanner twice against fixture, verifies both scans retained, verifies FIFO eviction after 6th run |
+| `js-unit-tests` | PRs touching `assets/**` | Vitest with coverage targets (state 90%, utils 80%, graph 60%) |
+
+**Failure policy:** all jobs must pass for PR merge (branch protection). Snapshot updates and bundle-size increases (>10%) require reviewer sign-off via label.
+
+## Fixture scan spec
+
+`tests/fixtures/sample-scan/` is the canonical sample scan for dashboard snapshot tests, payload-size checks, and scan-history tests. Contents:
+
+```
+tests/fixtures/sample-scan/
+├── fr-catalog.json                  # 5 FRs (3 active, 1 deprecated, 1 hierarchical parent+child)
+├── evidence-manifest.json           # Standard manifest with 8 scanners
+├── junit.xml                        # 12 testcases (10 pass, 1 fail, 1 skip)
+├── reports/
+│   ├── semgrep.sarif                # 2 findings (1 SQL injection, 1 XSS)
+│   ├── gitleaks.json                # 1 finding (AWS key)
+│   ├── trivy-config.json            # 1 finding (DS-0031 secrets in build-args)
+│   ├── trivy-fs.json                # 0 findings (clean)
+│   ├── grype.json                   # 2 findings (1 HIGH CVE, 1 MEDIUM CVE)
+│   └── security-headers.json        # 1 missing header (CSP)
+└── expected-dashboard.html          # Committed snapshot — regenerates via --update-snapshot
+```
+
+**FR catalog fixture design** (5 FRs covering every schema feature):
+
+| FR ID | Parent | Has implemented_by | Has verified_by | Has satisfies | Has evidence | Purpose |
+|---|---|---|---|---|---|---|
+| FR-AUTH | — | glob (3 files) | scanner + unit | ASVS 6.1.1, NIST IA-2 | manual + screenshot | Typical fully-specced FR |
+| FR-AUTH-OAUTH | FR-AUTH | file (1) + symbol (1) | unit (2) | ASVS 6.1.3 | — | Hierarchical child FR |
+| FR-EXPORT | — | glob | scanner + integration | ASVS 14.2.4 | — | FR with scanner glob match |
+| FR-DEPRECATED | — | — | — | — | — | `status: deprecated` — exercises status filter |
+| FR-NOLINK | — | glob | — | — | — | Active FR but no compliance links — exercises "internal-only" state |
+
+**Test scenarios the fixture enables:**
+- All 4 traffic light states appear (satisfied/failed/unaddressed/NA)
+- Hierarchical FR rendering (parent + child)
+- Scanner findings link to FRs (reverse lookup working)
+- Test results link to FRs (verified_by resolution working)
+- Manual evidence existence check (docs/auth-design.md committed)
+- Coverage KPIs computable (5 FRs, 4 compliance rows claimed, etc.)
+
+The fixture is committed and version-controlled. Updates require explicit snapshot update + reviewer sign-off.
 
 ## Migration path (no backward compatibility)
 
@@ -773,19 +883,25 @@ The scanner-driven Compliance Matrix built on `develop` (Phase 2) is **being rep
 
 ## Phased scope
 
-| Phase | What | Effort | Notes |
-|---|---|---|---|
-| **0** (this doc) | Design doc, schema decisions | 1 day | You're reading it |
-| **1** | FR JSON schema + parser; `--fr-catalog` flag; basic FR list view | 1 week | Establishes the new central abstraction |
-| **2** | Code mapping (glob/file/symbol resolution at scan time); code files appear in graph | 1 week | Static analysis light |
-| **3** | Test integration (JUnit XML parser); test results appear next to FRs | 1 week | Tests become first-class evidence |
-| **4** | Scanner integration into FR model (existing scanners become test types) | 1 week | Mostly refactor, not new code |
-| **5** | NIST 800-53 loader; multi-framework UI tabs | 1.5 weeks | Second framework proves the pattern |
-| **6** | D3 graph visualization | 2-3 weeks | The headline feature |
-| **7** | PCI-DSS, ISO 27001 loaders; framework-aware filters | 1.5 weeks | Coverage breadth |
-| **8** | Polish, accessibility, performance, snapshot tests | ongoing | |
+Phase numbering is **shared with [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md#phased-delivery)** — "Phase N" means the same thing in both docs. Each phase ships backend + frontend together so the slice is independently useful.
 
-**Total:** ~3-4 months of focused work to reach Phase 6 (D3 graph working with multi-framework + tests). After that, value continues compounding with each new framework loader.
+| Phase | What ships (backend + frontend combined) | Effort | MVP? |
+|---|---|---|---|
+| **0** (this doc) | Design docs, schema decisions, NIST 800-53 fetcher | 1 day | — |
+| **1** | FR catalog parser + `--fr-catalog` flag + JSON Schema validation. FR Catalog tab + ASVS framework tab working end-to-end. Cross-tab deep-linking. Empty/loading/error states. Mobile responsive for non-graph tabs. Scanner integration into `verified_by`. | 2-3 weeks | ✅ |
+| **2** | Findings "Find ASVS impact" button. Reverse lookup index. | 1 week | ✅ |
+| **3** | Additional framework tabs (NIST 800-53, PCI, ISO as loaders land). Filter presets. Coverage heatmap on Overview. | 1.5 weeks | — |
+| **4** | Graph tab MVP: force-directed only, two entry points (FR picker, compliance row picker), click highlight, fan-out cap. Desktop-only. | 2 weeks | — |
+| **5** | Graph power features: hierarchical + concentric + Sankey layouts, audit mode, deep-linking to graph state, keyboard nav, PNG/SVG export. | 2-3 weeks | — |
+| **6** | Time travel: scan picker, comparison mode, FR catalog snapshot retention, diff highlighting. JUnit XML test integration. | 2 weeks | — |
+| **7** | Annotations (localStorage), PDF export, cross-framework equivalents view. Code mapping (glob/file/symbol resolution at scan time). | 1.5 weeks | — |
+| **8** | Polish: a11y pass full audit, snapshot test infrastructure, performance tuning, JS unit test coverage targets, light mode, print stylesheet. PCI-DSS, ISO 27001, NIST CSF loaders as sources allow. | ongoing | — |
+
+**MVP = Phases 1-2** (≈3-4 weeks). After Phase 2, the platform is genuinely useful: an auditor can see FRs, see compliance coverage, click a finding to see what it threatens.
+
+**Total to Phase 6** (time travel working): ~10-13 weeks of focused work. After that, value continues compounding with each new framework loader and polish pass.
+
+**Phase numbering rationale:** combined backend+frontend phases avoid the confusion of "frontend Phase 1 vs backend Phase 1". Each phase delivers a slice a user can see and use.
 
 ## Risks and mitigations
 
@@ -847,7 +963,7 @@ The scanner-driven Compliance Matrix built on `develop` (Phase 2) is **being rep
 3. ~~Where do JUnit XML files come from~~ — **decided**: user supplies via `--junit-xml <path>`. Scanner doesn't run code.
 4. ~~Manual evidence artifacts stored where~~ — **decided**: file path references only. Scanner doesn't store content; just verifies existence.
 5. **Custom framework loader** — same JSON shape as built-in frameworks, just user-supplied? Probably yes; defer until first custom framework request.
-6. **Scanner-driven mappings (`asvs_mapping.yaml`)** — keep as input to the `verified_by: scanner` evidence type, or deprecate entirely once FR-driven `satisfies` mappings cover the same ground? See Decision section.
+6. ~~Scanner-driven mappings (`asvs_mapping.yaml`)~~ — **decided**: kept, reframed as input to the `verified_by: scanner` evidence type. See Migration Path.
 7. **Pre-commit hook vs CI-only** validation for FR catalog changes. Both? CI-only initially, pre-commit optional.
 
 ## Decision needed before proceeding
