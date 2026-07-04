@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/fr-catalog.schema.json",
+  "title": "Functional Requirements (FR) Catalog",
+  "description": "Project-specific catalog of functional requirements with traceability links to code, tests, scanner rules, and compliance framework rows. Consumed by asvs-scanner via the --fr-catalog flag.",
+  "type": "object",
+  "required": ["version", "project", "requirements"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Schema version. Currently 1.",
+      "const": 1
+    },
+    "project": {
+      "type": "string",
+      "description": "Project name. Free-form, used in dashboard headers.",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this catalog was generated/last updated."
+    },
+    "default_granularity": {
+      "type": "string",
+      "description": "Optional. Declares the project's typical FR granularity (e.g. 'module', 'feature-folder', 'component', 'function'). Documentation hint for reviewers; not enforced.",
+      "enum": ["module", "feature-folder", "component", "file", "function", "class", "service"]
+    },
+    "scope": {
+      "type": "object",
+      "description": "Project's target scope per framework. Drives which compliance rows are visible per framework tab.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "Framework-specific scope dimensions. Keys vary by framework (levels, baselines, saq, tier).",
+        "additionalProperties": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "na_rows": {
+      "type": "array",
+      "description": "Explicit out-of-scope declarations for compliance rows that have no related FR.",
+      "items": {
+        "type": "object",
+        "required": ["framework", "row", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "framework": {"type": "string", "minLength": 1},
+          "row": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/requirement"}
+    }
+  },
+  "$defs": {
+    "requirement": {
+      "type": "object",
+      "required": ["id", "title", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+          "description": "Project-unique stable identifier. Recommended patterns: 'FR-001', 'FR-AUTH', 'FR-AUTH-OAUTH-VERIFY'. Hierarchical IDs (matching `parent`) improve readability."
+        },
+        "parent": {
+          "type": "string",
+          "description": "Optional. ID of the parent FR for hierarchical catalogs. Must reference another requirement's `id` in the same catalog."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short label. ~5-10 words."
+        },
+        "category": {
+          "type": "string",
+          "description": "Free-form grouping label for the UI ('authentication', 'data-export', etc.). Use consistent spelling across the catalog."
+        },
+        "description": {
+          "type": "string",
+          "description": "Full prose. What the requirement does, key constraints, edge cases."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "active", "deprecated", "proposed"],
+          "description": "Lifecycle status. Drives UI filtering. Active = currently in scope."
+        },
+        "owner": {
+          "type": "string",
+          "description": "Optional. Team or person responsible. Free-form."
+        },
+        "implemented_by": {
+          "type": "array",
+          "description": "Code references. Many-to-many — a file can be claimed by multiple FRs.",
+          "items": {"$ref": "#/$defs/code_ref"}
+        },
+        "verified_by": {
+          "type": "array",
+          "description": "Test references that verify this FR. Each is resolved at scan time.",
+          "items": {"$ref": "#/$defs/test_ref"}
+        },
+        "satisfies": {
+          "type": "array",
+          "description": "Compliance framework rows this FR satisfies.",
+          "items": {"$ref": "#/$defs/satisfies_ref"}
+        },
+        "evidence": {
+          "type": "array",
+          "description": "Evidence artifacts supporting this FR. Promoted to typed entries (auto vs manual).",
+          "items": {"$ref": "#/$defs/evidence_ref"}
+        }
+      }
+    },
+    "code_ref": {
+      "type": "object",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["glob", "file", "symbol"]},
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Glob pattern, file path, or 'file:symbol' reference."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional human-friendly name for UI display."
+        }
+      }
+    },
+    "test_ref": {
+      "type": "object",
+      "required": ["type", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["unit", "integration", "e2e", "scanner"]},
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Test reference. For unit/integration/e2e: 'path/test_xxx.py' or 'path/test_xxx.py::test_name'. For scanner: '<scanner-name>:<rule_id_or_glob>' e.g. 'semgrep:python.security.injection.sql.*'."
+        }
+      }
+    },
+    "satisfies_ref": {
+      "type": "object",
+      "required": ["framework", "row"],
+      "additionalProperties": false,
+      "properties": {
+        "framework": {"type": "string", "minLength": 1},
+        "row": {"type": "string", "minLength": 1},
+        "status": {
+          "enum": ["satisfied", "na"],
+          "default": "satisfied",
+          "description": "Defaults to 'satisfied'. 'na' marks this row as not applicable for this FR with a reason."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Required when status is 'na'. Explains why this row is not applicable."
+        }
+      }
+    },
+    "evidence_ref": {
+      "type": "object",
+      "required": ["type", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["scanner", "test", "manual", "screenshot"]},
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Reference. For scanner/test: same format as verified_by. For manual/screenshot: file path."
+        },
+        "status": {
+          "enum": ["auto", "manual"],
+          "default": "auto",
+          "description": "'auto' = traffic light driven by scanner/test result. 'manual' = always green if the referenced artifact exists."
+        }
+      }
+    }
+  }
+}
