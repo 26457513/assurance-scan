@@ -175,8 +175,11 @@ def _diff_ids(label: str, prev: set[str], curr: set[str]) -> None:
 
 
 def _write_snapshot(filename: str, payload: dict, entry_key: str, id_field: str = "id") -> None:
-    SOURCES_DIR.mkdir(parents=True, exist_ok=True)
-    target = SOURCES_DIR / filename
+    # filename may be a relative path like "frameworks/asvs/requirements.json"
+    # or "sources/gitleaks_rules.json". Resolve against data/.
+    data_dir = REPO_ROOT / "data"
+    target = data_dir / filename
+    target.parent.mkdir(parents=True, exist_ok=True)
     prev = _previous_entry_ids(target, entry_key, id_field)
     curr = {entry.get(id_field, "") for entry in payload.get(entry_key, [])}
     if prev == curr and target.exists():
@@ -583,13 +586,13 @@ def fetch_nist_800_53() -> dict:
 # ---------------------------------------------------------------------------
 
 FETCHERS = {
-    "asvs": ("asvs_requirements.json", "requirements", fetch_asvs),
-    "nist-800-53": ("nist_800_53_requirements.json", "requirements", fetch_nist_800_53),
-    "security-headers": ("security_headers_rules.json", "entries", fetch_security_headers),
-    "gitleaks": ("gitleaks_rules.json", "entries", fetch_gitleaks),
-    "trivy-config": ("trivy_config_rules.json", "entries", fetch_trivy_config),
-    "trivy-vuln": ("trivy_vuln_rules.json", "entries", fetch_trivy_vuln),
-    "semgrep-asvs": ("semgrep_asvs_rules.json", "entries", fetch_semgrep_asvs),
+    "asvs": ("frameworks/asvs/requirements.json", "requirements", fetch_asvs),
+    "nist-800-53": ("frameworks/nist_800_53/requirements.json", "requirements", fetch_nist_800_53),
+    "security-headers": ("sources/security_headers_rules.json", "entries", fetch_security_headers),
+    "gitleaks": ("sources/gitleaks_rules.json", "entries", fetch_gitleaks),
+    "trivy-config": ("sources/trivy_config_rules.json", "entries", fetch_trivy_config),
+    "trivy-vuln": ("sources/trivy_vuln_rules.json", "entries", fetch_trivy_vuln),
+    "semgrep-asvs": ("sources/semgrep_asvs_rules.json", "entries", fetch_semgrep_asvs),
 }
 
 

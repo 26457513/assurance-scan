@@ -37,7 +37,7 @@ from typing import Any, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCES_DIR = REPO_ROOT / "data" / "sources"
-DEFAULT_OUTPUT = REPO_ROOT / "data" / "asvs_mapping.yaml"
+DEFAULT_OUTPUT = REPO_ROOT / "data" / "frameworks" / "asvs" / "scanner_mapping.yaml"
 DEFAULT_CHAPTERS = ["V1", "V2", "V13", "V14"]
 ASVS_VERSION = "5.0.0"
 
