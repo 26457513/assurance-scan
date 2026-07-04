@@ -503,6 +503,20 @@ Mount it at the same absolute path, for example:
           rewritten_args+=("--uploads" "$(to_abs_path "$2")")
           shift 2
           ;;
+        --fr-catalog)
+          [ "${2:-}" != "" ] || die "--fr-catalog requires a JSON path"
+          catalog_path="$(to_abs_path "$2")"
+          [ -f "$catalog_path" ] || die "--fr-catalog file not found: $catalog_path"
+          export ASVS_FR_CATALOG="$catalog_path"
+          shift 2
+          ;;
+        --junit-xml)
+          [ "${2:-}" != "" ] || die "--junit-xml requires a file path"
+          junit_path="$(to_abs_path "$2")"
+          [ -f "$junit_path" ] || die "--junit-xml file not found: $junit_path"
+          export ASVS_JUNIT_XML="$junit_path"
+          shift 2
+          ;;
         --no-auto-build-images)
           auto_build_images_enabled=0
           shift

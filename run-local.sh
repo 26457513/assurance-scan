@@ -327,6 +327,10 @@ while [ $# -gt 0 ]; do
       TARGET_URLS+=("${2:-}"); shift 2 ;;
     --uploads)
       UPLOADS_DIRS+=("${2:-}"); shift 2 ;;
+    --fr-catalog)
+      FR_CATALOG="${2:-}"; shift 2 ;;
+    --junit-xml)
+      JUNIT_XML="${2:-}"; shift 2 ;;
     *)
       echo "ERROR: unknown argument: $1" >&2
       usage
@@ -775,8 +779,29 @@ done_line "agent prompt"
 
 echo "==> Generating dashboard" >> "$REPORT_DIR/run.log"
 step_started_at="$(date +%s)"
+DASHBOARD_ARGS=(--report-dir "$REPORT_DIR")
+if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
+  CATALOG_PATH="${FR_CATALOG:-${ASVS_FR_CATALOG}}"
+  if [ -f "$CATALOG_PATH" ]; then
+    DASHBOARD_ARGS+=(--fr-catalog "$CATALOG_PATH")
+    echo "Using FR catalog: $CATALOG_PATH" >> "$REPORT_DIR/run.log"
+    # Snapshot the FR catalog at scan time for time-travel support
+    cp "$CATALOG_PATH" "$REPORT_DIR/fr-catalog.snapshot.json"
+  else
+    echo "WARN: FR catalog not found at $CATALOG_PATH — skipping" >> "$REPORT_DIR/run.log"
+  fi
+fi
+if [ -n "${JUNIT_XML:-${ASVS_JUNIT_XML:-}}" ]; then
+  JUNIT_PATH="${JUNIT_XML:-${ASVS_JUNIT_XML}}"
+  if [ -f "$JUNIT_PATH" ]; then
+    DASHBOARD_ARGS+=(--junit-xml "$JUNIT_PATH")
+    echo "Using JUnit XML: $JUNIT_PATH" >> "$REPORT_DIR/run.log"
+  else
+    echo "WARN: JUnit XML not found at $JUNIT_PATH — skipping" >> "$REPORT_DIR/run.log"
+  fi
+fi
 python3 "$SCRIPT_DIR/scripts/generate-dashboard.py" \
-  --report-dir "$REPORT_DIR" >> "$REPORT_DIR/run.log" 2>&1
+  "${DASHBOARD_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1
 record_timing "dashboard" "$(( $(date +%s) - step_started_at ))"
 done_line "dashboard"
 

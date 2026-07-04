@@ -1707,7 +1707,7 @@ def kpi(label: str, value: str, accent: str, icon: str, sub: str = "") -> str:
 # Top-level
 # ===========================================================================
 
-def render(*, report_dir: Path) -> str:
+def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_path: str | None = None) -> str:
     evidence = load_json(report_dir / "evidence-manifest.json") or {}
     scanner_health = evidence.get("scanner_health", {})
     findings = evidence.get("findings_summary", {})
@@ -2014,10 +2014,16 @@ function copyPrompt() {{
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report-dir", required=True)
+    ap.add_argument("--fr-catalog", default=None,
+                    help="Path to project FR catalog JSON (enables FR-driven view)")
+    ap.add_argument("--junit-xml", default=None,
+                    help="Path to JUnit XML test results (may be repeated for multi-runner)")
     args = ap.parse_args()
     report_dir = Path(args.report_dir)
     out = report_dir / "dashboard.html"
-    out.write_text(render(report_dir=report_dir))
+    out.write_text(render(report_dir=report_dir,
+                          fr_catalog_path=args.fr_catalog,
+                          junit_xml_path=args.junit_xml))
     print(f"dashboard: written to {out.name}")
     return 0
 
