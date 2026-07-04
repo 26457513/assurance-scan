@@ -133,7 +133,42 @@
           "type": "string",
           "description": "Optional human-friendly name for UI display."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "glob"}}, "required": ["type"]},
+          "then": {
+            "properties": {
+              "path": {
+                "pattern": "^[^:]+$",
+                "description": "Glob patterns must not contain ':' — that's the symbol separator."
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "file"}}, "required": ["type"]},
+          "then": {
+            "properties": {
+              "path": {
+                "pattern": "^[^:*?\\[\\]]+$",
+                "description": "File paths must not contain glob characters ('*', '?', '[', ']') or the symbol separator ':'."
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "symbol"}}, "required": ["type"]},
+          "then": {
+            "properties": {
+              "path": {
+                "pattern": "^[^:]+:[^:]+$",
+                "description": "Symbol references must be 'file:symbol' with exactly one ':' separator."
+              }
+            }
+          }
+        }
+      ]
     },
     "test_ref": {
       "type": "object",
@@ -146,14 +181,43 @@
           "minLength": 1,
           "description": "Test reference. For unit/integration/e2e: 'path/test_xxx.py' or 'path/test_xxx.py::test_name'. For scanner: '<scanner-name>:<rule_id_or_glob>' e.g. 'semgrep:python.security.injection.sql.*'."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "scanner"}}, "required": ["type"]},
+          "then": {
+            "properties": {
+              "ref": {
+                "pattern": "^[a-z][a-z0-9-]*:[^:]+$",
+                "description": "Scanner refs must be '<scanner-name>:<rule_id_or_glob>'. Scanner name is lowercase letters/digits/hyphens; exactly one ':' separator."
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"enum": ["unit", "integration", "e2e"]}}, "required": ["type"]},
+          "then": {
+            "properties": {
+              "ref": {
+                "pattern": "^[a-zA-Z0-9._\\-/\\\\]+(::[^:]+)*$",
+                "description": "Test refs must be a file path (with optional '::test_name' or '::Class::method' suffix). Must not match the scanner ref pattern (lowercase-name:single-colon)."
+              }
+            }
+          }
+        }
+      ]
     },
     "satisfies_ref": {
       "type": "object",
       "required": ["framework", "row"],
       "additionalProperties": false,
       "properties": {
-        "framework": {"type": "string", "minLength": 1},
+        "framework": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Z][A-Z0-9_-]*$",
+          "description": "Framework identifier. Uppercase letters/digits/hyphens/underscores. Examples: 'ASVS', 'NIST-800-53', 'PCI-DSS', 'ISO-27001'. Loader warns on unknown frameworks."
+        },
         "row": {"type": "string", "minLength": 1},
         "status": {
           "enum": ["satisfied", "na"],
@@ -164,7 +228,9 @@
           "type": "string",
           "description": "Required when status is 'na'. Explains why this row is not applicable."
         }
-      }
+      },
+      "if": {"properties": {"status": {"const": "na"}}, "required": ["status"]},
+      "then": {"required": ["reason"]}
     },
     "evidence_ref": {
       "type": "object",
@@ -182,7 +248,35 @@
           "default": "auto",
           "description": "'auto' = traffic light driven by scanner/test result. 'manual' = always green if the referenced artifact exists."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "scanner"}}, "required": ["type"]},
+          "then": {
+            "properties": {
+              "ref": {"pattern": "^[a-z][a-z0-9-]*:[^:]+$"},
+              "status": {"const": "auto"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"const": "test"}}, "required": ["type"]},
+          "then": {
+            "properties": {
+              "ref": {"pattern": "^[a-zA-Z0-9._\\-/\\\\]+(::[^:]+)*$"},
+              "status": {"const": "auto"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"type": {"enum": ["manual", "screenshot"]}}, "required": ["type"]},
+          "then": {
+            "properties": {
+              "status": {"const": "manual"}
+            }
+          }
+        }
+      ]
     }
   }
 }
