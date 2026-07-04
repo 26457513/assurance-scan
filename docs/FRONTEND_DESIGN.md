@@ -20,6 +20,8 @@ Top-level navigation, left to right:
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+**4 fixed tabs + one per framework in scope.** A project scoped to ASVS only sees 5 tabs total; a project with ASVS+NIST+PCI sees 7. Framework tabs appear dynamically based on the project's `scope` block.
+
 | Tab | Purpose | Who lives here |
 |---|---|---|
 | **Overview** | Headline KPIs, scan metadata, quick orientation | Everyone (first stop) |
@@ -156,9 +158,9 @@ Selecting an entry point loads the relevant subgraph. The user is never staring 
 | **Node shape** | Type: circle=FR, square=file, diamond=test, hexagon=compliance row, triangle=scanner finding, star=evidence artifact |
 | **Node size** | Criticality: compliance rows sized by level (L1 largest), FRs sized by activity (test count), files/tests uniform |
 | **Node ring/halo** | "Needs attention" marker — adds a red dashed ring OUTSIDE the fill colour. Used for orphans, stale evidence, manual evidence missing. |
-| **Edge colour** | Type: blue=satisfies, green=implements, amber=verified_by, grey=evidenced_by |
-| **Edge style** | Solid=direct, dashed=conditional (e.g. scanner glob match), dotted=manual |
-| **Edge thickness** | Strength: thicker for high-confidence mappings, thinner for low-confidence |
+| **Edge colour** | Type, drawn from a distinct palette so edges don't blend with node fills: teal=satisfies, lavender=implements, gold=verified_by, slate=evidenced_by. (Node fills stay in the green/red/amber/grey status range; edges use a separate hue range so they're always visible against any node colour.) |
+| **Edge style** | Strength: solid=high confidence (exact rule match, direct file ref), dashed=medium (glob match, scanner wildcard), dotted=low/manual (human-curated evidence, fallback patterns) |
+| **Edge thickness** | Criticality: thicker for primary mappings (the FR's main implementation), thinner for secondary/tangential |
 
 This two-layer encoding (fill + ring) preserves semantic information. Red fill always means "failed evidence". Red ring always means "needs attention for some other reason". Auditors can read both signals independently.
 
@@ -204,6 +206,99 @@ Switch via toolbar dropdown. Mode persists per user in localStorage.
 | **Keyboard nav** | `g` then `f` = jump to FR search; `/` = focus filter; `e` = export; `?` = help; arrows = navigate selection; Enter = expand. | Always available. |
 | **Coverage heatmap** | Alternative view (not a graph) — chapter × framework grid showing % coverage per cell. Click a cell → filters the table view. | Always available as a separate sub-view. |
 
+## Failure modes — empty, loading, error states
+
+The doc so far describes happy paths. Real users hit failures. Each needs a defined UI:
+
+**Empty states** (data is valid but absent):
+
+| Situation | UI |
+|---|---|
+| FR Catalog tab, project has zero FRs | Friendly message: "No functional requirements defined. Add an FR to fr-catalog.json and rescan." Link to schema doc. |
+| Framework tab, no FR catalog supplied | "Supply `--fr-catalog <path>` to enable the FR-driven view. Without it, this tab shows scanner-driven status only." |
+| Framework tab, framework snapshot missing | "Framework snapshot for X not bundled in this image. Run scripts/build-mapping-sources.py --only X and rebuild." |
+| Graph tab, no entry point selected | Sidebar of 5 entry points (default). Centre canvas shows "Pick an entry point or search for a node." |
+| Graph subgraph, no nodes match | "No nodes match this filter. Try widening scope or clearing the search." |
+
+**Loading states:**
+
+| Operation | UI |
+|---|---|
+| Initial dashboard load (>500ms) | Skeleton screens per tab (grey placeholder boxes with subtle pulse). Avoid spinners — they feel slow. |
+| Framework tab data parsing (>200ms) | Inline skeleton rows in the table. |
+| Graph subgraph computation (>300ms) | Centre canvas shows "Building graph..." with a progress bar for large subgraphs. |
+
+**Error states:**
+
+| Failure | UI |
+|---|---|
+| JSON Schema validation failure | Red banner at top: "FR catalog invalid: [error message]. Fix and rescan." Dashboard still loads with other tabs functional. |
+| Malformed JUnit XML | Amber banner on FR Catalog: "JUnit XML parse error: [details]. Test evidence unavailable for this scan." |
+| Missing scanner output | Per-scanner row in Findings shows "output missing" badge. Doesn't break the dashboard. |
+| D3 CDN unreachable | Graph tab shows: "Graph unavailable (offline). Other tabs work normally. Vendor the library for airgapped scans." Other tabs unaffected. |
+| FR catalog references missing file | Per-reference inline warning: "⚠ docs/auth-design.md not found" with red ring on the FR node. |
+| Stale FR catalog (code/test paths no longer exist) | Per-FR warning: "5 of 8 implemented_by paths no longer exist in the codebase. Update the FR catalog." |
+
+The principle: **dashboard never fully fails.** Each failure is localised, explained, and actionable. The user always has something to look at.
+
+## Mobile and responsive behaviour
+
+Existing dashboard has mobile breakpoints. New tabs need explicit decisions:
+
+| Tab | Mobile (≤760px) | Tablet (760-1100px) | Desktop (>1100px) |
+|---|---|---|---|
+| Overview | Stacked KPIs (3-col grid) | 4-col KPIs | 6-col KPIs |
+| FR Catalog | Tree + collapsible detail panel (full width) | Same | Tree + side detail panel |
+| Framework tabs | Table with horizontal scroll; filter bar collapses to hamburger | Filter bar visible | Filter bar visible |
+| Findings | Existing behaviour | Existing | Existing |
+| Graph | **"Use desktop to view graph" message.** D3 force layout is unusable on touch — too easy to mis-tap nodes, no hover state, gestures conflict with page scroll. | Limited: tap-to-select only, no drag-rearrange, no multi-select | Full features |
+| Fix | Existing | Existing | Existing |
+
+Graph tab on mobile is a deliberate non-feature. Auditors don't review on phones; engineers triaging on phones use the Findings tab. Saves implementation effort and avoids a broken UX.
+
+## Time travel — comparing scans
+
+Time travel lets auditors see what changed between two scans. Backend retention flagged (keep last 5 scans per project). The UX:
+
+**Scan picker** (top of dashboard, dropdown):
+
+```
+[Scan: 2026-07-04 14:32 (latest) ▾]
+  ─────────────────────────────────
+   2026-07-04 14:32 (latest) ✓
+   2026-07-03 09:20
+   2026-07-02 11:29
+   2026-07-01 18:46
+  ─────────────────────────────────
+   Compare two scans...    → opens comparison mode
+```
+
+**Comparison mode** (selected scan vs another):
+
+- Side-by-side view OR overlay (toggle)
+- Changes highlighted:
+  - New findings: pulse red on first appearance
+  - Newly-satisfied compliance rows: pulse green
+  - Newly-N/A rows: amber flash with reason
+  - Newly-failing rows: red flash with finding reference
+  - Stale evidence (manual artifacts older than 90 days): clock icon
+- Filter: "Show only changes" hides everything that didn't change between the two scans
+- Export: PDF of the diff with explanations, drop into audit report
+
+**FR catalog versioning:**
+
+Each scan retains the FR catalog snapshot that was active at scan time, copied into the scan's report directory (`<report-dir>/fr-catalog.snapshot.json`). When comparing two scans:
+
+- If FR definitions are identical → full time travel works (compare everything)
+- If FRs were added/removed → those FRs flagged as "added in scan B" or "removed in scan B"; comparison still works for shared FRs
+- If FR definitions changed (same ID, different content) → marked as "FR definition changed"; comparison shows old + new side-by-side for that FR
+
+This means time travel works even when the project's FR catalog evolves. No "scans are incompatible" failures.
+
+**Cross-scan navigation:**
+
+Scan picker dropdown works in every tab. Switching scan reloads the current tab with that scan's data, preserving filter state. URL hash encodes the active scan: `dashboard.html?scan=20260704T1432Z#asvs/row/v5.0.0-6.1.1`.
+
 ## Visual design tokens
 
 Existing dashboard palette retained. New tokens added:
@@ -228,11 +323,16 @@ Existing dashboard palette retained. New tokens added:
 --shape-finding: triangle;
 --shape-evidence: star;
 
-/* Edge styles */
---edge-satisfies: #56c7b7;  /* solid teal */
---edge-implements: #35d07f;  /* solid green */
---edge-verified-by: #ffd166;  /* dashed amber */
---edge-evidenced-by: #718096;  /* dotted grey */
+/* Edge styles — distinct hue range from node fills to preserve visibility */
+--edge-satisfies: #56c7b7;   /* teal */
+--edge-implements: #b794f4;  /* lavender */
+--edge-verified-by: #f6ad55; /* gold */
+--edge-evidenced-by: #718096;/* slate */
+
+/* Edge line styles — strength encoding */
+--edge-strong: solid;       /* high confidence: exact rule match, direct file ref */
+--edge-medium: dashed 4,2;  /* medium: glob match, scanner wildcard */
+--edge-weak: dotted 2,3;    /* low/manual: human-curated, fallback patterns */
 ```
 
 ## Frontend engineering
@@ -254,7 +354,7 @@ dashboard.html
   └── <script>bootstrap()</script>
 ```
 
-`assets/dashboard.js` (~1500 lines target) structured as:
+`assets/dashboard.js` (~2000-3000 lines realistic; 1500 was optimistic) structured as:
 ```
 dashboard.js
 ├── state/             # cross-tab state management
@@ -283,6 +383,14 @@ dashboard.js
 ```
 
 Vendoring D3: load from CDN (`https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js`) with a graceful fallback message if offline. Could vendor locally in Phase 6 if airgapped scans need it.
+
+**JS bundle budget:** ~500KB total (D3 ~270KB + dashboard.js ~200KB + minor deps). CI checks bundle size on every PR; >10% increase requires reviewer sign-off. Prevents drift toward heavy dependencies.
+
+**JS unit tests:** `tests/js/` directory with Vitest (fast, native ES module support). Coverage targets:
+- `state/` modules: 90% (filter logic, selection, persistence — high-value logic)
+- `utils/` modules: 80% (URL hash routing, keyboard, export)
+- `graph/` modules: 60% (D3 interactions hard to unit test; integration-tested via snapshot)
+- `tabs/` and `components/`: snapshot tests in `tests/fixtures/expected-*.html` cover regressions
 
 ### Cross-tab state
 
@@ -350,25 +458,27 @@ Each frontend feature implies specific backend support. Listing here so backend 
 | Findings "Find ASVS impact" | Reverse lookup from scanner finding rule_id → FRs with matching `verified_by: scanner` patterns. Compute at scan time. |
 
 **Two backend additions worth flagging early:**
-1. **Scan history** — retain past `evidence-manifest.json` + dashboard data so time travel works. Even just keeping the last 5 scans per project unlocks the feature.
+1. **Scan history retention** — keep last 5 scans per project (configurable). Each scan retains: `evidence-manifest.json`, `dashboard-data.json` (the embedded JSON), and `fr-catalog.snapshot.json` (the FR catalog at scan time). Time travel reads these. Comparison mode handles added/removed/changed FRs gracefully.
 2. **Derived cross-framework index** — `data/derived/equivalences.json` computed at scan time, listing groups of `(framework, row)` tuples that share FRs. The Graph tab's "cross-framework equivalents" workflow reads this.
 
 ## Phased delivery
 
-Frontend ships in slices, each independently useful:
+Frontend ships in slices, each independently useful. **MVP = Phases 1-2** (FR Catalog + at least one framework tab working end-to-end). Graph and power features build on that foundation.
 
 | Phase | Frontend slice | Backend dependency |
 |---|---|---|
-| **1** | FR Catalog tab (basic list + filters). Framework tabs empty state ("supply FR catalog"). | FR catalog parser + `--fr-catalog` flag |
-| **2** | Framework tabs functional (show compliance rows with state machine). Click row → expand detail. | Scanner integration into `verified_by`, framework loaders |
-| **3** | Findings "Find ASVS impact" button. Cross-tab navigation via URL hash. | Reverse lookup index |
-| **4** | Graph tab MVP: force-directed only, two entry points (FR picker, compliance row picker), click highlight | None new — uses existing JSON data |
-| **5** | Graph power features: hierarchical + concentric layouts, audit mode, deep-linking, filter presets | None new |
-| **6** | Annotations, export, keyboard nav, time travel | Scan history retention (for time travel) |
-| **7** | Coverage heatmap, cross-framework equivalents view | Derived indices |
-| **8** | Polish: a11y pass, snapshot tests, performance tuning, mobile responsive | None |
+| **1** (MVP) | FR Catalog tab + ASVS framework tab working end-to-end. Cross-tab deep-linking. Empty/loading/error states. Mobile responsive for non-graph tabs. | FR catalog parser + `--fr-catalog` flag + scanner integration into `verified_by` |
+| **2** (MVP) | Findings "Find ASVS impact" button. Reverse lookup from finding → compliance rows. | Reverse lookup index |
+| **3** | Additional framework tabs (NIST 800-53, etc.). Filter presets. Coverage heatmap on Overview. | Multi-framework loaders |
+| **4** | Graph tab MVP: force-directed only, two entry points (FR picker, compliance row picker), click highlight, fan-out cap. Desktop-only. | None new — uses existing JSON data |
+| **5** | Graph power features: hierarchical + concentric + Sankey layouts, audit mode, deep-linking to graph state, keyboard nav, PNG/SVG export | None new |
+| **6** | Time travel: scan picker, comparison mode, FR catalog snapshot retention, diff highlighting | Scan history retention (keep last 5 scans) |
+| **7** | Annotations (localStorage), PDF export, cross-framework equivalents view, coverage heatmap as standalone view | Derived cross-framework index |
+| **8** | Polish: a11y pass full audit, snapshot test infrastructure, performance tuning against budgets, JS unit test coverage targets, light mode, print stylesheet | None |
 
-Total frontend effort: ~6-8 weeks of focused work, parallel to backend phases where possible.
+**MVP definition:** Phases 1-2 deliver the irreducible core — a dashboard where an auditor can see their FRs, see their compliance coverage, and click a finding to see what it threatens. After Phase 2, the platform is genuinely useful even without the graph or time travel.
+
+**Effort estimate:** MVP (1-2) is ~2-3 weeks. Full vision (3-8) is ~6-8 weeks additional. Total ~8-11 weeks of focused frontend work, parallel to backend phases where possible.
 
 ## Open decisions
 
