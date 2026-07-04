@@ -67,15 +67,32 @@ FRs are supplied as a JSON file in the project repo. The scanner reads it via a 
   ],
   "requirements": [
     {
-      "id": "FR-001",
-      "title": "User authentication via OAuth 2.0",
+      "id": "FR-AUTH",
+      "title": "User authentication",
+      "category": "authentication",
+      "description": "All user-facing authentication flows: OAuth login, session management, password reset, rate limiting.",
+      "status": "active",
+      "owner": "auth-team",
+      "implemented_by": [
+        {"type": "glob", "path": "services/tapestry-backend/src/auth/**", "label": "Auth module"}
+      ],
+      "satisfies": [
+        {"framework": "ASVS", "row": "v5.0.0-6.1.1"},
+        {"framework": "ASVS", "row": "v5.0.0-6.1.2"},
+        {"framework": "NIST-800-53", "row": "IA-2"}
+      ]
+    },
+    {
+      "id": "FR-AUTH-OAUTH",
+      "parent": "FR-AUTH",
+      "title": "OAuth 2.0 login flow",
       "category": "authentication",
       "description": "Users sign in via Google/Microsoft OAuth. Session expires after 8 hours. Failed attempts rate-limited.",
       "status": "active",
       "owner": "auth-team",
       "implemented_by": [
-        {"type": "glob", "path": "services/tapestry-backend/src/auth/**"},
-        {"type": "file", "path": "services/tapestry-backend/src/middleware/authenticate.ts"}
+        {"type": "file", "path": "services/tapestry-backend/src/auth/oauth.ts", "label": "OAuth handler"},
+        {"type": "file", "path": "services/tapestry-backend/src/middleware/authenticate.ts", "label": "Auth middleware"}
       ],
       "verified_by": [
         {"type": "unit", "ref": "services/tapestry-backend/test/auth/test_login.py::test_valid_credentials"},
@@ -85,16 +102,41 @@ FRs are supplied as a JSON file in the project repo. The scanner reads it via a 
         {"type": "scanner", "ref": "trivy-config:DS-0002"}
       ],
       "satisfies": [
-        {"framework": "ASVS", "row": "v5.0.0-6.1.1"},
-        {"framework": "ASVS", "row": "v5.0.0-6.1.2"},
-        {"framework": "NIST-800-53", "row": "IA-2"},
-        {"framework": "PCI-DSS", "row": "8.2.1"}
+        {"framework": "ASVS", "row": "v5.0.0-6.1.3"},
+        {"framework": "NIST-800-53", "row": "IA-2(1)"}
       ],
       "evidence": [
-        {"type": "manual", "ref": "docs/auth-design.md"},
-        {"type": "screenshot", "ref": "docs/screenshots/login-flow.png"}
+        {"type": "manual", "ref": "docs/auth-design.md", "status": "manual"},
+        {"type": "screenshot", "ref": "docs/screenshots/login-flow.png", "status": "manual"}
       ]
     },
+    {
+      "id": "FR-AUTH-OAUTH-VERIFY",
+      "parent": "FR-AUTH-OAUTH",
+      "title": "OAuth token verification",
+      "category": "authentication",
+      "description": "Verify OAuth tokens are cryptographically valid, not expired, and issued by an approved provider.",
+      "status": "active",
+      "implemented_by": [
+        {"type": "symbol", "path": "services/tapestry-backend/src/auth/oauth.ts:verifyToken", "label": "Token verifier"}
+      ],
+      "verified_by": [
+        {"type": "unit", "ref": "services/tapestry-backend/test/auth/test_oauth_verify.py"}
+      ]
+    },
+    {
+      "id": "FR-002",
+      "title": "Data export to CSV",
+      "category": "data-export",
+      "description": "Admins can export filtered datasets to CSV. Exports are streamed and audit-logged.",
+      "status": "active",
+      "implemented_by": [{"type": "glob", "path": "services/tapestry-backend/src/export/**"}],
+      "verified_by": [
+        {"type": "unit", "ref": "services/tapestry-backend/test/export/test_csv_export.py"},
+        {"type": "scanner", "ref": "trivy-vuln:CVE-*"}
+      ],
+      "satisfies": [
+        {"framework": "ASVS", "row": "v5.0.0-14.2.4"}
     {
       "id": "FR-002",
       "title": "Data export to CSV",
@@ -119,7 +161,8 @@ FRs are supplied as a JSON file in the project repo. The scanner reads it via a 
 - `id` — project-unique, stable identifier (`FR-001`, `FR-AUTH-001`, anything consistent)
 - `category` — free-form label for grouping in the UI ("authentication", "data-export", etc.)
 - `status` — one of `draft`, `active`, `deprecated`, `proposed`. Drives UI filtering.
-- `parent` — **optional**. Present only for sub-requirements (mirrors NIST enhancement hierarchy). Rendered as a collapsible child in the UI.
+- `parent` — **optional**. Present only for sub-requirements. Supports hierarchical FRs (e.g. `FR-AUTH-OAUTH` under `FR-AUTH`). Rendered as a collapsible tree in the UI. See "Granularity conventions" under Code mapping strategy for usage patterns.
+- `implemented_by` — list of code references. Each has a `type` (`glob`/`file`/`symbol`), a `path`, and an optional `label` for human-friendly display. See Code mapping strategy for the full type reference.
 - `implemented_by` — list of code references. Each has a `type`:
   - `glob` — pattern matched against the codebase (`src/auth/**`)
   - `file` — specific file
@@ -207,24 +250,60 @@ Once loaded, the framework is just another node type in the graph. No special-ca
 
 ## Code mapping strategy
 
-The hardest part of FR-driven traceability is connecting FRs to actual code. Three layers, increasing precision:
+The hardest part of FR-driven traceability is connecting FRs to actual code. Three reference types, each with an optional `label` for human-friendly display:
 
-**Layer 1: Glob patterns** (default)
-- `implemented_by: [{"type": "glob", "path": "src/auth/**"}]`
+**Glob (default — module/directory level)**
+- `implemented_by: [{"type": "glob", "path": "src/auth/**", "label": "Auth module"}]`
 - Resolved by walking the codebase at scan time, expanding globs to file lists
 - No parser needed — just `pathlib.Path.glob()`
-- ~95% of cases
+- The natural way to claim an entire module / package / feature folder
+- ~80% of references in practice
 
-**Layer 2: File-level references**
-- `implemented_by: [{"type": "file", "path": "src/middleware/authenticate.ts"}]`
+**File (specific file)**
+- `implemented_by: [{"type": "file", "path": "src/middleware/authenticate.ts", "label": "Auth middleware"}]`
 - Direct file path; just verify the file exists
-- Used for one-off files outside a module pattern
+- Used for one-off files outside a module pattern, or for files shared across modules
 
-**Layer 3: Symbol-level references** (optional, opt-in)
-- `implemented_by: [{"type": "symbol", "path": "src/auth/login.ts:authenticateUser"}]`
+**Symbol (function/class within a file)**
+- `implemented_by: [{"type": "symbol", "path": "src/auth/login.ts:authenticateUser", "label": "Login function"}]`
 - Resolved by simple regex `def authenticateUser\(|function authenticateUser\(|const authenticateUser` against the file
 - No AST parsing — just pattern match
 - Used when an FR maps to a single function within a larger file
+
+**Labels (optional, all types)**
+- The `label` field is human-readable metadata for the UI
+- Dashboard shows "Auth module (12 files)" instead of raw `src/auth/**` path
+- Useful for non-developer reviewers (auditors, product, legal)
+
+### Granularity conventions
+
+Don't force one granularity across all FRs — different requirements are naturally different sizes. Instead, encourage **hierarchical FRs** with the `parent` field so each project can layer from coarse to fine:
+
+```
+FR-AUTH             (module-level: src/auth/**)
+├── FR-AUTH-OAUTH   (file-level: src/auth/oauth.ts)
+│   └── FR-AUTH-OAUTH-VERIFY  (symbol-level: oauth.ts:verifyToken)
+├── FR-AUTH-SESSION (file-level: src/auth/session.ts)
+└── FR-AUTH-RATE    (file-level: src/middleware/rate-limit.ts)
+```
+
+UI renders this as a collapsible tree. Auditors drill from "tell me about authentication" → "show me OAuth" → "show me token verification". Coverage gaps are visible at any level.
+
+**Per-ecosystem defaults** (recommendations, not enforcement):
+
+| Ecosystem | Natural default | Maps to |
+|---|---|---|
+| Atomic Python | Directory (package) | `glob` with directory pattern |
+| Go | Directory (package) | `glob` with directory pattern |
+| Node.js (general) | Directory or single file | `glob` or `file` |
+| React | Feature folder or component | `glob` for folder, `symbol` for component |
+| Hooks (React/Node) | Function | `symbol` |
+| Java | Class | `symbol` (with `class:` prefix) |
+| Rust | Module within crate | `glob` with module path |
+
+**Many-to-many is fine.** A file can be claimed by multiple FRs at different levels. `src/auth/oauth.ts` might be claimed by `FR-AUTH` (module-level via glob), `FR-AUTH-OAUTH` (file-level), and `FR-AUTH-OAUTH-VERIFY` (symbol-level). Each layer adds context; none owns the file exclusively. The dashboard's "click a file → see all FRs" view shows every layer.
+
+**Project default granularity** should be declared in the FR catalog header so reviewers know what to expect. Example: a React frontend project might default to feature-folder level; an atomic-Python project might default to module level. The schema accommodates any choice; this is documentation, not enforcement.
 
 **What we don't do (at least initially):**
 - AST-based call graph analysis
