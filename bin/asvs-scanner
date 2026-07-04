@@ -503,13 +503,6 @@ Mount it at the same absolute path, for example:
           rewritten_args+=("--uploads" "$(to_abs_path "$2")")
           shift 2
           ;;
-        --compliance-matrix)
-          [ "${2:-}" != "" ] || die "--compliance-matrix requires a CSV path"
-          matrix_path="$(to_abs_path "$2")"
-          [ -f "$matrix_path" ] || die "--compliance-matrix file not found: $matrix_path"
-          export ASVS_COMPLIANCE_MATRIX="$matrix_path"
-          shift 2
-          ;;
         --no-auto-build-images)
           auto_build_images_enabled=0
           shift
