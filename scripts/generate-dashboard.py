@@ -780,6 +780,16 @@ code { font-family:var(--mono); font-size:11px; background:#183236; color:#baf4e
 /* Findings ASVS impact button (Phase 2) */
 .asvs-impact-btn { display:inline-block; margin-top:4px; padding:2px 8px; border:1px solid rgba(255,77,109,.4); border-radius:4px; background:rgba(255,77,109,.1); color:#ff8a9b; font-size:10px; font-weight:700; cursor:pointer; text-transform:uppercase; letter-spacing:.03em; }
 .asvs-impact-btn:hover { background:rgba(255,77,109,.2); border-color:rgba(255,77,109,.6); }
+
+/* Coverage Heatmap (Phase 3) */
+.heat-body { padding:12px; }
+.heat-framework { margin-bottom:16px; }
+.heat-framework h3 { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-2); margin:0 0 8px; }
+.heat-grid { display:flex; flex-wrap:wrap; gap:4px; }
+.heat-cell { display:inline-flex; flex-direction:column; align-items:center; min-width:54px; padding:6px 8px; border-radius:6px; background:rgba(86,199,183,.06); border:1px solid var(--line); cursor:default; }
+.heat-label { font-size:11px; font-weight:800; color:var(--ink); }
+.heat-pct { font-size:16px; font-weight:900; }
+.heat-count { font-size:9px; color:var(--ink-3); }
 """
 
 
@@ -2343,6 +2353,7 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_pa
     manual_total = assurance.get("manual_items_total", 0)
 
     overview_html = render_overview(evidence, report_dir, ignored)
+
     fixplan_html = render_fixplan(report_dir)
     fr_catalog_html = render_fr_catalog(fr_catalog_path) if fr_catalog_path else ""
 
@@ -2379,6 +2390,60 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_pa
                                 if row_ref not in entry["compliance_rows"]:
                                     entry["compliance_rows"].append(row_ref)
                 reverse_lookup_json = json.dumps(list(reverse_lookup.items()))
+
+                # Compute coverage heatmap for overview
+                if framework_tabs_html:
+                    try:
+                        _fr_ev = {}
+                        for req in catalog.requirements:
+                            _fr_ev[req["id"]] = _compute_fr_evidence_status(req, report_dir)
+                        from collections import defaultdict as _dd
+                        _heatmap_parts = []
+                        for _, _fw, _ in framework_tabs_html:
+                            _frows = _framework_requirements(_fw)
+                            if not _frows:
+                                continue
+                            _by_grp = _dd(lambda: {"s": 0, "f": 0, "u": 0, "n": 0, "a": 0})
+                            for _row in _frows:
+                                _lv = _row.get("level")
+                                _sc = catalog.scope.get(_fw, {})
+                                _ls = _sc.get("levels") or _sc.get("baselines")
+                                _ok = True
+                                if _ls and _lv is not None:
+                                    _ln = {str(x).upper().lstrip("L") for x in _ls}
+                                    _ok = str(_lv).upper().lstrip("L") in _ln
+                                if not _ok:
+                                    continue
+                                _st, _, _ = _compute_compliance_row_state(_row["id"], _fw, catalog, _fr_ev)
+                                _g = _row.get("chapter") or _row.get("family") or "?"
+                                _by_grp[_g]["a"] += 1
+                                if _st in ("satisfied",): _by_grp[_g]["s"] += 1
+                                elif _st in ("failed",): _by_grp[_g]["f"] += 1
+                                elif _st in ("unaddressed",): _by_grp[_g]["u"] += 1
+                                elif _st in ("na",): _by_grp[_g]["n"] += 1
+                            _dn = FRAMEWORK_SNAPSHOTS.get(_fw, (None, _fw))[1]
+                            _cells = []
+                            for _g in sorted(_by_grp.keys(), key=lambda x: int(x[1:]) if x[1:].isdigit() else 99):
+                                _v = _by_grp[_g]
+                                if _v["a"] == 0:
+                                    continue
+                                _pct = (_v["s"] / _v["a"] * 100) if _v["a"] else 0
+                                _col = "#35d07f" if _pct >= 75 else "#ffd166" if _pct >= 25 else "#ff4d6d"
+                                _cells.append(
+                                    f'<span class="heat-cell" title="{html.escape(_g)}: {_v["s"]}/{_v["a"]} ({_pct:.0f}%)">'
+                                    f'<span class="heat-label">{html.escape(_g)}</span>'
+                                    f'<span class="heat-pct" style="color:{_col}">{_pct:.0f}%</span>'
+                                    f'<span class="heat-count">{_v["s"]}/{_v["a"]}</span></span>'
+                                )
+                            _heatmap_parts.append(f'<div class="heat-framework"><h3>{html.escape(_dn)}</h3><div class="heat-grid">{"".join(_cells)}</div></div>')
+                        if _heatmap_parts:
+                            overview_html = (
+                                '<section class="card"><div class="card-head"><h2>Coverage Heatmap</h2>'
+                                '<span class="meta">per-framework, per-chapter coverage</span></div>'
+                                '<div class="heat-body">' + "".join(_heatmap_parts) + '</div></section>'
+                            ) + overview_html
+                    except Exception:
+                        pass
             except loader_mod.FrCatalogError:
                 pass  # error already shown in FR Catalog tab
 
