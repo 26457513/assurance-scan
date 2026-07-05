@@ -800,7 +800,7 @@ if [ -n "${JUNIT_XML:-${ASVS_JUNIT_XML:-}}" ]; then
     echo "WARN: JUnit XML not found at $JUNIT_PATH — skipping" >> "$REPORT_DIR/run.log"
   fi
 fi
-python3 "$SCRIPT_DIR/scripts/generate-dashboard.py" \
+python3 "$SCRIPT_DIR/scripts/generate_dashboard.py" \
   "${DASHBOARD_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1
 record_timing "dashboard" "$(( $(date +%s) - step_started_at ))"
 done_line "dashboard"
