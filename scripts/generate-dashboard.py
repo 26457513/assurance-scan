@@ -776,6 +776,10 @@ code { font-family:var(--mono); font-size:11px; background:#183236; color:#baf4e
 .fw-search-input:focus, .fw-select:focus { outline:none; border-color:var(--primary); }
 .fw-toggle { display:inline-flex; align-items:center; gap:4px; color:var(--ink-3); font-size:11px; cursor:pointer; }
 .fw-row.hidden-by-filter, .fw-detail-row.hidden-by-filter, .fw-group-header.hidden-by-filter { display:none !important; }
+
+/* Findings ASVS impact button (Phase 2) */
+.asvs-impact-btn { display:inline-block; margin-top:4px; padding:2px 8px; border:1px solid rgba(255,77,109,.4); border-radius:4px; background:rgba(255,77,109,.1); color:#ff8a9b; font-size:10px; font-weight:700; cursor:pointer; text-transform:uppercase; letter-spacing:.03em; }
+.asvs-impact-btn:hover { background:rgba(255,77,109,.2); border-color:rgba(255,77,109,.6); }
 """
 
 
@@ -2343,7 +2347,8 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_pa
     fr_catalog_html = render_fr_catalog(fr_catalog_path) if fr_catalog_path else ""
 
     # Framework tabs — one per framework in the project's scope
-    framework_tabs_html: list[tuple[str, str]] = []  # (tab_id, html)
+    framework_tabs_html: list[tuple[str, str]] = []  # (tab_id, fw_name, html)
+    reverse_lookup_json = "[]"
     if fr_catalog_path:
         import importlib.util
         loader_path = Path(__file__).resolve().parent / "load_fr_catalog.py"
@@ -2358,6 +2363,22 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_pa
                         tab_html = render_framework_tab(fw, catalog, report_dir)
                         tab_id = f"fw-{fw.lower().replace('-', '').replace('_', '')}"
                         framework_tabs_html.append((tab_id, fw, tab_html))
+
+                # Build reverse lookup index for "Find ASVS impact" feature
+                # Maps each scanner verified_by pattern to the FR IDs + compliance rows it threatens
+                reverse_lookup: dict[str, dict] = {}
+                for req in catalog.requirements:
+                    for vb in req.get("verified_by") or []:
+                        if vb.get("type") == "scanner":
+                            ref = vb.get("ref", "")
+                            entry = reverse_lookup.setdefault(ref, {"fr_ids": [], "compliance_rows": []})
+                            if req["id"] not in entry["fr_ids"]:
+                                entry["fr_ids"].append(req["id"])
+                            for sat in req.get("satisfies") or []:
+                                row_ref = {"framework": sat.get("framework", ""), "row": sat.get("row", "")}
+                                if row_ref not in entry["compliance_rows"]:
+                                    entry["compliance_rows"].append(row_ref)
+                reverse_lookup_json = json.dumps(list(reverse_lookup.items()))
             except loader_mod.FrCatalogError:
                 pass  # error already shown in FR Catalog tab
 
@@ -2437,6 +2458,7 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None, junit_xml_pa
     {"".join(f'<div class="panel" id="tab-{tid}">{html_}</div>' for tid, _, html_ in framework_tabs_html)}
     <div class="panel" id="tab-fixplan">{fixplan_html}</div>
   </main>
+<script type="application/json" id="reverse-lookup-data">{reverse_lookup_json}</script>
 </div>
 
 <script>
@@ -2758,6 +2780,106 @@ function setupFrameworkTabs() {{
   }});
 }}
 setupFrameworkTabs();
+function setupReverseLookup() {{
+  const dataEl = document.getElementById('reverse-lookup-data');
+  if (!dataEl) return;
+  let lookup;
+  try {{ lookup = new Map(JSON.parse(dataEl.textContent || '[]')); }} catch (_) {{ return; }}
+  if (!lookup.size) return;
+
+  // For each scanner name, build a list of [pattern, entry] pairs
+  const byScanner = {{}};
+  for (const [ref, entry] of lookup) {{
+    const colonIdx = ref.indexOf(':');
+    if (colonIdx < 0) continue;
+    const scanner = ref.substring(0, colonIdx);
+    const pattern = ref.substring(colonIdx + 1);
+    if (!byScanner[scanner]) byScanner[scanner] = [];
+    byScanner[scanner].push([pattern, entry]);
+  }}
+
+  // Simple glob matcher (no regex — avoids f-string brace conflicts)
+  function globMatch(str, pat) {{
+    if (pat === '*') return true;
+    if (pat.indexOf('*') < 0) return str === pat;
+    const parts = pat.split('*');
+    let idx = 0;
+    for (let i = 0; i < parts.length; i++) {{
+      if (parts[i] === '') continue;
+      idx = str.indexOf(parts[i], idx);
+      if (idx < 0) return false;
+      if (i === 0 && idx > 0) return false; // prefix must match start
+      idx += parts[i].length;
+    }}
+    // If last part non-empty, must match end
+    const last = parts[parts.length - 1];
+    if (last && idx !== str.length) return false;
+    return true;
+  }}
+
+  // Scan All Findings table rows for scanner rule_ids
+  const findingTables = document.querySelectorAll('.finding-detail');
+  findingTables.forEach(table => {{
+    const rows = table.querySelectorAll('tbody tr');
+    rows.forEach(row => {{
+      const cells = row.querySelectorAll('td');
+      if (cells.length < 3) return;
+      // Try to extract rule_id from the second cell (usually contains a <code> with the ID)
+      const codeEl = cells[1].querySelector('code') || cells[0].querySelector('code');
+      if (!codeEl) return;
+      const ruleId = codeEl.textContent.trim();
+
+      // Try each scanner's patterns
+      let matchedEntry = null;
+      for (const [scanner, patterns] of Object.entries(byScanner)) {{
+        for (const [pattern, entry] of patterns) {{
+          if (globMatch(ruleId, pattern)) {{
+            matchedEntry = entry;
+            break;
+          }}
+        }}
+        if (matchedEntry) break;
+      }}
+
+      if (matchedEntry && matchedEntry.compliance_rows.length > 0) {{
+        // Add impact badge to the last cell
+        const lastCell = cells[cells.length - 1];
+        const fwSet = new Set(matchedEntry.compliance_rows.map(r => r.framework));
+        const fwList = [...fwSet].join(', ');
+        const btn = document.createElement('button');
+        btn.className = 'asvs-impact-btn';
+        btn.textContent = `ASVS impact (${{matchedEntry.compliance_rows.length}})`;
+        btn.title = `Threatens ${{matchedEntry.compliance_rows.length}} compliance row(s) via ${{matchedEntry.fr_ids.join(', ')}}`;
+        btn.dataset.frIds = JSON.stringify(matchedEntry.fr_ids);
+        btn.dataset.rows = JSON.stringify(matchedEntry.compliance_rows);
+        btn.addEventListener('click', (e) => {{
+          e.stopPropagation();
+          const rows = matchedEntry.compliance_rows;
+          const fw = rows[0].framework;
+          const tabId = 'fw-' + fw.toLowerCase().replace(/[-_]/g, '');
+          // Switch to framework tab
+          const btn2 = document.querySelector(`.tab-btn[data-tab="${{tabId}}"]`);
+          if (btn2) btn2.click();
+          // Highlight the affected rows
+          setTimeout(() => {{
+            const panel = document.getElementById('tab-' + tabId);
+            if (!panel) return;
+            const rowIds = new Set(rows.map(r => r.row));
+            panel.querySelectorAll('.fw-row').forEach(r => {{
+              if (rowIds.has(r.dataset.rowId)) {{
+                r.style.outline = '2px solid #ff4d6d';
+                r.scrollIntoView({{ behavior: 'smooth', block: 'center' }});
+              }}
+            }});
+          }}, 100);
+        }});
+        lastCell.appendChild(document.createElement('br'));
+        lastCell.appendChild(btn);
+      }}
+    }});
+  }});
+}}
+setupReverseLookup();
 function copyPrompt() {{
   const btn = document.querySelector('.copy-btn');
   const label = btn.querySelector('.btn-label');
