@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/repository-analysis-summary.schema.json",
+  "title": "Repository Analysis Summary",
+  "type": "object",
+  "required": ["schema_version", "id", "project", "source_repo", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "project": {"type": "string", "minLength": 1},
+    "source_repo": {"type": "string", "minLength": 1},
+    "source_artifacts": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+    "findings": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+    "content_hash": {"type": "string"}
+  }
+}

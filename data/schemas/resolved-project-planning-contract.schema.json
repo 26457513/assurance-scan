@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/resolved-project-planning-contract.schema.json",
+  "title": "Resolved Project Planning Contract",
+  "description": "Canonical approved Planning Studio contract.",
+  "type": "object",
+  "required": ["schema_version", "id", "status", "project", "source_artifacts", "sections", "section_hashes", "contract_hash"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["draft", "review_required", "approved", "superseded", "rejected"]},
+    "project": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "source_artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact_ref"}},
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intent": {"type": "object", "additionalProperties": true},
+        "config": {"type": "object", "additionalProperties": true},
+        "architecture": {"type": "object", "additionalProperties": true},
+        "governance": {"type": "object", "additionalProperties": true},
+        "accepted_blueprints": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+        "bespoke_requirements": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+        "assurance": {"type": "object", "additionalProperties": true},
+        "handoff": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "open_assumptions": {"type": "array", "items": {"type": "string"}},
+    "section_hashes": {"type": "object", "additionalProperties": {"type": "string"}},
+    "contract_hash": {"type": "string", "minLength": 1},
+    "content_hash": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "artifact_ref": {
+      "type": "object",
+      "required": ["kind", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string"}
+      }
+    }
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/compliance-mapping-pack.schema.json",
+  "title": "Compliance Mapping Pack",
+  "description": "Versioned mappings from compliance ruleset rows to project FR/TBT obligations and sufficiency policy.",
+  "type": "object",
+  "required": ["schema_version", "pack", "ruleset", "ruleset_version", "mappings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "pack": {"$ref": "#/$defs/pack"},
+    "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+    "ruleset_version": {"type": "string", "minLength": 1},
+    "mappings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/mapping"}
+    }
+  },
+  "$defs": {
+    "pack": {
+      "type": "object",
+      "required": ["pack_id", "pack_version", "created_at", "updated_at", "generator"],
+      "additionalProperties": false,
+      "properties": {
+        "pack_id": {"type": "string", "minLength": 1},
+        "pack_version": {"type": "string", "minLength": 1},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"},
+        "generator": {"type": "string", "minLength": 1},
+        "source_hash": {"type": "string"},
+        "input_artifacts": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/input_artifact"}
+        }
+      }
+    },
+    "input_artifact": {
+      "type": "object",
+      "required": ["kind", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "version": {"type": "string"},
+        "hash": {"type": "string"}
+      }
+    },
+    "mapping": {
+      "type": "object",
+      "required": ["id", "review_status", "row_id", "fr_refs", "tbt_refs", "sufficiency", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "reviewed_by": {"type": ["string", "null"]},
+        "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+        "review_decision": {"type": ["string", "null"]},
+        "review_notes": {"type": ["string", "null"]},
+        "row_id": {"type": "string", "minLength": 1},
+        "fr_refs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+          "uniqueItems": true
+        },
+        "tbt_refs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^TBT-[A-Za-z0-9_.-]+$"},
+          "uniqueItems": true
+        },
+        "sufficiency": {"$ref": "#/$defs/sufficiency"},
+        "scope_status": {
+          "type": "string",
+          "enum": ["in_scope", "out_of_scope", "manual", "not_applicable"]
+        },
+        "source_basis": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_basis"}
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      }
+    },
+    "sufficiency": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/required_evidence"}
+        },
+        "scanner_only_sufficient": {"type": "boolean", "default": false},
+        "manual_review_required": {"type": "boolean", "default": false},
+        "waiver_allowed": {"type": "boolean", "default": true},
+        "compensating_control_allowed": {"type": "boolean", "default": true}
+      }
+    },
+    "required_evidence": {
+      "type": "object",
+      "required": ["type", "minimum_strength"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_type"},
+        "minimum_strength": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"}
+      }
+    },
+    "source_basis": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {"type": "string", "minLength": 1}
+      }
+    },
+    "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+    "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"},
+    "evidence_strength": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"}
+  }
+}

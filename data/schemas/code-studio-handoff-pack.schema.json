@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/code-studio-handoff-pack.schema.json",
+  "title": "Code Studio Handoff Pack",
+  "type": "object",
+  "required": ["schema_version", "id", "project", "source_contract", "source_contract_hash", "context"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "project": {"type": "string", "minLength": 1},
+    "source_contract": {"type": "string", "minLength": 1},
+    "source_contract_hash": {"type": "string", "minLength": 1},
+    "context": {"type": "object", "additionalProperties": true},
+    "fixed_constraints": {"type": "array", "items": {"type": "string"}},
+    "open_questions": {"type": "array", "items": {"type": "string"}},
+    "content_hash": {"type": "string"}
+  }
+}

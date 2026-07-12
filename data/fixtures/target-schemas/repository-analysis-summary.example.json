@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "REPO-ANALYSIS-example",
+  "project": "example-project",
+  "source_repo": "/workspace/example-project",
+  "source_artifacts": [],
+  "findings": [
+    {
+      "kind": "test_discovery",
+      "summary": "No repository was available in this greenfield fixture."
+    }
+  ],
+  "content_hash": "sha256:repo-analysis-example"
+}

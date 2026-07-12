@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "QUESTIONNAIRE-example",
+  "status": "draft",
+  "project": "example-project",
+  "source_config_selection": "CONFIG-example",
+  "questions": [
+    {
+      "id": "auth-model",
+      "prompt": "Does the application have authenticated users?",
+      "answer_type": "boolean",
+      "required": true,
+      "source_config": "security-profile"
+    }
+  ],
+  "content_hash": "sha256:questionnaire-example"
+}

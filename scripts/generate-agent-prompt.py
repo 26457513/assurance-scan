@@ -16,6 +16,8 @@ from collections import Counter
 from pathlib import Path
 from textwrap import dedent
 
+from artifact_hashing import file_sha256, write_hash_sidecar
+
 
 SEVERITY_RANK = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}
 
@@ -27,6 +29,23 @@ def load_json(p: Path):
     except Exception:
         return None
     return None
+
+
+def record_report_artifact(report_dir: Path, artifact: Path) -> None:
+    manifest_path = report_dir / "evidence-manifest.json"
+    if not manifest_path.exists() or not artifact.exists():
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text())
+        rel = artifact.relative_to(report_dir)
+        digest = file_sha256(artifact)
+        write_hash_sidecar(report_dir, artifact)
+        files = [item for item in manifest.get("evidence_files", []) if item.get("file") != str(rel)]
+        files.append({"file": str(rel), "bytes": artifact.stat().st_size, "sha256": digest})
+        manifest["evidence_files"] = sorted(files, key=lambda item: item.get("file", ""))
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+    except Exception:
+        return
 
 
 def top_secrets(gitleaks_path: Path, limit: int = 10) -> list[dict]:
@@ -182,8 +201,10 @@ def scanner_status_rows(scanner_health: dict) -> list[str]:
     return rows
 
 
-def evidence_file_rows(evidence: dict, limit: int = 16) -> list[str]:
+def evidence_file_rows(evidence: dict, limit: int = 16, *, include_assurance_pack: bool = True) -> list[str]:
     files = evidence.get("evidence_files", []) or []
+    if not include_assurance_pack:
+        files = [item for item in files if not str(item.get("file", "")).startswith("generated-tests/")]
     rows = ["| File | Size | SHA-256 |", "|---|---:|---|"]
     for item in files[:limit]:
         rows.append(
@@ -227,8 +248,12 @@ def describe_evidence_file(path: str) -> str:
     return "Generated scanner evidence"
 
 
-def source_report_rows(evidence: dict) -> list[str]:
-    files = sorted({str(item.get("file", "")) for item in evidence.get("evidence_files", []) or [] if item.get("file")})
+def source_report_rows(evidence: dict, *, include_assurance_pack: bool = True) -> list[str]:
+    files = sorted({
+        str(item.get("file", ""))
+        for item in evidence.get("evidence_files", []) or []
+        if item.get("file") and (include_assurance_pack or not str(item.get("file", "")).startswith("generated-tests/"))
+    })
     rows = ["| Evidence file | Use it for |", "|---|---|"]
     for path in files:
         rows.append(f"| `{path}` | {describe_evidence_file(path)} |")
@@ -246,12 +271,54 @@ def skipped_surface_lines(scanner_health: dict) -> list[str]:
     return skipped
 
 
+def load_fr_catalog_for_prompt(fr_catalog_path: str | None):
+    if fr_catalog_path:
+        try:
+            from load_fr_catalog import load_fr_catalog
+            return load_fr_catalog(Path(fr_catalog_path))
+        except Exception:
+            return None
+    return None
+
+
+def collect_prompt_deficiencies(fr_catalog, report_dir: Path, junit_xml_path: str | None = None) -> list[dict]:
+    if not fr_catalog:
+        return []
+    try:
+        from fr.deficiencies import collect_assurance_deficiencies
+        from fr.framework_tab import (
+            _compute_fr_evidence_status,
+            _load_junit_index,
+            _load_test_inventory,
+            _tbts_by_fr,
+        )
+        test_index = _load_junit_index(report_dir, junit_xml_path)
+        inventory_index = _load_test_inventory(report_dir)
+        tbts_for_fr = _tbts_by_fr(fr_catalog)
+        fr_evidence = {}
+        for fr in getattr(fr_catalog, "frs", []) or []:
+            fr_id = fr.get("id")
+            if not fr_id:
+                continue
+            fr_evidence[fr_id] = _compute_fr_evidence_status(
+                fr,
+                tbts_for_fr.get(fr_id, []),
+                report_dir,
+                test_index,
+                inventory_index,
+            )
+        return collect_assurance_deficiencies(fr_catalog, fr_evidence, limit=30)
+    except Exception:
+        return []
+
+
 def render_prompt(
     *,
     target_dir: str,
     run_id: str,
     report_dir: Path,
     git_commit: str | None,
+    fr_catalog_path: str | None = None,
 ) -> str:
     evidence = load_json(report_dir / "evidence-manifest.json") or {}
     scanner_health = evidence.get("scanner_health", {})
@@ -279,7 +346,6 @@ def render_prompt(
     warned = assurance.get("warned", 0)
     failed = assurance.get("failed", 0)
     skipped = assurance.get("skipped", 0)
-
     md = []
     md.append("# Agentic Fix Prompt")
     md.append("")
@@ -325,7 +391,7 @@ def render_prompt(
     md.append("")
     md.append("Only files produced by this run are listed here. Do not assume optional image, runtime, TLS, or uploads reports exist unless they appear below.")
     md.append("")
-    md.extend(source_report_rows(evidence))
+    md.extend(source_report_rows(evidence, include_assurance_pack=False))
     md.append("")
     md.append("Always read `evidence-manifest.json` for machine-readable summary, hashes, scanner status, and run metadata.")
     skipped_lines = skipped_surface_lines(scanner_health)
@@ -337,7 +403,7 @@ def render_prompt(
     md.append("")
     md.append("**Generated evidence files:**")
     md.append("")
-    md.extend(evidence_file_rows(evidence))
+    md.extend(evidence_file_rows(evidence, include_assurance_pack=False))
     md.append("")
     md.append("## Recommended Work Order")
     md.append("")
@@ -349,6 +415,7 @@ def render_prompt(
     md.append("4. High-signal SAST issues with direct exploit paths.")
     md.append("5. SBOM/lockfile completeness and residual license/compliance work.")
     md.append("6. Manual ASVS evidence collection and owner assignment.")
+    md.append("7. For FR/TBT/JSP-453 coverage, use the separate `assurance-assessment-prompt.md` instead of mixing assurance design into remediation.")
     md.append("")
 
     # ----- Phase 1: secrets ---------------------------------------------------
@@ -533,12 +600,588 @@ def render_prompt(
     return "\n".join(md)
 
 
+def render_assurance_prompt(
+    *,
+    target_dir: str,
+    run_id: str,
+    report_dir: Path,
+    git_commit: str | None,
+    fr_catalog_path: str | None = None,
+) -> str:
+    evidence = load_json(report_dir / "evidence-manifest.json") or {}
+    assurance = evidence.get("assurance", {})
+    assurance_pack = evidence.get("assurance_test_pack") or {}
+    test_evidence = evidence.get("test_evidence") or {}
+    inventory = test_evidence.get("inventory") or {}
+    junit = test_evidence.get("junit") or {}
+    branch = evidence.get("git_branch") or git_branch_name(target_dir)
+    original_source_repo = evidence.get("source_repo") or evidence.get("target_dir") or "not available"
+    safe_scan_worktree = evidence.get("target_dir") or target_dir
+    fr_catalog = load_fr_catalog_for_prompt(fr_catalog_path)
+    junit_xml_path = None
+    for candidate in (report_dir / "junit.xml", report_dir / "reports" / "junit.xml"):
+        if candidate.exists():
+            junit_xml_path = str(candidate)
+            break
+    assurance_deficiencies = collect_prompt_deficiencies(fr_catalog, report_dir, junit_xml_path)
+
+    pack_summary = assurance_pack.get("summary") or {}
+    md: list[str] = []
+    md.append("# Assurance Assessment Prompt")
+    md.append("")
+    md.append("## Mission")
+    md.append("")
+    md.append("You are assessing whether the scanned project has observable evidence for its mapped TBT, FR, ASVS and JSP-453 requirements.")
+    md.append("This is an assessment-first workflow. Do not start by generating large new test suites.")
+    md.append("")
+    md.append("**Primary objective:** classify existing and missing assurance evidence so the user can decide what to implement next.")
+    md.append("")
+    md.append("## Scan Context")
+    md.append("")
+    md.append(f"- **Original source repo:** `{original_source_repo}`")
+    md.append(f"- **Safe scan worktree:** `{safe_scan_worktree}`")
+    md.append(f"- **Branch:** `{branch}`")
+    md.append(f"- **Run ID:** `{run_id}`")
+    md.append(f"- **Git commit:** `{git_commit or 'not available'}`")
+    md.append(f"- **Reports directory:** `{report_dir}`")
+    md.append(f"- **ASVS assurance score:** `{assurance.get('asvs_traceability_pct', 0)}%`")
+    md.append(f"- **Native test files discovered:** `{inventory.get('files', 0)}`")
+    md.append(f"- **Native test cases discovered:** `{inventory.get('cases', 0)}`")
+    md.append(f"- **JUnit present:** `{bool(junit.get('present'))}`")
+    md.append(f"- **JUnit passed/failed/skipped:** `{junit.get('passed', 0)}/{junit.get('failed', 0)}/{junit.get('skipped', 0)}`")
+    md.append("")
+    md.append("## Inputs")
+    md.append("")
+    md.append("Read these first:")
+    md.append("")
+    md.append("1. `evidence-manifest.json`")
+    md.append("2. `generated-tests/VG_TEST_FRAMEWORK/manifest.json`")
+    md.append("3. `reports/test-inventory.json`")
+    md.append("4. `fr-catalog.snapshot.json`, if present")
+    md.append("5. `assurance-framework.snapshot.json`, if present")
+    md.append("6. `assurance-instance.snapshot.json`, if present")
+    md.append("7. Existing copied native tests under `generated-tests/VG_TEST_FRAMEWORK/imported/`")
+    md.append("")
+    md.append("## Operating Rules")
+    md.append("")
+    md.append("1. Do **not** edit the original source repo or safe scan worktree unless the user explicitly asks for a commit-ready test pack or a product-code fix.")
+    md.append("2. Use `generated-tests/VG_TEST_FRAMEWORK/manifest.json` as the plan of record for copied, wrapped, planned, and proposed tests.")
+    md.append("3. Existing native tests copied into `generated-tests/VG_TEST_FRAMEWORK/imported/` are review inputs. Assess them before claiming ASVS/JSP-453 evidence.")
+    md.append("4. Do not generate broad new integration, e2e, or load tests by default. Stop at coverage assessment and proposed test specifications unless the user explicitly asks for implementation.")
+    md.append("5. Tiny wrapper tests are allowed only where an existing copied test is already close and the wrapper does not invent product behaviour. Ask before writing wrapper code; otherwise describe the wrapper as a specification.")
+    md.append("6. Every mapped or proposed test must trace back to `TBT-*`, `FR-*`, applicable ASVS rows, and any related JSP-453 gate or criterion.")
+    md.append("7. Do not invent endpoints, APIs, roles, workflows, data models, or security behaviour that are not already present in the product or documented in the supplied artifacts.")
+    md.append("8. Evidence is observed, not implemented. Produce test specifications capable of collecting evidence; only record pass/fail evidence from actual JUnit/scanner/runtime results.")
+    md.append("9. Prefer manual evidence where the requirement is process, ceremony, approval, policy, or role-based rather than executable product behaviour.")
+    md.append("10. TBT is the test-basis provenance identifier. Do not create a second identifier for the same thing in VG_TEST_FRAMEWORK.")
+    md.append("11. If a wrapper or generated test is later approved, the TBT must appear in the manifest `tbt` field, file name, test title, and JUnit testcase name/classname.")
+    md.append("")
+    md.append("## VG_TEST_FRAMEWORK Summary")
+    md.append("")
+    if assurance_pack.get("present"):
+        md.append(f"- **Manifest:** `{assurance_pack.get('path')}`")
+        md.append(f"- **Mode:** `{assurance_pack.get('mode', 'ephemeral')}`")
+        md.append(f"- **Copied native tests:** `{pack_summary.get('copied_native', 0)}`")
+        md.append(f"- **Native tests needing wrapper/assessment:** `{pack_summary.get('wrapper_needed', 0)}`")
+        md.append(f"- **Planned TBT entries needing assessment/specification:** `{pack_summary.get('planned_tbt', 0)}`")
+        md.append("- **Note:** the evidence gap table may show only the highest-priority gaps; the full VG_TEST_FRAMEWORK manifest is authoritative.")
+    else:
+        md.append("No VG_TEST_FRAMEWORK pack was generated for this run.")
+    md.append("")
+    md.append("## Assurance Levels")
+    md.append("")
+    md.append("- **Level 1, always:** assess existing tests, map useful evidence, identify coverage gaps, and classify missing evidence. No new code.")
+    md.append("- **Level 2, optional:** propose or create tiny wrappers under `tests/asvs/` only where copied existing tests are already close to proving a TBT/FR. Avoid inventing behaviour.")
+    md.append("- **Level 3, explicit request only:** generate missing integration, e2e, or load tests under `tests/asvs/`. Do this only when the user asks for a commit-ready assurance pack.")
+    md.append("")
+    if assurance_deficiencies:
+        md.append("## Assurance Evidence Gaps")
+        md.append("")
+        md.append("Assess these mapped FR/process/compliance expectations. Do not generate broad new test code unless the user explicitly asks for a commit-ready assurance pack. The full VG_TEST_FRAMEWORK manifest may contain additional TBT entries beyond this table.")
+        md.append("")
+        md.append("| Priority | FR | Evidence need | Gap | Assessment action |")
+        md.append("|---|---|---|---|---|")
+        for item in assurance_deficiencies:
+            priority = item.get("severity", "medium")
+            related = ", ".join(str(v) for v in item.get("related", [])[:4]) or "mapped assurance item"
+            md.append(
+                f"| {priority} | `{item.get('fr_id')}` {item.get('title', '')} | "
+                f"`{item.get('test_type', 'test')}` | {item.get('gap', '').replace('_', ' ')} | "
+                f"Assess existing coverage first. If evidence is missing, produce a proposed assurance test specification. Related: {related}. |"
+            )
+        md.append("")
+    md.append("## Assessment Tasks")
+    md.append("")
+    md.append("1. Open the VG_TEST_FRAMEWORK manifest and group entries by `assessment`: `useful_with_wrapper`, `candidate_inspiration`, `needs_design`, and any existing `not_assurance_relevant` entries.")
+    md.append("2. For copied native tests, inspect the imported file and decide whether it is `useful_as_is`, `useful_with_wrapper`, `candidate_inspiration`, or `not_assurance_relevant`.")
+    md.append("3. For each planned TBT, classify the gap as `wrapper_required`, `existing_test_enhancement`, `new_test_recommended`, or `manual_evidence`.")
+    md.append("4. Map useful tests to `tbt`, `frs`, `ruleset_rows`, and `assurance_gates` without inventing product behaviour.")
+    md.append("5. Produce test specifications for missing evidence, including preconditions, observable behaviour, assertions, safe fixtures, required runtime inputs, and expected JUnit output.")
+    md.append("6. Where evidence can be collected by running existing tests, provide the JUnit export command for the next scan using `--junit-xml <path>`.")
+    md.append("7. Use this output table for each assessment row: `TBT | FR | Existing evidence | Assessment | Gap classification | Proposed next step | Blockers`.")
+    md.append("")
+    md.append("## Deliverables")
+    md.append("")
+    md.append("- Proposed manifest updates, or updates to the ephemeral manifest only if the user asks you to write changes. Use `tbt`, `frs`, `ruleset_rows`, `assurance_gates`, `assessment`, `runner`, `pack_path`, and a coverage classification.")
+    md.append("- A coverage assessment describing which copied native tests are useful as-is, useful with a wrapper, not assurance-relevant, or candidate inspiration.")
+    md.append("- Proposed assurance test specifications for missing evidence, not full generated suites by default.")
+    md.append("- Tiny wrapper specifications by default. Write wrapper code under `tests/asvs/` only after explicit user approval and only when the existing copied test already proves most of the behaviour.")
+    md.append("- A short runbook showing the containerized command that could produce JUnit XML.")
+    md.append("- A list of TBT/FR entries still blocked by missing environment, credentials, product owner input, or unavailable runtime URLs.")
+    md.append("")
+    md.append("## When To Stop")
+    md.append("")
+    md.append("- Stop before generating large new test suites.")
+    md.append("- Stop if product behaviour is unclear or undocumented.")
+    md.append("- Stop if a test would need production credentials, destructive data mutation, or live external systems.")
+    md.append("- Stop if a process/approval requirement needs human ceremony or role evidence rather than executable tests.")
+    md.append("")
+    md.append("---")
+    md.append("")
+    md.append("*Generated by ASVS Security Scanner. Use this separately from the remediation fix prompt.*")
+    md.append("")
+    return "\n".join(md)
+
+
+def _config_prompt_gap_rows(fr_catalog) -> list[dict]:
+    if not fr_catalog:
+        return []
+    tbts_by_fr: dict[str, list[dict]] = {}
+    for tbt in getattr(fr_catalog, "tbts", []) or []:
+        for fr_id in tbt.get("proves") or []:
+            tbts_by_fr.setdefault(fr_id, []).append(tbt)
+    rows: list[dict] = []
+    for fr in getattr(fr_catalog, "frs", []) or []:
+        fr_id = str(fr.get("id", ""))
+        if not fr_id:
+            continue
+        tbts = tbts_by_fr.get(fr_id, [])
+        compliance_rows = {
+            (row.get("ruleset", ""), row.get("row", ""))
+            for tbt in tbts
+            for row in (tbt.get("compliance") or [])
+            if row.get("ruleset") and row.get("row")
+        }
+        generic_tbts = [
+            tbt for tbt in tbts
+            if "test basis for" in str(tbt.get("title", "")).lower()
+            or not (tbt.get("expected_evidence") or [])
+        ]
+        issues = []
+        if not compliance_rows:
+            issues.append("no_compliance_rows")
+        if not tbts:
+            issues.append("no_tbts")
+        if generic_tbts:
+            issues.append("generic_or_underdefined_tbts")
+        if issues:
+            rows.append({
+                "fr_id": fr_id,
+                "title": fr.get("title", ""),
+                "gate": fr.get("gate") or fr.get("assurance_gate") or "",
+                "code_refs": len(fr.get("implemented_by") or []),
+                "tbts": [tbt.get("id", "") for tbt in tbts],
+                "compliance_rows": len(compliance_rows),
+                "issues": issues,
+            })
+    rows.sort(key=lambda item: (len(item["issues"]), item["code_refs"]), reverse=True)
+    return rows[:40]
+
+
+def render_config_update_prompt(
+    *,
+    target_dir: str,
+    run_id: str,
+    report_dir: Path,
+    git_commit: str | None,
+    fr_catalog_path: str | None = None,
+    assurance_framework_path: str | None = None,
+    assurance_instance_path: str | None = None,
+    compliance_mapping_pack_path: str | None = None,
+) -> str:
+    evidence = load_json(report_dir / "evidence-manifest.json") or {}
+    branch = evidence.get("git_branch") or git_branch_name(target_dir)
+    original_source_repo = evidence.get("source_repo") or evidence.get("target_dir") or "not available"
+    safe_scan_worktree = evidence.get("target_dir") or target_dir
+    fr_catalog = load_fr_catalog_for_prompt(fr_catalog_path)
+    config_gaps = _config_prompt_gap_rows(fr_catalog)
+
+    md: list[str] = []
+    md.append("# FR Config Update Prompt")
+    md.append("")
+    md.append("## Mission")
+    md.append("")
+    md.append("You are helping maintain VibeGuide assurance configuration for the scanned project.")
+    md.append("Review the project FR catalog, TBT records, compliance mapping packs, scanner-compliance mapping packs, assurance framework, dashboard payload and source references.")
+    md.append("Produce proposed config updates that improve FR -> TBT -> evidence -> compliance/gate traceability.")
+    md.append("")
+    md.append("**Primary objective:** improve the quality and completeness of assurance config without changing product code, generating tests, or claiming unobserved evidence.")
+    md.append("")
+    md.append("## Scan Context")
+    md.append("")
+    md.append(f"- **Original source repo:** `{original_source_repo}`")
+    md.append(f"- **Safe scan worktree:** `{safe_scan_worktree}`")
+    md.append(f"- **Branch:** `{branch}`")
+    md.append(f"- **Run ID:** `{run_id}`")
+    md.append(f"- **Git commit:** `{git_commit or 'not available'}`")
+    md.append(f"- **Reports directory:** `{report_dir}`")
+    md.append("")
+    md.append("## Config Inputs")
+    md.append("")
+    md.append(f"- **FR catalog:** `{fr_catalog_path or 'not supplied'}`")
+    md.append(f"- **Compliance mapping pack:** `{compliance_mapping_pack_path or 'not supplied'}`")
+    md.append(f"- **Assurance framework:** `{assurance_framework_path or 'not supplied'}`")
+    md.append(f"- **Assurance instance:** `{assurance_instance_path or 'not supplied'}`")
+    md.append("")
+    md.append("Read these report artifacts first if present:")
+    md.append("")
+    md.append("1. `dashboard-payload.json`")
+    md.append("2. `fr-catalog.snapshot.json`")
+    md.append("3. `compliance-mapping-pack.snapshot.json`")
+    md.append("4. `scanner-compliance-mapping-packs/`")
+    md.append("5. `assurance-framework.snapshot.json`")
+    md.append("6. `assurance-instance.snapshot.json`")
+    md.append("7. `evidence-bundle.json`")
+    md.append("8. `agent-prompt-plan.json`")
+    md.append("9. `reports/test-inventory.json`")
+    md.append("")
+    md.append("## Non-Negotiable Rules")
+    md.append("")
+    md.append("1. Do **not** modify application source code.")
+    md.append("2. Do **not** generate tests or wrappers. This prompt is for config authoring only.")
+    md.append("3. Do **not** claim evidence exists unless it is observed in `evidence-bundle.json`, scanner outputs, JUnit XML, manual evidence files, or explicit report artifacts.")
+    md.append("4. Do **not** invent product behaviour, endpoints, roles, data models, ceremonies, or compliance obligations.")
+    md.append("5. Treat all new mappings as `review_status: proposed` unless the supplied config already contains a reviewed/accepted source basis.")
+    md.append("6. Every proposed mapping must include `source_basis`, `rationale`, `confidence`, and enough provenance for a human reviewer to approve or reject it.")
+    md.append("7. Keep TBT as the test-basis provenance identifier. Do not create parallel IDs for the same test obligation.")
+    md.append("8. Separate config updates from evidence updates: config may say what evidence is expected; evidence status must come only from observed artifacts.")
+    md.append("9. If a mapping is plausible but not certain, put it under `uncertain_mappings`, not under ready-to-apply updates.")
+    md.append("10. Do not mark scanner-only evidence sufficient unless the compliance mapping policy explicitly allows scanner-only sufficiency for that row.")
+    md.append("")
+    md.append("## What To Improve")
+    md.append("")
+    md.append("- FR catalog quality: precise FR text, precise TBTs, expected evidence, and clear TBT-to-FR provenance.")
+    md.append("- Compliance mapping packs: regime rows such as ASVS/NIST mapped to relevant FRs and TBTs with sufficiency rules.")
+    md.append("- Scanner-compliance mapping packs: scanner rule IDs/patterns mapped to compliance rows or domains only where a reviewed scanner finding genuinely supports or blocks that compliance signal.")
+    md.append("- Assurance framework or instance mappings: JSP-453 gates/criteria connected to FRs, TBTs, ruleset rows, manual evidence, approvals, and roles.")
+    md.append("- Manual evidence checklist structure: process or ceremony requirements should remain manual evidence, not fake automated tests.")
+    md.append("")
+    if config_gaps:
+        md.append("## High-Priority Config Gaps From This Catalog")
+        md.append("")
+        md.append("| FR | Title | Code refs | TBTs | Compliance rows | Issues |")
+        md.append("|---|---|---:|---|---:|---|")
+        for item in config_gaps:
+            md.append(
+                f"| `{item['fr_id']}` | {str(item['title']).replace('|', '/')} | "
+                f"{item['code_refs']} | `{', '.join(item['tbts']) or '-'}` | "
+                f"{item['compliance_rows']} | `{', '.join(item['issues'])}` |"
+            )
+        md.append("")
+        md.append("Use this table as a triage starter only. Re-check the underlying config and source references before proposing changes.")
+        md.append("")
+    md.append("## Required Output")
+    md.append("")
+    md.append("Return a single JSON document. Do not wrap it in prose. Use this shape:")
+    md.append("")
+    md.append("The output must validate against `data/schemas/config-update-proposal.schema.json`.")
+    md.append("Before applying any proposal, run `scripts/validate-config-update-proposal.py` with the current FR catalog, ruleset and assurance framework where available.")
+    md.append("Render a human review brief with `scripts/review-config-update-proposal.py proposal.json --output proposal-review.md` before accepting changes.")
+    md.append("Apply only explicitly reviewed entries with `scripts/apply-config-update-proposal.py proposal.json --select section:index --reviewed-by <name> ... --*-out <reviewed-file>`.")
+    md.append("")
+    md.append("```json")
+    md.append("{")
+    md.append('  "schema_version": 1,')
+    md.append('  "mode": "config_update_proposal",')
+    md.append('  "project": "project-name",')
+    md.append('  "run_id": "scan-run-id",')
+    md.append('  "source_inputs": [')
+    md.append('    {"path": "dashboard-payload.json", "sha256": "if known", "used_for": "traceability context"}')
+    md.append("  ],")
+    md.append('  "fr_catalog_updates": [')
+    md.append("    {")
+    md.append('      "operation": "update_tbt",')
+    md.append('      "fr_id": "FR-019",')
+    md.append('      "tbt_id": "TBT-019",')
+    md.append('      "review_status": "proposed",')
+    md.append('      "proposed_fields": {')
+    md.append('        "title": "Precise test-basis title",')
+    md.append('        "type": "integration",')
+    md.append('        "evidence_policy": "automated_required",')
+    md.append('        "expected_evidence": []')
+    md.append("      },")
+    md.append('      "source_basis": [{"type": "source_file", "ref": "path:line or config path"}],')
+    md.append('      "rationale": "Why this TBT proves the FR",')
+    md.append('      "confidence": "low|medium|high"')
+    md.append("    }")
+    md.append("  ],")
+    md.append('  "compliance_mapping_pack_updates": [')
+    md.append("    {")
+    md.append('      "operation": "add_mapping",')
+    md.append('      "ruleset": "ASVS",')
+    md.append('      "ruleset_version": "5.0.0",')
+    md.append('      "row_id": "v5.0.0-x.y.z",')
+    md.append('      "fr_refs": ["FR-019"],')
+    md.append('      "tbt_refs": ["TBT-019"],')
+    md.append('      "sufficiency": {"scanner_only_sufficient": false, "manual_review_required": false},')
+    md.append('      "review_status": "proposed",')
+    md.append('      "source_basis": [{"type": "ruleset_row", "ref": "ruleset path or report artifact path"}],')
+    md.append('      "rationale": "Why this row is satisfied by these FR/TBT records",')
+    md.append('      "confidence": "low|medium|high"')
+    md.append("    }")
+    md.append("  ],")
+    md.append('  "assurance_framework_or_instance_updates": [')
+    md.append("    {")
+    md.append('      "operation": "add_decision",')
+    md.append('      "target": {"kind": "gate", "id": "G3"},')
+    md.append('      "review_status": "proposed",')
+    md.append('      "proposed_fields": {')
+    md.append('        "id": "DEC-G3",')
+    md.append('        "readiness_status": "manual_review",')
+    md.append('        "notes": "Gate decision needs named human approval evidence"')
+    md.append("      },")
+    md.append('      "source_basis": [{"type": "assurance_framework", "ref": "assurance-framework path or dashboard payload"}],')
+    md.append('      "rationale": "Why this project instance needs a gate decision, waiver, role assignment or criterion mapping",')
+    md.append('      "confidence": "low|medium|high"')
+    md.append("    }")
+    md.append("  ],")
+    md.append('  "manual_evidence_updates": [],')
+    md.append('  "uncertain_mappings": [],')
+    md.append('  "review_required": [')
+    md.append('    {"item": "FR-019", "question": "Which ASVS/NIST rows should a human assessor approve?", "why": "Ambiguous source basis"}')
+    md.append("  ]")
+    md.append("}")
+    md.append("```")
+    md.append("")
+    md.append("## Review Checklist Before Returning")
+    md.append("")
+    md.append("- All new/changed mappings are `review_status: proposed`.")
+    md.append("- Every proposal cites source basis and rationale.")
+    md.append("- Evidence expectations are stated, but pass/fail evidence is not invented.")
+    md.append("- TBTs are precise enough that an assessment prompt could later decide wrapper/enhancement/new-test/manual-evidence.")
+    md.append("- Compliance sufficiency policy says whether scanner evidence is supporting only, strong enough, or requires manual review.")
+    md.append("- JSP-453/process items that map criteria to FR/TBT/manual artifacts, role assignments, gate decisions or waivers belong in assurance instance updates; reusable framework structure changes remain review-only.")
+    md.append("- Ambiguous items are parked in `uncertain_mappings` or `review_required`.")
+    md.append("")
+    md.append("---")
+    md.append("")
+    md.append("*Generated by ASVS Security Scanner. Use this before remediation or test-generation prompts when FR/TBT/compliance traceability is weak.*")
+    md.append("")
+    return "\n".join(md)
+
+
+def build_config_update_proposal_template(
+    *,
+    target_dir: str,
+    run_id: str,
+    report_dir: Path,
+) -> dict:
+    evidence = load_json(report_dir / "evidence-manifest.json") or {}
+    project = evidence.get("repository") or Path(target_dir).name or "target-project"
+    generated_at = evidence.get("generated_at")
+    source_inputs = []
+    for path, used_for in (
+        ("dashboard-payload.json", "Traceability graph, node state and unresolved evidence gaps"),
+        ("fr-catalog.snapshot.json", "Current project FR and TBT records"),
+        ("compliance-mapping-pack.snapshot.json", "Current compliance row to FR/TBT mappings"),
+        ("scanner-compliance-mapping-packs", "Current scanner finding to compliance row/domain mappings"),
+        ("assurance-framework.snapshot.json", "Current gate, criterion and role model"),
+        ("assurance-instance.snapshot.json", "Current project gate mappings and decisions"),
+        ("evidence-bundle.json", "Observed evidence records for this scan"),
+        ("agent-prompt-plan.json", "Structured deficiencies and recommendations"),
+        ("reports/test-inventory.json", "Discovered native project test inventory"),
+    ):
+        if (report_dir / path).exists():
+            source_inputs.append({"path": path, "kind": "report_artifact", "used_for": used_for})
+
+    if not source_inputs:
+        source_inputs.append({
+            "path": str(report_dir),
+            "kind": "report_directory",
+            "used_for": "Scan report context",
+        })
+
+    template = {
+        "schema_version": 1,
+        "mode": "config_update_proposal",
+        "project": project,
+        "run_id": run_id,
+        "source_inputs": source_inputs,
+        "fr_catalog_updates": [],
+        "compliance_mapping_pack_updates": [],
+        "assurance_framework_or_instance_updates": [],
+        "manual_evidence_updates": [],
+        "uncertain_mappings": [],
+        "review_required": [
+            {
+                "item": "config-authoring",
+                "question": "Replace this template item with proposed config updates or explicit review questions before validation.",
+                "why": "The template is a starting artifact and intentionally does not claim mappings, evidence or product behaviour.",
+            }
+        ],
+    }
+    if generated_at:
+        template["generated_at"] = generated_at
+    return template
+
+
+def build_agent_prompt_plan(
+    *,
+    target_dir: str,
+    run_id: str,
+    report_dir: Path,
+    fr_catalog_path: str | None = None,
+    assurance_framework_path: str | None = None,
+    assurance_instance_path: str | None = None,
+) -> dict:
+    evidence = load_json(report_dir / "evidence-manifest.json") or {}
+    scanner_health = evidence.get("scanner_health", {}) or {}
+    fr_catalog = load_fr_catalog_for_prompt(fr_catalog_path)
+    junit_xml_path = None
+    for candidate in (report_dir / "junit.xml", report_dir / "reports" / "junit.xml"):
+        if candidate.exists():
+            junit_xml_path = str(candidate)
+            break
+    assurance_deficiencies = collect_prompt_deficiencies(fr_catalog, report_dir, junit_xml_path)
+    affected_gates = _affected_gates_by_ref(
+        assurance_framework_path=assurance_framework_path,
+        assurance_instance_path=assurance_instance_path,
+    )
+
+    deficiencies: list[dict] = []
+    assurance_recommendations: list[dict] = []
+    for idx, item in enumerate(assurance_deficiencies, start=1):
+        fr_id = str(item.get("fr_id", ""))
+        related = [str(value) for value in item.get("related", []) if value]
+        tbts = [str(value) for value in item.get("tbts", []) if value]
+        rows = []
+        for value in related:
+            if " " in value:
+                ruleset, _, row = value.partition(" ")
+                if ruleset and row:
+                    rows.append({"ruleset": ruleset, "row": row})
+        gates = sorted({
+            gate
+            for ref in ([fr_id] + tbts)
+            for gate in affected_gates.get(ref, [])
+        })
+        deficiency_id = f"DEF-FR-{idx:03d}"
+        deficiencies.append({
+            "id": deficiency_id,
+            "severity": str(item.get("severity", "medium")),
+            "type": "missing_evidence" if item.get("gap") != "failed_evidence" else "failed_evidence",
+            "summary": f"{fr_id} needs observable assurance evidence for {item.get('title', 'mapped requirement')}.",
+            "affected": {
+                "frs": [fr_id] if fr_id else [],
+                "tbts": tbts,
+                "ruleset_rows": rows,
+                "gates": gates,
+            },
+            "recommended_action": (
+                "Assess existing tests first. Where evidence is still missing, produce a proposed "
+                "assurance test specification rather than generating broad new tests by default."
+            ),
+        })
+        assurance_recommendations.append({
+            "id": f"REC-ASSURANCE-{idx:03d}",
+            "type": "assess_existing_test",
+            "summary": f"Assess existing or copied tests for {fr_id} before proposing new {item.get('test_type', 'test')} coverage.",
+            "affected": {
+                "frs": [fr_id] if fr_id else [],
+                "tbts": tbts,
+                "ruleset_rows": rows,
+                "gates": gates,
+            },
+            "requires_explicit_test_generation_request": True,
+        })
+
+    fix_recommendations: list[dict] = []
+    fix_idx = 0
+    for scanner, info in sorted(scanner_health.items()):
+        if not isinstance(info, dict) or info.get("status") != "FAIL":
+            continue
+        fix_idx += 1
+        fix_recommendations.append({
+            "id": f"REC-FIX-{fix_idx:03d}",
+            "type": "fix",
+            "summary": f"Investigate and remediate failing scanner {scanner}: {info.get('reason', 'failed')}",
+            "affected": {},
+            "prompt_text": f"Read the raw report for {scanner}, fix the source cause where safe, and rerun the affected scanner.",
+            "requires_explicit_test_generation_request": False,
+        })
+
+    plan = {
+        "schema_version": 1,
+        "project": Path(target_dir).name or "target-project",
+        "mode": "assessment_first",
+        "deficiencies": deficiencies,
+        "fix_recommendations": fix_recommendations,
+        "assurance_recommendations": assurance_recommendations,
+        "safety_rules": [
+            "Do not invent product behaviour.",
+            "Do not generate broad new tests unless explicitly requested.",
+            "Evidence must be observed from scanner, JUnit, document, approval or manual review artifacts.",
+            "Keep TBT as the provenance identifier for generated or proposed assurance tests.",
+        ],
+    }
+    if evidence.get("generated_at"):
+        plan["generated_at"] = evidence["generated_at"]
+    return plan
+
+
+def _affected_gates_by_ref(
+    *,
+    assurance_framework_path: str | None,
+    assurance_instance_path: str | None,
+) -> dict[str, set[str]]:
+    if not assurance_framework_path or not assurance_instance_path:
+        return {}
+    try:
+        framework = json.loads(Path(assurance_framework_path).read_text())
+        instance = json.loads(Path(assurance_instance_path).read_text())
+    except Exception:
+        return {}
+
+    criterion_to_gate: dict[str, str] = {}
+    for process in framework.get("processes") or []:
+        for gate in process.get("gates") or []:
+            gate_id = gate.get("id")
+            for criterion in gate.get("criteria") or []:
+                criterion_id = criterion.get("id")
+                if gate_id and criterion_id:
+                    criterion_to_gate[criterion_id] = gate_id
+
+    out: dict[str, set[str]] = {}
+    for mapping in instance.get("criterion_mappings") or []:
+        criterion = mapping.get("criterion")
+        gate = criterion_to_gate.get(criterion)
+        if not gate:
+            continue
+        for requirement in mapping.get("requirements") or []:
+            ref = requirement.get("ref")
+            if ref:
+                out.setdefault(ref, set()).add(gate)
+            evidence = requirement.get("evidence")
+            if evidence:
+                out.setdefault(evidence, set()).add(gate)
+            if requirement.get("type") == "ruleset_row":
+                ruleset = requirement.get("ruleset")
+                row = requirement.get("row")
+                if ruleset and row:
+                    out.setdefault(f"{ruleset} {row}", set()).add(gate)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report-dir", required=True)
     ap.add_argument("--target-dir", required=True)
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--git-commit", default="")
+    ap.add_argument("--fr-catalog", default=None)
+    ap.add_argument("--assurance-framework", default=None)
+    ap.add_argument("--assurance-instance", default=None)
+    ap.add_argument("--compliance-mapping-pack", default=None)
     args = ap.parse_args()
 
     report_dir = Path(args.report_dir)
@@ -547,10 +1190,58 @@ def main() -> int:
         run_id=args.run_id,
         report_dir=report_dir,
         git_commit=args.git_commit or None,
+        fr_catalog_path=args.fr_catalog,
     )
     out = report_dir / "agent-investigation-prompt.md"
     out.write_text(text)
+    record_report_artifact(report_dir, out)
     print(f"agent-investigation-prompt: written to {out.name}")
+    assurance_text = render_assurance_prompt(
+        target_dir=args.target_dir,
+        run_id=args.run_id,
+        report_dir=report_dir,
+        git_commit=args.git_commit or None,
+        fr_catalog_path=args.fr_catalog,
+    )
+    assurance_out = report_dir / "assurance-assessment-prompt.md"
+    assurance_out.write_text(assurance_text)
+    record_report_artifact(report_dir, assurance_out)
+    print(f"assurance-assessment-prompt: written to {assurance_out.name}")
+    config_update_text = render_config_update_prompt(
+        target_dir=args.target_dir,
+        run_id=args.run_id,
+        report_dir=report_dir,
+        git_commit=args.git_commit or None,
+        fr_catalog_path=args.fr_catalog,
+        assurance_framework_path=args.assurance_framework,
+        assurance_instance_path=args.assurance_instance,
+        compliance_mapping_pack_path=args.compliance_mapping_pack,
+    )
+    config_update_out = report_dir / "fr-config-update-prompt.md"
+    config_update_out.write_text(config_update_text)
+    record_report_artifact(report_dir, config_update_out)
+    print(f"fr-config-update-prompt: written to {config_update_out.name}")
+    config_template = build_config_update_proposal_template(
+        target_dir=args.target_dir,
+        run_id=args.run_id,
+        report_dir=report_dir,
+    )
+    config_template_out = report_dir / "fr-config-update-proposal.template.json"
+    config_template_out.write_text(json.dumps(config_template, indent=2))
+    record_report_artifact(report_dir, config_template_out)
+    print(f"fr-config-update-proposal.template: written to {config_template_out.name}")
+    plan = build_agent_prompt_plan(
+        target_dir=args.target_dir,
+        run_id=args.run_id,
+        report_dir=report_dir,
+        fr_catalog_path=args.fr_catalog,
+        assurance_framework_path=args.assurance_framework,
+        assurance_instance_path=args.assurance_instance,
+    )
+    plan_out = report_dir / "agent-prompt-plan.json"
+    plan_out.write_text(json.dumps(plan, indent=2))
+    record_report_artifact(report_dir, plan_out)
+    print(f"agent-prompt-plan: written to {plan_out.name}")
     return 0
 
 

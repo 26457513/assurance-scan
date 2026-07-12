@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "gitleaks-asvs-v5.0.0",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-08T00:00:00Z",
+    "updated_at": "2026-07-08T00:00:00Z",
+    "generator": "manual-curation",
+    "input_artifacts": [
+      {
+        "kind": "scanner_rule_catalog",
+        "path": "data/sources/gitleaks_rules.json",
+        "version": "master"
+      },
+      {
+        "kind": "ruleset",
+        "path": "data/rulesets/asvs/5.0.0.json",
+        "version": "5.0.0"
+      }
+    ]
+  },
+  "scanner": "gitleaks",
+  "scanner_version": "rule-pack-specific",
+  "scanner_rule_source": {
+    "kind": "scanner_rule_catalog",
+    "ref": "data/sources/gitleaks_rules.json",
+    "version": "master"
+  },
+  "compliance": {
+    "ruleset": "ASVS",
+    "version": "5.0.0",
+    "source_ref": "data/rulesets/asvs/5.0.0.json"
+  },
+  "mappings": [
+    {
+      "id": "SCM-GITLEAKS-ASVS-5-SECRETS",
+      "review_status": "accepted",
+      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_blocking_signal",
+      "review_notes": "Any committed secret finding is a blocking signal for secret-management assurance until triaged.",
+      "rule_selectors": [
+        {
+          "type": "glob",
+          "value": "*secret*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*token*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*key*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*password*",
+          "output_field": "RuleID"
+        }
+      ],
+      "limitations": [
+        "No-findings only proves the scanned repository did not match configured leak patterns.",
+        "Vault policy, runtime secret access, and rotation still require project evidence."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_rule_catalog",
+          "ref": "data/sources/gitleaks_rules.json"
+        }
+      ],
+      "rationale": "Secret leaks directly undermine ASVS secret-management expectations and should block affected rows until rotated and remediated.",
+      "confidence": "high",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "blocking_if_finding",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-13.3.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-13.3.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-13.3.4"
+          }
+        ],
+        "compliance_domains": []
+      }
+    },
+    {
+      "id": "SCM-GITLEAKS-ASVS-5-JWT-SESSION-TOKENS",
+      "review_status": "accepted",
+      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_blocking_signal",
+      "review_notes": "JWTs in source are treated as leaked session/token material unless a reviewer proves they are test fixtures.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "jwt",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "exact",
+          "value": "jwt-base64",
+          "output_field": "RuleID"
+        }
+      ],
+      "limitations": [
+        "JWT detection has false positives and requires fixture review."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_rule_catalog",
+          "ref": "data/sources/gitleaks_rules.json#/entries/jwt"
+        }
+      ],
+      "rationale": "Committed tokens are a negative signal for session-token and client-side data protection controls.",
+      "confidence": "medium",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "blocking_if_finding",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.2.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.3.3"
+          }
+        ],
+        "compliance_domains": []
+      }
+    }
+  ]
+}

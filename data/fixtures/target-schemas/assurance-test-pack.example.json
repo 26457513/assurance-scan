@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "name": "VG_TEST_FRAMEWORK",
+  "mode": "ephemeral",
+  "generated_at": "2026-07-06T00:00:00Z",
+  "target_dir": "/workspace/project",
+  "source_inventory": "reports/test-inventory.json",
+  "summary": {
+    "copied_native": 1,
+    "wrapper_needed": 1,
+    "planned_tbt": 1,
+    "needs_design": 1,
+    "not_counted_as_evidence": 2,
+    "generated_specifications": 1,
+    "still_not_counted_as_evidence": 2
+  },
+  "safety_policy": {
+    "default": "non_destructive",
+    "project_mount": "safe_worktree",
+    "network": "disabled unless scanner/runtime flags explicitly provide a target URL",
+    "writes_allowed": ["report bundle", "temporary runner workspace"]
+  },
+  "tests": [
+    {
+      "pack_id": "NATIVE-tests-session-test-ts",
+      "source": "wrapper_needed",
+      "type": "unit",
+      "runner": "vitest",
+      "status": "copied",
+      "assessment": "useful_with_wrapper",
+      "safety": "non_destructive",
+      "frs": [],
+      "native_path": "tests/session.test.ts",
+      "pack_path": "imported/tests/session.test.ts",
+      "ruleset_rows": [],
+      "assurance_gates": [],
+      "cases": [
+        {"name": "expires idle sessions"}
+      ],
+      "rationale": "Security-relevant behaviour appears present; an assurance wrapper should map the expected control and assertions explicitly."
+    },
+    {
+      "pack_id": "TBT-016-ASVS-A",
+      "tbt": "TBT-016-ASVS-A",
+      "frs": ["FR-016"],
+      "title": "Session timeout integration test basis",
+      "source": "planned_tbt",
+      "type": "integration",
+      "runner": "containerized integration runner",
+      "status": "planned",
+      "assessment": "needs_design",
+      "safety": "non_destructive",
+      "native_path": "",
+      "pack_path": "tests/asvs/integration/TBT-016-ASVS-A.assurance.test.js",
+      "ruleset_rows": [
+        {"ruleset": "ASVS", "row": "v5.0.0-5.1.1"}
+      ],
+      "assurance_gates": ["GATE-03-ATT"],
+      "cases": [],
+      "rationale": "Declared TBT/FR verification target has no generated assurance test implementation in this pack yet.",
+      "suggested_test": "Design a non-destructive integration assurance test specification for TBT-016-ASVS-A / Session timeout and re-authentication."
+    }
+  ],
+  "generated_specifications": [
+    {
+      "tbt": "TBT-016-ASVS-A",
+      "frs": ["FR-016"],
+      "status": "proposed_specification",
+      "evidence_state": "missing",
+      "type": "integration",
+      "runner": "containerized integration runner with JUnit reporter",
+      "spec_path": "specifications/integration/TBT-016-ASVS-A.assurance-spec.md",
+      "ruleset_rows": [
+        {"ruleset": "ASVS", "row": "v5.0.0-5.1.1"}
+      ]
+    }
+  ]
+}

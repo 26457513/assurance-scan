@@ -5,7 +5,7 @@
     "source_ref": "deferred",
     "license": "Semgrep Rules License",
     "count": 0,
-    "note": "Semgrep rule enumeration deferred for v1. The mapping generator will rely on ASVS section names + CSV hints + LLM knowledge of common Semgrep rule namespaces. See source code comment in build-mapping-sources.py for details."
+    "note": "Semgrep rule enumeration deferred for v1. Reviewed scanner-compliance mapping packs should use conservative selectors and documented limitations."
   },
   "entries": []
 }

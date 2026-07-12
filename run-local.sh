@@ -2,7 +2,7 @@
 # run-local.sh — ASVS Scanner local entrypoint.
 #
 # Usage:
-#   ./run-local.sh <target-dir> [--image <name>]... [--url <url>]... [--uploads <dir>]...
+#   ./run-local.sh <target-dir> [--image <name>]... [--url <url>]... [--uploads <dir>]... [--fr-catalog <json>] [--compliance-mapping-pack <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--assurance-framework <json>] [--assurance-instance <json>]
 #
 # Examples:
 #   ./run-local.sh /path/to/project
@@ -128,10 +128,21 @@ print_file_table() {
   printf '  %-18s %s\n' "Item" "Path"
   printf '  %-18s %s\n' "------------------" "------------------------------------------------------------"
   printf '  %-18s %s%s%s\n' "Dashboard" "$C_CYAN" "$REPORT_DIR/dashboard.html" "$C_RESET"
-  printf '  %-18s %s\n' "Agent prompt" "$REPORT_DIR/agent-investigation-prompt.md"
+  printf '  %-18s %s\n' "Fix prompt" "$REPORT_DIR/agent-investigation-prompt.md"
+  printf '  %-18s %s\n' "Assurance prompt" "$REPORT_DIR/assurance-assessment-prompt.md"
+  if [ -f "$REPORT_DIR/evidence-bundle.json" ]; then
+    printf '  %-18s %s\n' "Evidence bundle" "$REPORT_DIR/evidence-bundle.json"
+  fi
+  if [ -f "$REPORT_DIR/agent-prompt-plan.json" ]; then
+    printf '  %-18s %s\n' "Agent plan" "$REPORT_DIR/agent-prompt-plan.json"
+  fi
+  if [ -f "$REPORT_DIR/dashboard-payload.json" ]; then
+    printf '  %-18s %s\n' "Dashboard payload" "$REPORT_DIR/dashboard-payload.json"
+  fi
   printf '  %-18s %s\n' "Run summary" "$REPORT_DIR/scanner-run-summary.txt"
   printf '  %-18s %s\n' "Detailed log" "$REPORT_DIR/run.log"
   printf '  %-18s %s\n' "Timings" "$REPORT_DIR/timings.json"
+  printf '  %-18s %s\n' "Validate" "asvs-scanner validate-report \"$REPORT_DIR\" --strict"
 }
 
 cache_stamp_name() {
@@ -240,7 +251,7 @@ run_prefetch_services() {
 usage() {
   cat <<USAGE
 Usage:
-  ./run-local.sh <target-dir> [--image <name>]... [--url <url>]... [--uploads <dir>]...
+  ./run-local.sh <target-dir> [--image <name>]... [--url <url>]... [--uploads <dir>]... [--fr-catalog <json>] [--scanner-compliance-mapping-pack <json-or-dir>]...
   ./run-local.sh prefetch                          # one-time DB pre-download
   ./run-local.sh prefetch --only trivy,osv         # prefetch specific DBs only
   ./run-local.sh --help
@@ -285,6 +296,7 @@ UPLOADS_DIR=""
 IMAGE_NAMES=()
 TARGET_URLS=()
 UPLOADS_DIRS=()
+SCANNER_COMPLIANCE_MAPPING_PACKS=()
 PREFETCH_ONLY=""
 
 if [ "${1:-}" = "" ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
@@ -329,6 +341,14 @@ while [ $# -gt 0 ]; do
       UPLOADS_DIRS+=("${2:-}"); shift 2 ;;
     --fr-catalog)
       FR_CATALOG="${2:-}"; shift 2 ;;
+    --compliance-mapping-pack)
+      COMPLIANCE_MAPPING_PACK="${2:-}"; shift 2 ;;
+    --scanner-compliance-mapping-pack)
+      SCANNER_COMPLIANCE_MAPPING_PACKS+=("${2:-}"); shift 2 ;;
+    --assurance-framework)
+      ASSURANCE_FRAMEWORK="${2:-}"; shift 2 ;;
+    --assurance-instance)
+      ASSURANCE_INSTANCE="${2:-}"; shift 2 ;;
     --junit-xml)
       JUNIT_XML="${2:-}"; shift 2 ;;
     *)
@@ -433,6 +453,12 @@ LEVEL2_UPLOADS_SERVICES=(clamav)
 SERVICES_TO_RUN=()
 SKIPPED_RECORDS=()
 
+add_skipped_record() {
+  local scanner="$1"
+  local reason="$2"
+  SKIPPED_RECORDS+=("$scanner"$'\t'"$reason")
+}
+
 slugify() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's|^[a-z]+://||; s|[^a-z0-9._-]+|-|g; s|^-+||; s|-+$||; s|[-.]{2,}|-|g' | cut -c1-64
 }
@@ -462,7 +488,7 @@ if [ ${#IMAGE_NAMES[@]} -gt 0 ]; then
   done
 else
   for s in "${LEVEL2_IMAGE_SERVICES[@]}"; do
-    SKIPPED_RECORDS+=("{"name":"$s","status":"SKIPPED","reason":"--image not supplied"}")
+    add_skipped_record "$s" "--image not supplied"
   done
 fi
 
@@ -484,15 +510,15 @@ if [ ${#TARGET_URLS[@]} -gt 0 ]; then
   done
   if [ "$any_https" -eq 0 ]; then
     for s in "${LEVEL2_HTTPS_SERVICES[@]}"; do
-      SKIPPED_RECORDS+=("{"name":"$s","status":"SKIPPED","reason":"no HTTPS URL supplied"}")
+      add_skipped_record "$s" "no HTTPS URL supplied"
     done
   fi
 else
   for s in "${LEVEL2_URL_SERVICES[@]}"; do
-    SKIPPED_RECORDS+=("{"name":"$s","status":"SKIPPED","reason":"--url not supplied"}")
+    add_skipped_record "$s" "--url not supplied"
   done
   for s in "${LEVEL2_HTTPS_SERVICES[@]}"; do
-    SKIPPED_RECORDS+=("{"name":"$s","status":"SKIPPED","reason":"--url not supplied"}")
+    add_skipped_record "$s" "--url not supplied"
   done
 fi
 
@@ -505,24 +531,26 @@ if [ ${#UPLOADS_DIRS[@]} -gt 0 ]; then
   done
 else
   for s in "${LEVEL2_UPLOADS_SERVICES[@]}"; do
-    SKIPPED_RECORDS+=("{"name":"$s","status":"SKIPPED","reason":"--uploads not supplied"}")
+    add_skipped_record "$s" "--uploads not supplied"
   done
 fi
 
 # Write the SKIPPED entries to scanner-health.json immediately; the bundle
 # generator will merge them with live PASS/WARN/FAIL classifications.
-{
-  printf '{"scanners": ['
-  skip_first=1
-  if [ ${#SKIPPED_RECORDS[@]} -gt 0 ]; then
-    for rec in "${SKIPPED_RECORDS[@]}"; do
-      [ $skip_first -eq 1 ] || printf ', '
-      printf '%s' "$rec"
-      skip_first=0
-    done
-  fi
-  printf ']}\n'
-} > "$REPORT_DIR/scanner-health.json"
+if [ ${#SKIPPED_RECORDS[@]} -gt 0 ]; then
+  printf '%s\n' "${SKIPPED_RECORDS[@]}" | python3 -c 'import json, sys
+records = []
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        continue
+    name, reason = line.split("\t", 1)
+    records.append({"name": name, "status": "SKIPPED", "reason": reason})
+print(json.dumps({"scanners": records}, indent=2))
+' > "$REPORT_DIR/scanner-health.json"
+else
+  printf '{"scanners": []}\n' > "$REPORT_DIR/scanner-health.json"
+fi
 
 if [ "${ASVS_AUTO_PREFETCH:-1}" != "0" ]; then
   AUTO_PREFETCH_SERVICES=(prefetch-trivy prefetch-grype prefetch-osv)
@@ -736,6 +764,47 @@ python3 "$SCRIPT_DIR/scripts/manual-evidence-template.py" \
 record_timing "manual checklist" "$(( $(date +%s) - step_started_at ))"
 done_line "manual checklist"
 
+echo "==> Discovering project tests" >> "$REPORT_DIR/run.log"
+step_started_at="$(date +%s)"
+if python3 "$SCRIPT_DIR/scripts/discover-project-tests.py" \
+  --target-dir "$TARGET_DIR" \
+  --output "$REPORT_DIR/reports/test-inventory.json" >> "$REPORT_DIR/run.log" 2>&1; then
+  record_timing "test discovery" "$(( $(date +%s) - step_started_at ))"
+  done_line "test discovery"
+else
+  record_timing "test discovery" "$(( $(date +%s) - step_started_at ))"
+  warn_line "test discovery failed; continuing without native test inventory"
+fi
+
+if [ -n "${JUNIT_XML:-${ASVS_JUNIT_XML:-}}" ]; then
+  JUNIT_PATH="${JUNIT_XML:-${ASVS_JUNIT_XML}}"
+  if [ -f "$JUNIT_PATH" ]; then
+    cp "$JUNIT_PATH" "$REPORT_DIR/reports/junit.xml"
+    echo "Copied JUnit XML into reports/junit.xml" >> "$REPORT_DIR/run.log"
+  fi
+fi
+
+echo "==> Generating assurance test pack" >> "$REPORT_DIR/run.log"
+step_started_at="$(date +%s)"
+ASSURANCE_PACK_ARGS=(
+  --target-dir "$TARGET_DIR"
+  --report-dir "$REPORT_DIR"
+  --test-inventory "$REPORT_DIR/reports/test-inventory.json"
+)
+if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
+  PACK_CATALOG_PATH="${FR_CATALOG:-${ASVS_FR_CATALOG}}"
+  if [ -f "$PACK_CATALOG_PATH" ]; then
+    ASSURANCE_PACK_ARGS+=(--fr-catalog "$PACK_CATALOG_PATH")
+  fi
+fi
+if python3 "$SCRIPT_DIR/scripts/generate-assurance-test-pack.py" "${ASSURANCE_PACK_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1; then
+  record_timing "assurance test pack" "$(( $(date +%s) - step_started_at ))"
+  done_line "assurance test pack"
+else
+  record_timing "assurance test pack" "$(( $(date +%s) - step_started_at ))"
+  warn_line "assurance test pack generation failed; continuing without VG_TEST_FRAMEWORK"
+fi
+
 # ---------------------------------------------------------------------------
 # Phase 4 — Evidence bundle
 # ---------------------------------------------------------------------------
@@ -756,6 +825,12 @@ done
 for uploads in "${UPLOADS_DIRS[@]}"; do
   [ -n "$uploads" ] && BUNDLE_ARGS+=(--uploads-dir "$uploads")
 done
+if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
+  BUNDLE_CATALOG_PATH="${FR_CATALOG:-${ASVS_FR_CATALOG}}"
+  if [ -f "$BUNDLE_CATALOG_PATH" ]; then
+    BUNDLE_ARGS+=(--fr-catalog "$BUNDLE_CATALOG_PATH")
+  fi
+fi
 python3 "$SCRIPT_DIR/scripts/generate-evidence-bundle.py" "${BUNDLE_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1
 record_timing "evidence bundle" "$(( $(date +%s) - step_started_at ))"
 done_line "evidence bundle"
@@ -769,11 +844,41 @@ GIT_COMMIT="$(git -C "$TARGET_DIR" rev-parse HEAD 2>/dev/null || echo "")"
 echo "" >> "$REPORT_DIR/run.log"
 echo "==> Generating agent prompt" >> "$REPORT_DIR/run.log"
 step_started_at="$(date +%s)"
-python3 "$SCRIPT_DIR/scripts/generate-agent-prompt.py" \
+PROMPT_ARGS=(
   --report-dir "$REPORT_DIR" \
   --target-dir "$TARGET_DIR" \
-  --run-id "$RUN_ID" \
-  ${GIT_COMMIT:+--git-commit "$GIT_COMMIT"} >> "$REPORT_DIR/run.log" 2>&1
+  --run-id "$RUN_ID"
+)
+if [ -n "$GIT_COMMIT" ]; then
+  PROMPT_ARGS+=(--git-commit "$GIT_COMMIT")
+fi
+if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
+  PROMPT_CATALOG_PATH="${FR_CATALOG:-${ASVS_FR_CATALOG}}"
+  if [ -f "$PROMPT_CATALOG_PATH" ]; then
+    PROMPT_ARGS+=(--fr-catalog "$PROMPT_CATALOG_PATH")
+  fi
+fi
+if [ -n "${COMPLIANCE_MAPPING_PACK:-${ASVS_COMPLIANCE_MAPPING_PACK:-}}" ]; then
+  COMPLIANCE_MAPPING_PACK_PATH="${COMPLIANCE_MAPPING_PACK:-${ASVS_COMPLIANCE_MAPPING_PACK}}"
+  if [ -f "$COMPLIANCE_MAPPING_PACK_PATH" ]; then
+    PROMPT_ARGS+=(--compliance-mapping-pack "$COMPLIANCE_MAPPING_PACK_PATH")
+  else
+    echo "WARN: Compliance mapping pack not found at $COMPLIANCE_MAPPING_PACK_PATH — skipping" >> "$REPORT_DIR/run.log"
+  fi
+fi
+if [ -n "${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK:-}}" ]; then
+  PROMPT_FRAMEWORK_PATH="${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK}}"
+  if [ -f "$PROMPT_FRAMEWORK_PATH" ]; then
+    PROMPT_ARGS+=(--assurance-framework "$PROMPT_FRAMEWORK_PATH")
+  fi
+fi
+if [ -n "${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE:-}}" ]; then
+  PROMPT_INSTANCE_PATH="${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE}}"
+  if [ -f "$PROMPT_INSTANCE_PATH" ]; then
+    PROMPT_ARGS+=(--assurance-instance "$PROMPT_INSTANCE_PATH")
+  fi
+fi
+python3 "$SCRIPT_DIR/scripts/generate-agent-prompt.py" "${PROMPT_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1
 record_timing "agent prompt" "$(( $(date +%s) - step_started_at ))"
 done_line "agent prompt"
 
@@ -791,6 +896,58 @@ if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
     echo "WARN: FR catalog not found at $CATALOG_PATH — skipping" >> "$REPORT_DIR/run.log"
   fi
 fi
+if [ -n "${COMPLIANCE_MAPPING_PACK:-${ASVS_COMPLIANCE_MAPPING_PACK:-}}" ]; then
+  COMPLIANCE_MAPPING_PACK_PATH="${COMPLIANCE_MAPPING_PACK:-${ASVS_COMPLIANCE_MAPPING_PACK}}"
+  if [ -f "$COMPLIANCE_MAPPING_PACK_PATH" ]; then
+    DASHBOARD_ARGS+=(--compliance-mapping-pack "$COMPLIANCE_MAPPING_PACK_PATH")
+    echo "Using compliance mapping pack: $COMPLIANCE_MAPPING_PACK_PATH" >> "$REPORT_DIR/run.log"
+    cp "$COMPLIANCE_MAPPING_PACK_PATH" "$REPORT_DIR/compliance-mapping-pack.snapshot.json"
+  else
+    echo "WARN: Compliance mapping pack not found at $COMPLIANCE_MAPPING_PACK_PATH — skipping" >> "$REPORT_DIR/run.log"
+  fi
+fi
+for SCANNER_COMPLIANCE_MAPPING_PACK_PATH in "${SCANNER_COMPLIANCE_MAPPING_PACKS[@]}"; do
+  if [ -e "$SCANNER_COMPLIANCE_MAPPING_PACK_PATH" ]; then
+    DASHBOARD_ARGS+=(--scanner-compliance-mapping-pack "$SCANNER_COMPLIANCE_MAPPING_PACK_PATH")
+    echo "Using scanner compliance mapping pack: $SCANNER_COMPLIANCE_MAPPING_PACK_PATH" >> "$REPORT_DIR/run.log"
+    mkdir -p "$REPORT_DIR/scanner-compliance-mapping-packs"
+    if [ -d "$SCANNER_COMPLIANCE_MAPPING_PACK_PATH" ]; then
+      cp -R "$SCANNER_COMPLIANCE_MAPPING_PACK_PATH" "$REPORT_DIR/scanner-compliance-mapping-packs/$(basename "$SCANNER_COMPLIANCE_MAPPING_PACK_PATH")"
+    else
+      cp "$SCANNER_COMPLIANCE_MAPPING_PACK_PATH" "$REPORT_DIR/scanner-compliance-mapping-packs/$(basename "$SCANNER_COMPLIANCE_MAPPING_PACK_PATH")"
+    fi
+  else
+    echo "WARN: Scanner compliance mapping pack not found at $SCANNER_COMPLIANCE_MAPPING_PACK_PATH — skipping" >> "$REPORT_DIR/run.log"
+  fi
+done
+if [ ${#SCANNER_COMPLIANCE_MAPPING_PACKS[@]} -eq 0 ] && [ -n "${ASVS_SCANNER_COMPLIANCE_MAPPING_PACK:-}" ]; then
+  if [ -e "$ASVS_SCANNER_COMPLIANCE_MAPPING_PACK" ]; then
+    DASHBOARD_ARGS+=(--scanner-compliance-mapping-pack "$ASVS_SCANNER_COMPLIANCE_MAPPING_PACK")
+    echo "Using scanner compliance mapping pack: $ASVS_SCANNER_COMPLIANCE_MAPPING_PACK" >> "$REPORT_DIR/run.log"
+  else
+    echo "WARN: Scanner compliance mapping pack not found at $ASVS_SCANNER_COMPLIANCE_MAPPING_PACK — skipping" >> "$REPORT_DIR/run.log"
+  fi
+fi
+if [ -n "${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK:-}}" ]; then
+  ASSURANCE_FRAMEWORK_PATH="${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK}}"
+  if [ -f "$ASSURANCE_FRAMEWORK_PATH" ]; then
+    DASHBOARD_ARGS+=(--assurance-framework "$ASSURANCE_FRAMEWORK_PATH")
+    echo "Using assurance framework: $ASSURANCE_FRAMEWORK_PATH" >> "$REPORT_DIR/run.log"
+    cp "$ASSURANCE_FRAMEWORK_PATH" "$REPORT_DIR/assurance-framework.snapshot.json"
+  else
+    echo "WARN: Assurance framework not found at $ASSURANCE_FRAMEWORK_PATH — skipping" >> "$REPORT_DIR/run.log"
+  fi
+fi
+if [ -n "${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE:-}}" ]; then
+  ASSURANCE_INSTANCE_PATH="${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE}}"
+  if [ -f "$ASSURANCE_INSTANCE_PATH" ]; then
+    DASHBOARD_ARGS+=(--assurance-instance "$ASSURANCE_INSTANCE_PATH")
+    echo "Using assurance instance: $ASSURANCE_INSTANCE_PATH" >> "$REPORT_DIR/run.log"
+    cp "$ASSURANCE_INSTANCE_PATH" "$REPORT_DIR/assurance-instance.snapshot.json"
+  else
+    echo "WARN: Assurance instance not found at $ASSURANCE_INSTANCE_PATH — skipping" >> "$REPORT_DIR/run.log"
+  fi
+fi
 if [ -n "${JUNIT_XML:-${ASVS_JUNIT_XML:-}}" ]; then
   JUNIT_PATH="${JUNIT_XML:-${ASVS_JUNIT_XML}}"
   if [ -f "$JUNIT_PATH" ]; then
@@ -804,6 +961,16 @@ python3 "$SCRIPT_DIR/scripts/generate_dashboard.py" \
   "${DASHBOARD_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1
 record_timing "dashboard" "$(( $(date +%s) - step_started_at ))"
 done_line "dashboard"
+
+echo "==> Validating target report artifacts" >> "$REPORT_DIR/run.log"
+step_started_at="$(date +%s)"
+if python3 "$SCRIPT_DIR/scripts/validate-report-artifacts.py" --report-dir "$REPORT_DIR" >> "$REPORT_DIR/run.log" 2>&1; then
+  record_timing "target artifact validation" "$(( $(date +%s) - step_started_at ))"
+  done_line "target artifact validation"
+else
+  record_timing "target artifact validation" "$(( $(date +%s) - step_started_at ))"
+  warn_line "target artifact validation reported issues; see run.log"
+fi
 
 # ---------------------------------------------------------------------------
 # Final

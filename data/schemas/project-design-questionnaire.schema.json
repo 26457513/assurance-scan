@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-design-questionnaire.schema.json",
+  "title": "Project Design Questionnaire",
+  "type": "object",
+  "required": ["schema_version", "id", "status", "project", "questions"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["draft", "review_required", "approved", "superseded", "rejected"]},
+    "project": {"type": "string", "minLength": 1},
+    "source_config_selection": {"type": "string"},
+    "questions": {"type": "array", "items": {"$ref": "#/$defs/question"}},
+    "content_hash": {"type": "string"}
+  },
+  "$defs": {
+    "question": {
+      "type": "object",
+      "required": ["id", "prompt", "answer_type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "prompt": {"type": "string", "minLength": 1},
+        "answer_type": {"type": "string", "enum": ["text", "single_select", "multi_select", "boolean", "number"]},
+        "required": {"type": "boolean", "default": false},
+        "options": {"type": "array", "items": {"type": "string"}},
+        "source_config": {"type": "string"},
+        "applies_when": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

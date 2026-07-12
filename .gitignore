@@ -4,6 +4,14 @@ scanner-config.yaml
 
 # Scanner output
 reports/
+.asvs-scanner/
+
+# Local proposal/output scratch files
+proposal*.json
+proposal*.md
+*.fr-catalog.draft.json
+*.fr-catalog.enriched.json
+*.assurance-framework.draft.json
 
 # Per-project scannerignore (copy .scannerignore.example into the target repo)
 .scannerignore

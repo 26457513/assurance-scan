@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-instance.schema.json",
+  "title": "Assurance Instance",
+  "description": "Project-specific role assignments, criterion mappings, waivers, compensating controls, approvals and decisions for an assurance framework.",
+  "type": "object",
+  "required": ["schema_version", "project", "assurance_framework"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "project": {"type": "string", "minLength": 1},
+    "assurance_framework": {"type": "string", "pattern": "^[A-Z][A-Z0-9_-]*(-[0-9]+)?$"},
+    "selected_profile": {"type": "string"},
+    "criterion_mappings": {"type": "array", "items": {"$ref": "#/$defs/criterion_mapping"}},
+    "role_assignments": {"type": "array", "items": {"$ref": "#/$defs/role_assignment"}},
+    "waivers": {"type": "array", "items": {"$ref": "#/$defs/waiver"}},
+    "compensating_controls": {"type": "array", "items": {"$ref": "#/$defs/compensating_control"}},
+    "decisions": {"type": "array", "items": {"$ref": "#/$defs/decision"}}
+  },
+  "$defs": {
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "instance_target": {
+      "type": "object",
+      "required": ["type", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["fr", "tbt", "evidence", "ruleset_row", "criterion", "gate", "role", "manual_artifact", "approval", "waiver", "compensating_control", "decision"]
+        },
+        "ref": {"type": "string", "minLength": 1},
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "row": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "ruleset_row"}}, "required": ["type"]},
+          "then": {"required": ["ruleset", "row"]}
+        }
+      ]
+    },
+    "criterion_mapping": {
+      "type": "object",
+      "required": ["criterion", "requirements"],
+      "additionalProperties": false,
+      "properties": {
+        "criterion": {"type": "string", "minLength": 1},
+        "requirements": {"type": "array", "items": {"$ref": "#/$defs/mapped_requirement"}},
+        "metadata": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "mapped_requirement": {
+      "type": "object",
+      "required": ["type", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "enum": ["fr", "tbt", "evidence", "ruleset_row", "manual_artifact", "approval", "waiver", "compensating_control", "decision"]},
+        "ref": {"type": "string", "minLength": 1},
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "row": {"type": "string"},
+        "evidence": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"type": {"const": "ruleset_row"}}, "required": ["type"]},
+          "then": {"required": ["ruleset", "row"]}
+        },
+        {
+          "if": {"properties": {"type": {"const": "manual_artifact"}}, "required": ["type"]},
+          "then": {"required": ["evidence"]}
+        }
+      ]
+    },
+    "role_assignment": {
+      "type": "object",
+      "required": ["gate", "role", "approval_status"],
+      "additionalProperties": false,
+      "properties": {
+        "gate": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "pattern": "^ROLE-[A-Z0-9_.-]+$"},
+        "party": {"type": "string"},
+        "approval_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
+        "approval_ref": {"type": "string"},
+        "approved_by": {"type": "string"},
+        "approved_at": {"type": "string", "format": "date-time"},
+        "signature_ref": {"type": "string"},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
+        "notes": {"type": "string"},
+        "metadata": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "waiver": {
+      "type": "object",
+      "required": ["id", "target", "reason", "approval_status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^WVR-[A-Za-z0-9_.-]+$"},
+        "target": {"type": "string", "minLength": 1},
+        "target_ref": {"$ref": "#/$defs/instance_target"},
+        "reason": {"type": "string", "minLength": 1},
+        "approval_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
+        "status_effect": {"type": "string", "enum": ["waived"], "default": "waived"},
+        "scope": {"type": "string"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "review_due_at": {"type": "string", "format": "date-time"},
+        "approved_by": {"type": "string"},
+        "approved_at": {"type": "string", "format": "date-time"},
+        "signature_ref": {"type": "string"},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
+        "notes": {"type": "string"},
+        "metadata": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "compensating_control": {
+      "type": "object",
+      "required": ["id", "target", "reason", "approval_status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^CMP-[A-Za-z0-9_.-]+$"},
+        "target": {"type": "string", "minLength": 1},
+        "target_ref": {"$ref": "#/$defs/instance_target"},
+        "reason": {"type": "string", "minLength": 1},
+        "control_description": {"type": "string"},
+        "approval_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
+        "status_effect": {"type": "string", "enum": ["compensating_control"], "default": "compensating_control"},
+        "scope": {"type": "string"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "review_due_at": {"type": "string", "format": "date-time"},
+        "approved_by": {"type": "string"},
+        "approved_at": {"type": "string", "format": "date-time"},
+        "signature_ref": {"type": "string"},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
+        "notes": {"type": "string"},
+        "metadata": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": ["id", "gate", "readiness_status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^DEC-[A-Za-z0-9_.-]+$"},
+        "gate": {"type": "string", "minLength": 1},
+        "criterion": {"type": "string"},
+        "readiness_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/readiness_status"},
+        "outcome": {"type": "string"},
+        "decided_by": {"type": "string"},
+        "decided_at": {"type": "string", "format": "date-time"},
+        "decision_ref": {"type": "string"},
+        "signature_ref": {"type": "string"},
+        "evidence_refs": {"$ref": "#/$defs/evidence_refs"},
+        "scope": {"type": "string"},
+        "notes": {"type": "string"},
+        "metadata": {"type": "object", "additionalProperties": true}
+      }
+    }
+  }
+}

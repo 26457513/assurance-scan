@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "DESIGN-DOC-example",
+  "project": "example-project",
+  "source_contract": "PLANNING-CONTRACT-example",
+  "source_contract_hash": "sha256:planning-contract-example",
+  "document_path": "design.md",
+  "document_hash": "sha256:design-md",
+  "sections_rendered": ["intent", "architecture", "assurance"],
+  "created_at": "2026-07-11T00:00:00Z"
+}

@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "project": "security-core-blueprints",
+  "generated_at": "2026-07-11T00:00:00Z",
+  "scope": {
+    "ASVS": {
+      "include_rows": [
+        "v5.0.0-7.1.1",
+        "v5.0.0-7.2.1",
+        "v5.0.0-7.2.4",
+        "v5.0.0-7.3.1",
+        "v5.0.0-7.4.1"
+      ],
+      "reason": "Reusable session-management assurance blueprint."
+    }
+  },
+  "na_rows": [],
+  "frs": [
+    {
+      "id": "FR-BP-ASVS-SESSION-MANAGEMENT-001",
+      "title": "Session timeout and re-authentication",
+      "lifecycle_status": "in_scope",
+      "category": "authentication",
+      "description": "The application must reject expired session credentials, expire inactive sessions, require re-authentication after session expiry, update activity timestamps safely, and deny or clean up expired or empty sessions.",
+      "assignments": [
+        {
+          "party": "auth-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {"ruleset": "ASVS", "row": "v5.0.0-7.1.1"},
+        {"ruleset": "ASVS", "row": "v5.0.0-7.2.1"},
+        {"ruleset": "ASVS", "row": "v5.0.0-7.2.4"},
+        {"ruleset": "ASVS", "row": "v5.0.0-7.3.1"},
+        {"ruleset": "ASVS", "row": "v5.0.0-7.4.1"}
+      ],
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "asvs-5.0.0",
+        "applicability_tags": ["web_app", "authenticated_sessions", "jwt", "session_management"],
+        "project_profile_hints": ["has_authentication", "has_session_state"]
+      }
+    }
+  ],
+  "tbts": [
+    {
+      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-A",
+      "title": "Expired session credential rejection",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
+      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.1.1"}],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-A"]}
+        }
+      ],
+      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+    },
+    {
+      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-B",
+      "title": "Inactivity timeout enforcement",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
+      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.2.1"}],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-B"]}
+        }
+      ],
+      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+    },
+    {
+      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-C",
+      "title": "Re-authentication after session expiry",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
+      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.2.4"}],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-C"]}
+        }
+      ],
+      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+    },
+    {
+      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-D",
+      "title": "Session activity and stale timestamp handling",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
+      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.3.1"}],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-D"]}
+        }
+      ],
+      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+    },
+    {
+      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-E",
+      "title": "Expired or empty session cleanup and denial",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
+      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.4.1"}],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-E"]}
+        }
+      ],
+      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+    }
+  ]
+}

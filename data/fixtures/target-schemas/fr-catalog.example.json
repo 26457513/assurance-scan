@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "project": "example-app",
+  "generated_at": "2026-07-06T00:00:00Z",
+  "scope": {
+    "ASVS": {
+      "levels": [
+        "L1"
+      ],
+      "include_rows": [
+        "v5.0.0-5.1.1"
+      ]
+    }
+  },
+  "na_rows": [],
+  "frs": [
+    {
+      "id": "FR-016",
+      "title": "Session timeout and re-authentication",
+      "lifecycle_status": "in_scope",
+      "category": "authentication",
+      "description": "The application must expire inactive sessions after the agreed timeout.",
+      "assignments": [
+        {
+          "party": "auth-team",
+          "responsibility": "owner",
+          "source": "example"
+        }
+      ],
+      "implemented_by": [
+        {
+          "type": "file",
+          "path": "src/session.ts",
+          "label": "Session manager"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.1.1"
+        }
+      ]
+    }
+  ],
+  "tbts": [
+    {
+      "id": "TBT-016-ASVS-A",
+      "title": "Session timeout integration test basis",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-016"
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "FR-016",
+              "TBT-016-ASVS-A"
+            ],
+            "paths": [
+              "VG_TEST_FRAMEWORK/tests/asvs/integration/**"
+            ]
+          }
+        }
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.1.1"
+        }
+      ]
+    },
+    {
+      "id": "TBT-016-ASVS-B",
+      "title": "Session configuration scanner support",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-016"
+      ],
+      "evidence_policy": "any_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "sarif",
+          "required": true,
+          "strength": "supporting",
+          "source": "semgrep",
+          "match": {
+            "rule_ids": [
+              "python.flask.security.injection"
+            ]
+          },
+          "notes": "Scanner no-findings can support but not prove runtime session timeout behaviour."
+        }
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.1.1"
+        }
+      ]
+    },
+    {
+      "id": "TBT-016-ASVS-C",
+      "title": "Session management policy review",
+      "type": "document_review",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-016"
+      ],
+      "evidence_policy": "manual_decision",
+      "expected_evidence": [
+        {
+          "type": "document",
+          "required": true,
+          "strength": "manual_review",
+          "match": {
+            "tags": [
+              "FR-016",
+              "TBT-016-ASVS-C"
+            ],
+            "paths": [
+              "docs/**session**",
+              "evidence/**session**"
+            ]
+          }
+        }
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.1.1"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-test-pack.schema.json",
+  "title": "ASVS Scanner Assurance Test Pack",
+  "description": "Ephemeral or commit-ready VG_TEST_FRAMEWORK manifest. Maps copied, wrapped, planned, and generated tests to TBT, FRs, ruleset rows, and assurance gates.",
+  "type": "object",
+  "required": ["schema_version", "name", "mode", "generated_at", "tests"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "name": {"type": "string", "const": "VG_TEST_FRAMEWORK"},
+    "mode": {"type": "string", "enum": ["ephemeral", "commit-ready"]},
+    "generated_at": {"type": "string"},
+    "target_dir": {"type": "string"},
+    "source_inventory": {"type": "string"},
+    "updated_at": {"type": "string"},
+    "summary": {
+      "type": "object",
+      "additionalProperties": {"type": "integer"}
+    },
+    "safety_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": {"type": "string", "const": "non_destructive"},
+        "project_mount": {"type": "string", "enum": ["read_only", "safe_worktree"]},
+        "network": {"type": "string"},
+        "writes_allowed": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/test"}
+    },
+    "generated_specifications": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/generated_specification"}
+    }
+  },
+  "$defs": {
+    "test": {
+      "type": "object",
+      "required": ["pack_id", "source", "type", "status", "assessment", "safety"],
+      "additionalProperties": false,
+      "properties": {
+        "pack_id": {"type": "string", "minLength": 1},
+        "tbt": {
+          "type": "string",
+          "pattern": "^TBT-[A-Za-z0-9_.-]+$",
+          "description": "Stable test-basis identifier, for example TBT-064. User-facing assurance references should use this field."
+        },
+        "frs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+          "uniqueItems": true
+        },
+        "title": {"type": "string"},
+        "source": {"type": "string", "enum": ["copied_native", "wrapper_needed", "planned_tbt", "generated"]},
+        "type": {"type": "string", "enum": ["unit", "integration", "e2e", "load", "scanner", "manual_review", "document_review", "approval", "test"]},
+        "runner": {"type": "string"},
+        "status": {"type": "string", "enum": ["copied", "planned", "generated", "ready_to_run", "executed", "deprecated"]},
+        "assessment": {
+          "type": "string",
+          "enum": ["useful_as_is", "useful_with_wrapper", "candidate_inspiration", "not_assurance_relevant", "needs_design"]
+        },
+        "safety": {"type": "string", "enum": ["non_destructive", "review_required", "destructive_disallowed"]},
+        "native_path": {"type": "string"},
+        "pack_path": {"type": "string"},
+        "ruleset_rows": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ruleset_row_ref"}
+        },
+        "mapping_review": {"$ref": "#/$defs/mapping_review"},
+        "assurance_gates": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^G[A-Za-z0-9_.-]+$"}
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "rationale": {"type": "string"},
+        "suggested_test": {"type": "string"}
+      }
+    },
+    "mapping_review": {
+      "type": "object",
+      "required": ["review_status", "reviewed_by", "reviewed_at", "operation", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "review_status": {"type": "string", "enum": ["accepted"]},
+        "reviewed_by": {"type": "string", "minLength": 1},
+        "reviewed_at": {"type": "string", "minLength": 1},
+        "operation": {"type": "string", "minLength": 1},
+        "source_basis": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "rationale": {"type": "string"},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      }
+    },
+    "generated_specification": {
+      "type": "object",
+      "required": ["tbt", "frs", "status", "evidence_state", "type", "runner", "spec_path", "ruleset_rows"],
+      "additionalProperties": false,
+      "properties": {
+        "tbt": {"type": "string", "pattern": "^TBT-[A-Za-z0-9_.-]+$"},
+        "frs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+          "uniqueItems": true
+        },
+        "status": {"type": "string", "const": "proposed_specification"},
+        "evidence_state": {"type": "string", "enum": ["missing", "partial", "failed"]},
+        "type": {"type": "string", "enum": ["unit", "integration", "e2e", "load", "scanner", "manual_review", "document_review", "approval", "test"]},
+        "runner": {"type": "string"},
+        "spec_path": {"type": "string"},
+        "ruleset_rows": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ruleset_row_ref"}
+        }
+      }
+    },
+    "ruleset_row_ref": {
+      "type": "object",
+      "required": ["ruleset", "row"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "row": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

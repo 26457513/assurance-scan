@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/agent-prompt-plan.schema.json",
+  "title": "Agent Prompt Plan",
+  "description": "Structured deficiencies, fix recommendations and assurance recommendations for generated agent prompts.",
+  "type": "object",
+  "required": ["schema_version", "project", "mode", "deficiencies"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "project": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "mode": {"type": "string", "enum": ["assessment_first", "wrapper_only", "generate_tests_explicit"]},
+    "deficiencies": {"type": "array", "items": {"$ref": "#/$defs/deficiency"}},
+    "fix_recommendations": {"type": "array", "items": {"$ref": "#/$defs/recommendation"}},
+    "assurance_recommendations": {"type": "array", "items": {"$ref": "#/$defs/recommendation"}},
+    "safety_rules": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "affected": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "frs": {"type": "array", "items": {"type": "string"}},
+        "tbts": {"type": "array", "items": {"type": "string"}},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "ruleset_rows": {"type": "array", "items": {"$ref": "#/$defs/ruleset_row_ref"}},
+        "gates": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "deficiency": {
+      "type": "object",
+      "required": ["id", "severity", "type", "summary", "affected"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^DEF-[A-Za-z0-9_.-]+$"},
+        "severity": {"type": "string", "enum": ["info", "low", "medium", "high", "critical"]},
+        "type": {"type": "string", "enum": ["missing_fr_mapping", "missing_tbt", "missing_evidence", "failed_evidence", "manual_review_required", "scanner_finding", "unscoped_ruleset_row"]},
+        "summary": {"type": "string", "minLength": 1},
+        "affected": {"$ref": "#/$defs/affected"},
+        "recommended_action": {"type": "string"}
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "required": ["id", "type", "summary", "affected"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^REC-[A-Za-z0-9_.-]+$"},
+        "type": {"type": "string", "enum": ["fix", "assess_existing_test", "wrapper_test", "new_test_recommended", "manual_evidence", "waiver_review"]},
+        "summary": {"type": "string", "minLength": 1},
+        "affected": {"$ref": "#/$defs/affected"},
+        "prompt_text": {"type": "string"},
+        "requires_explicit_test_generation_request": {"type": "boolean", "default": false}
+      }
+    },
+    "ruleset_row_ref": {
+      "type": "object",
+      "required": ["ruleset", "row"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "row": {"type": "string"}
+      }
+    }
+  }
+}

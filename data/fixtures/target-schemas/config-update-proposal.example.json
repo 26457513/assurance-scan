@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "mode": "config_update_proposal",
+  "project": "example-app",
+  "run_id": "20260706T000000Z_example",
+  "generated_at": "2026-07-06T00:00:00Z",
+  "source_inputs": [
+    {
+      "path": "dashboard-payload.json",
+      "kind": "report_artifact",
+      "used_for": "Traceability graph and unresolved TBT state"
+    },
+    {
+      "path": "fr-catalog.snapshot.json",
+      "kind": "fr_catalog",
+      "used_for": "Existing FR and TBT identifiers"
+    }
+  ],
+  "fr_catalog_updates": [
+    {
+      "operation": "update_tbt",
+      "fr_id": "FR-016",
+      "tbt_id": "TBT-016-ASVS-A",
+      "review_status": "proposed",
+      "proposed_fields": {
+        "expected_evidence": [
+          {
+            "type": "test_result",
+            "format": "junit",
+            "required": true,
+            "strength": "strong",
+            "match": {
+              "tags": ["FR-016", "TBT-016-ASVS-A"],
+              "paths": ["VG_TEST_FRAMEWORK/tests/asvs/integration/**"]
+            }
+          }
+        ]
+      },
+      "source_basis": [
+        {
+          "type": "fr_catalog",
+          "ref": "fr-catalog.snapshot.json#/tbts/TBT-016-ASVS-A"
+        }
+      ],
+      "rationale": "The existing TBT is an integration test basis, so the expected evidence should be a JUnit-style integration test result tagged with the FR and TBT.",
+      "confidence": "high"
+    }
+  ],
+  "compliance_mapping_pack_updates": [
+    {
+      "operation": "add_mapping",
+      "ruleset": "ASVS",
+      "ruleset_version": "5.0.0",
+      "row_id": "v5.0.0-5.1.1",
+      "fr_refs": ["FR-016"],
+      "tbt_refs": ["TBT-016-ASVS-A"],
+      "sufficiency": {
+        "required_evidence": [
+          {"type": "test_result", "minimum_strength": "strong"}
+        ],
+        "scanner_only_sufficient": false,
+        "manual_review_required": false,
+        "waiver_allowed": true,
+        "compensating_control_allowed": true
+      },
+      "review_status": "proposed",
+      "source_basis": [
+        {
+          "type": "ruleset_row",
+          "ref": "ruleset.example.json#/rows/v5.0.0-5.1.1"
+        },
+        {
+          "type": "fr_catalog",
+          "ref": "fr-catalog.example.json#/frs/FR-016"
+        }
+      ],
+      "rationale": "The ASVS row concerns secure session behaviour and is directly supported by the FR session timeout obligation.",
+      "confidence": "medium"
+    }
+  ],
+  "assurance_framework_or_instance_updates": [],
+  "manual_evidence_updates": [
+    {
+      "operation": "add_expected_manual_evidence",
+      "target": {"kind": "tbt", "id": "TBT-016-ASVS-C"},
+      "evidence_type": "document",
+      "proposed_fields": {
+        "paths": ["docs/**session**", "evidence/**session**"],
+        "minimum_strength": "manual_review"
+      },
+      "review_status": "proposed",
+      "source_basis": [
+        {
+          "type": "fr_catalog",
+          "ref": "fr-catalog.example.json#/tbts/TBT-016-ASVS-C"
+        }
+      ],
+      "rationale": "The document-review TBT requires observed manual evidence rather than generated test code.",
+      "confidence": "high"
+    }
+  ],
+  "native_test_mapping_updates": [
+    {
+      "operation": "map_native_test_to_existing_tbt",
+      "native_test": {
+        "pack_id": "NATIVE-tests-session-timeout",
+        "native_path": "tests/session_timeout.test.js",
+        "pack_path": "generated-tests/VG_TEST_FRAMEWORK/imported/tests/session_timeout.test.js"
+      },
+      "target": {
+        "fr": "FR-016",
+        "tbt": "TBT-016-ASVS-A"
+      },
+      "review_status": "proposed",
+      "source_basis": [
+        {
+          "type": "native_test",
+          "ref": "tests/session_timeout.test.js"
+        }
+      ],
+      "rationale": "The native test exercises session timeout behaviour and can be mapped to the existing integration TBT after review.",
+      "confidence": "medium"
+    }
+  ],
+  "uncertain_mappings": [
+    {
+      "kind": "ruleset_row_to_tbt",
+      "refs": ["ASVS v5.0.0-5.1.1", "TBT-016-ASVS-B"],
+      "candidates": ["supporting evidence only", "manual review required"],
+      "question": "Should scanner support be allowed for this row at all?",
+      "why": "The scanner rule is not specific to session timeout semantics."
+    }
+  ],
+  "review_required": [
+    {
+      "item": "ASVS v5.0.0-5.1.1",
+      "question": "Should FR-016 require both TBT-016-ASVS-A and TBT-016-ASVS-C before this row can be satisfied?",
+      "why": "The answer depends on the assessor's desired assurance strictness."
+    }
+  ]
+}

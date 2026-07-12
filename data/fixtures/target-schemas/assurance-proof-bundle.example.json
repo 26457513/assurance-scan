@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "mode": "assurance_proof_bundle",
+  "bundle_type": "selective_disclosure_v1",
+  "generated_at": "2026-07-09T00:00:00Z",
+  "claim": {
+    "schema_version": 1,
+    "mode": "assurance_claim",
+    "claim_type": "tbt_satisfied",
+    "target": "TBT-016-ASVS-A",
+    "claim_result": "satisfied",
+    "generated_at": "2026-07-09T00:00:00Z",
+    "project": "example-project",
+    "run_id": "20260709T000000Z_example",
+    "graph_manifest": {
+      "path": "graph-manifest.json",
+      "sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "graph_root_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "accepted_config_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "public_inputs": {
+      "dashboard_payload_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "evidence_bundle_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "evidence_manifest_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "accepted_config_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "graph_root_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "evaluation": {
+      "target_node_id": "test:TBT-016-ASVS-A",
+      "target_status": "passed",
+      "satisfied": true,
+      "reasons": [
+        "TBT-016-ASVS-A has sufficient passing evidence."
+      ],
+      "evidence_refs": [
+        "EVD-TBT-016-ASVS-A"
+      ],
+      "scanner_blockers": []
+    }
+  },
+  "claim_hash": "sha256:8c2e95d97c79de8432dbf448617902d24a3bc4e534f71d58cebaf6d031a58258",
+  "public_commitments": {
+    "graph_manifest_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "graph_root_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "accepted_config_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "evidence_bundle_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "evidence_manifest_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "dashboard_payload_hash": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "evidence_commitments": [
+    {
+      "id": "EVD-TBT-016-ASVS-A",
+      "type": "test_result",
+      "produced_by": "TBT-016-ASVS-A",
+      "result_status": "passed",
+      "record_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "artifact_hashes": [
+        {
+          "path": "reports/junit.xml",
+          "sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "bytes": 123,
+          "format": "junit"
+        }
+      ]
+    }
+  ],
+  "openings": []
+}

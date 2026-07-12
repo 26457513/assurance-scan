@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-fr-board-state.schema.json",
+  "title": "Project FR Board State",
+  "description": "Report-local review board state for FR/TBT workflow decisions. This artifact preserves lane placement and human review intent outside browser-local state.",
+  "type": "object",
+  "required": ["schema_version", "mode", "project", "run_id", "generated_at", "cards"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "mode": {"type": "string", "const": "project_fr_board_state"},
+    "project": {"type": "string"},
+    "run_id": {"type": "string"},
+    "generated_at": {"type": "string"},
+    "cards": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/card"},
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "lane": {
+      "type": "string",
+      "enum": ["map", "recommended", "specify", "review", "import", "blocked"]
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "",
+        "accept_recommendation",
+        "remap_as_orphan",
+        "leave_unmapped",
+        "mark_not_assurance_relevant",
+        "needs_new_tbt_fr",
+        "approve_for_implementation",
+        "approve_to_run",
+        "send_back_to_review",
+        "blocked"
+      ]
+    },
+    "card": {
+      "type": "object",
+      "required": ["id", "lane", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "lane": {"$ref": "#/$defs/lane"},
+        "source": {"type": "string"},
+        "title": {"type": "string"},
+        "native_path": {"type": "string"},
+        "pack_path": {"type": "string"},
+        "tbt": {"type": "string"},
+        "frs": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "target": {"type": "string"},
+        "recommendation": {"type": "string"},
+        "decision": {"$ref": "#/$defs/decision"},
+        "reviewer_note": {"type": "string"},
+        "manual_test_path": {"type": "string"},
+        "agentic_rationale": {"type": "string"},
+        "discovery_rationale": {"type": "string"},
+        "confidence": {"type": "string"},
+        "type": {"type": "string"},
+        "status": {"type": "string"},
+        "assessment": {"type": "string"},
+        "safety": {"type": "string"},
+        "updated_at": {"type": "string"}
+      }
+    }
+  }
+}

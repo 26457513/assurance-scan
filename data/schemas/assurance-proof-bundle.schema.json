@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-proof-bundle.schema.json",
+  "title": "Assurance Proof Bundle",
+  "description": "Selective-disclosure bundle for a verified assurance claim, public commitments, selected evidence commitments and optional artifact openings.",
+  "type": "object",
+  "required": ["schema_version", "mode", "bundle_type", "generated_at", "claim", "claim_hash", "public_commitments", "evidence_commitments", "openings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "mode": {"const": "assurance_proof_bundle"},
+    "bundle_type": {"const": "selective_disclosure_v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "claim": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-claim.schema.json"},
+    "claim_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "public_commitments": {
+      "type": "object",
+      "required": ["graph_manifest_hash", "graph_root_hash", "accepted_config_hash", "evidence_bundle_hash", "evidence_manifest_hash", "dashboard_payload_hash"],
+      "additionalProperties": true,
+      "properties": {
+        "graph_manifest_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "graph_root_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "accepted_config_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "evidence_bundle_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "evidence_manifest_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "dashboard_payload_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "evidence_commitments": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidence_commitment"}
+    },
+    "openings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/opening"}
+    }
+  },
+  "$defs": {
+    "evidence_commitment": {
+      "type": "object",
+      "required": ["id", "type", "produced_by", "result_status", "record_hash"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {"type": "string"},
+        "type": {"type": "string"},
+        "produced_by": {"type": "string"},
+        "result_status": {"type": "string"},
+        "record_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "artifact_hashes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/artifact_commitment"}
+        }
+      }
+    },
+    "artifact_commitment": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "additionalProperties": true,
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "format": {"type": "string"},
+        "media_type": {"type": "string"},
+        "locator": {"type": "string"}
+      }
+    },
+    "opening": {
+      "type": "object",
+      "required": ["path", "sha256", "bytes", "encoding", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "encoding": {"const": "base64"},
+        "media_type": {"type": "string"},
+        "content": {"type": "string"}
+      }
+    }
+  }
+}

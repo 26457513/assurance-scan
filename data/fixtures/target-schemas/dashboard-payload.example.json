@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "project": "example-app",
+  "generated_at": "2026-07-06T00:00:00Z",
+  "inputs": {
+    "fr_catalog": "fr-catalog.json",
+    "assurance_framework": "assurance-framework.jsp-453.json",
+    "assurance_instance": "assurance-instance.jsp-453.json",
+    "evidence_bundle": "evidence-bundle.json"
+  },
+  "summary": {
+    "frs": 1,
+    "tbts": 1,
+    "evidence": 1
+  },
+  "ruleset_views": {},
+  "fr_catalog_view": {},
+  "graph": {
+    "nodes": [
+      {"id": "FR-016", "type": "fr", "label": "Session timeout and re-authentication"},
+      {"id": "TBT-016-ASVS-A", "type": "tbt", "label": "Session timeout integration test basis"},
+      {"id": "EVD-016-A", "type": "evidence", "label": "Missing JUnit evidence", "status": "missing"}
+    ],
+    "edges": [
+      {"source": "TBT-016-ASVS-A", "target": "FR-016", "type": "proves"},
+      {"source": "EVD-016-A", "target": "TBT-016-ASVS-A", "type": "produced_by"}
+    ]
+  },
+  "assurance_views": {},
+  "deficiencies": [
+    {
+      "id": "DEF-001",
+      "severity": "high",
+      "type": "missing_evidence",
+      "summary": "TBT-016-ASVS-A has no passing evidence."
+    }
+  ]
+}

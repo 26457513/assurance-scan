@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IMAGE_BUNDLE_DIR="${ASVS_IMAGE_BUNDLE_DIR:-/opt/asvs-scanner}"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+DEFAULT_IMAGE_BUNDLE_DIR="/opt/asvs-scanner"
+if [ ! -d "$DEFAULT_IMAGE_BUNDLE_DIR" ]; then
+  DEFAULT_IMAGE_BUNDLE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
+IMAGE_BUNDLE_DIR="${ASVS_IMAGE_BUNDLE_DIR:-$DEFAULT_IMAGE_BUNDLE_DIR}"
 
 if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
   C_RESET=$'\033[0m'
@@ -66,7 +72,23 @@ usage() {
 ASVS Scanner
 
 Usage:
-  asvs-scanner scan <host-project-dir> [--image <name>]... [--url <url>]... [--uploads <host-dir>]... [--no-auto-build-images]
+  asvs-scanner scan <host-project-dir> [--image <name>]... [--url <url>]... [--uploads <host-dir>]... [--fr-catalog <json>] [--compliance-mapping-pack <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--assurance-framework <json>] [--assurance-instance <json>] [--no-auto-build-images]
+  asvs-scanner validate-report <report-dir> [--strict]
+  asvs-scanner validate-scanner-compliance-mappings [path-or-dir]...
+  asvs-scanner propose-blueprint-frs --project <id> --blueprint <fr-catalog.json> --output <proposal.json> [--config-selection <json>] [--include-all]
+  asvs-scanner blueprint-decisions-to-config-update --project <id> --run-id <id> --proposal <json> --decisions <json> --blueprint <fr-catalog.json> --output <proposal.json>
+  asvs-scanner validate-config-update <proposal.json> [validator flags]
+  asvs-scanner review-config-update <proposal.json> [--output <review.md>]
+  asvs-scanner apply-config-update <proposal.json> --select <section:index> --reviewed-by <name> [apply flags]
+  asvs-scanner generate-missing-tests <report-dir>
+  asvs-scanner promote-assurance-specs <report-dir> [--tbt TBT-018]...
+  asvs-scanner run-approved-tests <report-dir> --tbt TBT-018 [--source-repo <dir>]
+  asvs-scanner refresh-approved-test-evidence <report-dir> [--junit-xml <file>]
+  asvs-scanner update-project-fr-board-state <report-dir> [--state-json <json> | --validate-only] [--refresh-dashboard]
+  asvs-scanner export-assurance-claim <report-dir> --claim-type <type> --target <id>
+  asvs-scanner verify-assurance-claim <claim.json> --report-dir <report-dir>
+  asvs-scanner export-assurance-proof-bundle <claim.json> --report-dir <report-dir>
+  asvs-scanner verify-assurance-proof-bundle <bundle.json> [--report-dir <report-dir>]
   asvs-scanner safe-image-worktree <host-project-dir> [branch-name]
   asvs-scanner prefetch [--only trivy,grype,osv,clamav]
   asvs-scanner help
@@ -79,6 +101,36 @@ Docker image example:
     -v "$(dirname "$PWD"):$(dirname "$PWD")" \
     -w "$PWD" \
     asvs-scanner:latest scan "$PWD"
+
+Useful scan flags:
+  --fr-catalog <json>             Project FR/TBT catalog for traceability
+  --compliance-mapping-pack <json> Ruleset row to FR/TBT sufficiency mappings
+  --scanner-compliance-mapping-pack <json-or-dir>
+                                  Scanner result to compliance-row evidence mappings
+  --assurance-framework <json>    Gate/role/criterion framework such as JSP-453
+  --assurance-instance <json>     Project mappings, role assignments and decisions
+  --junit-xml <file>              Existing test execution evidence to import
+
+Config proposal workflow:
+  validate-scanner-compliance-mappings
+                                  Validate scanner rule/finding to compliance-row mapping packs
+  propose-blueprint-frs           Propose reusable blueprint FR/TBT chains for project review
+  blueprint-decisions-to-config-update
+                                  Convert accepted blueprint decisions to config-update proposal JSON
+  validate-config-update           Validate agent-authored config proposal JSON
+  review-config-update             Render a human review brief for a proposal
+  apply-config-update              Apply selected reviewed entries to explicit output files
+    Use --assurance-framework with --assurance-instance-out to validate gate, role and criterion references.
+    Use --assurance-test-pack with --assurance-test-pack-out to accept reviewed native-test mappings.
+  generate-missing-tests           Generate report-local TBT assurance test specifications without claiming evidence
+  promote-assurance-specs          Promote selected TBT specs into review-required report-local test scaffolds
+  run-approved-tests               Run ready-to-run ASVS tests and emit JUnit XML for import
+  refresh-approved-test-evidence   Refresh current report graphs from approved-test JUnit without a full scan
+  update-project-fr-board-state    Save or validate report-local Project FR board decisions
+  export-assurance-claim           Export a hash-bound typed claim from graph-manifest.json
+  verify-assurance-claim           Verify a typed claim against graph-manifest.json and dashboard-payload.json
+  export-assurance-proof-bundle    Export a selective-disclosure proof bundle for a claim
+  verify-assurance-proof-bundle    Verify a proof bundle and optional disclosed openings
 
 Mount the parent directory at the same absolute path inside the container. The
 scanner creates a fresh ASVS Git worktree beside the repo and scans that copy.
@@ -510,6 +562,34 @@ Mount it at the same absolute path, for example:
           export ASVS_FR_CATALOG="$catalog_path"
           shift 2
           ;;
+        --compliance-mapping-pack)
+          [ "${2:-}" != "" ] || die "--compliance-mapping-pack requires a JSON path"
+          compliance_mapping_path="$(to_abs_path "$2")"
+          [ -f "$compliance_mapping_path" ] || die "--compliance-mapping-pack file not found: $compliance_mapping_path"
+          export ASVS_COMPLIANCE_MAPPING_PACK="$compliance_mapping_path"
+          shift 2
+          ;;
+        --scanner-compliance-mapping-pack)
+          [ "${2:-}" != "" ] || die "--scanner-compliance-mapping-pack requires a JSON path or directory"
+          scanner_compliance_mapping_path="$(to_abs_path "$2")"
+          [ -e "$scanner_compliance_mapping_path" ] || die "--scanner-compliance-mapping-pack path not found: $scanner_compliance_mapping_path"
+          rewritten_args+=("--scanner-compliance-mapping-pack" "$scanner_compliance_mapping_path")
+          shift 2
+          ;;
+        --assurance-framework)
+          [ "${2:-}" != "" ] || die "--assurance-framework requires a JSON path"
+          assurance_framework_path="$(to_abs_path "$2")"
+          [ -f "$assurance_framework_path" ] || die "--assurance-framework file not found: $assurance_framework_path"
+          export ASVS_ASSURANCE_FRAMEWORK="$assurance_framework_path"
+          shift 2
+          ;;
+        --assurance-instance)
+          [ "${2:-}" != "" ] || die "--assurance-instance requires a JSON path"
+          assurance_instance_path="$(to_abs_path "$2")"
+          [ -f "$assurance_instance_path" ] || die "--assurance-instance file not found: $assurance_instance_path"
+          export ASVS_ASSURANCE_INSTANCE="$assurance_instance_path"
+          shift 2
+          ;;
         --junit-xml)
           [ "${2:-}" != "" ] || die "--junit-xml requires a file path"
           junit_path="$(to_abs_path "$2")"
@@ -571,6 +651,122 @@ Mount it at the same absolute path, for example:
     shift
     branch_name="${1:-}"
     safe_image_worktree "$target_dir" "$branch_name"
+    ;;
+  validate-report)
+    [ "${1:-}" != "" ] || die "validate-report requires a report directory"
+    report_dir="$(to_abs_path "$1")"
+    shift
+    [ -d "$report_dir" ] || die "report directory not found: $report_dir"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/validate-report-artifacts.py" --report-dir "$report_dir" "$@"
+    ;;
+  validate-scanner-compliance-mappings)
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/validate-scanner-compliance-mappings.py" "$@"
+    ;;
+  propose-blueprint-frs)
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/propose-blueprint-frs.py" "$@"
+    ;;
+  blueprint-decisions-to-config-update)
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/blueprint-decisions-to-config-update.py" "$@"
+    ;;
+  validate-config-update)
+    [ "${1:-}" != "" ] || die "validate-config-update requires a proposal JSON file"
+    proposal_path="$(to_abs_path "$1")"
+    shift
+    [ -f "$proposal_path" ] || die "proposal JSON not found: $proposal_path"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/validate-config-update-proposal.py" "$proposal_path" "$@"
+    ;;
+  review-config-update)
+    [ "${1:-}" != "" ] || die "review-config-update requires a proposal JSON file"
+    proposal_path="$(to_abs_path "$1")"
+    shift
+    [ -f "$proposal_path" ] || die "proposal JSON not found: $proposal_path"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/review-config-update-proposal.py" "$proposal_path" "$@"
+    ;;
+  apply-config-update)
+    [ "${1:-}" != "" ] || die "apply-config-update requires a proposal JSON file"
+    proposal_path="$(to_abs_path "$1")"
+    shift
+    [ -f "$proposal_path" ] || die "proposal JSON not found: $proposal_path"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/apply-config-update-proposal.py" "$proposal_path" "$@"
+    ;;
+  generate-missing-tests)
+    [ "${1:-}" != "" ] || die "generate-missing-tests requires a report directory"
+    report_dir="$(to_abs_path "$1")"
+    shift
+    [ -d "$report_dir" ] || die "report directory not found: $report_dir"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/generate-missing-assurance-tests.py" --report-dir "$report_dir" "$@"
+    ;;
+  promote-assurance-specs)
+    [ "${1:-}" != "" ] || die "promote-assurance-specs requires a report directory"
+    report_dir="$(to_abs_path "$1")"
+    shift
+    [ -d "$report_dir" ] || die "report directory not found: $report_dir"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/promote-assurance-specs.py" --report-dir "$report_dir" "$@"
+    ;;
+  run-approved-tests)
+    [ "${1:-}" != "" ] || die "run-approved-tests requires a report directory"
+    report_dir="$(to_abs_path "$1")"
+    shift
+    [ -d "$report_dir" ] || die "report directory not found: $report_dir"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/run-approved-tests.py" "$report_dir" "$@"
+    ;;
+  refresh-approved-test-evidence)
+    [ "${1:-}" != "" ] || die "refresh-approved-test-evidence requires a report directory"
+    report_dir="$(to_abs_path "$1")"
+    shift
+    [ -d "$report_dir" ] || die "report directory not found: $report_dir"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/refresh-approved-test-evidence.py" "$report_dir" "$@"
+    ;;
+  update-project-fr-board-state)
+    [ "${1:-}" != "" ] || die "update-project-fr-board-state requires a report directory"
+    report_dir="$(to_abs_path "$1")"
+    shift
+    [ -d "$report_dir" ] || die "report directory not found: $report_dir"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/update-project-fr-board-state.py" "$report_dir" "$@"
+    ;;
+  export-assurance-claim)
+    [ "${1:-}" != "" ] || die "export-assurance-claim requires a report directory"
+    report_dir="$(to_abs_path "$1")"
+    shift
+    [ -d "$report_dir" ] || die "report directory not found: $report_dir"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/export-assurance-claim.py" "$report_dir" "$@"
+    ;;
+  verify-assurance-claim)
+    [ "${1:-}" != "" ] || die "verify-assurance-claim requires a claim JSON file"
+    claim_path="$(to_abs_path "$1")"
+    shift
+    [ -f "$claim_path" ] || die "claim JSON not found: $claim_path"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/verify-assurance-claim.py" "$claim_path" "$@"
+    ;;
+  export-assurance-proof-bundle)
+    [ "${1:-}" != "" ] || die "export-assurance-proof-bundle requires a claim JSON file"
+    claim_path="$(to_abs_path "$1")"
+    shift
+    [ -f "$claim_path" ] || die "claim JSON not found: $claim_path"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/export-assurance-proof-bundle.py" "$claim_path" "$@"
+    ;;
+  verify-assurance-proof-bundle)
+    [ "${1:-}" != "" ] || die "verify-assurance-proof-bundle requires a bundle JSON file"
+    bundle_path="$(to_abs_path "$1")"
+    shift
+    [ -f "$bundle_path" ] || die "bundle JSON not found: $bundle_path"
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/verify-assurance-proof-bundle.py" "$bundle_path" "$@"
     ;;
   prefetch)
     runtime_dir="$(ensure_runtime)"

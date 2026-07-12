@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/scanner-compliance-mapping-pack.schema.json",
+  "title": "Scanner Compliance Mapping Pack",
+  "description": "Versioned mappings from concrete scanner findings to versioned compliance rows or domains. These packs are scanner/regime configuration only; project FR mappings are resolved later through the project FR/TBT catalog.",
+  "type": "object",
+  "required": ["schema_version", "pack", "scanner", "compliance", "mappings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "pack": {"$ref": "#/$defs/pack"},
+    "scanner": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+    "scanner_version": {"type": "string"},
+    "scanner_rule_source": {"$ref": "#/$defs/source"},
+    "compliance": {"$ref": "#/$defs/compliance"},
+    "mappings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/mapping"}
+    }
+  },
+  "$defs": {
+    "pack": {
+      "type": "object",
+      "required": ["pack_id", "pack_version", "created_at", "updated_at", "generator"],
+      "additionalProperties": false,
+      "properties": {
+        "pack_id": {"type": "string", "minLength": 1},
+        "pack_version": {"type": "string", "minLength": 1},
+        "created_at": {"type": "string", "format": "date-time"},
+        "updated_at": {"type": "string", "format": "date-time"},
+        "generator": {"type": "string", "minLength": 1},
+        "source_hash": {"type": "string"},
+        "input_artifacts": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/input_artifact"}
+        }
+      }
+    },
+    "input_artifact": {
+      "type": "object",
+      "required": ["kind", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "version": {"type": "string"},
+        "hash": {"type": "string"}
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"type": "string", "enum": ["scanner_rule_catalog", "scanner_output_format", "scanner_documentation", "manual_curation", "mixed"]},
+        "ref": {"type": "string", "minLength": 1},
+        "version": {"type": "string"},
+        "hash": {"type": "string"},
+        "retrieved_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "required": ["ruleset", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "version": {"type": "string", "minLength": 1},
+        "source_ref": {"type": "string"}
+      }
+    },
+    "mapping": {
+      "type": "object",
+      "required": ["id", "review_status", "mapping_level", "traceability_strength", "assurance_effect", "rule_selectors", "targets", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "reviewed_by": {"type": ["string", "null"]},
+        "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+        "review_decision": {"type": ["string", "null"]},
+        "review_notes": {"type": ["string", "null"]},
+        "mapping_level": {"$ref": "#/$defs/mapping_level"},
+        "traceability_strength": {"$ref": "#/$defs/traceability_strength"},
+        "assurance_effect": {"$ref": "#/$defs/assurance_effect"},
+        "rule_selectors": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/rule_selector"}
+        },
+        "targets": {"$ref": "#/$defs/targets"},
+        "limitations": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "source_basis": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_basis"}
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      }
+    },
+    "targets": {
+      "type": "object",
+      "required": ["compliance_rows", "compliance_domains"],
+      "additionalProperties": false,
+      "properties": {
+        "compliance_rows": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/ruleset_row_ref"}
+        },
+        "compliance_domains": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/compliance_domain_ref"}
+        }
+      }
+    },
+    "rule_selector": {
+      "type": "object",
+      "required": ["type", "value", "output_field"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "enum": ["exact", "glob", "prefix", "category", "cve"]},
+        "value": {"type": "string", "minLength": 1},
+        "output_field": {"type": "string", "minLength": 1},
+        "description": {"type": "string"}
+      }
+    },
+    "ruleset_row_ref": {
+      "type": "object",
+      "required": ["ruleset", "row"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "row": {"type": "string", "minLength": 1}
+      }
+    },
+    "compliance_domain_ref": {
+      "type": "object",
+      "required": ["ruleset", "domain"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "domain": {"type": "string", "minLength": 1},
+        "label": {"type": "string"}
+      }
+    },
+    "source_basis": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": true,
+      "properties": {
+        "kind": {"type": "string", "minLength": 1}
+      }
+    },
+    "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+    "mapping_level": {
+      "type": "string",
+      "enum": ["compliance_row", "compliance_domain", "general_finding"]
+    },
+    "traceability_strength": {
+      "type": "string",
+      "enum": ["direct", "advisory", "unmapped"]
+    },
+    "assurance_effect": {
+      "type": "string",
+      "enum": ["blocking_if_finding", "supporting_signal", "review_signal", "inventory_only"]
+    },
+    "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+  }
+}

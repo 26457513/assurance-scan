@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "CODE-GENERATOR-HANDOFF-example",
+  "project": "example-project",
+  "source_contract": "PLANNING-CONTRACT-example",
+  "source_contract_hash": "sha256:planning-contract-example",
+  "source_design": "DESIGN-DOC-example",
+  "tasks": [
+    {"id": "TASK-001", "title": "Implement session expiry"}
+  ],
+  "gates": [
+    {"id": "GATE-TEST", "command": "run approved assurance tests"}
+  ],
+  "evidence_expectations": [
+    {"type": "test_result", "tbt": "TBT-001"}
+  ],
+  "content_hash": "sha256:code-generator-handoff-example"
+}

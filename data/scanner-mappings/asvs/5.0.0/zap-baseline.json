@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "zap-baseline-asvs-v5.0.0",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-08T00:00:00Z",
+    "updated_at": "2026-07-08T00:00:00Z",
+    "generator": "manual-curation",
+    "input_artifacts": [
+      {
+        "kind": "scanner_documentation",
+        "path": "https://www.zaproxy.org/docs/alerts/"
+      },
+      {
+        "kind": "ruleset",
+        "path": "data/rulesets/asvs/5.0.0.json",
+        "version": "5.0.0"
+      }
+    ]
+  },
+  "scanner": "zap-baseline",
+  "scanner_version": "zap-addons-specific",
+  "scanner_rule_source": {
+    "kind": "scanner_documentation",
+    "ref": "https://www.zaproxy.org/docs/alerts/",
+    "version": "zap-addons-specific"
+  },
+  "compliance": {
+    "ruleset": "ASVS",
+    "version": "5.0.0",
+    "source_ref": "data/rulesets/asvs/5.0.0.json"
+  },
+  "mappings": [
+    {
+      "id": "SCM-ZAP-ASVS-5-COOKIE-FLAGS",
+      "review_status": "accepted",
+      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "ZAP cookie alerts are runtime signals for cookie setup controls.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "10010",
+          "output_field": "pluginId"
+        },
+        {
+          "type": "exact",
+          "value": "10011",
+          "output_field": "pluginId"
+        },
+        {
+          "type": "glob",
+          "value": "*SameSite*",
+          "output_field": "name"
+        }
+      ],
+      "limitations": [
+        "ZAP only observes crawled responses and cookies."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_documentation",
+          "ref": "ZAP alert IDs 10010/10011"
+        }
+      ],
+      "rationale": "Cookie flag findings are directly relevant to ASVS cookie setup controls.",
+      "confidence": "high",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.4"
+          }
+        ],
+        "compliance_domains": []
+      }
+    },
+    {
+      "id": "SCM-ZAP-ASVS-5-BROWSER-HEADERS",
+      "review_status": "accepted",
+      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "ZAP header alerts complement the dedicated security-headers scanner.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "10020",
+          "output_field": "pluginId"
+        },
+        {
+          "type": "exact",
+          "value": "10021",
+          "output_field": "pluginId"
+        },
+        {
+          "type": "glob",
+          "value": "*Content Security Policy*",
+          "output_field": "name"
+        }
+      ],
+      "limitations": [
+        "Crawling scope and authenticated coverage determine whether no-findings are meaningful."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_documentation",
+          "ref": "ZAP alert reference"
+        }
+      ],
+      "rationale": "Runtime missing-header alerts map to ASVS browser header controls.",
+      "confidence": "medium",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.3"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.4"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.6"
+          }
+        ],
+        "compliance_domains": []
+      }
+    },
+    {
+      "id": "SCM-ZAP-ASVS-5-INFO-LEAKAGE",
+      "review_status": "accepted",
+      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "Information disclosure findings can block unintended leakage controls pending triage.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "2",
+          "output_field": "pluginId"
+        },
+        {
+          "type": "exact",
+          "value": "10023",
+          "output_field": "pluginId"
+        },
+        {
+          "type": "exact",
+          "value": "10024",
+          "output_field": "pluginId"
+        },
+        {
+          "type": "glob",
+          "value": "*Information Disclosure*",
+          "output_field": "name"
+        }
+      ],
+      "limitations": [
+        "Information disclosure severity depends on target context."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_documentation",
+          "ref": "ZAP alert reference"
+        }
+      ],
+      "rationale": "Information leakage alerts are relevant to ASVS unintended information leakage and error handling controls.",
+      "confidence": "medium",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-13.4.5"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-13.4.6"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-16.5.1"
+          }
+        ],
+        "compliance_domains": []
+      }
+    }
+  ]
+}

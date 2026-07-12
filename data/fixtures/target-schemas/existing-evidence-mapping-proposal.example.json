@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "EXISTING-EVIDENCE-example",
+  "status": "review_required",
+  "project": "example-project",
+  "proposals": [
+    {
+      "id": "MAP-existing-test",
+      "evidence_ref": "tests/auth/session.test.js",
+      "target_fr": "FR-001",
+      "target_tbt": "TBT-001",
+      "review_status": "proposed",
+      "rationale": "The discovered test appears to exercise session expiry.",
+      "confidence": "medium"
+    }
+  ],
+  "content_hash": "sha256:existing-evidence-example"
+}

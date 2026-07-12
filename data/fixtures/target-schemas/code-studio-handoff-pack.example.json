@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "CODE-STUDIO-HANDOFF-example",
+  "project": "example-project",
+  "source_contract": "PLANNING-CONTRACT-example",
+  "source_contract_hash": "sha256:planning-contract-example",
+  "context": {
+    "intent": "Authenticated auditable web application",
+    "accepted_frs": ["FR-001"]
+  },
+  "fixed_constraints": ["Use approved architecture pattern"],
+  "open_questions": [],
+  "content_hash": "sha256:code-studio-handoff-example"
+}

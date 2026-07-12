@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "BLUEPRINT-DECISIONS-example",
+  "project": "example-project",
+  "proposal": "BLUEPRINT-PROPOSAL-example",
+  "decisions": [
+    {
+      "candidate": "CANDIDATE-session-timeout",
+      "decision": "accepted_as_is",
+      "reviewed_by": "security-team",
+      "reviewed_at": "2026-07-11T00:00:00Z",
+      "reason": "Session assurance is required.",
+      "config_update_selector": "fr_catalog_updates:1"
+    }
+  ],
+  "content_hash": "sha256:blueprint-decisions-example"
+}

@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/graph-manifest.schema.json",
+  "title": "Graph Proof Manifest",
+  "description": "Binds a generated runtime graph to source config, evidence artifacts, hashes, tool versions and supported assurance claim types.",
+  "type": "object",
+  "required": ["schema_version", "mode", "project", "generated_at", "graph", "artifacts", "accepted_config", "planning_artifacts", "claim_readiness", "commitments", "supported_claims"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {"const": 1},
+    "mode": {"const": "graph_proof_manifest"},
+    "project": {"type": "string"},
+    "run_id": {"type": "string"},
+    "generated_at": {"type": "string"},
+    "source_commit": {"type": "string"},
+    "graph_builder": {
+      "type": "object",
+      "required": ["name", "version", "vocabulary"],
+      "additionalProperties": true,
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": ["integer", "string"]},
+        "vocabulary": {"type": "string"}
+      }
+    },
+    "toolchain": {
+      "type": "object",
+      "required": ["scanners", "test_runners"],
+      "additionalProperties": true,
+      "properties": {
+        "scanners": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name"],
+            "additionalProperties": true,
+            "properties": {
+              "name": {"type": "string"},
+              "image": {"type": "string"},
+              "level": {"type": ["integer", "string"]},
+              "status": {"type": "string"},
+              "reason": {"type": "string"}
+            }
+          }
+        },
+        "test_runners": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "format", "status"],
+            "additionalProperties": true,
+            "properties": {
+              "name": {"type": "string"},
+              "format": {"type": "string"},
+              "status": {"type": "string"},
+              "summary": {"type": "object", "additionalProperties": true}
+            }
+          }
+        }
+      }
+    },
+    "graph": {
+      "type": "object",
+      "required": ["node_count", "edge_count", "root_hash"],
+      "properties": {
+        "node_count": {"type": "integer", "minimum": 0},
+        "edge_count": {"type": "integer", "minimum": 0},
+        "root_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["report", "config"],
+      "properties": {
+        "report": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+        "config": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+        "planning": {"type": "array", "items": {"$ref": "#/$defs/artifact"}}
+      }
+    },
+    "evidence_artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+    "accepted_config": {
+      "type": "object",
+      "required": ["policy", "commitment_count", "commitments"],
+      "additionalProperties": true,
+      "properties": {
+        "policy": {"const": "runtime_config_is_frozen_by_content_hash"},
+        "commitment_count": {"type": "integer", "minimum": 0},
+        "commitments": {"type": "array", "items": {"$ref": "#/$defs/config_commitment"}}
+      }
+    },
+    "planning_artifacts": {
+      "type": "object",
+      "required": ["policy", "commitment_count", "commitments"],
+      "additionalProperties": true,
+      "properties": {
+        "policy": {"const": "planning_artifacts_are_frozen_by_content_hash"},
+        "commitment_count": {"type": "integer", "minimum": 0},
+        "commitments": {"type": "array", "items": {"$ref": "#/$defs/planning_commitment"}}
+      }
+    },
+    "supported_claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "fr_satisfied",
+          "tbt_satisfied",
+          "compliance_row_satisfied",
+          "no_blocking_scanner_evidence",
+          "selected_scope_satisfied"
+        ]
+      }
+    },
+    "claim_readiness": {
+      "type": "object",
+      "required": ["policy", "supported", "unsupported"],
+      "additionalProperties": false,
+      "properties": {
+        "policy": {"const": "claims_require_committed_runtime_config"},
+        "supported": {"type": "array", "items": {"$ref": "#/$defs/claim_type"}, "uniqueItems": true},
+        "unsupported": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["claim", "missing_config_roles"],
+            "additionalProperties": false,
+            "properties": {
+              "claim": {"$ref": "#/$defs/claim_type"},
+              "missing_config_roles": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/config_role"},
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "commitments": {
+      "type": "object",
+      "required": ["dashboard_payload_hash", "evidence_bundle_hash", "evidence_manifest_hash", "accepted_config_hash", "planning_artifacts_hash", "graph_root_hash"],
+      "properties": {
+        "dashboard_payload_hash": {"type": "string"},
+        "evidence_bundle_hash": {"type": "string"},
+        "evidence_manifest_hash": {"type": "string"},
+        "accepted_config_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "planning_artifacts_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "graph_root_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["path", "sha256", "bytes"],
+      "additionalProperties": true,
+      "properties": {
+        "path": {"type": "string"},
+        "label": {"type": "string"},
+        "sha256": {"type": "string"},
+        "bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "config_commitment": {
+      "type": "object",
+      "required": ["id", "role", "path", "sha256", "bytes", "freeze"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {"type": "string"},
+        "role": {
+          "$ref": "#/$defs/config_role"
+        },
+        "label": {"type": "string"},
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "schema": {"type": "string"},
+        "schema_version": {"type": ["integer", "string", "null"]},
+        "review_summary": {"$ref": "#/$defs/review_summary"},
+        "freeze": {
+          "type": "object",
+          "required": ["mode", "immutable"],
+          "properties": {
+            "mode": {"const": "content_addressed"},
+            "immutable": {"const": true}
+          }
+        }
+      }
+    },
+    "planning_commitment": {
+      "type": "object",
+      "required": ["id", "role", "path", "sha256", "bytes", "freeze"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {"type": "string"},
+        "role": {"$ref": "#/$defs/planning_role"},
+        "label": {"type": "string"},
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "schema": {"type": "string"},
+        "schema_version": {"type": ["integer", "string", "null"]},
+        "review_summary": {"$ref": "#/$defs/review_summary"},
+        "freeze": {
+          "type": "object",
+          "required": ["mode", "immutable"],
+          "properties": {
+            "mode": {"const": "content_addressed"},
+            "immutable": {"const": true}
+          }
+        }
+      }
+    },
+    "config_role": {
+      "type": "string",
+      "enum": [
+        "fr_catalog",
+        "compliance_mapping_pack",
+        "scanner_compliance_mapping_pack",
+        "assurance_framework",
+        "assurance_instance"
+      ]
+    },
+    "planning_role": {
+      "type": "string",
+      "enum": [
+        "project_intake",
+        "project_config_selection",
+        "blueprint_selection_proposal",
+        "blueprint_decision_log",
+        "config_update_proposal",
+        "resolved_project_planning_contract",
+        "project_assurance_contract",
+        "project_design_document_manifest",
+        "code_studio_handoff_pack",
+        "code_generator_handoff_pack"
+      ]
+    },
+    "claim_type": {
+      "type": "string",
+      "enum": [
+        "fr_satisfied",
+        "tbt_satisfied",
+        "compliance_row_satisfied",
+        "no_blocking_scanner_evidence",
+        "selected_scope_satisfied"
+      ]
+    },
+    "review_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "review_status_counts": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "approval_status_counts": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "reviewed_item_count": {"type": "integer", "minimum": 0},
+        "approval_item_count": {"type": "integer", "minimum": 0},
+        "signed_item_count": {"type": "integer", "minimum": 0},
+        "reviewers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "approvers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "deciders": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "signature_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  }
+}

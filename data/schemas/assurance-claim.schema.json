@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-claim.schema.json",
+  "title": "Assurance Claim",
+  "description": "A typed, hash-bound claim evaluated from a generated runtime graph and graph proof manifest.",
+  "type": "object",
+  "required": ["schema_version", "mode", "claim_type", "target", "claim_result", "generated_at", "project", "run_id", "graph_manifest", "public_inputs", "evaluation"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "mode": {"const": "assurance_claim"},
+    "claim_type": {"$ref": "#/$defs/claim_type"},
+    "target": {"type": "string", "minLength": 1},
+    "claim_result": {"type": "string", "enum": ["satisfied", "unsatisfied"]},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "project": {"type": "string"},
+    "run_id": {"type": "string"},
+    "graph_manifest": {
+      "type": "object",
+      "required": ["path", "sha256", "graph_root_hash", "accepted_config_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "graph_root_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "accepted_config_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "public_inputs": {
+      "type": "object",
+      "required": ["dashboard_payload_hash", "evidence_bundle_hash", "evidence_manifest_hash", "accepted_config_hash", "graph_root_hash"],
+      "additionalProperties": true,
+      "properties": {
+        "dashboard_payload_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "evidence_bundle_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "evidence_manifest_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "accepted_config_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "graph_root_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "evaluation": {
+      "type": "object",
+      "required": ["target_node_id", "target_status", "satisfied", "reasons"],
+      "additionalProperties": true,
+      "properties": {
+        "target_node_id": {"type": "string"},
+        "target_status": {"type": "string"},
+        "satisfied": {"type": "boolean"},
+        "reasons": {"type": "array", "items": {"type": "string"}},
+        "evidence_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "scanner_blockers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  },
+  "$defs": {
+    "claim_type": {
+      "type": "string",
+      "enum": [
+        "fr_satisfied",
+        "tbt_satisfied",
+        "compliance_row_satisfied",
+        "no_blocking_scanner_evidence",
+        "selected_scope_satisfied"
+      ]
+    }
+  }
+}

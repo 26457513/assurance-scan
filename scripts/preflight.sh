@@ -118,19 +118,23 @@ else
 fi
 
 # --- Disk space available (≥ 5 GB) -----------------------------------------
-DISK_FREE_KB=$(df -k "$SCRIPT_DIR" 2>/dev/null | awk 'NR==2 {print $4}')
+# Check the writable report volume rather than the scanner image filesystem.
+# In Docker Desktop the image overlay can be small even when the mounted target
+# volume has ample space for reports, SBOMs and scanner output.
+DISK_CHECK_PATH="${REPORT_DIR:-${TARGET_DIR:-$SCRIPT_DIR}}"
+DISK_FREE_KB=$(df -k "$DISK_CHECK_PATH" 2>/dev/null | awk 'NR==2 {print $4}')
 DISK_FREE_GB=$((DISK_FREE_KB / 1024 / 1024))
 if [ -z "$DISK_FREE_KB" ]; then
   log_warning "df unavailable — skipping disk space check"
   add_check "disk_space" "WARNING" "df unavailable"
   PREFLIGHT_WARNINGS=$((PREFLIGHT_WARNINGS + 1))
 elif [ "$DISK_FREE_GB" -lt 5 ]; then
-  log_error "Insufficient disk space: ${DISK_FREE_GB}GB free (need ≥5GB)"
-  add_check "disk_space" "ERROR" "${DISK_FREE_GB}GB free, need ≥5GB"
+  log_error "Insufficient disk space at $DISK_CHECK_PATH: ${DISK_FREE_GB}GB free (need ≥5GB)"
+  add_check "disk_space" "ERROR" "${DISK_FREE_GB}GB free at $DISK_CHECK_PATH, need ≥5GB"
   PREFLIGHT_ERRORS=$((PREFLIGHT_ERRORS + 1))
 else
-  log_info "Disk space OK: ${DISK_FREE_GB}GB free"
-  add_check "disk_space" "INFO" "${DISK_FREE_GB}GB free"
+  log_info "Disk space OK at $DISK_CHECK_PATH: ${DISK_FREE_GB}GB free"
+  add_check "disk_space" "INFO" "${DISK_FREE_GB}GB free at $DISK_CHECK_PATH"
 fi
 
 # --- Optional --image ------------------------------------------------------

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/glossary.schema.json",
+  "title": "Assurance Glossary",
+  "description": "Canonical glossary of product, assurance, ruleset, evidence and UI terms used by VibeGuide/asvs-scanner schemas, dashboard copy and generated prompts.",
+  "type": "object",
+  "required": ["schema_version", "terms"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/term"}
+    }
+  },
+  "$defs": {
+    "term": {
+      "type": "object",
+      "required": ["id", "canonical", "definition"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "description": "Stable lowercase term identifier used by schemas, docs and UI lookup."
+        },
+        "canonical": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical display label."
+        },
+        "abbreviation": {
+          "type": "string",
+          "description": "Optional short form, such as FR or TBT."
+        },
+        "definition": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Plain-language definition."
+        },
+        "domain": {
+          "type": "string",
+          "enum": ["core", "ruleset", "assurance", "traceability", "evidence", "ui", "status"],
+          "default": "core"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "deprecated_aliases": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "not": {
+          "type": "array",
+          "description": "Terms or concepts this term must not be confused with.",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "related_terms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]*$"
+          },
+          "uniqueItems": true
+        },
+        "schema_fields": {
+          "type": "array",
+          "description": "Schema field names associated with this term.",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "ui_label": {
+          "type": "string",
+          "description": "Preferred short UI label if different from canonical."
+        },
+        "tooltip": {
+          "type": "string",
+          "description": "Short help text suitable for dashboard tooltips."
+        }
+      }
+    }
+  }
+}

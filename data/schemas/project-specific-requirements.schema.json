@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-specific-requirements.schema.json",
+  "title": "Project Specific Requirements Draft",
+  "description": "Draft helper for bespoke requirements before conversion into config-update proposals.",
+  "type": "object",
+  "required": ["schema_version", "id", "status", "project", "requirements"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["draft", "review_required", "superseded", "rejected"]},
+    "project": {"type": "string", "minLength": 1},
+    "requirements": {"type": "array", "items": {"$ref": "#/$defs/requirement"}},
+    "content_hash": {"type": "string"}
+  },
+  "$defs": {
+    "requirement": {
+      "type": "object",
+      "required": ["id", "title", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "rationale": {"type": "string", "minLength": 1},
+        "mapping_state": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/compliance_mapping_state"},
+        "proposed_fr_id": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+        "source": {"type": "string", "enum": ["user", "agent_recommended", "repository_analysis"]}
+      }
+    }
+  }
+}

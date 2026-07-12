@@ -31,6 +31,7 @@ First scan in a project downloads vulnerability databases (Trivy / Grype / OSV),
 ### Where to find the docs
 
 - This README is also rendered on the Docker Hub image page (`hub.docker.com/r/<dockerhub-user>/asvs-scanner`) once you link the source repo under Repository → General → Description.
+- Runtime graph architecture and proof-direction notes live in `docs/RUNTIME_GRAPH_ARCHITECTURE.md`.
 - Inside a terminal, `<dockerhub-user>/asvs-scanner:latest help` prints the supported subcommands and key flags.
 - The README is baked into the image at `/opt/asvs-scanner/README.md`. Extract it without a browser:
   ```bash
@@ -53,8 +54,15 @@ Each run creates a report directory containing:
 | File | Purpose |
 |---|---|
 | `dashboard.html` | Compact interactive report for triage and evidence review |
-| `agent-investigation-prompt.md` | Prompt for an AI coding agent to investigate and fix findings |
+| `dashboard-payload.json` | Normalised machine-readable payload used by the dashboard |
+| `agent-investigation-prompt.md` | Prompt for an AI coding agent to investigate and fix scanner findings |
+| `assurance-assessment-prompt.md` | Separate Codex prompt for assessment-first FR/TBT/ASVS/JSP-453 evidence coverage |
+| `fr-config-update-prompt.md` | Separate Codex prompt for proposing FR/TBT/compliance/gate config updates without product-code changes |
+| `fr-config-update-proposal.template.json` | Schema-valid starting artifact for agent-authored config update proposals |
+| `agent-prompt-plan.json` | Structured deficiencies, fix recommendations, and assurance recommendations |
 | `evidence-manifest.json` | Machine-readable run metadata, scanner status, hashes, and scores |
+| `evidence-bundle.json` | Target-schema evidence records produced by declared TBTs |
+| `generated-tests/VG_TEST_FRAMEWORK/manifest.json` | Ephemeral assessment-first test-pack plan using TBT, FR, ruleset row and assurance gate references |
 | `scanner-run-summary.txt` | Terminal-friendly summary |
 | `manual-evidence-required.md` | Human evidence checklist |
 | `reports/` | Raw scanner outputs |
@@ -72,6 +80,119 @@ The scanner creates a safe Git worktree beside your repo (sibling directory) and
 
 `<RUN_ID>` has the format `<UTCstamp>_<sha8>` (e.g. `20260702T104215Z_3e675e29`) — the same string the dashboard shows as "Run ID", so you can grep for it on disk.
 
+Target-schema artifacts can be checked after a run:
+
+```bash
+docker run --rm -it \
+  -v "$(dirname "$PWD"):$(dirname "$PWD")" \
+  -w "$PWD" \
+  <dockerhub-user>/asvs-scanner:latest validate-report \
+  "<worktree-path>/.asvs-scanner/runtime/reports/<RUN_ID>" \
+  --strict
+```
+
+Agent-authored config update proposals should be validated before review or application:
+
+```bash
+asvs-scanner validate-config-update proposal.json \
+  --fr-catalog /path/to/project.fr-catalog.enriched.json \
+  --ruleset data/fixtures/target-schemas/ruleset.example.json \
+  --assurance-framework /path/to/jsp453-framework.json
+```
+
+Then render a human review brief:
+
+```bash
+asvs-scanner review-config-update proposal.json \
+  --output proposal-review.md
+```
+
+After human review, selected entries can be applied to explicit output files:
+
+```bash
+asvs-scanner apply-config-update proposal.json \
+  --list
+
+asvs-scanner apply-config-update proposal.json \
+  --select fr_catalog_updates:1 \
+  --reviewed-by "assessor-name" \
+  --fr-catalog /path/to/project.fr-catalog.enriched.json \
+  --fr-catalog-out /path/to/project.fr-catalog.reviewed.json
+
+asvs-scanner apply-config-update proposal.json \
+  --select assurance_framework_or_instance_updates:1 \
+  --reviewed-by "assessor-name" \
+  --assurance-instance /path/to/project.assurance-instance.json \
+  --assurance-instance-out /path/to/project.assurance-instance.reviewed.json \
+  --assurance-framework /path/to/jsp453-framework.json
+```
+
+Automatic apply currently covers `fr_catalog_updates`, `compliance_mapping_pack_updates`, `native_test_mapping_updates` that update the assurance test-pack manifest, `assurance_framework_or_instance_updates` that target project instance mappings, gate decisions and waivers, plus manual evidence targeted at FRs, TBTs, criteria, and sufficiently-specified gate/role instance records. Reusable framework-structure changes and scanner-compliance mapping curation remain review-only until a human edits the relevant catalog deliberately.
+
+ASVS-owned executable tests and wrappers live under `tests/asvs/` in the generated pack or dedicated ASVS branch/worktree. Existing native project tests stay in their original source paths; report-local imported copies are provenance/review inputs, not a second source of truth.
+
+### Worked Config Update Example
+
+Use this when the dashboard shows FR/TBT gaps that are really config gaps, for example a project FR has a planned TBT but no accepted expected evidence, compliance row mapping, gate decision or waiver.
+
+1. Generate a proposal with Codex or another agent using the report's `fr-config-update-prompt.md`. Start from `fr-config-update-proposal.template.json`, and save the returned JSON as `proposal.json`.
+
+2. Validate the proposal against the current config and standards context:
+
+```bash
+asvs-scanner validate-config-update proposal.json \
+  --fr-catalog "$PWD/tapestry-mono.fr-catalog.enriched.json" \
+  --ruleset "$PWD/data/fixtures/target-schemas/ruleset.example.json" \
+  --assurance-framework "$PWD/jsp-453.assurance-framework.draft.json"
+```
+
+3. Render the human review brief:
+
+```bash
+asvs-scanner review-config-update proposal.json \
+  --output proposal-review.md
+```
+
+4. List selectable proposal entries and approve only the entries you have reviewed:
+
+```bash
+asvs-scanner apply-config-update proposal.json \
+  --list
+```
+
+5. Apply selected entries to explicit reviewed outputs. This is transactional: if any selected output fails validation, none of the reviewed outputs are replaced.
+
+```bash
+asvs-scanner apply-config-update proposal.json \
+  --select fr_catalog_updates:1 \
+  --select assurance_framework_or_instance_updates:1 \
+  --reviewed-by "assessor-name" \
+  --fr-catalog "$PWD/tapestry-mono.fr-catalog.enriched.json" \
+  --fr-catalog-out "$PWD/tapestry-mono.fr-catalog.reviewed.json" \
+  --assurance-test-pack "$PWD/generated-tests/VG_TEST_FRAMEWORK/manifest.json" \
+  --assurance-test-pack-out "$PWD/generated-tests/VG_TEST_FRAMEWORK/manifest.reviewed.json" \
+  --assurance-instance "$PWD/tapestry-mono.assurance-instance.json" \
+  --assurance-instance-out "$PWD/tapestry-mono.assurance-instance.reviewed.json" \
+  --assurance-framework "$PWD/jsp-453.assurance-framework.draft.json"
+```
+
+6. Rerun the scan with the reviewed config files:
+
+```bash
+docker run --rm -it \
+  -e ASVS_IMAGE_BUILD_PARALLELISM=2 \
+  -e ASVS_PARALLELISM=4 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$(dirname "$PWD"):$(dirname "$PWD")" \
+  -w "$PWD" \
+  asvs-scanner:latest scan "$PWD" \
+  --fr-catalog "$PWD/tapestry-mono.fr-catalog.reviewed.json" \
+  --assurance-framework "$PWD/jsp-453.assurance-framework.draft.json" \
+  --assurance-instance "$PWD/tapestry-mono.assurance-instance.reviewed.json"
+```
+
+After rerun, validate the fresh report with `asvs-scanner validate-report <report-dir> --strict`, then inspect Project FRs, Compliance Regime, Industry Framework and Traceability Graph to confirm the gap moved from "missing config" to a real pass, fail, manual review, waiver or missing evidence state.
+
 ## Scanner Coverage
 
 | Surface | Required Flag | Tools |
@@ -85,6 +206,13 @@ The scanner creates a safe Git worktree beside your repo (sibling directory) and
 | Manual ASVS evidence | _always generated_ | Checklist embedded in the dashboard |
 
 When an optional surface is not supplied, its scanners are shown as `SKIPPED` in the dashboard with a reason.
+
+## Local Development Checks
+
+```bash
+python3 -m unittest tests/test_config_update_workflow.py
+python3 scripts/validate-target-schema-fixtures.py
+```
 
 ## Running The Scanner
 
@@ -111,6 +239,14 @@ docker run --rm -it \
 | Scan a specific prebuilt image | `--image app:tag` (disables auto-build) |
 | Scan a running local web app | `--url http://host.docker.internal:3000` |
 | Full scan | `--image app:local --url https://staging.example.com --uploads "$PWD/sample-uploads"` |
+| Add project FR/TBT traceability | `--fr-catalog "$PWD/fr-catalog.json"` |
+| Add compliance sufficiency mappings | `--compliance-mapping-pack "$PWD/asvs-mapping-pack.json"` |
+| Add scanner-to-compliance mappings | `--scanner-compliance-mapping-pack "$PWD/data/scanner-mappings/asvs/5.0.0"` |
+| Add an assurance gate framework | `--assurance-framework "$PWD/assurance-framework.jsp-453.json"` |
+| Add project gate mappings and roles | `--assurance-instance "$PWD/assurance-instance.jsp-453.json"` |
+| Import existing test execution evidence | `--junit-xml "$PWD/reports/junit.xml"` |
+
+When an FR catalog is supplied, the scanner treats `FR-*` entries as project-owned functional requirements and `TBT-*` entries as the test-basis records that prove them. Observed evidence is emitted into `evidence-bundle.json`; missing evidence remains visible as gaps rather than being counted as a pass.
 
 ### Why the mount incantation?
 

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "PLANNING-CONTRACT-example",
+  "status": "approved",
+  "project": "example-project",
+  "created_at": "2026-07-11T00:00:00Z",
+  "source_artifacts": [
+    {"kind": "project_intake", "path": "project-intake.example.json", "sha256": "sha256:intake-example"},
+    {"kind": "project_config_selection", "path": "project-config-selection.example.json", "sha256": "sha256:config-example"}
+  ],
+  "sections": {
+    "intent": {"summary": "Authenticated auditable web application"},
+    "config": {"rulesets": ["ASVS"]},
+    "architecture": {"pattern": "layered-web-app"},
+    "governance": {"approval_required": true},
+    "accepted_blueprints": [{"candidate": "CANDIDATE-session-timeout"}],
+    "bespoke_requirements": [{"id": "REQ-audit-admin"}],
+    "assurance": {"expected_evidence": ["test_result", "scanner_result"]},
+    "handoff": {"code_studio": true}
+  },
+  "open_assumptions": [],
+  "section_hashes": {
+    "intent": "sha256:intent",
+    "config": "sha256:config",
+    "assurance": "sha256:assurance"
+  },
+  "contract_hash": "sha256:planning-contract-example"
+}

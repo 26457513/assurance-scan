@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "ASSURANCE-CONTRACT-example",
+  "project": "example-project",
+  "derived_from_contract": "PLANNING-CONTRACT-example",
+  "derived_from_contract_hash": "sha256:planning-contract-example",
+  "artifacts": [
+    {"kind": "fr_catalog", "path": "fr-catalog.example.json", "sha256": "sha256:fr-catalog"},
+    {"kind": "compliance_mapping_pack", "path": "compliance-mapping-pack.example.json", "sha256": "sha256:compliance-map"},
+    {"kind": "assurance_instance", "path": "assurance-instance.example.json", "sha256": "sha256:assurance-instance"}
+  ],
+  "notes": ["Derived export only; not a second source of truth."],
+  "content_hash": "sha256:assurance-contract-example"
+}

@@ -12,6 +12,7 @@ Reads:
 Writes:
   - <report_dir>/hashes/<file>.sha256
   - <report_dir>/evidence-manifest.json
+  - <report_dir>/evidence-bundle.json
   - <report_dir>/executive-summary.md
   - <report_dir>/scanner-run-summary.txt
 """
@@ -19,13 +20,15 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from artifact_hashing import file_sha256, write_hash_sidecar
 
 SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
 
@@ -50,6 +53,58 @@ LEVEL2_SCANNERS = [
 ]
 
 
+def _xml_attrs(text: str) -> dict[str, str]:
+    return {
+        str(match.group(1)): str(match.group(2) or match.group(3) or "")
+        for match in re.finditer(r"""([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)')""", text)
+    }
+
+
+def _junit_case_records(path: Path) -> list[dict]:
+    if not path.exists() or path.stat().st_size == 0:
+        return []
+    try:
+        root = ET.parse(path).getroot()
+        cases = []
+        for case in root.iter("testcase"):
+            failure = case.find("failure")
+            error = case.find("error")
+            skipped = case.find("skipped")
+            body_status = "failed" if failure is not None or error is not None else "missing" if skipped is not None else "passed"
+            elem = failure or error or skipped
+            cases.append({
+                "name": case.get("name", ""),
+                "classname": case.get("classname", ""),
+                "file": case.get("file", ""),
+                "status": body_status,
+                "message": (elem.get("message") if elem is not None else "") or ("Skipped" if skipped is not None else ""),
+            })
+        return cases
+    except Exception:
+        text = path.read_text(errors="replace")
+        cases = []
+        pattern = re.compile(r"<testcase\b([^>]*)>(.*?)</testcase>|<testcase\b([^>]*)/>", re.IGNORECASE | re.DOTALL)
+        for match in pattern.finditer(text):
+            attrs = _xml_attrs(match.group(1) or match.group(3) or "")
+            body = match.group(2) or ""
+            if re.search(r"<(?:failure|error)\b", body, re.IGNORECASE):
+                status = "failed"
+            elif re.search(r"<skipped\b", body, re.IGNORECASE):
+                status = "missing"
+            else:
+                status = "passed"
+            message_match = re.search(r"<(?:failure|error|skipped)\b([^>]*)", body, re.IGNORECASE)
+            message = _xml_attrs(message_match.group(1)).get("message", "") if message_match else ""
+            cases.append({
+                "name": attrs.get("name", ""),
+                "classname": attrs.get("classname", ""),
+                "file": attrs.get("file", ""),
+                "status": status,
+                "message": message or ("Skipped" if status == "missing" else ""),
+            })
+        return cases
+
+
 def load_json(path: Path):
     try:
         if path.exists() and path.stat().st_size > 0:
@@ -57,14 +112,6 @@ def load_json(path: Path):
     except Exception:
         return None
     return None
-
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def count_trivy(path: Path) -> dict:
@@ -348,6 +395,376 @@ def get_git_commit(target_dir: str) -> str | None:
     return None
 
 
+def junit_summary(path: Path) -> dict:
+    if not path.exists() or path.stat().st_size == 0:
+        return {"present": False, "tests": 0, "passed": 0, "failed": 0, "skipped": 0}
+    cases = _junit_case_records(path)
+    tests = len(cases)
+    failed = sum(1 for case in cases if case.get("status") == "failed")
+    skipped = sum(1 for case in cases if case.get("status") == "missing")
+    return {
+        "present": True,
+        "tests": tests,
+        "passed": max(0, tests - failed - skipped),
+        "failed": failed,
+        "skipped": skipped,
+        "path": "reports/junit.xml",
+    }
+
+
+def junit_records(path: Path) -> dict[str, dict]:
+    if not path.exists() or path.stat().st_size == 0:
+        return {}
+
+    records: dict[str, dict] = {}
+    for case in _junit_case_records(path):
+        name = case.get("name", "")
+        classname = case.get("classname", "")
+        file_attr = case.get("file", "")
+        status = case.get("status", "passed")
+        message = case.get("message", "")
+        record = {
+            "status": status,
+            "name": name,
+            "classname": classname,
+            "file": file_attr,
+            "message": message,
+        }
+        keys = {name}
+        if classname and name:
+            keys.update({f"{classname}.{name}", f"{classname}::{name}"})
+        if file_attr and name:
+            keys.add(f"{file_attr}::{name}")
+            keys.add(f"{Path(file_attr).name}::{name}")
+        for key in keys:
+            if key:
+                records[key] = record
+    return records
+
+
+def _junit_record_for_tbt(tbt: dict, records: dict[str, dict]) -> dict | None:
+    candidates = [tbt.get("ref", ""), tbt.get("id", ""), tbt.get("title", "")]
+    ref = tbt.get("ref", "")
+    if "::" in ref:
+        path, _, name = ref.partition("::")
+        candidates.extend([name, f"{Path(path).name}::{name}"])
+    for candidate in candidates:
+        if candidate and candidate in records:
+            return records[candidate]
+    return None
+
+
+def _safe_evidence_id(value: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip("-")
+    if not safe or not safe[0].isalpha():
+        safe = f"EVD-{safe}"
+    if not safe.startswith("EVD-"):
+        safe = f"EVD-{safe}"
+    return safe
+
+
+SCHEMA_REFS = {
+    "assurance_test_pack": "data/schemas/assurance-test-pack.schema.json",
+    "evidence_bundle": "data/schemas/evidence-bundle.schema.json",
+    "fr_catalog": "data/schemas/fr-catalog.schema.json",
+    "json": "application/schema+json",
+    "junit": "https://llg.cubic.org/docs/junit/",
+    "sarif": "https://json.schemastore.org/sarif-2.1.0.json",
+    "cyclonedx": "https://cyclonedx.org/schema",
+    "test_source": "tests/asvs/<type>/<TBT-ID>.assurance.test.js",
+}
+
+
+def _artifact_ref(
+    report_dir: Path,
+    rel_path: str,
+    *,
+    fmt: str | None = None,
+    locator: str | None = None,
+    schema_ref: str | None = None,
+) -> dict:
+    artifact = {"path": rel_path}
+    if fmt:
+        artifact["format"] = fmt
+        if not schema_ref:
+            schema_ref = SCHEMA_REFS.get(fmt)
+    if locator:
+        artifact["locator"] = locator
+    if schema_ref:
+        artifact["schema_ref"] = schema_ref
+    path = report_dir / rel_path
+    if path.is_file():
+        artifact["bytes"] = path.stat().st_size
+        artifact["sha256"] = file_sha256(path)
+    return artifact
+
+
+def _provenance(
+    *,
+    collector: str,
+    collected_at: str,
+    output_artifacts: list[dict],
+    tool: str | None = None,
+    container_image: str | None = None,
+    input_artifacts: list[dict] | None = None,
+    normalizer: str | None = None,
+) -> dict:
+    provenance = {
+        "collector": collector,
+        "collected_at": collected_at,
+        "output_artifacts": output_artifacts,
+    }
+    if tool:
+        provenance["tool"] = tool
+    if container_image:
+        provenance["container_image"] = container_image
+    if input_artifacts:
+        provenance["input_artifacts"] = input_artifacts
+    if normalizer:
+        provenance["normalizer"] = normalizer
+    return provenance
+
+
+def _artifact_label(artifact: dict) -> str:
+    return str(artifact.get("path") or artifact.get("locator") or artifact.get("source") or "").strip()
+
+
+def _side_effect(type_: str, target: str, description: str, *, mode: str = "observed") -> dict:
+    effect = {
+        "type": type_,
+        "target": target,
+        "description": description,
+        "mode": mode,
+    }
+    return {key: value for key, value in effect.items() if value}
+
+
+def _test_actions_for_record(record: dict | None, tbt: dict, status: str, locator: str) -> list[dict]:
+    tbt_id = str(tbt.get("id") or "")
+    test_file = str((record or {}).get("file") or str(tbt.get("ref") or "").split("::", 1)[0])
+    case_name = str((record or {}).get("name") or tbt_id)
+    classname = str((record or {}).get("classname") or "")
+    actions = [
+        {
+            "type": "testcase_execution",
+            "name": case_name,
+            "target": test_file or locator or tbt_id,
+            "status": status,
+            "description": "Executed the approved assurance testcase and captured its result in JUnit XML.",
+        }
+    ]
+    if classname or locator:
+        actions.append({
+            "type": "junit_identity_recorded",
+            "name": classname or case_name,
+            "target": locator or case_name,
+            "status": status,
+            "description": "Recorded the TBT identifier in JUnit classname/name so the scanner can join evidence back to the FR/TBT graph.",
+        })
+    message = str((record or {}).get("message") or "")
+    if message:
+        actions.append({
+            "type": "diagnostic_recorded",
+            "name": "test diagnostic",
+            "target": case_name,
+            "status": status,
+            "description": message,
+        })
+    return actions
+
+
+def _enrich_evidence_io(record: dict) -> dict:
+    provenance = record.get("provenance") or {}
+    inputs = list(record.get("inputs") or provenance.get("input_artifacts") or [])
+    outputs = list(record.get("outputs") or provenance.get("output_artifacts") or record.get("raw_artifacts") or [])
+    side_effects = list(record.get("side_effects") or [])
+    effect_keys = {
+        (str(item.get("type") or ""), str(item.get("target") or ""))
+        for item in side_effects
+        if isinstance(item, dict)
+    }
+
+    def add_effect(effect: dict) -> None:
+        key = (str(effect.get("type") or ""), str(effect.get("target") or ""))
+        if key not in effect_keys:
+            effect_keys.add(key)
+            side_effects.append(effect)
+
+    if record.get("type") == "test_result":
+        add_effect(_side_effect(
+            "process_execution",
+            str((provenance.get("tool") or record.get("tool") or "approved test runner")),
+            "Runs the approved assurance test. The test is expected to be non-destructive and must not modify product behaviour.",
+            mode="non_destructive",
+        ))
+    elif record.get("type") == "scanner_result":
+        add_effect(_side_effect(
+            "scanner_execution",
+            str((provenance.get("tool") or record.get("tool") or "scanner")),
+            "Runs or imports scanner output as read-only security evidence for the selected report.",
+            mode="read_only_analysis",
+        ))
+    elif record.get("type") == "manual_note":
+        add_effect(_side_effect(
+            "review_record",
+            str(record.get("source") or "manual evidence"),
+            "Records a manual review requirement; no automated product action is performed.",
+            mode="review_only",
+        ))
+
+    for artifact in outputs:
+        target = _artifact_label(artifact)
+        if target:
+            add_effect(_side_effect(
+                "file_write",
+                target,
+                "Writes or refreshes an evidence artifact used by the assurance report.",
+            ))
+
+    record["inputs"] = inputs
+    record["outputs"] = outputs
+    record["side_effects"] = side_effects
+    record["test_actions"] = record.get("test_actions") or []
+    return record
+
+
+def build_target_evidence_bundle(
+    *,
+    project: str,
+    run_id: str,
+    now: str,
+    fr_catalog_path: str | None,
+    report_dir: Path,
+    health_records: list[dict],
+) -> dict | None:
+    if not fr_catalog_path:
+        return None
+    try:
+        from load_fr_catalog import load_fr_catalog
+        catalog = load_fr_catalog(Path(fr_catalog_path))
+    except Exception:
+        return None
+
+    junit_index = junit_records(report_dir / "reports" / "junit.xml")
+    health_by_name = {record.get("name"): record for record in health_records}
+    scanner_by_name = {scanner["name"]: scanner for scanner in LEVEL1_SCANNERS + LEVEL2_SCANNERS}
+    evidence: list[dict] = []
+
+    for tbt in catalog.tbts:
+        tbt_id = tbt.get("id", "")
+        tbt_type = tbt.get("type", "test")
+        record = _junit_record_for_tbt(tbt, junit_index)
+        if tbt_type in {"unit", "integration", "e2e", "load"}:
+            status = record.get("status") if record else "missing"
+            locator = (
+                f"{record.get('classname', '')}::{record.get('name', '')}".strip(":")
+                if record else (tbt.get("ref") or tbt_id)
+            )
+            artifact = _artifact_ref(report_dir, "reports/junit.xml", fmt="junit", locator=locator)
+            test_inputs = [
+                        _artifact_ref(
+                            report_dir,
+                            "generated-tests/VG_TEST_FRAMEWORK/manifest.json",
+                            fmt="json",
+                            schema_ref=SCHEMA_REFS["assurance_test_pack"],
+                        )
+                    ]
+            tbt_ref_path = str(tbt.get("ref") or "").split("::", 1)[0]
+            if tbt_ref_path.endswith((".js", ".ts", ".jsx", ".tsx", ".py")):
+                test_inputs.append({"path": tbt_ref_path, "format": "test_source", "schema_ref": SCHEMA_REFS["test_source"]})
+            ev = {
+                "id": _safe_evidence_id(tbt_id),
+                "type": "test_result",
+                "result_status": status,
+                "produced_by": tbt_id,
+                "source": "reports/junit.xml",
+                "source_locator": locator,
+                "artifact": artifact,
+                "raw_artifacts": [artifact],
+                "test_actions": _test_actions_for_record(record, tbt, status, locator),
+                "provenance": _provenance(
+                    collector="VG_TEST_FRAMEWORK",
+                    collected_at=now,
+                    output_artifacts=[artifact],
+                    tool=tbt.get("runner") or "test-runner",
+                    input_artifacts=test_inputs,
+                ),
+            }
+            if record:
+                ev["observed"] = True
+                ev["evidence_strength"] = "strong"
+            if record and record.get("message"):
+                ev["metadata"] = {"message": record["message"]}
+            evidence.append(ev)
+        elif tbt_type == "scanner":
+            scanner, _, rule = (tbt.get("ref") or "").partition(":")
+            health = health_by_name.get(scanner) or {}
+            health_status = health.get("status")
+            scanner_def = scanner_by_name.get(scanner) or {}
+            source = scanner_def.get("output")
+            source = source if source else (f"reports/{scanner}.json" if scanner else "evidence-manifest.json")
+            locator = rule or scanner or tbt_id
+            artifact = _artifact_ref(
+                report_dir,
+                source,
+                fmt=scanner_def.get("format"),
+                locator=locator,
+            )
+            status = "missing"
+            if health_status in {"PASS", "WARN"}:
+                status = "passed"
+            elif health_status == "FAIL":
+                status = "failed"
+            evidence.append({
+                "id": _safe_evidence_id(tbt_id),
+                "type": "scanner_result",
+                "result_status": status,
+                "produced_by": tbt_id,
+                "source": source,
+                "source_locator": locator,
+                "artifact": artifact,
+                "raw_artifacts": [artifact],
+                "tool": scanner,
+                "run_id": run_id,
+                "provenance": _provenance(
+                    collector="asvs-scanner",
+                    collected_at=now,
+                    output_artifacts=[artifact],
+                    tool=scanner,
+                    container_image=scanner_def.get("image"),
+                    normalizer=f"asvs-scanner.{scanner_def.get('format')}" if scanner_def.get("format") else None,
+                ),
+                "metadata": {"scanner_health": health_status or "missing"},
+            })
+        else:
+            artifact = _artifact_ref(report_dir, "manual-evidence-required.md", fmt="markdown", locator=tbt.get("ref") or tbt_id)
+            evidence.append({
+                "id": _safe_evidence_id(tbt_id),
+                "type": "manual_note",
+                "result_status": "manual_review",
+                "produced_by": tbt_id,
+                "source": "manual-evidence-required.md",
+                "source_locator": tbt.get("ref") or tbt_id,
+                "artifact": artifact,
+                "raw_artifacts": [artifact],
+                "reviewer": "unassigned",
+                "provenance": _provenance(
+                    collector="manual-evidence-template",
+                    collected_at=now,
+                    output_artifacts=[artifact],
+                ),
+            })
+
+    evidence = [_enrich_evidence_io(record) for record in evidence]
+
+    return {
+        "schema_version": 1,
+        "project": project,
+        "generated_at": now,
+        "evidence": evidence,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report-dir", required=True)
@@ -356,16 +773,21 @@ def main() -> int:
     ap.add_argument("--image-name", action="append", default=[])
     ap.add_argument("--target-url", action="append", default=[])
     ap.add_argument("--uploads-dir", action="append", default=[])
+    ap.add_argument("--fr-catalog")
     args = ap.parse_args()
 
     report_dir = Path(args.report_dir)
     reports_subdir = report_dir / "reports"
     sbom_subdir = report_dir / "sbom"
+    generated_tests_subdir = report_dir / "generated-tests"
     hashes_subdir = report_dir / "hashes"
     hashes_subdir.mkdir(parents=True, exist_ok=True)
 
     now = dt.datetime.now(dt.timezone.utc).isoformat()
     config_status = load_json(report_dir / "config-status.json") or {"checks": []}
+    test_inventory = load_json(reports_subdir / "test-inventory.json") or {}
+    assurance_pack = load_json(generated_tests_subdir / "VG_TEST_FRAMEWORK" / "manifest.json") or {}
+    junit = junit_summary(reports_subdir / "junit.xml")
 
     # Merge pre-recorded SKIPPED entries (from run-local.sh) with live classification.
     pre_recorded = load_json(report_dir / "scanner-health.json") or {"scanners": []}
@@ -446,22 +868,6 @@ def main() -> int:
         elif scanner["name"] == "clamav":
             findings_summary["clamav"] = sum(count_clamav(path) for path in output_paths)
 
-    # ----- Compute hashes for every file under reports/, sbom/, and root-level docs --
-    hashed_files = []
-    for sub in (reports_subdir, sbom_subdir):
-        if not sub.is_dir():
-            continue
-        for f in sorted(sub.iterdir()):
-            if not f.is_file():
-                continue
-            digest = sha256_file(f)
-            (hashes_subdir / f"{f.name}.sha256").write_text(f"{digest}  {f.name}\n")
-            hashed_files.append({
-                "file": str(f.relative_to(report_dir)),
-                "bytes": f.stat().st_size,
-                "sha256": digest,
-            })
-
     # ----- Formulas ----------------------------------------------------------
     attempted = [r for r in health_records if r["status"] in ("PASS", "WARN", "FAIL")]
     n_pass = sum(1 for r in attempted if r["status"] == "PASS")
@@ -520,6 +926,73 @@ def main() -> int:
 
     git_commit = get_git_commit(args.target_dir)
 
+    target_evidence_bundle = build_target_evidence_bundle(
+        project=Path(args.target_dir).name or "target-project",
+        run_id=args.run_id,
+        now=now,
+        fr_catalog_path=args.fr_catalog,
+        report_dir=report_dir,
+        health_records=health_records,
+    )
+    if target_evidence_bundle is not None:
+        (report_dir / "evidence-bundle.json").write_text(json.dumps(target_evidence_bundle, indent=2))
+
+    # Keep the standalone scanner-health artifact in sync with the merged
+    # records that also flow into evidence-manifest.json.
+    (report_dir / "scanner-health.json").write_text(
+        json.dumps(
+            {
+                "scanners": [
+                    {
+                        "name": r["name"],
+                        "level": r["level"],
+                        "image": r["image"],
+                        "status": r["status"],
+                        "reason": r["reason"],
+                    }
+                    for r in health_records
+                ]
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+
+    # ----- Compute hashes for every evidence artifact ------------------------
+    hashed_files = []
+    hash_roots = [reports_subdir, sbom_subdir, generated_tests_subdir]
+    root_level_artifacts = [
+        report_dir / "evidence-bundle.json",
+        report_dir / "manual-evidence-required.md",
+        report_dir / "config-status.json",
+        report_dir / "scanner-health.json",
+    ]
+    for sub in hash_roots:
+        if not sub.is_dir():
+            continue
+        for f in sorted(sub.rglob("*")):
+            if not f.is_file():
+                continue
+            digest = file_sha256(f)
+            rel = f.relative_to(report_dir)
+            write_hash_sidecar(report_dir, f)
+            hashed_files.append({
+                "file": str(rel),
+                "bytes": f.stat().st_size,
+                "sha256": digest,
+            })
+    for f in root_level_artifacts:
+        if not f.is_file():
+            continue
+        digest = file_sha256(f)
+        rel = f.relative_to(report_dir)
+        write_hash_sidecar(report_dir, f)
+        hashed_files.append({
+            "file": str(rel),
+            "bytes": f.stat().st_size,
+            "sha256": digest,
+        })
+
     # ----- Write evidence-manifest.json --------------------------------------
     manifest = {
         "project": "ASVS Scanner",
@@ -537,6 +1010,17 @@ def main() -> int:
         "tools": {r["name"]: {"image": r["image"], "level": r["level"]} for r in health_records},
         "scanner_health": {r["name"]: {"status": r["status"], "reason": r["reason"]} for r in health_records},
         "findings_summary": findings_summary,
+        "test_evidence": {
+            "inventory": test_inventory.get("summary") or {"files": 0, "cases": 0, "by_type": {}},
+            "junit": junit,
+        },
+        "assurance_test_pack": {
+            "present": bool(assurance_pack),
+            "mode": assurance_pack.get("mode"),
+            "path": "generated-tests/VG_TEST_FRAMEWORK/manifest.json" if assurance_pack else None,
+            "summary": assurance_pack.get("summary") or {},
+            "safety_policy": assurance_pack.get("safety_policy") or {},
+        },
         "evidence_files": hashed_files,
         "assurance": {
             "automated_assurance_pct": automated_pct,

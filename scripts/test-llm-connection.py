@@ -79,7 +79,7 @@ def main() -> int:
             text = "".join(b.text for b in message.content if hasattr(b, "text"))
             print(f"  SUCCESS — response: {text!r}")
             print(f"  Model used: {message.model}")
-            print(f"  -> Use this model name in generate-mapping.py via --model {model}")
+            print(f"  -> Use this model name in the relevant agent prompt or LLM-backed authoring script.")
             return 0
         except Exception as exc:
             # Print full error detail

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "grype-image-asvs-v5.0.0",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-08T00:00:00Z",
+    "updated_at": "2026-07-08T00:00:00Z",
+    "generator": "manual-curation",
+    "input_artifacts": [
+      {
+        "kind": "ruleset",
+        "path": "data/rulesets/asvs/5.0.0.json",
+        "version": "5.0.0"
+      }
+    ]
+  },
+  "scanner": "grype-image",
+  "scanner_version": "scanner-db-specific",
+  "scanner_rule_source": {
+    "kind": "scanner_output_format",
+    "ref": "Grype image vulnerability matches",
+    "version": "scanner-db-specific"
+  },
+  "compliance": {
+    "ruleset": "ASVS",
+    "version": "5.0.0",
+    "source_ref": "data/rulesets/asvs/5.0.0.json"
+  },
+  "mappings": [
+    {
+      "id": "SCM-GRYPE-IMAGE-ASVS-5-CVE-COMPONENTS",
+      "review_status": "accepted",
+      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "Image vulnerability matches apply to the built artifact.",
+      "rule_selectors": [
+        {
+          "type": "cve",
+          "value": "CVE-*",
+          "output_field": "vulnerability.id"
+        },
+        {
+          "type": "glob",
+          "value": "GHSA-*",
+          "output_field": "vulnerability.id"
+        }
+      ],
+      "limitations": [
+        "No-findings depend on the scanned image digest and vulnerability feed freshness."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_output_format",
+          "ref": "Grype image vulnerability matches"
+        }
+      ],
+      "rationale": "Image vulnerability matches are relevant to ASVS deployed-component and dependency controls.",
+      "confidence": "high",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.1.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.2.4"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.2.5"
+          }
+        ],
+        "compliance_domains": []
+      }
+    }
+  ]
+}

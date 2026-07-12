@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "CONFIG-example",
+  "status": "draft",
+  "project": "example-project",
+  "created_at": "2026-07-11T00:00:00Z",
+  "selections": [
+    {
+      "package_type": "compliance_ruleset",
+      "id": "ASVS",
+      "version": "5.0.0",
+      "path": "data/rulesets/asvs/5.0.0.json",
+      "sha256": "sha256:ruleset",
+      "source": "user"
+    }
+  ],
+  "unknowns": [],
+  "not_applicable": [],
+  "content_hash": "sha256:config-example"
+}

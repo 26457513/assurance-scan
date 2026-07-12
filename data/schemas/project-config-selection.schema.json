@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-config-selection.schema.json",
+  "title": "Project Config Selection",
+  "type": "object",
+  "required": ["schema_version", "id", "status", "project", "selections"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["draft", "review_required", "approved", "superseded", "rejected"]},
+    "project": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "selections": {"type": "array", "items": {"$ref": "#/$defs/config_ref"}},
+    "unknowns": {"type": "array", "items": {"type": "string"}},
+    "not_applicable": {"type": "array", "items": {"$ref": "#/$defs/decision"}},
+    "content_hash": {"type": "string"}
+  },
+  "$defs": {
+    "config_ref": {
+      "type": "object",
+      "required": ["package_type", "id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "package_type": {"type": "string", "minLength": 1},
+        "id": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "path": {"type": "string"},
+        "sha256": {"type": "string"},
+        "source": {"type": "string", "enum": ["user", "default", "agent_recommended", "imported"]}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": ["item", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "item": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

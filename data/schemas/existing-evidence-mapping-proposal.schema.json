@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/existing-evidence-mapping-proposal.schema.json",
+  "title": "Existing Evidence Mapping Proposal",
+  "type": "object",
+  "required": ["schema_version", "id", "status", "project", "proposals"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["draft", "review_required", "superseded", "rejected"]},
+    "project": {"type": "string", "minLength": 1},
+    "proposals": {"type": "array", "items": {"$ref": "#/$defs/proposal"}},
+    "content_hash": {"type": "string"}
+  },
+  "$defs": {
+    "proposal": {
+      "type": "object",
+      "required": ["id", "evidence_ref", "review_status", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "evidence_ref": {"type": "string", "minLength": 1},
+        "target_fr": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+        "target_tbt": {"type": "string", "pattern": "^TBT-[A-Za-z0-9_.-]+$"},
+        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "rationale": {"type": "string", "minLength": 1},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      }
+    }
+  }
+}

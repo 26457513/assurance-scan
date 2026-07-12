@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "scanner": "semgrep",
+  "version": "1.0",
+  "generated_at": "2026-07-06T00:00:00Z",
+  "rules": [
+    {
+      "id": "python.flask.security.injection",
+      "title": "Potential injection vulnerability",
+      "severity": "high",
+      "description": "Scanner rule description.",
+      "evidence_type": "scanner_result"
+    }
+  ]
+}

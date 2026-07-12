@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "PROJECT-REQS-example",
+  "status": "draft",
+  "project": "example-project",
+  "requirements": [
+    {
+      "id": "REQ-audit-admin",
+      "title": "Administrator action audit",
+      "description": "Administrative changes must be traceable.",
+      "rationale": "Project governance requires accountability.",
+      "mapping_state": "project_only",
+      "proposed_fr_id": "FR-900",
+      "source": "user"
+    }
+  ],
+  "content_hash": "sha256:project-reqs-example"
+}

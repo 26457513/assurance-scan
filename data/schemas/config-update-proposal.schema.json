@@ -1,0 +1,310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/config-update-proposal.schema.json",
+  "title": "Config Update Proposal",
+  "description": "Agent-authored, review-gated proposed updates to assurance configuration. This artifact is advisory and must not claim observed evidence or mutate product code.",
+  "type": "object",
+  "required": ["schema_version", "mode", "project", "run_id", "source_inputs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "mode": {"type": "string", "const": "config_update_proposal"},
+    "project": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "source_inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/source_input"}
+    },
+    "fr_catalog_updates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/fr_catalog_update"}
+    },
+    "compliance_mapping_pack_updates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/compliance_mapping_update"}
+    },
+    "assurance_framework_or_instance_updates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/assurance_update"}
+    },
+    "manual_evidence_updates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/manual_evidence_update"}
+    },
+    "native_test_mapping_updates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/native_test_mapping_update"}
+    },
+    "uncertain_mappings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/uncertain_mapping"}
+    },
+    "review_required": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/review_item"}
+    }
+  },
+  "$defs": {
+    "source_input": {
+      "type": "object",
+      "required": ["path", "used_for"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "kind": {"type": "string"},
+        "version": {"type": "string"},
+        "sha256": {"type": "string"},
+        "used_for": {"type": "string", "minLength": 1}
+      }
+    },
+    "fr_catalog_update": {
+      "type": "object",
+      "required": ["operation", "fr_id", "review_status", "source_basis", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": ["add_fr", "update_fr", "deprecate_fr", "add_tbt", "update_tbt", "deprecate_tbt"]
+        },
+        "fr_id": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+        "tbt_id": {"type": "string", "pattern": "^TBT-[A-Za-z0-9_.-]+$"},
+        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "proposed_fields": {"type": "object", "additionalProperties": true},
+        "source_basis": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source_basis"}
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      }
+    },
+    "compliance_mapping_update": {
+      "type": "object",
+      "required": ["operation", "ruleset", "ruleset_version", "row_id", "fr_refs", "tbt_refs", "review_status", "source_basis", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": {"type": "string", "enum": ["add_mapping", "update_mapping", "deprecate_mapping"]},
+        "mapping_id": {"type": "string"},
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset_version": {"type": "string", "minLength": 1},
+        "row_id": {"type": "string", "minLength": 1},
+        "fr_refs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+          "uniqueItems": true
+        },
+        "tbt_refs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^TBT-[A-Za-z0-9_.-]+$"},
+          "uniqueItems": true
+        },
+        "sufficiency": {"$ref": "#/$defs/sufficiency"},
+        "scope_status": {"type": "string", "enum": ["in_scope", "out_of_scope", "manual", "not_applicable"]},
+        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "source_basis": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source_basis"}
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      }
+    },
+    "assurance_update": {
+      "type": "object",
+      "required": ["operation", "target", "review_status", "source_basis", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "add_process",
+            "update_process",
+            "add_gate",
+            "update_gate",
+            "add_criterion",
+            "update_criterion",
+            "add_instance_mapping",
+            "update_instance_mapping",
+            "add_decision",
+            "update_decision",
+            "add_waiver",
+            "update_waiver",
+            "add_compensating_control",
+            "update_compensating_control"
+          ]
+        },
+        "target": {"$ref": "#/$defs/target_ref"},
+        "proposed_fields": {"type": "object", "additionalProperties": true},
+        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "source_basis": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source_basis"}
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      }
+    },
+    "manual_evidence_update": {
+      "type": "object",
+      "required": ["operation", "target", "evidence_type", "review_status", "source_basis", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": {"type": "string", "enum": ["add_expected_manual_evidence", "update_expected_manual_evidence"]},
+        "target": {"$ref": "#/$defs/target_ref"},
+        "evidence_type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/manual_evidence_type"},
+        "proposed_fields": {"type": "object", "additionalProperties": true},
+        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "source_basis": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source_basis"}
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      }
+    },
+    "native_test_mapping_update": {
+      "type": "object",
+      "required": ["operation", "native_test", "review_status", "source_basis", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "map_native_test_to_existing_tbt",
+            "create_tbt_under_existing_fr",
+            "create_new_fr_and_tbt",
+            "mark_not_assurance_relevant",
+            "leave_unmapped"
+          ]
+        },
+        "native_test": {
+          "type": "object",
+          "required": ["pack_id", "native_path"],
+          "additionalProperties": false,
+          "properties": {
+            "pack_id": {"type": "string", "minLength": 1},
+            "native_path": {"type": "string", "minLength": 1},
+            "pack_path": {"type": "string"},
+            "test_names": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fr": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+            "tbt": {"type": "string", "pattern": "^TBT-[A-Za-z0-9_.-]+$"}
+          }
+        },
+        "new_fr": {"type": "object", "additionalProperties": true},
+        "new_tbt": {"type": "object", "additionalProperties": true},
+        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "source_basis": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source_basis"}
+        },
+        "rationale": {"type": "string", "minLength": 1},
+        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"operation": {"const": "map_native_test_to_existing_tbt"}}},
+          "then": {"required": ["target"]}
+        },
+        {
+          "if": {"properties": {"operation": {"const": "create_tbt_under_existing_fr"}}},
+          "then": {"required": ["target", "new_tbt"]}
+        },
+        {
+          "if": {"properties": {"operation": {"const": "create_new_fr_and_tbt"}}},
+          "then": {"required": ["new_fr", "new_tbt"]}
+        }
+      ]
+    },
+    "uncertain_mapping": {
+      "type": "object",
+      "required": ["kind", "refs", "question", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "candidates": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "question": {"type": "string", "minLength": 1},
+        "why": {"type": "string", "minLength": 1}
+      }
+    },
+    "review_item": {
+      "type": "object",
+      "required": ["item", "question", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "item": {"type": "string", "minLength": 1},
+        "question": {"type": "string", "minLength": 1},
+        "why": {"type": "string", "minLength": 1}
+      }
+    },
+    "target_ref": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"type": "string", "enum": ["framework", "process", "gate", "criterion", "role", "fr", "tbt", "ruleset_row", "manual_artifact", "decision", "waiver", "compensating_control"]},
+        "id": {"type": "string", "minLength": 1},
+        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "row": {"type": "string"}
+      }
+    },
+    "sufficiency": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/required_evidence"}
+        },
+        "scanner_only_sufficient": {"type": "boolean"},
+        "manual_review_required": {"type": "boolean"},
+        "waiver_allowed": {"type": "boolean"},
+        "compensating_control_allowed": {"type": "boolean"}
+      }
+    },
+    "required_evidence": {
+      "type": "object",
+      "required": ["type", "minimum_strength"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_type"},
+        "minimum_strength": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"}
+      }
+    },
+    "source_basis": {
+      "type": "object",
+      "required": ["type", "ref"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "ref": {"type": "string", "minLength": 1},
+        "excerpt": {"type": "string"},
+        "sha256": {"type": "string"}
+      }
+    },
+    "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+    "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"},
+    "evidence_strength": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"},
+    "evidence_result": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_result"}
+  }
+}

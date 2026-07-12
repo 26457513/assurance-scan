@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json",
+  "title": "Shared Assurance Schema Definitions",
+  "description": "Shared enum and reference definitions used by target assurance schemas.",
+  "$defs": {
+    "fr_id": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+    "tbt_id": {"type": "string", "pattern": "^TBT-[A-Za-z0-9_.-]+$"},
+    "ruleset_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9_-]*(-[0-9]+)?$"},
+    "review_status": {
+      "type": "string",
+      "enum": ["proposed", "needs_review", "accepted", "rejected", "stale"]
+    },
+    "compliance_mapping_state": {
+      "type": "string",
+      "enum": ["mapped", "mapping_required", "project_only", "not_applicable", "mapped_elsewhere"]
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    },
+    "evidence_type": {
+      "type": "string",
+      "enum": ["test_result", "scanner_result", "document", "approval", "screenshot", "manual_note"]
+    },
+    "manual_evidence_type": {
+      "type": "string",
+      "enum": ["document", "approval", "screenshot", "manual_note"]
+    },
+    "evidence_strength": {
+      "type": "string",
+      "enum": ["strong", "supporting", "weak", "manual_review", "not_sufficient"]
+    },
+    "evidence_result": {
+      "type": "string",
+      "enum": ["passed", "failed", "partial", "missing", "manual_review", "waived", "compensating_control", "not_observed"]
+    },
+    "approval_status": {
+      "type": "string",
+      "enum": ["pending", "approved", "rejected", "waived"]
+    },
+    "readiness_status": {
+      "type": "string",
+      "enum": ["ready", "blocked", "partial", "manual_review", "waived"]
+    },
+    "graph_node_type": {
+      "type": "string",
+      "enum": [
+        "ruleset_row",
+        "domain",
+        "fr",
+        "tbt",
+        "evidence",
+        "process",
+        "gate",
+        "criterion",
+        "role",
+        "party",
+        "planning_artifact",
+        "blueprint",
+        "approval",
+        "waiver",
+        "compensating_control",
+        "decision",
+        "file",
+        "scanner_rule",
+        "deficiency"
+      ]
+    },
+    "graph_edge_type": {
+      "type": "string",
+      "enum": [
+        "satisfies",
+        "proves",
+        "produced_by",
+        "implements",
+        "maps_to",
+        "requires",
+        "assigned_to",
+        "blocks",
+        "evidences",
+        "applies_to",
+        "derived_from",
+        "approved_by",
+        "waived_by",
+        "depends_on_process"
+      ]
+    },
+    "graph_responsibility": {
+      "type": "string",
+      "enum": ["owner", "accountable", "approver", "reviewer", "contributor", "consulted", "informed"]
+    },
+    "derived_from": {
+      "type": "object",
+      "description": "Lineage reference for project artifacts instantiated or tailored from reusable blueprint/config artifacts.",
+      "required": ["source_type", "source_id", "source_version"],
+      "additionalProperties": false,
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["blueprint_catalog", "blueprint_fr", "blueprint_tbt", "config_package", "ruleset_row", "manual_authoring"]
+        },
+        "source_id": {"type": "string", "minLength": 1},
+        "source_version": {"type": "string", "minLength": 1},
+        "source_path": {"type": "string"},
+        "source_hash": {"type": "string"},
+        "source_item": {"type": "string"},
+        "tailoring": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field", "rationale"],
+            "additionalProperties": false,
+            "properties": {
+              "field": {"type": "string", "minLength": 1},
+              "from": {},
+              "to": {},
+              "rationale": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "review_status": {"$ref": "#/$defs/review_status"},
+        "rationale": {"type": "string"}
+      }
+    }
+  }
+}

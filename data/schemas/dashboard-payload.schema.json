@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/dashboard-payload.schema.json",
+  "title": "Dashboard Payload",
+  "description": "Normalised derived payload consumed by the static dashboard.",
+  "type": "object",
+  "required": ["schema_version", "project", "generated_at", "inputs", "summary", "graph"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "project": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "inputs": {"type": "object", "additionalProperties": {"type": "string"}},
+    "summary": {"type": "object", "additionalProperties": true},
+    "ruleset_views": {"type": "object", "additionalProperties": true},
+    "fr_catalog_view": {"type": "object", "additionalProperties": true},
+    "evidence_view": {"type": "object", "additionalProperties": true},
+    "graph": {"$ref": "#/$defs/graph"},
+    "graph_projections": {"type": "object", "additionalProperties": true},
+    "assurance_views": {"type": "object", "additionalProperties": true},
+    "deficiencies": {"type": "array", "items": {"$ref": "#/$defs/deficiency"}}
+  },
+  "$defs": {
+    "graph": {
+      "type": "object",
+      "required": ["nodes", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+        "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
+        "meta": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "label"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_node_type"},
+        "label": {"type": "string", "minLength": 1},
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "in_scope",
+            "deprecated",
+            "proposed",
+            "planned",
+            "implemented",
+            "passed",
+            "failed",
+            "missing",
+            "manual_review",
+            "waived",
+            "ready",
+            "blocked",
+            "partial",
+            "pending",
+            "approved",
+            "rejected",
+            "satisfied",
+            "unaddressed",
+            "discovered",
+            "ephemeral",
+            "not_observed",
+            "compensating_control"
+          ]
+        },
+        "lane": {"type": "string"},
+        "source": {"type": "object", "additionalProperties": true},
+        "metadata": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["source", "target", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_edge_type"},
+        "responsibility": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_responsibility"},
+        "key": {"type": "string"},
+        "label": {"type": "string"},
+        "metadata": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "deficiency": {
+      "type": "object",
+      "required": ["id", "severity", "type", "summary"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {"type": "string", "pattern": "^DEF-[A-Za-z0-9_.-]+$"},
+        "severity": {"type": "string", "enum": ["info", "low", "medium", "high", "critical"]},
+        "type": {"type": "string"},
+        "summary": {"type": "string"}
+      }
+    }
+  }
+}

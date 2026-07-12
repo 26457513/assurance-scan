@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "ruleset": "ASVS",
+  "version": "5.0.0",
+  "title": "OWASP Application Security Verification Standard",
+  "source": {
+    "url": "https://owasp.org/www-project-application-security-verification-standard/",
+    "license": "CC-BY-SA-4.0",
+    "retrieved_at": "2026-07-06T00:00:00Z"
+  },
+  "rows": [
+    {
+      "id": "v5.0.0-5.1.1",
+      "title": "Session management requirement",
+      "description": "Verify that session controls meet the ruleset requirement.",
+      "group": "V5",
+      "section": "V5.1",
+      "level": "L1",
+      "parent": null,
+      "metadata": {
+        "chapter": "V5"
+      }
+    }
+  ]
+}

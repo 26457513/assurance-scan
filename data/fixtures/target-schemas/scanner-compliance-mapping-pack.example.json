@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "semgrep-asvs-v5-example",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-08T00:00:00Z",
+    "updated_at": "2026-07-08T00:00:00Z",
+    "generator": "manual-curation",
+    "source_hash": "sha256:example",
+    "input_artifacts": [
+      {
+        "kind": "scanner_rules",
+        "path": "scanner-rules.example.json",
+        "version": "1.0",
+        "hash": "sha256:scanner-rules-example"
+      },
+      {
+        "kind": "ruleset",
+        "path": "ruleset.example.json",
+        "version": "5.0.0"
+      }
+    ]
+  },
+  "scanner": "semgrep",
+  "scanner_version": "1.0",
+  "scanner_rule_source": {
+    "kind": "scanner_rule_catalog",
+    "ref": "scanner-rules.example.json",
+    "version": "1.0",
+    "hash": "sha256:scanner-rules-example",
+    "retrieved_at": "2026-07-06T00:00:00Z"
+  },
+  "compliance": {
+    "ruleset": "ASVS",
+    "version": "5.0.0",
+    "source_ref": "OWASP ASVS v5.0.0"
+  },
+  "mappings": [
+    {
+      "id": "SCM-SEMGREP-ASVS-5-INJECTION",
+      "review_status": "accepted",
+      "reviewed_by": "fixture-reviewer",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "Static injection rules are relevant to ASVS injection rows, but no-findings are not sufficient proof by themselves.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "python.flask.security.injection",
+          "output_field": "ruleId",
+          "description": "Example Semgrep injection rule from the scanner rules fixture."
+        }
+      ],
+      "limitations": [
+        "Scanner no-findings do not prove runtime behaviour or complete input validation.",
+        "Project FR/TBT config must decide whether additional executable or manual evidence is required."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_rule_catalog",
+          "ref": "scanner-rules.example.json#/rules/python.flask.security.injection"
+        },
+        {
+          "kind": "assessor_review",
+          "ref": "fixture"
+        }
+      ],
+      "rationale": "The rule can expose injection-prone code paths and therefore provides a relevant supporting or blocking signal for the mapped ASVS row.",
+      "confidence": "medium",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.1.1"
+          }
+        ],
+        "compliance_domains": []
+      }
+    }
+  ]
+}

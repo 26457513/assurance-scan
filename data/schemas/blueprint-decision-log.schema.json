@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/blueprint-decision-log.schema.json",
+  "title": "Blueprint Decision Log",
+  "type": "object",
+  "required": ["schema_version", "id", "project", "proposal", "decisions"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "project": {"type": "string", "minLength": 1},
+    "proposal": {"type": "string", "minLength": 1},
+    "decisions": {"type": "array", "items": {"$ref": "#/$defs/decision"}},
+    "content_hash": {"type": "string"}
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "required": ["candidate", "decision", "reviewed_by", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "candidate": {"type": "string", "minLength": 1},
+        "decision": {"type": "string", "enum": ["accepted_as_is", "tailored", "rejected", "not_applicable"]},
+        "reviewed_by": {"type": "string", "minLength": 1},
+        "reviewed_at": {"type": "string", "format": "date-time"},
+        "reason": {"type": "string", "minLength": 1},
+        "tailoring": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+        "config_update_selector": {"type": "string"}
+      }
+    }
+  }
+}

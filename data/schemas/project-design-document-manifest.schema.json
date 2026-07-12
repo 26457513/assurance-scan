@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-design-document-manifest.schema.json",
+  "title": "Project Design Document Manifest",
+  "type": "object",
+  "required": ["schema_version", "id", "project", "source_contract", "document_path", "document_hash"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "project": {"type": "string", "minLength": 1},
+    "source_contract": {"type": "string", "minLength": 1},
+    "source_contract_hash": {"type": "string"},
+    "document_path": {"type": "string", "minLength": 1},
+    "document_hash": {"type": "string", "minLength": 1},
+    "sections_rendered": {"type": "array", "items": {"type": "string"}},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

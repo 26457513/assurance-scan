@@ -1,0 +1,1503 @@
+{
+  "schema_version": 1,
+  "assurance_framework": "JSP-453",
+  "title": "JSP 453 Digital Services Assurance Gate Process",
+  "description": "Structured, project-neutral model derived from JSP 453 Digital Services Assurance Playbook concepts, the JSP453 flowchart and DEAB Assurance Matrix evidence categories. It captures gates, authority categories, roles and evidence artefacts without tying them to a specific supplier, tenant or application.",
+  "roles": [
+    {
+      "id": "ROLE-SRO",
+      "title": "Senior Responsible Owner",
+      "party_type": "authority",
+      "description": "Accountable for cyber secure outcomes through the capability lifecycle and for relevant controls being met when engaging with DEAB.",
+      "responsibilities": [
+        "Takes accountability for relevant controls",
+        "Signs off Secure by Design process and accepted project risks",
+        "Supports DEAB authority requests"
+      ]
+    },
+    {
+      "id": "ROLE-IAO",
+      "title": "Information Asset Owner",
+      "party_type": "authority",
+      "description": "Approves access to and agreed use of data assets where applicable.",
+      "responsibilities": [
+        "Approves data access and use",
+        "Supports information risk decisions"
+      ]
+    },
+    {
+      "id": "ROLE-DELIVERY-TEAM-LEAD",
+      "title": "Delivery Team Lead",
+      "party_type": "internal",
+      "description": "Coordinates the project evidence pack and gate submissions.",
+      "responsibilities": [
+        "Maintains delivery evidence",
+        "Coordinates remediation and action tracking"
+      ]
+    },
+    {
+      "id": "ROLE-DELIVERY-TEAM-SECURITY-LEAD",
+      "title": "Delivery Team Security Lead",
+      "party_type": "internal",
+      "description": "Coordinates security evidence, risk records, and security assessor engagement.",
+      "responsibilities": [
+        "Coordinates cyber assurance evidence",
+        "Maintains risk and control evidence"
+      ]
+    },
+    {
+      "id": "ROLE-JSP453-CASE-OFFICER",
+      "title": "JSP 453 Case Officer",
+      "party_type": "assurance",
+      "description": "Provides case management, assurance triage, the PEF route and evidence collation before DEAB.",
+      "responsibilities": [
+        "Assurance triage",
+        "Provides Programme Engagement Form guidance",
+        "Coordinates JSP 453 Evidence Matrix artefacts before DEAB"
+      ]
+    },
+    {
+      "id": "ROLE-DEAB",
+      "title": "Digital Enterprise Approvals Board",
+      "party_type": "authority",
+      "description": "Authority for deployment/change, including AtT, IAtO, AtO and CAtO categories.",
+      "responsibilities": [
+        "Grants Authority to Test",
+        "Grants Interim Authority to Operate",
+        "Grants Authority to Operate"
+      ]
+    },
+    {
+      "id": "ROLE-TDA",
+      "title": "Technical Design Authority",
+      "party_type": "assurance",
+      "description": "Assures project compliance with reference architecture at major decision points.",
+      "responsibilities": [
+        "Approves HLD and overall design",
+        "Reviews architecture/design principles"
+      ]
+    },
+    {
+      "id": "ROLE-SOLUTION-ARCHITECT",
+      "title": "Technical or Solution Architect",
+      "party_type": "internal",
+      "description": "Provides design-principles declaration where TDA approval is not yet obtained.",
+      "responsibilities": [
+        "Produces architecture/design evidence",
+        "Confirms design principles have been followed"
+      ]
+    },
+    {
+      "id": "ROLE-CYDR-SECURITY-ARCHITECTURE",
+      "title": "CyDR Security Architecture",
+      "party_type": "assurance",
+      "description": "Reviews security architecture and service-zone/cross-domain controls.",
+      "responsibilities": [
+        "Approves cross-domain solution controls",
+        "Reviews service-zone and cyber architecture controls"
+      ]
+    },
+    {
+      "id": "ROLE-CYBER-DEFENSIVE-OPERATIONS",
+      "title": "Cyber Defensive Operations",
+      "party_type": "assurance",
+      "description": "Confirms relevant cyber defensive operational controls have been applied.",
+      "responsibilities": [
+        "Reviews cyber defensive controls",
+        "Provides written approval for applied controls"
+      ]
+    },
+    {
+      "id": "ROLE-CORE-TEST-SERVICES",
+      "title": "Core Test Services",
+      "party_type": "assurance",
+      "description": "Assures test strategies, plans, RTE and completion evidence for Defence Digital governance gates.",
+      "responsibilities": [
+        "Reviews test strategy and plans",
+        "Reviews representative test environment evidence",
+        "Reviews test completion activities"
+      ]
+    },
+    {
+      "id": "ROLE-OSM-ONBOARDING",
+      "title": "OSM Onboarding",
+      "party_type": "assurance",
+      "description": "Supports safe integration into live operation and the SIAM ecosystem.",
+      "responsibilities": [
+        "Assures service onboarding readiness",
+        "Supports integration into live operations"
+      ]
+    },
+    {
+      "id": "ROLE-SACM",
+      "title": "SACM Team",
+      "party_type": "assurance",
+      "description": "Confirms Configuration Items are recorded in CMS/CMDB.",
+      "responsibilities": [
+        "Reviews CMDB/CMS registration",
+        "Confirms SACM controls"
+      ]
+    },
+    {
+      "id": "ROLE-OSM-RESILIENCE",
+      "title": "OSM Resilience Team",
+      "party_type": "assurance",
+      "description": "Confirms ITSCM, availability and capacity controls.",
+      "responsibilities": [
+        "Reviews service continuity controls",
+        "Reviews availability management controls",
+        "Reviews capacity management controls"
+      ]
+    },
+    {
+      "id": "ROLE-CHANGE-MANAGEMENT",
+      "title": "Change Management SME",
+      "party_type": "assurance",
+      "description": "Confirms change-management process and Forward Schedule of Change evidence.",
+      "responsibilities": [
+        "Reviews change management plans",
+        "Confirms FSoC evidence"
+      ]
+    },
+    {
+      "id": "ROLE-CAB",
+      "title": "Change Advisory Board",
+      "party_type": "authority",
+      "description": "Authoritative forum for assessing, prioritising, authorising and scheduling standard and normal live-service changes.",
+      "responsibilities": [
+        "Assesses business and technical change impact",
+        "Authorises and schedules live-service changes",
+        "Confirms change risk is acceptable"
+      ]
+    },
+    {
+      "id": "ROLE-ECAB",
+      "title": "Emergency Change Advisory Board",
+      "party_type": "authority",
+      "description": "Emergency change authority used when urgent live-service change decisions are required.",
+      "responsibilities": [
+        "Assesses emergency change justification",
+        "Authorises urgent changes",
+        "Confirms emergency change risk and rollback approach"
+      ]
+    },
+    {
+      "id": "ROLE-SERVICE-OWNER",
+      "title": "Service Owner",
+      "party_type": "authority",
+      "description": "Owns the live service outcome and confirms the operational need and business impact for change.",
+      "responsibilities": [
+        "Owns live-service impact",
+        "Confirms business acceptance of change risk",
+        "Supports post-change review"
+      ]
+    },
+    {
+      "id": "ROLE-EVENT-MANAGEMENT",
+      "title": "Event Management Team",
+      "party_type": "assurance",
+      "description": "Confirms event-management controls and MDS template evidence.",
+      "responsibilities": [
+        "Reviews event-management MDS template",
+        "Approves event-management controls"
+      ]
+    },
+    {
+      "id": "ROLE-KNOWLEDGE-ARTICLE",
+      "title": "Knowledge Article Team",
+      "party_type": "assurance",
+      "description": "Confirms MOD first-line service desk knowledge article evidence.",
+      "responsibilities": [
+        "Reviews knowledge article submission",
+        "Confirms through-life KA maintenance approach"
+      ]
+    },
+    {
+      "id": "ROLE-GOSCC-ANNEX-A",
+      "title": "GOSCC Annex A Team",
+      "party_type": "assurance",
+      "description": "Confirms GOSCC Annex A/live support wrapper completion.",
+      "responsibilities": [
+        "Reviews operational live support wrapper",
+        "Confirms Annex A completion"
+      ]
+    },
+    {
+      "id": "ROLE-RISK-OWNER",
+      "title": "Risk Owner or Senior Risk Officer",
+      "party_type": "authority",
+      "description": "Reviews exceptions, residual risk and risk acceptance where controls cannot be met.",
+      "responsibilities": [
+        "Reviews exceptions and design caveats",
+        "Supports risk acceptance or remediation decisions"
+      ]
+    },
+    {
+      "id": "ROLE-SECOND-LINE-ASSESSOR",
+      "title": "Second Line Assessor",
+      "party_type": "assurance",
+      "description": "Provides second-line assurance where applicable.",
+      "responsibilities": [
+        "Reviews body of evidence",
+        "Provides independent assurance where applicable"
+      ]
+    },
+    {
+      "id": "ROLE-SUPPLIER",
+      "title": "Supplier or Engineering Team",
+      "party_type": "supplier",
+      "description": "Provides implementation, test, build, scan and remediation evidence.",
+      "responsibilities": [
+        "Provides technical evidence",
+        "Remediates gate-blocking findings"
+      ]
+    }
+  ],
+  "processes": [
+    {
+      "id": "JSP453-PROC-001",
+      "title": "JSP 453 Assurance Path to Authority",
+      "description": "End-to-end assurance path based on the JSP453 flowchart and DEAB Assurance Matrix: Front Door, JSP453 triage, assurance planning, AtT, test execution, IAtO, AtO and continual assurance.",
+      "entry_conditions": [
+        "A Defence Digital service, product or solution requires JSP 453 assurance or DEAB authority to test or operate.",
+        "Demand has been raised through the relevant Front Door or Demand Book route."
+      ],
+      "exit_outcomes": [
+        {
+          "id": "OUTCOME-TRIAGED-OUT",
+          "title": "Triaged out of JSP 453",
+          "description": "Triage confirms the demand does not continue through the JSP 453 assurance path.",
+          "status": "triaged_out"
+        },
+        {
+          "id": "OUTCOME-ATT-APPROVED",
+          "title": "Authority to Test approved",
+          "authority_category": "AtT",
+          "description": "DEAB approval allows controlled testing to proceed.",
+          "status": "approved"
+        },
+        {
+          "id": "OUTCOME-IATO-APPROVED",
+          "title": "Interim Authority to Operate approved",
+          "authority_category": "IAtO",
+          "description": "DEAB approval allows interim operation subject to stated conditions and evidence caveats.",
+          "status": "conditional"
+        },
+        {
+          "id": "OUTCOME-ATO-APPROVED",
+          "title": "Authority to Operate approved",
+          "authority_category": "AtO",
+          "description": "DEAB approval allows the service to operate under the agreed body of evidence and support model.",
+          "status": "approved"
+        },
+        {
+          "id": "OUTCOME-CATO-APPROVED",
+          "title": "Continuous Authority to Operate maintained",
+          "authority_category": "CAtO",
+          "description": "Continuous authority is maintained through evidence refresh, risk review and controlled change.",
+          "status": "continued"
+        },
+        {
+          "id": "OUTCOME-CONTINUE-IATO",
+          "title": "Continue IAtO",
+          "authority_category": "IAtO",
+          "description": "DEAB allows interim authority to continue while remaining AtO blockers are resolved.",
+          "status": "continued"
+        },
+        {
+          "id": "OUTCOME-DEAB-REJECTED",
+          "title": "DEAB rejected",
+          "description": "DEAB does not grant the requested authority and remediation or replanning is required.",
+          "status": "rejected"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "GATE-01-FRONT-DOOR",
+          "to": "GATE-02-JSP453-TRIAGE",
+          "label": "Submission accepted",
+          "condition": "Front Door evidence is complete enough for assurance triage.",
+          "style": "primary"
+        },
+        {
+          "from": "GATE-02-JSP453-TRIAGE",
+          "to": "GATE-03-ATT",
+          "label": "JSP 453 applicable",
+          "condition": "Triage confirms JSP 453 applies and the assurance plan is agreed.",
+          "style": "primary"
+        },
+        {
+          "from": "GATE-02-JSP453-TRIAGE",
+          "to": "OUTCOME-TRIAGED-OUT",
+          "label": "Triaged out",
+          "condition": "Triage confirms this route is not applicable.",
+          "style": "muted"
+        },
+        {
+          "from": "GATE-03-ATT",
+          "to": "GATE-04-TESTING-IATO",
+          "label": "AtT approved",
+          "outcome": "OUTCOME-ATT-APPROVED",
+          "style": "success"
+        },
+        {
+          "from": "GATE-03-ATT",
+          "to": "OUTCOME-DEAB-REJECTED",
+          "label": "AtT rejected",
+          "style": "danger"
+        },
+        {
+          "from": "GATE-04-TESTING-IATO",
+          "to": "GATE-05-ATO",
+          "label": "IAtO approved",
+          "outcome": "OUTCOME-IATO-APPROVED",
+          "style": "success"
+        },
+        {
+          "from": "GATE-04-TESTING-IATO",
+          "to": "OUTCOME-DEAB-REJECTED",
+          "label": "IAtO rejected",
+          "style": "danger"
+        },
+        {
+          "from": "GATE-05-ATO",
+          "to": "GATE-06-CONTINUAL-ASSURANCE",
+          "label": "AtO approved",
+          "outcome": "OUTCOME-ATO-APPROVED",
+          "style": "success"
+        },
+        {
+          "from": "GATE-05-ATO",
+          "to": "OUTCOME-CONTINUE-IATO",
+          "label": "Continue IAtO",
+          "style": "warning"
+        },
+        {
+          "from": "GATE-05-ATO",
+          "to": "OUTCOME-DEAB-REJECTED",
+          "label": "AtO rejected",
+          "style": "danger"
+        },
+        {
+          "from": "GATE-06-CONTINUAL-ASSURANCE",
+          "to": "OUTCOME-CATO-APPROVED",
+          "label": "CAtO maintained",
+          "style": "success"
+        }
+      ],
+      "gates": [
+        {
+          "id": "GATE-01-FRONT-DOOR",
+          "title": "Defence Digital Front Door Submission",
+          "sequence": 1,
+          "description": "Initial Front Door demand/submission before detailed JSP453 assurance, including DAA approval where applicable, questionnaire, HLD and BIA/project scope evidence.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {
+              "role": "ROLE-DELIVERY-TEAM-LEAD",
+              "responsibility": "owner",
+              "required": true
+            },
+            {
+              "role": "ROLE-SRO",
+              "responsibility": "approver",
+              "required": true
+            },
+            {
+              "role": "ROLE-JSP453-CASE-OFFICER",
+              "responsibility": "consulted",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "G1-C1",
+              "title": "Demand is raised through Front Door / Demand Book route",
+              "description": "Demand is entered through the relevant ND/Defence Digital Front Door or Demand Book route and categorised for Technical Assurance (JSP453) where applicable.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/front-door-submission.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "G1-C2",
+              "title": "Questionnaire, HLD and initial scope are complete",
+              "description": "Initial questionnaire, project scope, HLD and business impact information are available for triage.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/front-door-questionnaire.xlsx",
+                  "required": true
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/high-level-design.md",
+                  "required": true
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "docs/project-scope.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "G1-C3",
+              "title": "Core project roles are established",
+              "description": "SRO, IAO, delivery/security leads and JSP453 case officer are identified before triage and evidence collation.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/role-assignments.md",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-02-JSP453-TRIAGE",
+          "title": "JSP453 Triage and Assurance Plan",
+          "sequence": 2,
+          "description": "Confirm JSP453 applicability, specialist assurance requirements, and the evidence route before AtT submission.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {
+              "role": "ROLE-JSP453-CASE-OFFICER",
+              "responsibility": "owner",
+              "required": true
+            },
+            {
+              "role": "ROLE-SRO",
+              "responsibility": "accountable",
+              "required": true
+            },
+            {
+              "role": "ROLE-DELIVERY-TEAM-SECURITY-LEAD",
+              "responsibility": "contributor",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "G2-C1",
+              "title": "JSP453 triage decision is recorded",
+              "description": "Triage determines whether the service proceeds through JSP453 assurance, is triaged out, or requires ND assurance confirmation.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/jsp453-triage-decision.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "G2-C2",
+              "title": "Applicability checks are completed",
+              "description": "Applicability is confirmed for SoA/CoCo, spectrum, EM integration, crypto management plan, geospatial, modelling and simulation, and AI/ML.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/applicability-checks.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/soa-coco-decision.md",
+                  "required": false
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/crypto-management-plan.md",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "id": "G2-C3",
+              "title": "JSP453 assurance plan is agreed",
+              "description": "Assurance plan identifies evidence matrix rows, owners, specialist approvals, and route to DEAB authority categories.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/jsp453-assurance-plan.md",
+                  "required": true
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/assurance-plan-template.docx",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-03-ATT",
+          "title": "Authority to Test (AtT) Submission and DEAB",
+          "sequence": 3,
+          "description": "Prepare and submit the AtT evidence set to DEAB: HLD, service-zone/cross-domain/security design controls, cyber compliance, test plan, and Secure by Design/TSI evidence.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {
+              "role": "ROLE-DEAB",
+              "responsibility": "approver",
+              "required": true
+            },
+            {
+              "role": "ROLE-TDA",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-CYDR-SECURITY-ARCHITECTURE",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-CORE-TEST-SERVICES",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-SRO",
+              "responsibility": "accountable",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-GATE-03-01",
+              "title": "HLD, project scope and architecture approval are available",
+              "description": "DEAB matrix contextual and technology evidence: end-to-end HLD, project scope, and TDA approval or architect design-principles declaration.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/high-level-design.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/tda-hld-overall-design.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/solution-architect-design-principles.md",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "id": "CRIT-GATE-03-02",
+              "title": "Security architecture and cyber compliance controls are evidenced",
+              "description": "Security architecture, service-zone/cross-domain controls, cyber defensive controls, and applicable SoA/crypto controls have been reviewed.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/cydr-security-architecture.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/cyber-defensive-operations.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/soa-coco.md",
+                  "required": false
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/crypto-processes.md",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-016",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-017",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-018",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-019",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-020",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-021",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-064",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "id": "CRIT-GATE-03-03",
+              "title": "Test strategy, test plan and RTE are accepted",
+              "description": "Core Test Services confirms test plans, representative test environment and intended completion activities are adequate for AtT.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/test-strategy.docx",
+                  "required": false
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/test-plan.docx",
+                  "required": false
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/core-test-services-test-plan-rte.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "CRIT-GATE-03-04",
+              "title": "Secure by Design evidence is available for AtT",
+              "description": "SbD evidence includes SRO sign-off, SRO details, DART TOA/CAAT references, vulnerability-management registration and risk evidence.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/sbd-sro-signoff.md",
+                  "required": true
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/dart-caat-vvms.md",
+                  "required": true
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "semgrep:*",
+                  "required": false
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "trivy-vuln:*",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-04-TESTING-IATO",
+          "title": "Testing Completion and Interim Authority to Operate (IAtO)",
+          "sequence": 4,
+          "description": "After AtT approval, testing is completed and IAtO evidence is submitted to DEAB: TCR, IT Health Check, cyber compliance, GOSCC Annex A, and SbD SRO sign-off.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {
+              "role": "ROLE-DEAB",
+              "responsibility": "approver",
+              "required": true
+            },
+            {
+              "role": "ROLE-CORE-TEST-SERVICES",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-CYBER-DEFENSIVE-OPERATIONS",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-GOSCC-ANNEX-A",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-SRO",
+              "responsibility": "accountable",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "G4-C1",
+              "title": "Testing has completed and TCR is accepted",
+              "description": "Test Completion Report and test evidence show that the service/product is fit for utility and warranty for interim operation.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/test-completion-report.docx",
+                  "required": false
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/test-completion-report.md",
+                  "required": true
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "tests/representative-test-results.xml",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "id": "G4-C2",
+              "title": "IT Health Check and cyber compliance evidence are complete",
+              "description": "IAtO submission includes IT Health Check outcome and current cyber compliance evidence.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/it-health-check-report.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/cyber-compliance-iato.md",
+                  "required": true
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "gitleaks:*",
+                  "required": false
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "trivy-config:*",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "id": "G4-C3",
+              "title": "Operational live support wrapper is accepted",
+              "description": "GOSCC Annex A/live support wrapper is completed before live-service transition under IAtO.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/goscc-annex-a.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "G4-C4",
+              "title": "SRO accepts residual risk for IAtO",
+              "description": "SRO sign-off confirms SbD process, project risks, unresolved caveats or exceptions for interim operation.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/iato-sro-risk-acceptance.md",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-05-ATO",
+          "title": "Authority to Operate (AtO) / Continue IAtO",
+          "sequence": 5,
+          "description": "AtO submission confirms through-life operational management evidence: information plan, SACM, change, ITSCM, availability, capacity, event, knowledge, software/licensing and support wrapper controls.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {
+              "role": "ROLE-DEAB",
+              "responsibility": "approver",
+              "required": true
+            },
+            {
+              "role": "ROLE-OSM-ONBOARDING",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-SACM",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-OSM-RESILIENCE",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-CHANGE-MANAGEMENT",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-SRO",
+              "responsibility": "accountable",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "G5-C1",
+              "title": "Data and information management evidence is complete",
+              "description": "Data through-life management plan, IAO approval where data assets are used, and DPIA where PII is processed are available.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/data-through-life-management-plan.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/iao-data-access-use.md",
+                  "required": false
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/dpia.xlsx",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-022",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-023",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-026",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-027",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-028",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-033",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-034",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "id": "G5-C2",
+              "title": "Service configuration and asset records are complete",
+              "description": "SACM confirms Configuration Items are in CMS/CMDB.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/sacm-cmdb-ci-confirmation.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "G5-C3",
+              "title": "Resilience, availability and capacity controls are complete",
+              "description": "ITSCM recovery plan, availability management plan and capacity management plan are approved or confirmed by OSM Resilience.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/itscm-recovery-plan.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/availability-management-plan.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/capacity-management-plan.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "G5-C4",
+              "title": "Change, event and knowledge management controls are complete",
+              "description": "Change management plan/FSoC, event-management MDS template, and service desk knowledge article are approved.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/change-management-fsoc.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/event-management-mds.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/knowledge-article.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "G5-C5",
+              "title": "Licensing and live support wrapper are complete",
+              "description": "Software/licensing evidence and GOSCC Annex A/live support wrapper are available for AtO.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/software-licensing.md",
+                  "required": true
+                },
+                {
+                  "type": "approval",
+                  "ref": "approvals/goscc-annex-a.md",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-06-CONTINUAL-ASSURANCE",
+          "title": "Continuous Authority to Operate (CAtO)",
+          "sequence": 6,
+          "description": "After successful authority approval, the service maintains a living body of evidence, reviews residual risk, and keeps the DEAB authority basis current through life.",
+          "continuation_policy": "manual_decision",
+          "required_roles": [
+            {
+              "role": "ROLE-SRO",
+              "responsibility": "accountable",
+              "required": true
+            },
+            {
+              "role": "ROLE-DELIVERY-TEAM-LEAD",
+              "responsibility": "owner",
+              "required": true
+            },
+            {
+              "role": "ROLE-CHANGE-MANAGEMENT",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-RISK-OWNER",
+              "responsibility": "consulted",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "G6-C1",
+              "title": "Continuous authority basis is maintained",
+              "description": "The authority basis, open caveats, risks and evidence refresh plan are reviewed so CAtO can be maintained or renewed.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/continuous-authority-review.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "G6-C2",
+              "title": "Evidence pack remains a living record",
+              "description": "The body of evidence and HLD are updated after operational learning, assurance decisions and approved service changes.",
+              "required": true,
+              "blocks_continuation": false,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/high-level-design.md",
+                  "required": true
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "JSP453-PROC-001",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "JSP453-PROC-002",
+      "title": "CAB Live Change Authority",
+      "description": "Related JSP 453 live-service change authority path for standard, normal and emergency changes after a service is live, assured or registered. This flow is governed by CAB/eCAB rather than DEAB.",
+      "entry_conditions": [
+        "A live, assured or registered service requires a standard, normal or emergency change.",
+        "The service has an existing authority or support model that must remain valid after the proposed change."
+      ],
+      "exit_outcomes": [
+        {
+          "id": "OUTCOME-CAB-AUTHORISED",
+          "title": "Change authorised",
+          "description": "CAB authorises and schedules the change.",
+          "status": "approved"
+        },
+        {
+          "id": "OUTCOME-ECAB-AUTHORISED",
+          "title": "Emergency change authorised",
+          "description": "eCAB authorises an emergency change with appropriate risk and rollback controls.",
+          "status": "conditional"
+        },
+        {
+          "id": "OUTCOME-CAB-REJECTED",
+          "title": "Change rejected or deferred",
+          "description": "The change is rejected, deferred or returned for further evidence.",
+          "status": "rejected"
+        },
+        {
+          "id": "OUTCOME-CHANGE-CLOSED",
+          "title": "Change closed",
+          "description": "Implementation is complete and post-change evidence has been recorded.",
+          "status": "continued"
+        }
+      ],
+      "transitions": [
+        {
+          "from": "GATE-CAB-01-CHANGE-RAISED",
+          "to": "GATE-CAB-02-IMPACT-ASSESSMENT",
+          "label": "Change accepted for assessment",
+          "condition": "Change record has enough service, scope and timing information for assessment.",
+          "style": "primary"
+        },
+        {
+          "from": "GATE-CAB-02-IMPACT-ASSESSMENT",
+          "to": "GATE-CAB-03-CAB-DECISION",
+          "label": "Impact assessed",
+          "condition": "Business, technical, security, operational and rollback impacts are understood.",
+          "style": "primary"
+        },
+        {
+          "from": "GATE-CAB-03-CAB-DECISION",
+          "to": "GATE-CAB-04-PCIR-CLOSEOUT",
+          "label": "CAB authorised",
+          "outcome": "OUTCOME-CAB-AUTHORISED",
+          "style": "success"
+        },
+        {
+          "from": "GATE-CAB-03-CAB-DECISION",
+          "to": "GATE-CAB-04-PCIR-CLOSEOUT",
+          "label": "eCAB authorised",
+          "outcome": "OUTCOME-ECAB-AUTHORISED",
+          "style": "warning"
+        },
+        {
+          "from": "GATE-CAB-03-CAB-DECISION",
+          "to": "OUTCOME-CAB-REJECTED",
+          "label": "Rejected or deferred",
+          "style": "danger"
+        },
+        {
+          "from": "GATE-CAB-04-PCIR-CLOSEOUT",
+          "to": "OUTCOME-CHANGE-CLOSED",
+          "label": "Closed",
+          "style": "success"
+        }
+      ],
+      "gates": [
+        {
+          "id": "GATE-CAB-01-CHANGE-RAISED",
+          "title": "Live Change Raised",
+          "sequence": 1,
+          "description": "A standard, normal or emergency live-service change is recorded with scope, affected service, implementation window and change owner.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {
+              "role": "ROLE-SERVICE-OWNER",
+              "responsibility": "owner",
+              "required": true
+            },
+            {
+              "role": "ROLE-CHANGE-MANAGEMENT",
+              "responsibility": "reviewer",
+              "required": true
+            },
+            {
+              "role": "ROLE-DELIVERY-TEAM-LEAD",
+              "responsibility": "contributor",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "CAB1-C1",
+              "title": "Change record is complete",
+              "description": "The change record identifies the service, affected components, proposed window, implementation owner and requested change category.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "changes/change-record.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "CAB1-C2",
+              "title": "Current authority basis is known",
+              "description": "The current AtO, IAtO or registered-service basis is identified so the effect of the change can be assessed.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/current-authority-basis.md",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-CAB-02-IMPACT-ASSESSMENT",
+          "title": "Impact and Risk Assessment",
+          "sequence": 2,
+          "description": "Business, technical, cyber, service-management, rollback and schedule impacts are assessed before CAB/eCAB.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {
+              "role": "ROLE-SERVICE-OWNER",
+              "responsibility": "accountable",
+              "required": true
+            },
+            {
+              "role": "ROLE-CHANGE-MANAGEMENT",
+              "responsibility": "owner",
+              "required": true
+            },
+            {
+              "role": "ROLE-CYBER-DEFENSIVE-OPERATIONS",
+              "responsibility": "reviewer",
+              "required": false
+            },
+            {
+              "role": "ROLE-OSM-ONBOARDING",
+              "responsibility": "consulted",
+              "required": false
+            },
+            {
+              "role": "ROLE-RISK-OWNER",
+              "responsibility": "consulted",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "CAB2-C1",
+              "title": "Business and service impact is assessed",
+              "description": "The service owner confirms user, operational, availability and support impacts of the proposed change.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "changes/business-service-impact.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "CAB2-C2",
+              "title": "Technical and cyber risk is assessed",
+              "description": "Technical, security, data, dependency and vulnerability impacts are assessed against the approved design and evidence baseline.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "changes/technical-risk-assessment.md",
+                  "required": true
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-016",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-019",
+                  "required": false
+                },
+                {
+                  "type": "fr_placeholder",
+                  "ref": "FR-064",
+                  "required": false
+                }
+              ]
+            },
+            {
+              "id": "CAB2-C3",
+              "title": "Implementation, backout and communications plan is ready",
+              "description": "Implementation steps, rollback plan, testing/verification steps, maintenance window and stakeholder communications are documented.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "changes/implementation-backout-plan.md",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-CAB-03-CAB-DECISION",
+          "title": "CAB / eCAB Decision",
+          "sequence": 3,
+          "description": "CAB or eCAB assesses the change from business and technical viewpoints and authorises, rejects or defers the change.",
+          "continuation_policy": "manual_decision",
+          "required_roles": [
+            {
+              "role": "ROLE-CAB",
+              "responsibility": "approver",
+              "required": true
+            },
+            {
+              "role": "ROLE-ECAB",
+              "responsibility": "approver",
+              "required": false
+            },
+            {
+              "role": "ROLE-SERVICE-OWNER",
+              "responsibility": "accountable",
+              "required": true
+            },
+            {
+              "role": "ROLE-CHANGE-MANAGEMENT",
+              "responsibility": "owner",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "CAB3-C1",
+              "title": "CAB/eCAB pack is ready",
+              "description": "The board pack includes change record, impact assessment, implementation plan, risk decision and requested outcome.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "changes/cab-pack.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "CAB3-C2",
+              "title": "Authority decision is recorded",
+              "description": "CAB/eCAB decision, conditions, schedule and required follow-up actions are recorded.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "approval",
+                  "ref": "approvals/cab-decision.md",
+                  "required": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-CAB-04-PCIR-CLOSEOUT",
+          "title": "Implementation and PCIR Closeout",
+          "sequence": 4,
+          "description": "The authorised change is implemented, verified, reviewed and closed with post-change evidence and any follow-up actions.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {
+              "role": "ROLE-DELIVERY-TEAM-LEAD",
+              "responsibility": "owner",
+              "required": true
+            },
+            {
+              "role": "ROLE-SERVICE-OWNER",
+              "responsibility": "accountable",
+              "required": true
+            },
+            {
+              "role": "ROLE-CHANGE-MANAGEMENT",
+              "responsibility": "reviewer",
+              "required": true
+            }
+          ],
+          "criteria": [
+            {
+              "id": "CAB4-C1",
+              "title": "Implementation evidence is recorded",
+              "description": "Implementation result, validation checks, test evidence and rollback outcome are recorded.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "changes/implementation-evidence.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "CAB4-C2",
+              "title": "Post Change Implementation Review is complete",
+              "description": "PCIR captures whether the change succeeded, whether there were incidents or failed activities, and what follow-up actions remain.",
+              "required": true,
+              "blocks_continuation": true,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "changes/pcir.md",
+                  "required": true
+                }
+              ]
+            },
+            {
+              "id": "CAB4-C3",
+              "title": "Evidence baseline is updated",
+              "description": "The HLD, body of evidence, operational support wrapper and risk record are updated where the change affects them.",
+              "required": true,
+              "blocks_continuation": false,
+              "evidence_policy": "all_required",
+              "requirements": [
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/high-level-design.md",
+                  "required": false
+                },
+                {
+                  "type": "manual_artifact",
+                  "ref": "evidence/risk-record.md",
+                  "required": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "process_links": [
+    {
+      "from_process": "JSP453-PROC-001",
+      "from_gate": "GATE-05-ATO",
+      "from_outcome": "OUTCOME-ATO-APPROVED",
+      "to_process": "JSP453-PROC-002",
+      "to_gate": "GATE-CAB-01-CHANGE-RAISED",
+      "relationship": "enables",
+      "label": "Live change governed by CAB after AtO/IAtO",
+      "description": "Once a service is operating or registered, subsequent live changes are governed through CAB/eCAB while DEAB authority evidence remains the baseline."
+    },
+    {
+      "from_process": "JSP453-PROC-002",
+      "from_gate": "GATE-CAB-04-PCIR-CLOSEOUT",
+      "from_outcome": "OUTCOME-CHANGE-CLOSED",
+      "to_process": "JSP453-PROC-001",
+      "to_gate": "GATE-06-CONTINUAL-ASSURANCE",
+      "relationship": "informs",
+      "label": "Closed changes update CAtO evidence",
+      "description": "Post-change evidence and PCIR outputs feed the living evidence pack used for continuous authority."
+    }
+  ]
+}

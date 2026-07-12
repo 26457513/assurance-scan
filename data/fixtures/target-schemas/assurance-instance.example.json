@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "project": "example-app",
+  "assurance_framework": "JSP-453",
+  "selected_profile": "baseline",
+  "criterion_mappings": [
+    {
+      "criterion": "CRIT-GATE-03-04",
+      "requirements": [
+        {"type": "fr", "ref": "FR-016"},
+        {"type": "tbt", "ref": "TBT-016-ASVS-A"},
+        {"type": "evidence", "ref": "EVD-016-A"},
+        {"type": "manual_artifact", "ref": "ATT submission pack", "evidence": "EVD-GATE-03-ATT-PACK"}
+      ]
+    }
+  ],
+  "role_assignments": [
+    {
+      "gate": "GATE-03-ATT",
+      "role": "ROLE-DELIVERY-TEAM-SECURITY-LEAD",
+      "party": "Security Team",
+      "approval_status": "pending",
+      "approval_ref": "TICKET-123"
+    }
+  ],
+  "waivers": [
+    {
+      "id": "WVR-FR016-A-TIMEBOX",
+      "target": "TBT-016-ASVS-A",
+      "target_ref": {"type": "tbt", "ref": "TBT-016-ASVS-A"},
+      "reason": "Temporary time-boxed waiver while session-timeout instrumentation is completed.",
+      "approval_status": "approved",
+      "status_effect": "waived",
+      "scope": "Expired JWT rejection only; does not waive inactivity timeout coverage.",
+      "expires_at": "2026-09-30T00:00:00Z",
+      "review_due_at": "2026-09-01T00:00:00Z",
+      "approved_by": "SRO",
+      "approved_at": "2026-07-09T00:00:00Z",
+      "signature_ref": "SIG-WVR-FR016-A",
+      "evidence_refs": ["EVD-WVR-FR016-A"]
+    }
+  ],
+  "compensating_controls": [
+    {
+      "id": "CMP-FR016-SESSION-MONITORING",
+      "target": "FR-016",
+      "target_ref": {"type": "fr", "ref": "FR-016"},
+      "reason": "Compensating monitoring control while server-side inactivity timeout enforcement is incomplete.",
+      "control_description": "Security operations review session anomaly alerts daily until native timeout enforcement is shipped.",
+      "approval_status": "pending",
+      "status_effect": "compensating_control",
+      "scope": "Session timeout compensating control only.",
+      "review_due_at": "2026-08-15T00:00:00Z",
+      "evidence_refs": ["EVD-CMP-FR016-SESSION-MONITORING"]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-GATE-03-ATT-FR016",
+      "gate": "GATE-03-ATT",
+      "criterion": "CRIT-GATE-03-04",
+      "readiness_status": "partial",
+      "outcome": "Proceed with partial FR-016 evidence and explicit residual risk.",
+      "decided_by": "Security Assurance Lead",
+      "decided_at": "2026-07-09T00:00:00Z",
+      "decision_ref": "DECISION-123",
+      "signature_ref": "SIG-DEC-FR016",
+      "evidence_refs": ["EVD-GATE-03-ATT-PACK"],
+      "scope": "Gate 03 authority-to-test decision for FR-016."
+    }
+  ]
+}

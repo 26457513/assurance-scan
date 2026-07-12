@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "project": "example-app",
+  "generated_at": "2026-07-06T00:00:00Z",
+  "mode": "assessment_first",
+  "deficiencies": [
+    {
+      "id": "DEF-001",
+      "severity": "high",
+      "type": "missing_evidence",
+      "summary": "TBT-016-ASVS-A has no passing evidence.",
+      "affected": {
+        "frs": ["FR-016"],
+        "tbts": ["TBT-016-ASVS-A"],
+        "ruleset_rows": [{"ruleset": "ASVS", "row": "v5.0.0-5.1.1"}],
+        "gates": ["GATE-03-ATT"]
+      },
+      "recommended_action": "Assess existing tests before generating new test code."
+    }
+  ],
+  "fix_recommendations": [],
+  "assurance_recommendations": [
+    {
+      "id": "REC-001",
+      "type": "assess_existing_test",
+      "summary": "Check whether existing session tests can provide evidence for TBT-016-ASVS-A.",
+      "affected": {
+        "frs": ["FR-016"],
+        "tbts": ["TBT-016-ASVS-A"]
+      },
+      "requires_explicit_test_generation_request": false
+    }
+  ],
+  "safety_rules": [
+    "Do not invent product behaviour.",
+    "Do not generate new tests unless explicitly requested."
+  ]
+}

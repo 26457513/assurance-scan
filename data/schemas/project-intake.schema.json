@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-intake.schema.json",
+  "title": "Project Intake",
+  "description": "Planning Studio canonical project intent input.",
+  "type": "object",
+  "required": ["schema_version", "id", "status", "project", "mode", "intent"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["draft", "review_required", "approved", "superseded", "rejected"]},
+    "project": {"type": "string", "minLength": 1},
+    "mode": {"type": "string", "enum": ["greenfield", "existing_codebase"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "source_repo": {"type": "string"},
+    "intent": {"type": "string", "minLength": 1},
+    "stakeholders": {"type": "array", "items": {"type": "string"}},
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "provenance": {"type": "array", "items": {"$ref": "#/$defs/source_ref"}},
+    "content_hash": {"type": "string"}
+  },
+  "$defs": {
+    "source_ref": {
+      "type": "object",
+      "required": ["type", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "ref": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string"}
+      }
+    }
+  }
+}

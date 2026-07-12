@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "BLUEPRINT-PROPOSAL-example",
+  "status": "review_required",
+  "project": "example-project",
+  "source_blueprints": [
+    {
+      "id": "security-core",
+      "version": "asvs-5.0.0",
+      "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+      "sha256": "sha256:blueprint"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "CANDIDATE-session-timeout",
+      "blueprint_fr": "FR-BP-ASVS-SESSION-MANAGEMENT-001",
+      "blueprint_tbts": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-A"],
+      "decision": "pending_review",
+      "rationale": "Authenticated sessions are in scope.",
+      "confidence": "high",
+      "assumptions": []
+    }
+  ],
+  "content_hash": "sha256:blueprint-proposal-example"
+}
