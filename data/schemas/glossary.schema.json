@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/glossary.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/glossary.schema.json",
   "title": "Assurance Glossary",
-  "description": "Canonical glossary of product, assurance, ruleset, evidence and UI terms used by VibeGuide/asvs-scanner schemas, dashboard copy and generated prompts.",
+  "description": "Canonical glossary of product, assurance, ruleset, evidence and UI terms used by VibeGuide/assurance-scan schemas, dashboard copy and generated prompts.",
   "type": "object",
   "required": ["schema_version", "terms"],
   "additionalProperties": false,

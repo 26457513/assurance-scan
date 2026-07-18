@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/scanner-compliance-mapping-pack.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/scanner-compliance-mapping-pack.schema.json",
   "title": "Scanner Compliance Mapping Pack",
   "description": "Versioned mappings from concrete scanner findings to versioned compliance rows or domains. These packs are scanner/regime configuration only; project FR mappings are resolved later through the project FR/TBT catalog.",
   "type": "object",
@@ -64,7 +64,7 @@
       "required": ["ruleset", "version"],
       "additionalProperties": false,
       "properties": {
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "version": {"type": "string", "minLength": 1},
         "source_ref": {"type": "string"}
       }
@@ -75,7 +75,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string", "minLength": 1},
-        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "review_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
         "reviewed_by": {"type": ["string", "null"]},
         "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
         "review_decision": {"type": ["string", "null"]},
@@ -98,7 +98,7 @@
           "items": {"$ref": "#/$defs/source_basis"}
         },
         "rationale": {"type": "string", "minLength": 1},
-        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+        "confidence": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
       }
     },
     "targets": {
@@ -132,7 +132,7 @@
       "required": ["ruleset", "row"],
       "additionalProperties": false,
       "properties": {
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "row": {"type": "string", "minLength": 1}
       }
     },
@@ -141,7 +141,7 @@
       "required": ["ruleset", "domain"],
       "additionalProperties": false,
       "properties": {
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "domain": {"type": "string", "minLength": 1},
         "label": {"type": "string"}
       }
@@ -154,7 +154,7 @@
         "kind": {"type": "string", "minLength": 1}
       }
     },
-    "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+    "review_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
     "mapping_level": {
       "type": "string",
       "enum": ["compliance_row", "compliance_domain", "general_finding"]
@@ -167,6 +167,6 @@
       "type": "string",
       "enum": ["blocking_if_finding", "supporting_signal", "review_signal", "inventory_only"]
     },
-    "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+    "confidence": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
   }
 }

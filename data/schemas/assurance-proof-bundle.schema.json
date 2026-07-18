@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-proof-bundle.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/assurance-proof-bundle.schema.json",
   "title": "Assurance Proof Bundle",
   "description": "Selective-disclosure bundle for a verified assurance claim, public commitments, selected evidence commitments and optional artifact openings.",
   "type": "object",
@@ -11,7 +11,7 @@
     "mode": {"const": "assurance_proof_bundle"},
     "bundle_type": {"const": "selective_disclosure_v1"},
     "generated_at": {"type": "string", "format": "date-time"},
-    "claim": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-claim.schema.json"},
+    "claim": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/assurance-claim.schema.json"},
     "claim_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
     "public_commitments": {
       "type": "object",

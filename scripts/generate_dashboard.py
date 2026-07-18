@@ -42,6 +42,7 @@ from graph_vocabulary import (
 from scanner_parsers import *  # noqa: F401,F403 — constants, parsers, chart helpers
 
 CSS = load_asset("dashboard.css")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 
@@ -174,6 +175,7 @@ def refresh_existing_assurance_claims_and_proofs(report_dir: Path) -> None:
 
 CONFIG_SCHEMA_BY_ROLE = {
     "fr_catalog": "data/schemas/fr-catalog.schema.json",
+    "compliance_regime": "data/schemas/compliance-regime.schema.json",
     "compliance_mapping_pack": "data/schemas/compliance-mapping-pack.schema.json",
     "scanner_compliance_mapping_pack": "data/schemas/scanner-compliance-mapping-pack.schema.json",
     "assurance_framework": "data/schemas/assurance-framework.schema.json",
@@ -301,7 +303,7 @@ def config_artifact_commitment(path: Path, *, role: str, label: str | None = Non
         },
     }
     if isinstance(raw, dict):
-        for key in ("review_status", "reviewed_by", "pack", "ruleset", "ruleset_version", "assurance_framework", "project"):
+        for key in ("review_status", "reviewed_by", "pack", "regime", "version", "ruleset", "ruleset_version", "assurance_framework", "project"):
             if raw.get(key):
                 commitment[key] = raw[key]
         review_summary = config_review_summary(raw)
@@ -352,6 +354,7 @@ def planning_artifact_commitments(
 def accepted_config_commitments(
     *,
     fr_catalog_path: str | Path | None = None,
+    compliance_regime_paths: list[str | Path] | None = None,
     compliance_mapping_pack_path: str | Path | None = None,
     scanner_compliance_mapping_paths: list[str] | None = None,
     assurance_framework_path: str | Path | None = None,
@@ -360,6 +363,8 @@ def accepted_config_commitments(
     candidates: list[tuple[Path, str, str]] = []
     if fr_catalog_path:
         candidates.append((Path(fr_catalog_path), "fr_catalog", "fr_catalog"))
+    for idx, raw_path in enumerate(compliance_regime_paths or [], start=1):
+        candidates.append((Path(raw_path), "compliance_regime", f"compliance_regime:{idx}"))
     if compliance_mapping_pack_path:
         candidates.append((Path(compliance_mapping_pack_path), "compliance_mapping_pack", "compliance_mapping_pack"))
     if assurance_framework_path:
@@ -388,10 +393,138 @@ def accepted_config_commitments(
     return sorted(commitments, key=lambda item: (item["role"], item["path"], item["sha256"]))
 
 
+def _regime_slug(regime: str) -> str:
+    return str(regime or "").strip().lower()
+
+
+def _regime_metadata_candidates(regime: str) -> list[Path]:
+    slug = _regime_slug(regime)
+    if not slug:
+        return []
+    root = REPO_ROOT / "data" / "compliance-regimes" / slug
+    if not root.exists():
+        return []
+    return sorted(root.glob("*.json"))
+
+
+def _all_compliance_regime_paths() -> list[Path]:
+    root = REPO_ROOT / "data" / "compliance-regimes"
+    if not root.exists():
+        return []
+    return sorted(path for path in root.rglob("*.json") if path.is_file())
+
+
+def _all_assurance_framework_paths() -> list[Path]:
+    root = REPO_ROOT / "data" / "assurance-frameworks"
+    if not root.exists():
+        return []
+    return sorted(path for path in root.rglob("*.json") if path.is_file())
+
+
+def _image_data_path(path: Path) -> str:
+    try:
+        relative = path.resolve().relative_to(REPO_ROOT.resolve())
+        return f"/opt/assurance-scan/{relative.as_posix()}"
+    except ValueError:
+        return str(path)
+
+
+def _framework_label(data: dict[str, Any]) -> str:
+    framework_id = str(data.get("assurance_framework") or "").strip()
+    title = str(data.get("title") or framework_id or "Assurance framework").strip()
+    if framework_id == "JSP-453":
+        return "JSP-453 Digital Services"
+    if framework_id and title and title != framework_id:
+        return f"{framework_id} - {re.sub(r'^' + re.escape(framework_id) + r'\s*[-:]?\s*', '', title, flags=re.I)}"
+    return title or framework_id or "Assurance framework"
+
+
+def _process_label(process: dict[str, Any]) -> str:
+    title = str(process.get("title") or process.get("id") or "Gated flow").strip()
+    return re.sub(r"^JSP\s*453\s+", "", title, flags=re.I)
+
+
+def _load_assurance_framework_options(active_path: str | Path | None = None) -> list[dict[str, Any]]:
+    active_resolved = Path(active_path).resolve() if active_path else None
+    active_data = load_json(Path(active_path)) if active_path else {}
+    active_framework_id = str(active_data.get("assurance_framework") or "") if isinstance(active_data, dict) else ""
+    options: list[dict[str, Any]] = []
+    for path in _all_assurance_framework_paths():
+        data = load_json(path) or {}
+        if not isinstance(data, dict) or not data.get("assurance_framework"):
+            continue
+        processes = [
+            {
+                "id": str(process.get("id") or ""),
+                "label": _process_label(process),
+            }
+            for process in data.get("processes") or []
+            if process.get("id")
+        ]
+        options.append({
+            "id": str(data.get("assurance_framework") or ""),
+            "label": _framework_label(data),
+            "title": str(data.get("title") or ""),
+            "version": str(data.get("version") or ""),
+            "path": str(path),
+            "image_path": _image_data_path(path),
+            "processes": processes,
+            "selected": bool(
+                (active_resolved and path.resolve() == active_resolved)
+                or (active_framework_id and str(data.get("assurance_framework") or "") == active_framework_id)
+            ),
+        })
+    return sorted(options, key=lambda item: (item.get("label") or "").lower())
+
+
+def discover_compliance_regime_paths(
+    *,
+    fr_catalog_path: str | Path | None = None,
+    scanner_compliance_packs: list[dict[str, Any]] | None = None,
+    include_all_installed: bool = True,
+) -> list[Path]:
+    used_rulesets: set[str] = set()
+    catalog = load_json(Path(fr_catalog_path)) if fr_catalog_path else {}
+    if isinstance(catalog, dict):
+        for ruleset in (catalog.get("scope") or {}).keys():
+            _add_unique_string(used_rulesets, ruleset)
+        for fr in catalog.get("frs") or []:
+            for row in fr.get("satisfies") or []:
+                _add_unique_string(used_rulesets, row.get("ruleset"))
+        for tbt in catalog.get("tbts") or []:
+            for row in tbt.get("compliance") or []:
+                _add_unique_string(used_rulesets, row.get("ruleset"))
+        for row in catalog.get("na_rows") or []:
+            _add_unique_string(used_rulesets, row.get("ruleset"))
+
+    for pack in scanner_compliance_packs or []:
+        compliance = pack.get("compliance") or {}
+        _add_unique_string(used_rulesets, compliance.get("ruleset"))
+        for mapping in pack.get("mappings") or []:
+            for row in mapping.get("ruleset_rows") or []:
+                _add_unique_string(used_rulesets, row.get("ruleset"))
+            domain = mapping.get("domain")
+            if isinstance(domain, dict):
+                _add_unique_string(used_rulesets, domain.get("ruleset"))
+
+    paths: list[Path] = _all_compliance_regime_paths() if include_all_installed else []
+    for ruleset in sorted(used_rulesets):
+        paths.extend(_regime_metadata_candidates(ruleset))
+    seen: set[Path] = set()
+    unique_paths: list[Path] = []
+    for path in paths:
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique_paths.append(path)
+    return unique_paths
+
+
 CLAIM_CONFIG_REQUIREMENTS = {
     "fr_satisfied": {"fr_catalog"},
     "tbt_satisfied": {"fr_catalog"},
-    "compliance_row_satisfied": {"fr_catalog"},
+    "compliance_row_satisfied": {"fr_catalog", "compliance_regime"},
     "no_blocking_scanner_evidence": {"scanner_compliance_mapping_pack"},
     "selected_scope_satisfied": {"fr_catalog", "assurance_framework"},
 }
@@ -453,6 +586,7 @@ def write_graph_manifest(
     dashboard_payload: dict[str, Any],
     *,
     fr_catalog_path: str | Path | None = None,
+    compliance_regime_paths: list[str | Path] | None = None,
     compliance_mapping_pack_path: str | Path | None = None,
     scanner_compliance_mapping_paths: list[str] | None = None,
     assurance_framework_path: str | Path | None = None,
@@ -464,6 +598,7 @@ def write_graph_manifest(
     graph = dashboard_payload.get("graph") or {"nodes": [], "edges": []}
     config_commitments = accepted_config_commitments(
         fr_catalog_path=fr_catalog_path,
+        compliance_regime_paths=compliance_regime_paths or [],
         compliance_mapping_pack_path=compliance_mapping_pack_path,
         scanner_compliance_mapping_paths=scanner_compliance_mapping_paths or [],
         assurance_framework_path=assurance_framework_path,
@@ -532,7 +667,7 @@ def write_graph_manifest(
         "generated_at": dashboard_payload.get("generated_at", ""),
         "source_commit": (evidence_manifest or {}).get("git_commit", ""),
         "graph_builder": {
-            "name": "asvs-scanner.dashboard.graph",
+            "name": "assurance-scan.dashboard.graph",
             "version": 1,
             "vocabulary": "data/schemas/defs.schema.json",
         },
@@ -641,27 +776,7 @@ def render_severity_panel(sev: dict, assurance: dict) -> str:
             f'<div class="sev-row"><label>{label}</label><div class="track">'
             f'<div class="fill" style="--w:{w:.1f}%;--bar:{SEVERITY_COLORS[label]}"></div></div><strong>{n}</strong></div>'
         )
-    auto_pct = assurance.get('automated_assurance_pct', 0)
-    asvs_pct = assurance.get('asvs_traceability_pct', auto_pct)
-    manual_done = assurance.get('manual_items_completed', 0)
-    manual_total = assurance.get('manual_items_total', 0)
-    attempted = assurance.get('attempted_scanners', 0)
-    skipped = assurance.get('skipped', 0)
-    total_scans = attempted + skipped
-    tooltip = (
-        f'ASVS traceability score\n'
-        f'70% automated assurance + 30% manual evidence\n\n'
-        f'Automated assurance: {auto_pct}%\n'
-        f'PASS = 1, WARN = 0.5, FAIL = 0\n\n'
-        f'Manual evidence: {manual_done}/{manual_total}\n'
-        f'Current score: round(0.7 x {auto_pct}% + 0.3 x manual completion)'
-    )
-    mini = (
-        f'<div class="severity-mini"><div><span class="score-label">Assurance Score</span>'
-        f'<svg class="score-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>'
-        f'<b id="assurance-score" data-auto-pct="{auto_pct}" data-manual-done="{manual_done}" data-manual-total="{manual_total}" data-tooltip="{html.escape(tooltip)}">{asvs_pct}%</b></div><code>{attempted}/{total_scans} scans run</code></div>'
-    )
-    return f'<div class="risk-rail"><div class="severity-stack">{"".join(rows)}{mini}</div></div>'
+    return f'<div class="risk-rail"><div class="severity-stack">{"".join(rows)}</div></div>'
 
 def short_text(value, limit: int = 150) -> str:
     text = str(value or '-').replace('\n', ' ').strip()
@@ -1426,25 +1541,43 @@ def render_issue_triage_kpis(report_dir: Path, issues: list[dict]) -> str:
         return ""
     counts = trace_category_counts(report_dir, issues)
     cards = [
-        ("formal-assurance", "Formal assurance", counts["formal-assurance"], "Blocks or informs mapped FR/TBT assurance", "#ff8a3d"),
-        ("compliance-only", "Compliance only", counts["compliance-only"], "Maps to selected compliance rows, not project FR/TBT yet", "#ffd166"),
-        ("security-hygiene", "Security hygiene", counts["security-hygiene"], "No selected compliance or project trace yet", "#8fcbe8"),
+        (
+            "formal-assurance",
+            "Formal assurance",
+            counts["formal-assurance"],
+            "Formal assurance findings\n\nThese scanner findings trace to a project FR/TBT assurance chain. Treat failures as direct assurance blockers until fixed, waived, or otherwise resolved.",
+            "#ff8a3d",
+        ),
+        (
+            "compliance-only",
+            "Compliance only",
+            counts["compliance-only"],
+            "Compliance-only findings\n\nThese scanner findings map to selected compliance rows, but not yet to a project FR/TBT. They still matter for compliance triage and may need a project FR/TBT mapping.",
+            "#ffd166",
+        ),
+        (
+            "security-hygiene",
+            "Security hygiene",
+            counts["security-hygiene"],
+            "Security hygiene findings\n\nThese scanner findings do not currently trace to the selected compliance regime or a project FR/TBT. Review them as general security risk, then map, fix, accept, or document why they are out of scope.",
+            "#8fcbe8",
+        ),
     ]
     out = [
         '<div class="issue-triage-card" data-overview-persistent="true">'
-        '<div class="issue-triage-head"><h3>Scanner Finding Triage</h3><span>filter issue rows by assurance impact</span></div>'
         '<div class="issue-triage-grid">'
     ]
-    for key, label, count, sub, color in cards:
+    for key, label, count, tooltip, color in cards:
         out.append(
             f'<button type="button" class="metric issue-trace-filter" style="--metric-color:{color}" '
-            f'data-issue-trace-filter="{html.escape(key)}" aria-pressed="false">'
-            f'<b>{count:,}</b><span>{html.escape(label)}</span><small>{html.escape(sub)}</small>'
+            f'data-issue-trace-filter="{html.escape(key)}" data-tooltip="{html.escape(tooltip)}" aria-pressed="false">'
+            f'<b>{count:,}</b><span>{html.escape(label)}</span>'
             '</button>'
         )
     out.append(
-        '<button type="button" class="metric issue-trace-filter is-clear" data-issue-trace-filter="all" aria-pressed="true">'
-        f'<b>{len(issues):,}</b><span>All scanner findings</span><small>Clear triage filter</small></button>'
+        '<button type="button" class="metric issue-trace-filter is-clear" data-issue-trace-filter="all" '
+        'data-tooltip="Triage issue rows&#10;&#10;Normalized scanner issue rows used by the assurance-impact filters. This is smaller than raw scanner-finding volume because raw tool output may include repeated findings, dependency rows, locations, or scanner-specific records." aria-pressed="true">'
+        f'<b>{len(issues):,}</b><span>Triage issue rows</span></button>'
         '</div></div>'
     )
     return ''.join(out)
@@ -1452,7 +1585,7 @@ def render_issue_triage_kpis(report_dir: Path, issues: list[dict]) -> str:
 
 def render_issue_table(section: str, title: str, meta: str, issues: list[dict], report_dir: Path) -> str:
     out = [
-        f'<section class="card" data-overview-section="{html.escape(section)}"><div class="card-head"><h2>{title}</h2><span class="meta">{html.escape(meta)}</span></div>'
+        f'<section class="card" data-overview-section="{html.escape(section)}" data-issue-table-section="true"><div class="card-head"><h2>{title}</h2><span class="meta">{html.escape(meta)}</span></div>'
         f'<table class="matrix issue-summary-table"><thead><tr>{th("Severity")}{th("Scanner")}{th("ID")}{th("Finding")}{th("Assurance trace")}</tr></thead><tbody>'
     ]
     for idx, issue in enumerate(issues):
@@ -1626,6 +1759,27 @@ def evidence_inventory_meta(rel_file: str) -> dict[str, str]:
     return {'type': 'Evidence artifact', 'producer': 'scanner run', 'status': 'present', 'supports': 'run evidence'}
 
 
+def evidence_support_label(item: dict[str, Any]) -> str:
+    ruleset = str(item.get("ruleset") or "").strip()
+    row_ref = str(item.get("row") or "").strip()
+    domain = str(item.get("domain") or "").strip()
+    mapping_level = str(item.get("mapping_level") or "").strip()
+    node_id = str(item.get("node_id") or "").strip()
+
+    if ruleset and row_ref:
+        if mapping_level == "compliance_domain" or not re.match(r"^(?:v?\d+(?:\.\d+)*-)?\d+(?:\.\d+)+$", row_ref, re.I):
+            return f"{ruleset} domain: {row_ref}"
+        return f"{ruleset} {row_ref}"
+    if ruleset and domain:
+        return f"{ruleset} domain: {domain}"
+    if node_id.startswith("evidence:scanner-domain:"):
+        parts = node_id.split(":", 5)
+        if len(parts) == 6:
+            return f"{parts[4]} domain: {parts[5]}"
+        return "Scanner domain signal"
+    return node_id or "run evidence"
+
+
 def evidence_artifact_label(item: Any) -> str:
     if isinstance(item, str):
         return item
@@ -1690,6 +1844,176 @@ def evidence_io_detail_html(item: dict[str, Any]) -> str:
     return '<div class="evidence-io-grid">' + ''.join(blocks) + '</div>'
 
 
+def evidence_fact_table(rows: list[tuple[str, str]]) -> str:
+    body = ''.join(
+        '<tr>'
+        f'<th>{html.escape(label)}</th>'
+        f'<td>{value}</td>'
+        '</tr>'
+        for label, value in rows
+        if value
+    )
+    return f'<table class="evidence-fact-table"><tbody>{body}</tbody></table>' if body else ""
+
+
+def _manifest_path_label(path_text: str, report_dir: Path) -> str:
+    if not path_text:
+        return "-"
+    repo_root = Path(__file__).resolve().parents[1]
+    legacy_root = Path("/Users/jd/Development/asvs-scanner")
+    try:
+        raw_path = Path(path_text)
+        if raw_path.is_absolute() and raw_path.is_relative_to(legacy_root):
+            path_text = str(repo_root / raw_path.relative_to(legacy_root))
+    except (TypeError, ValueError):
+        pass
+    path = Path(path_text)
+    try:
+        if path.is_absolute():
+            return str(path.relative_to(report_dir))
+    except ValueError:
+        pass
+    try:
+        if path.is_absolute():
+            return str(path.relative_to(repo_root))
+    except ValueError:
+        pass
+    return path_text
+
+
+def _config_group_label(role: str) -> str:
+    if role in {"fr_catalog", "compliance_mapping_pack"}:
+        return "Project assurance contract"
+    if role in {"assurance_framework", "assurance_instance"}:
+        return "Assurance framework"
+    if role == "scanner_compliance_mapping_pack":
+        return "Scanner-to-compliance mappings"
+    if role in PLANNING_SCHEMA_BY_ROLE:
+        return "Planning artifacts"
+    return "Other runtime config"
+
+
+def _config_role_label(role: str) -> str:
+    labels = {
+        "fr_catalog": "Project FR/TBT catalog",
+        "compliance_mapping_pack": "Compliance mapping pack",
+        "assurance_framework": "Assurance framework",
+        "assurance_instance": "Assurance instance",
+        "scanner_compliance_mapping_pack": "Scanner mapping pack",
+    }
+    return labels.get(role, role.replace("_", " "))
+
+
+def render_config_artifacts(report_dir: Path) -> str:
+    manifest = load_json(report_dir / "graph-manifest.json") or {}
+    commitments = list(((manifest.get("accepted_config") or {}).get("commitments") or []))
+    commitments.extend(((manifest.get("planning_artifacts") or {}).get("commitments") or []))
+    if not commitments:
+        return ""
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in commitments:
+        role = str(item.get("role") or "")
+        grouped.setdefault(_config_group_label(role), []).append(item)
+
+    rows: list[str] = []
+    group_order = [
+        "Project assurance contract",
+        "Assurance framework",
+        "Scanner-to-compliance mappings",
+        "Planning artifacts",
+        "Other runtime config",
+    ]
+    for group in group_order:
+        items = grouped.get(group) or []
+        if not items:
+            continue
+        rows.append(
+            f'<tr class="config-group-row"><td colspan="4">{html.escape(group)}'
+            f'<span>{len(items)} file{"s" if len(items) != 1 else ""}</span></td></tr>'
+        )
+        for idx, item in enumerate(sorted(items, key=lambda value: (str(value.get("role") or ""), str(value.get("path") or "")))):
+            role = str(item.get("role") or "")
+            path_label = _manifest_path_label(str(item.get("path") or ""), report_dir)
+            schema_label = _manifest_path_label(str(item.get("schema") or ""), report_dir)
+            review = item.get("review_summary") or {}
+            review_bits = []
+            if review.get("review_status_counts"):
+                review_bits.append(
+                    ", ".join(f"{k}: {v}" for k, v in sorted((review.get("review_status_counts") or {}).items()))
+                )
+            if review.get("reviewers"):
+                review_bits.append("reviewed by " + ", ".join(str(v) for v in review.get("reviewers") or []))
+            review_label = "; ".join(review_bits) or str(item.get("review_status") or item.get("freeze", {}).get("mode") or "-")
+            scope_label = str(item.get("ruleset") or item.get("assurance_framework") or item.get("project") or item.get("pack") or "-")
+            detail_id = "config-detail-" + re.sub(r"[^a-z0-9]+", "-", f"{group}-{role}-{idx}".lower()).strip("-")
+            detail_rows = [
+                ("Role", html.escape(_config_role_label(role))),
+                ("File", f'<code>{html.escape(path_label)}</code>'),
+                ("Scope", html.escape(scope_label)),
+                ("Schema", f'<code>{html.escape(schema_label or "-")}</code>'),
+                ("Schema version", html.escape(str(item.get("schema_version") or "-"))),
+                ("Review / freeze", html.escape(review_label)),
+                ("Freeze mode", html.escape(str((item.get("freeze") or {}).get("mode") or "-"))),
+                ("Immutable", html.escape(str((item.get("freeze") or {}).get("immutable") if item.get("freeze") else "-").lower())),
+                ("Size", html.escape(fmt_bytes(item.get("bytes", 0)))),
+                ("Hash", f'<code>{html.escape(str(item.get("sha256") or "-"))}</code>'),
+            ]
+            if review.get("review_status_counts"):
+                detail_rows.append(("Review statuses", html.escape(", ".join(f"{k}: {v}" for k, v in sorted((review.get("review_status_counts") or {}).items())))))
+            if review.get("reviewers"):
+                detail_rows.append(("Reviewers", html.escape(", ".join(str(v) for v in review.get("reviewers") or []))))
+            rows.append(
+                f'<tr class="config-artifact-row" tabindex="0" data-config-detail="{html.escape(detail_id)}" aria-controls="{html.escape(detail_id)}" aria-expanded="false">'
+                f'<td>{html.escape(_config_role_label(role))}</td>'
+                f'<td><code title="{html.escape(path_label)}">{html.escape(short_text(path_label, 88))}</code></td>'
+                f'<td><code title="{html.escape(schema_label)}">{html.escape(short_text(schema_label or "-", 58))}</code></td>'
+                f'<td class="mono-cell">{fmt_bytes(item.get("bytes", 0))}</td>'
+                '</tr>'
+                f'<tr class="config-detail-row" id="{html.escape(detail_id)}" hidden><td colspan="4">'
+                '<div class="config-inline-detail">'
+                + evidence_fact_table(detail_rows)
+                + '</div></td></tr>'
+            )
+
+    return (
+        '<section class="evidence-config-section" data-file-tab-panel="config">'
+        '<div class="evidence-section-head"><h3>Runtime Config Files</h3>'
+        '<span>content-addressed inputs that power this report, graph and assurance claims</span></div>'
+        '<table class="matrix config-artifact-table"><thead><tr>'
+        '<th>Role</th><th>File</th><th>Schema</th><th>Size</th>'
+        '</tr></thead><tbody>'
+        + ''.join(rows)
+        + '</tbody></table></section>'
+    )
+
+
+def manifest_artifact_for_evidence_ref(
+    manifest_by_file: dict[str, dict],
+    ref: str,
+    scanner: str = "",
+) -> tuple[str, dict]:
+    if ref in manifest_by_file:
+        return ref, manifest_by_file[ref]
+    output = scanner_output_link(scanner) if scanner else ""
+    if output and output in manifest_by_file:
+        return output, manifest_by_file[output]
+    if output:
+        output_path = Path(output)
+        prefix, suffix = output_family(output_path.name)
+        candidates = []
+        for file_name, item in manifest_by_file.items():
+            path = Path(file_name)
+            if path.parent.as_posix() != output_path.parent.as_posix():
+                continue
+            if path.name == output_path.name or (suffix and path.name.startswith(prefix) and path.name.endswith(suffix)):
+                candidates.append((file_name, item))
+        if candidates:
+            return sorted(candidates, key=lambda pair: pair[0])[0]
+        return output, {}
+    return ref, {}
+
+
 def render_coverage(evidence: dict, report_dir: Path, evidence_view: dict[str, Any] | None = None) -> str:
     evidence_files = evidence.get('evidence_files', [])
     evidence_view = evidence_view or {}
@@ -1700,88 +2024,125 @@ def render_coverage(evidence: dict, report_dir: Path, evidence_view: dict[str, A
     }
     out = [
         '<section class="card evidence-inventory-card">'
-        '<div class="page-intro"><div><h2>Evidence Files</h2><ul>'
-        '<li>Lists graph evidence nodes and the artifacts they cite</li>'
-        '<li>Separates scanner output, generated tests and manual evidence from the runtime graph</li>'
-        '<li>Click a row for provenance details and manifest hashes where available</li>'
+        '<div class="page-intro files-page-intro"><div><h2>Files</h2><ul>'
+        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>Runtime config files are the frozen inputs used to build this report and graph.</span></li>'
+        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>Evidence files are observed scanner, test, generated and manual artifacts cited by graph nodes.</span></li>'
+        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>Expand a row to inspect provenance, hashes, schemas, inputs, outputs and side effects.</span></li>'
         '</ul></div></div>',
     ]
     if evidence_view:
         metrics = [
-            ("Evidence nodes", evidence_view.get("evidence_count", 0)),
-            ("Scanner evidence", evidence_view.get("scanner_evidence_count", 0)),
-            ("Test results", evidence_view.get("test_result_count", 0)),
-            ("Artifact refs", evidence_view.get("artifact_ref_count", 0)),
+            (
+                "Evidence nodes",
+                evidence_view.get("evidence_count", 0),
+                "Evidence nodes\n\nGraph nodes that represent observed or expected evidence, including scanner results, test results, documents, approvals and manual notes.",
+            ),
+            (
+                "Scanner evidence",
+                evidence_view.get("scanner_evidence_count", 0),
+                "Scanner evidence\n\nEvidence nodes produced from scanner mappings. These may be passing, failing, missing or skipped depending on whether the scanner ran and produced a matching artifact.",
+            ),
+            (
+                "Test results",
+                evidence_view.get("test_result_count", 0),
+                "Test results\n\nObserved test-result evidence imported from JUnit or approved assurance test runs. These can satisfy TBT evidence when linked to the expected FR/TBT chain.",
+            ),
+            (
+                "Artifact refs",
+                evidence_view.get("artifact_ref_count", 0),
+                "Artifact refs\n\nReport files referenced by graph evidence nodes. Expand rows to see the exact artifact, source locator, hash and provenance metadata where available.",
+            ),
         ]
         out.append(
             '<div class="metric-grid" style="grid-template-columns:repeat(4,minmax(120px,1fr));margin-bottom:12px">'
             + ''.join(
-                f'<div class="metric"><b>{html.escape(str(value))}</b><span>{html.escape(label)}</span></div>'
-                for label, value in metrics
+                f'<div class="metric" data-tooltip="{html.escape(tooltip)}"><b>{html.escape(str(value))}</b><span>{html.escape(label)}</span></div>'
+                for label, value, tooltip in metrics
             )
             + '</div>'
         )
 
+    config_html = render_config_artifacts(report_dir)
+    out.append(
+        '<div class="file-page-tabs" role="tablist" aria-label="File views">'
+        f'<button type="button" class="file-page-tab active" data-file-tab="config" role="tab" aria-selected="true">Runtime config files</button>'
+        f'<button type="button" class="file-page-tab" data-file-tab="evidence" role="tab" aria-selected="false">Evidence</button>'
+        '</div>'
+    )
+    if config_html:
+        out.append(config_html)
+    else:
+        out.append('<section class="evidence-config-section" data-file-tab-panel="config"><div class="empty-state">No runtime config manifest was recorded for this run.</div></section>')
+
     artifact_refs = evidence_view.get("artifact_refs") or []
+    evidence_table_html = ""
     if artifact_refs:
         rows = []
         for idx, item in enumerate(artifact_refs):
             rel_file = str(item.get("ref") or item.get("source_locator") or item.get("source") or "-")
-            manifest_item = manifest_by_file.get(rel_file, {})
-            sha = str(manifest_item.get('sha256', ''))
             evidence_type = str(item.get("evidence_type") or "evidence")
             scanner = str(item.get("scanner") or "")
+            artifact_file, manifest_item = manifest_artifact_for_evidence_ref(manifest_by_file, rel_file, scanner)
+            sha = str(manifest_item.get('sha256', ''))
             status = str(item.get("status") or "unknown")
+            scanner_health = str(item.get("scanner_health") or "")
+            scanner_reason = str(item.get("scanner_reason") or "")
             ruleset = str(item.get("ruleset") or "")
-            row_ref = str(item.get("row") or "")
-            meta = evidence_inventory_meta(rel_file)
+            meta = evidence_inventory_meta(artifact_file)
             if evidence_type != "unknown":
                 meta["type"] = evidence_type.replace("_", " ")
             if scanner:
                 meta["producer"] = scanner
             if status:
                 meta["status"] = status.replace("_", " ")
-            if ruleset and row_ref:
-                meta["supports"] = f"{ruleset} {row_ref}"
-            elif item.get("node_id"):
-                meta["supports"] = str(item.get("node_id"))
-            size = fmt_bytes(manifest_item.get('bytes', 0)) if manifest_item else "-"
+            if ruleset or item.get("node_id"):
+                meta["supports"] = evidence_support_label(item)
+            size = fmt_bytes(manifest_item.get('bytes', 0)) if manifest_item else ("not produced" if scanner else "-")
+            hash_label = sha or ("no output captured" if scanner else "not in manifest")
             summary = (
                 f"Graph evidence {item.get('node_id') or item.get('label') or rel_file} "
-                f"cites {rel_file}. Produced by {meta['producer']}; status {meta['status']}."
+                f"cites {rel_file}. Artifact: {artifact_file}. Produced by {meta['producer']}; status {meta['status']}."
             )
+            fact_rows = [
+                ("Producer", html.escape(meta["producer"])),
+                ("Status", html.escape(meta["status"])),
+                ("Supports", html.escape(meta["supports"])),
+                ("Artifact", f'<code>{html.escape(artifact_file)}</code>'),
+                ("Size", html.escape(size)),
+                ("Hash", f'<code>{html.escape(hash_label)}</code>'),
+                ("Graph node", f'<code>{html.escape(str(item.get("node_id") or "-"))}</code>'),
+            ]
+            if artifact_file != rel_file:
+                fact_rows.insert(4, ("Source locator", f'<code>{html.escape(rel_file)}</code>'))
+            if scanner_health:
+                fact_rows.insert(2, ("Scanner health", html.escape(scanner_health)))
+            if scanner_reason:
+                fact_rows.insert(3, ("Scanner reason", html.escape(scanner_reason)))
+            facts = evidence_fact_table(fact_rows)
             detail_id = f'evidence-detail-{idx}'
             rows.append(
                 '<tr class="evidence-row" tabindex="0"'
                 f' data-evidence-detail="{detail_id}" aria-controls="{detail_id}" aria-expanded="false">'
                 f'<td><span class="evidence-type-chip">{html.escape(meta["type"])}</span></td>'
-                f'<td><code title="{html.escape(rel_file)}">{html.escape(short_text(rel_file, 78))}</code></td>'
+                f'<td><code title="{html.escape(artifact_file)}">{html.escape(short_text(artifact_file, 78))}</code></td>'
                 f'<td>{html.escape(meta["producer"])}</td>'
                 f'<td><span class="evidence-status-chip">{html.escape(meta["status"])}</span></td>'
-                f'<td>{html.escape(meta["supports"])}</td>'
+                f'<td title="{html.escape(meta["supports"])}">{html.escape(short_text(meta["supports"], 54))}</td>'
                 f'<td class="mono-cell">{size}</td>'
-                f'<td class="mono-cell">{html.escape(sha[:12] or "-")}</td>'
                 '</tr>'
-                f'<tr class="evidence-detail-row" id="{detail_id}" hidden><td colspan="7">'
+                f'<tr class="evidence-detail-row" id="{detail_id}" hidden><td colspan="6">'
                 '<div class="evidence-inline-detail">'
                 f'<div class="evidence-inline-title"><strong>{html.escape(meta["type"])}</strong><code>{html.escape(rel_file)}</code></div>'
                 f'<div class="evidence-inline-summary">{html.escape(summary)}</div>'
-                '<div class="evidence-preview-facts">'
-                f'<span>Producer: <b>{html.escape(meta["producer"])}</b></span>'
-                f'<span>Status: <b>{html.escape(meta["status"])}</b></span>'
-                f'<span>Supports: <b>{html.escape(meta["supports"])}</b></span>'
-                f'<span>Size: <b>{html.escape(size)}</b></span>'
-                f'<span>Hash: <b>{html.escape(sha[:12] or "not in manifest")}</b></span>'
-                f'<span>Graph node: <b>{html.escape(str(item.get("node_id") or "-"))}</b></span>'
-                '</div>'
+                + facts
                 + evidence_io_detail_html(item) +
                 '</div>'
                 '</td></tr>'
             )
-        out.append(
-            '<table class="matrix evidence-table"><thead><tr>'
-            '<th>Type</th><th>Artifact</th><th>Producer</th><th>Status</th><th>Supports</th><th>Size</th><th>Hash</th>'
-            '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+        evidence_table_html = (
+            '<section data-file-tab-panel="evidence" hidden><table class="matrix evidence-table"><thead><tr>'
+            '<th>Type</th><th>Artifact</th><th>Producer</th><th>Status</th><th>Supports</th><th>Size</th>'
+            '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table></section>'
         )
     elif evidence_files:
         rows = []
@@ -1794,6 +2155,13 @@ def render_coverage(evidence: dict, report_dir: Path, evidence_view: dict[str, A
                 f"{meta['type']} produced by {meta['producer']}. "
                 f"Status: {meta['status']}. Supports: {meta['supports']}."
             )
+            facts = evidence_fact_table([
+                ("Producer", html.escape(meta["producer"])),
+                ("Status", html.escape(meta["status"])),
+                ("Supports", html.escape(meta["supports"])),
+                ("Size", html.escape(size)),
+                ("Hash", f'<code>{html.escape(sha or "-")}</code>'),
+            ])
             detail_id = f'evidence-detail-{idx}'
             rows.append(
                 '<tr class="evidence-row" tabindex="0"'
@@ -1804,29 +2172,23 @@ def render_coverage(evidence: dict, report_dir: Path, evidence_view: dict[str, A
                 f'<td><span class="evidence-status-chip">{html.escape(meta["status"])}</span></td>'
                 f'<td>{html.escape(meta["supports"])}</td>'
                 f'<td class="mono-cell">{size}</td>'
-                f'<td class="mono-cell">{html.escape(sha[:12])}</td>'
                 '</tr>'
-                f'<tr class="evidence-detail-row" id="{detail_id}" hidden><td colspan="7">'
+                f'<tr class="evidence-detail-row" id="{detail_id}" hidden><td colspan="6">'
                 '<div class="evidence-inline-detail">'
                 f'<div class="evidence-inline-title"><strong>{html.escape(meta["type"])}</strong><code>{html.escape(rel_file)}</code></div>'
                 f'<div class="evidence-inline-summary">{html.escape(summary)}</div>'
-                '<div class="evidence-preview-facts">'
-                f'<span>Producer: <b>{html.escape(meta["producer"])}</b></span>'
-                f'<span>Status: <b>{html.escape(meta["status"])}</b></span>'
-                f'<span>Supports: <b>{html.escape(meta["supports"])}</b></span>'
-                f'<span>Size: <b>{html.escape(size)}</b></span>'
-                f'<span>Hash: <b>{html.escape(sha[:12])}</b></span>'
-                '</div>'
-                '</div>'
+                + facts
+                + '</div>'
                 '</td></tr>'
             )
-        out.append(
-            '<table class="matrix evidence-table"><thead><tr>'
-            '<th>Type</th><th>Artifact</th><th>Producer</th><th>Status</th><th>Supports</th><th>Size</th><th>Hash</th>'
-            '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+        evidence_table_html = (
+            '<section data-file-tab-panel="evidence" hidden><table class="matrix evidence-table"><thead><tr>'
+            '<th>Type</th><th>Artifact</th><th>Producer</th><th>Status</th><th>Supports</th><th>Size</th>'
+            '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table></section>'
         )
     else:
-        out.append('<div class="empty-state">No evidence files were recorded for this run.</div>')
+        evidence_table_html = '<section data-file-tab-panel="evidence" hidden><div class="empty-state">No evidence files were recorded for this run.</div></section>'
+    out.append(evidence_table_html)
     out.append('</section>')
     return ''.join(out)
 
@@ -1887,6 +2249,14 @@ def _native_mapping_recommendation_html(update: dict | None) -> str:
 
 
 def _assurance_workflow_state(item: dict) -> str:
+    assessment = str(item.get("assessment") or "")
+    review_disposition = str(item.get("review_disposition") or "")
+    if assessment == "not_assurance_relevant" or review_disposition == "reviewed_not_evidence":
+        return "reviewed_not_evidence"
+    if assessment == "bespoke_project_only" or review_disposition == "bespoke_project_only":
+        return "bespoke_project_only"
+    if review_disposition in {"needs_mapping_review", "left_unmapped"}:
+        return "recommended"
     if not item.get("tbt") and item.get("native_path"):
         return "map"
     if item.get("source") == "planned_tbt":
@@ -1939,13 +2309,14 @@ def _review_board_cards(report_dir: Path) -> list[dict[str, Any]]:
         if not (
             item.get("source") in {"generated", "planned_tbt", "wrapper_needed", "existing_asvs"}
             or item.get("safety") == "review_required"
-            or item.get("assessment") in {"needs_design", "useful_with_wrapper", "candidate_inspiration"}
+            or item.get("assessment") in {"needs_design", "useful_with_wrapper", "candidate_inspiration", "not_assurance_relevant", "bespoke_project_only"}
         ):
             continue
         tbt_id = str(item.get("tbt") or "")
         tbt = tbt_by_id.get(tbt_id, {})
         fr_ids = item.get("frs") or tbt.get("proves") or []
         proposal = mapping_proposals.get(str(item.get("native_path") or "")) or mapping_proposals.get(str(item.get("pack_id") or ""))
+        mapping_review = item.get("mapping_review") or {}
         target = (proposal or {}).get("target") or {}
         target_fr = str(target.get("fr") or "")
         target_tbt = str(target.get("tbt") or "")
@@ -1968,11 +2339,15 @@ def _review_board_cards(report_dir: Path) -> list[dict[str, Any]]:
             "status": item.get("status") or "",
             "tbt": tbt_id,
             "frs": fr_ids,
-            "recommendation": str((proposal or {}).get("operation") or ""),
-            "confidence": str((proposal or {}).get("confidence") or ""),
+            "recommendation": str((proposal or {}).get("operation") or mapping_review.get("operation") or ""),
+            "confidence": str((proposal or {}).get("confidence") or mapping_review.get("confidence") or ""),
             "target": " / ".join(part for part in (target.get("fr"), target.get("tbt")) if part),
-            "agentic_rationale": str((proposal or {}).get("rationale") or ""),
+            "agentic_rationale": str((proposal or {}).get("rationale") or mapping_review.get("rationale") or ""),
             "discovery_rationale": str(item.get("rationale") or ""),
+            "test_names": [str(name) for name in item.get("test_names") or [] if name],
+            "review_status": str(mapping_review.get("review_status") or ""),
+            "reviewed_by": str(mapping_review.get("reviewed_by") or ""),
+            "source_basis": [source for source in mapping_review.get("source_basis") or [] if isinstance(source, dict)],
             "fr_summary": " | ".join(summary for summary in (fr_summary(fr_id) for fr_id in summary_fr_ids) if summary),
             "tbt_summary": " | ".join(summary for summary in (tbt_summary(tbt_id) for tbt_id in summary_tbt_ids) if summary),
         })
@@ -1989,22 +2364,21 @@ def _review_board_cards(report_dir: Path) -> list[dict[str, Any]]:
         has_agentic_mapping = bool(
             card["proposal_selector"]
             and card.get("recommendation")
-            and card.get("target")
-            and "FR-" in str(card.get("target"))
-            and "TBT-" in str(card.get("target"))
+            and card.get("agentic_rationale")
         )
         if has_agentic_mapping and card["lane"] == "map":
             card["lane"] = "recommended"
     return cards
 
 
-REVIEW_BOARD_LANES = {"map", "recommended", "specify", "review", "import", "blocked"}
+REVIEW_BOARD_LANES = {"map", "recommended", "reviewed_not_evidence", "bespoke_project_only", "specify", "review", "import", "blocked"}
 REVIEW_BOARD_DECISIONS = {
     "",
     "accept_recommendation",
     "remap_as_orphan",
     "leave_unmapped",
     "mark_not_assurance_relevant",
+    "mark_project_specific_only",
     "needs_new_tbt_fr",
     "approve_for_implementation",
     "approve_to_run",
@@ -2037,6 +2411,10 @@ def _board_card_state(card: dict[str, Any], *, generated_at: str = "") -> dict[s
         "status": str(card.get("status") or ""),
         "assessment": str(card.get("assessment") or ""),
         "safety": str(card.get("safety") or ""),
+        "test_names": [str(name) for name in card.get("test_names") or [] if name],
+        "review_status": str(card.get("review_status") or ""),
+        "reviewed_by": str(card.get("reviewed_by") or ""),
+        "source_basis": [source for source in card.get("source_basis") or [] if isinstance(source, dict)],
         "updated_at": generated_at,
     }
 
@@ -2046,11 +2424,268 @@ def _load_project_fr_board_state(report_dir: Path) -> dict[str, dict[str, Any]]:
     cards = state.get("cards") if isinstance(state, dict) else []
     out: dict[str, dict[str, Any]] = {}
     for card in cards or []:
-        if not isinstance(card, dict) or not card.get("id"):
+        if not isinstance(card, dict):
             continue
-        out[str(card["id"])] = card
+        card_id = str(card.get("id") or "")
+        if card_id:
+            out[card_id] = card
+        tbt = str(card.get("tbt") or "")
+        if tbt:
+            out.setdefault(f"tbt:{tbt}", card)
+        native_path = str(card.get("native_path") or "")
+        if native_path:
+            out.setdefault(f"native:{native_path}", card)
     return out
 
+
+def _load_blueprint_proposal(report_dir: Path, source_repo: str = "") -> tuple[dict[str, Any] | None, Path | None]:
+    candidates: list[Path] = []
+    if source_repo:
+        candidates.append(Path(source_repo) / "blueprint-proposal.json")
+    candidates.extend([
+        report_dir / "blueprint-proposal.json",
+        report_dir.parent.parent / "blueprint-proposal.json",
+    ])
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        data = load_json(candidate) or {}
+        if isinstance(data, dict) and data.get("candidates"):
+            return data, candidate
+    return None, None
+
+
+def _blueprint_mapping_summary(candidate: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for mapping in candidate.get("compliance_mappings") or []:
+        ruleset = str(mapping.get("ruleset") or "")
+        version = str(mapping.get("version") or "")
+        rows = mapping.get("rows") or []
+        domains = mapping.get("domains") or []
+        count = len(rows) + len(domains)
+        label = f"{ruleset} {version}".strip()
+        if label:
+            parts.append(f"{label}: {count}")
+    return "; ".join(parts) or "No mapped rows"
+
+
+def _blueprint_mapping_detail(candidate: dict[str, Any]) -> str:
+    rows: list[str] = []
+    for mapping in candidate.get("compliance_mappings") or []:
+        ruleset = str(mapping.get("ruleset") or "")
+        version = str(mapping.get("version") or "")
+        relationship = str(mapping.get("relationship") or "")
+        strength = str(mapping.get("traceability_strength") or "")
+        refs = [str(row.get("row") or row.get("domain") or "") for row in (mapping.get("rows") or mapping.get("domains") or [])]
+        refs = [ref for ref in refs if ref]
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(ruleset)}</td>"
+            f"<td>{html.escape(version)}</td>"
+            f"<td>{html.escape(relationship)}</td>"
+            f"<td>{html.escape(strength)}</td>"
+            f"<td>{html.escape(', '.join(refs[:12]) + (' +' + str(len(refs) - 12) if len(refs) > 12 else ''))}</td>"
+            "</tr>"
+        )
+    if not rows:
+        return '<p class="muted">No compliance mappings were attached to this candidate.</p>'
+    return (
+        '<table class="matrix blueprint-proposal-detail-table"><thead><tr>'
+        '<th>Regime</th><th>Version</th><th>Relationship</th><th>Strength</th><th>Rows / controls</th>'
+        '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+    )
+
+
+def render_blueprint_proposals_tab(report_dir: Path, source_repo: str = "") -> str:
+    proposal, proposal_path = _load_blueprint_proposal(report_dir, source_repo)
+    if not proposal:
+        return (
+            '<section class="card blueprint-proposal-card" data-blueprint-proposal-page>'
+            '<div class="empty-state">No blueprint-proposal.json was found for this run. Run Step 2 to compare the supplied project FR catalog with reusable blueprint FR/TBT candidates.</div>'
+            '</section>'
+        )
+    candidates = proposal.get("candidates") or []
+    rows: list[str] = []
+    for idx, candidate in enumerate(candidates, start=1):
+        cid = str(candidate.get("id") or f"candidate-{idx}")
+        detail_id = f"blueprint-proposal-detail-{idx}"
+        tbts = candidate.get("blueprint_tbts") or []
+        assumptions = candidate.get("assumptions") or []
+        detail = (
+            f'<tr class="blueprint-proposal-detail-row" id="{html.escape(detail_id)}" hidden><td colspan="8">'
+            '<div class="blueprint-proposal-detail">'
+            f'<p>{html.escape(str(candidate.get("rationale") or ""))}</p>'
+            f'<div class="blueprint-proposal-detail-grid"><div><strong>Blueprint TBTs</strong><span>{html.escape(", ".join(tbts) or "-")}</span></div>'
+            f'<div><strong>Assumptions</strong><span>{html.escape("; ".join(assumptions) or "-")}</span></div></div>'
+            f'{_blueprint_mapping_detail(candidate)}'
+            '</div></td></tr>'
+        )
+        rows.append(
+            '<tr class="blueprint-proposal-row" tabindex="0" role="button" aria-expanded="false" '
+            f'data-blueprint-candidate="{html.escape(cid)}" data-blueprint-detail="{html.escape(detail_id)}">'
+            '<td><input type="checkbox" class="blueprint-proposal-check" data-blueprint-check checked aria-label="Select blueprint candidate"></td>'
+            f'<td><code>{html.escape(str(candidate.get("blueprint_fr") or cid))}</code></td>'
+            f'<td>{html.escape(str(candidate.get("confidence") or "medium"))}</td>'
+            f'<td>{html.escape(str(len(tbts)))}</td>'
+            f'<td>{html.escape(_blueprint_mapping_summary(candidate))}</td>'
+            '<td><select class="blueprint-proposal-decision" data-blueprint-decision>'
+            '<option value="accepted_as_is" selected>Accept</option>'
+            '<option value="tailored">Tailor</option>'
+            '<option value="rejected">Reject</option>'
+            '<option value="not_applicable">Not applicable</option>'
+            '</select></td>'
+            f'<td><input class="blueprint-proposal-reason" data-blueprint-reason value="Accepted." aria-label="Decision reason"></td>'
+            '<td><span class="instruction-expand">Open</span></td>'
+            '</tr>' + detail
+        )
+    proposal_json = html.escape(json.dumps(proposal), quote=False)
+    return (
+        '<section class="card blueprint-proposal-card" data-blueprint-proposal-page '
+        f'data-blueprint-proposal-path="{html.escape(str(proposal_path or "blueprint-proposal.json"))}">'
+        f'<script type="application/json" data-blueprint-proposal-json>{proposal_json}</script>'
+        '<div class="blueprint-proposal-toolbar">'
+        '<div><strong>Blueprint Proposals</strong><span>Review reusable blueprint alignment against the supplied project catalog before anything becomes accepted scope.</span></div>'
+        '<div class="blueprint-proposal-actions">'
+        '<button type="button" class="mini-btn" data-blueprint-select-all>Select all</button>'
+        '<button type="button" class="mini-btn" data-blueprint-clear-all>Clear all</button>'
+        '</div></div>'
+        '<table class="matrix blueprint-proposal-table"><colgroup><col style="width:5%"><col style="width:16%"><col style="width:8%"><col style="width:6%"><col style="width:18%"><col style="width:12%"><col style="width:25%"><col style="width:10%"></colgroup><thead><tr>'
+        '<th>Select</th><th>Blueprint FR</th><th>Confidence</th><th>TBTs</th><th>Compliance mappings</th><th>Decision</th><th>Reason</th><th>Details</th>'
+        '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+        '</section>'
+    )
+
+
+
+def _load_project_specific_fr_proposal(report_dir: Path, source_repo: str = "") -> tuple[dict[str, Any] | None, Path | None]:
+    candidates: list[Path] = []
+    if source_repo:
+        candidates.append(Path(source_repo) / "project-specific-fr-proposal.json")
+    candidates.extend([
+        report_dir / "project-specific-fr-proposal.json",
+        report_dir.parent.parent / "project-specific-fr-proposal.json",
+        report_dir / "config-update-proposal.json",
+        report_dir / "proposal.json",
+    ])
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        data = load_json(candidate) or {}
+        if isinstance(data, dict) and data.get("mode") == "config_update_proposal":
+            return data, candidate
+    return None, None
+
+
+def _project_specific_update_target(update: dict[str, Any]) -> str:
+    parts = []
+    for key in ("fr_id", "tbt_id", "row_id"):
+        value = update.get(key)
+        if value:
+            parts.append(str(value))
+    target = update.get("target")
+    if isinstance(target, dict):
+        kind = str(target.get("kind") or "target")
+        ident = str(target.get("id") or "")
+        if ident:
+            parts.append(f"{kind}:{ident}")
+    return " / ".join(parts) or "scope item"
+
+
+def _project_specific_source_basis(update: dict[str, Any]) -> str:
+    refs = []
+    for item in update.get("source_basis") or []:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("type") or "source")
+        ref = str(item.get("ref") or item.get("path") or "")
+        refs.append(f"{label}: {ref}" if ref else label)
+    return "; ".join(refs) or "-"
+
+
+def render_project_specific_frs_tab(report_dir: Path, source_repo: str = "") -> str:
+    proposal, proposal_path = _load_project_specific_fr_proposal(report_dir, source_repo)
+    if not proposal:
+        return (
+            '<section class="card project-specific-fr-card" data-project-specific-fr-page>'
+            '<div class="blueprint-proposal-toolbar">'
+            '<div><strong>Project-Specific FRs</strong><span>Review proposed bespoke FR/TBT gaps after supplied catalog and blueprint alignment have been considered.</span></div>'
+            '<div class="blueprint-proposal-actions">'
+            '<button type="button" class="mini-btn" data-project-specific-fr-prompt>Generate project-specific FR prompt</button>'
+            '</div></div>'
+            '<div class="empty-state">No project-specific FR proposal has been generated yet. This does not mean the project has no FR catalog; it means no additional bespoke FR/TBT gap proposal has been produced after blueprint review. Generate the prompt after reviewing Blueprint Proposals, then ask the agent to create a review-gated config update proposal.</div>'
+            '</section>'
+        )
+    updates = proposal.get("fr_catalog_updates") or []
+    review_required = proposal.get("review_required") or []
+    rows: list[str] = []
+    for idx, update in enumerate(updates, start=1):
+        if not isinstance(update, dict):
+            continue
+        detail_id = f"project-specific-fr-detail-{idx}"
+        operation = str(update.get("operation") or "update")
+        target = _project_specific_update_target(update)
+        confidence = str(update.get("confidence") or "")
+        status = str(update.get("review_status") or "proposed")
+        rationale = str(update.get("rationale") or "")
+        source_basis = _project_specific_source_basis(update)
+        proposed_fields = update.get("proposed_fields") or {}
+        detail_json = html.escape(json.dumps(proposed_fields, indent=2), quote=False) if proposed_fields else "-"
+        rows.append(
+            '<tr class="project-specific-fr-row" tabindex="0" role="button" aria-expanded="false" '
+            f'data-project-specific-fr-detail="{html.escape(detail_id)}">'
+            f'<td><code>{html.escape(operation)}</code></td>'
+            f'<td>{html.escape(target)}</td>'
+            f'<td>{html.escape(status)}</td>'
+            f'<td>{html.escape(confidence or "-")}</td>'
+            f'<td>{html.escape(short_text(rationale, 180) or "-")}</td>'
+            '<td><span class="instruction-expand">Open</span></td>'
+            '</tr>'
+            f'<tr class="project-specific-fr-detail-row" id="{html.escape(detail_id)}" hidden><td colspan="6">'
+            '<div class="blueprint-proposal-detail">'
+            '<div class="blueprint-proposal-detail-grid">'
+            f'<div><strong>Source basis</strong><span>{html.escape(source_basis)}</span></div>'
+            f'<div><strong>Proposed fields</strong><span><pre>{detail_json}</pre></span></div>'
+            '</div>'
+            '</div></td></tr>'
+        )
+    review_rows: list[str] = []
+    for idx, item in enumerate(review_required, start=1):
+        if not isinstance(item, dict):
+            continue
+        review_rows.append(
+            '<tr>'
+            f'<td>{html.escape(str(item.get("item") or f"review-{idx}"))}</td>'
+            f'<td>{html.escape(str(item.get("question") or ""))}</td>'
+            f'<td>{html.escape(str(item.get("why") or ""))}</td>'
+            '</tr>'
+        )
+    update_table = (
+        '<table class="matrix project-specific-fr-table"><thead><tr>'
+        '<th>Operation</th><th>Target</th><th>Status</th><th>Confidence</th><th>Rationale</th><th>Details</th>'
+        '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
+        if rows else '<div class="empty-state">This proposal has no FR/TBT updates yet.</div>'
+    )
+    review_table = (
+        '<table class="matrix project-specific-review-table"><thead><tr><th>Item</th><th>Question</th><th>Why</th></tr></thead><tbody>'
+        + ''.join(review_rows) + '</tbody></table>'
+        if review_rows else '<p class="muted">No open review questions were recorded.</p>'
+    )
+    return (
+        '<section class="card project-specific-fr-card" data-project-specific-fr-page '
+        f'data-project-specific-fr-proposal-path="{html.escape(str(proposal_path or "project-specific-fr-proposal.json"))}">'
+        '<div class="blueprint-proposal-toolbar">'
+        f'<div><strong>Project-Specific FRs</strong><span>{html.escape(str(proposal_path or "project-specific-fr-proposal.json"))}</span></div>'
+        '<div class="blueprint-proposal-actions">'
+        '<button type="button" class="mini-btn" data-project-specific-fr-prompt>Regenerate prompt</button>'
+        '</div></div>'
+        '<div class="project-specific-fr-summary">'
+        f'<span><b>{len(updates)}</b> proposed FR/TBT update(s)</span>'
+        f'<span><b>{len(review_required)}</b> review question(s)</span>'
+        '</div>'
+        '<div class="project-specific-fr-section"><h3>Proposed scope updates</h3>' + update_table + '</div>'
+        '<div class="project-specific-fr-section"><h3>Review required</h3>' + review_table + '</div>'
+        '</section>'
+    )
 
 def _merge_project_fr_board_state(cards: list[dict[str, Any]], persisted: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     mutable_fields = {
@@ -2063,7 +2698,12 @@ def _merge_project_fr_board_state(cards: list[dict[str, Any]], persisted: dict[s
     merged: list[dict[str, Any]] = []
     for card in cards:
         next_card = dict(card)
-        saved = persisted.get(str(card.get("id") or "")) or {}
+        saved = (
+            persisted.get(str(card.get("id") or ""))
+            or persisted.get(f"tbt:{str(card.get('tbt') or '')}")
+            or persisted.get(f"native:{str(card.get('native_path') or '')}")
+            or {}
+        )
         derived_lane = str(card.get("lane") or "")
         manifest_ready = (
             str(card.get("status") or "") in {"ready_to_run", "executed"}
@@ -2076,6 +2716,8 @@ def _merge_project_fr_board_state(cards: list[dict[str, Any]], persisted: dict[s
             if field == "lane" and value not in REVIEW_BOARD_LANES:
                 continue
             if field == "lane" and manifest_ready:
+                value = derived_lane
+            if field == "lane" and derived_lane == "recommended" and value == "map":
                 value = derived_lane
             if field == "decision" and value not in REVIEW_BOARD_DECISIONS:
                 continue
@@ -2114,6 +2756,7 @@ def render_native_review_board_page(
     project: str = "",
     run_id: str = "",
     generated_at: str = "",
+    source_repo: str = "",
 ) -> str:
     cards = _review_board_cards(report_dir)
     cards = _merge_project_fr_board_state(cards, _load_project_fr_board_state(report_dir))
@@ -2127,6 +2770,8 @@ def render_native_review_board_page(
     lanes = [
         ("map", "Map Orphan Tests", "Discovered tests with no FR/TBT mapping"),
         ("recommended", "Review Agentic Mapping", "Agent mapping recommendation needs approval"),
+        ("reviewed_not_evidence", "Reviewed: Not Evidence", "Inspected native tests intentionally excluded from assurance evidence"),
+        ("bespoke_project_only", "Project Only", "May justify bespoke project FR/TBT; not reusable blueprint scope"),
         ("specify", "Draft Tests for FR", "Generate review-required test drafts for mapped FR/TBT coverage"),
         ("review", "Review Agentic Tests", "Agent draft or wrapper needs approval"),
         ("import", "Run Approved Tests", "Execute approved tests and scan results"),
@@ -2178,6 +2823,10 @@ def render_native_review_board_page(
             f' data-safety="{html.escape(card.get("safety") or "")}"'
             f' data-assessment="{html.escape(card.get("assessment") or "")}"'
             f' data-confidence="{html.escape(card.get("confidence") or "")}"'
+            f' data-test-names="{html.escape(json.dumps(card.get("test_names") or []))}"'
+            f' data-review-status="{html.escape(card.get("review_status") or "")}"'
+            f' data-reviewed-by="{html.escape(card.get("reviewed_by") or "")}"'
+            f' data-source-basis="{html.escape(json.dumps(card.get("source_basis") or []))}"'
             f' data-review-decision="{html.escape(card.get("decision") or "")}"'
             f' data-reviewer-note="{html.escape(card.get("reviewer_note") or "")}"'
             f' data-manual-test-path="{html.escape(card.get("manual_test_path") or "")}"'
@@ -2226,41 +2875,60 @@ def render_native_review_board_page(
 
     cards_json = html.escape(json.dumps(cards), quote=False)
     board_state_json = html.escape(json.dumps(board_state), quote=False)
+    blueprint_proposals_html = render_blueprint_proposals_tab(report_dir, source_repo)
+    project_specific_frs_html = render_project_specific_frs_tab(report_dir, source_repo)
     report_dir_s = html.escape(str(report_dir))
     manifest_path = html.escape(str(report_dir / "generated-tests" / "VG_TEST_FRAMEWORK" / "manifest.json"))
     proposal_path = html.escape(str(report_dir / "native-test-mapping-proposal.json"))
     fr_tab_html = (
-        '<button type="button" class="review-board-tab active" data-review-board-tab="project-frs">Project FRs</button>'
+        '<button type="button" class="review-board-tab active" data-review-board-tab="project-frs">Supplied Catalog</button>'
         if fr_catalog_html else ""
     )
-    board_tab_active = "" if fr_catalog_html else " active"
+    blueprint_tab_active = "" if fr_catalog_html else " active"
+    board_tab_active = ""
     fr_pane_html = (
         '<div class="review-board-pane active" data-review-board-pane="project-frs">'
         + fr_catalog_html +
         '</div>'
         if fr_catalog_html else ""
     )
-    board_pane_active = "" if fr_catalog_html else " active"
+    blueprint_pane_active = "" if fr_catalog_html else " active"
+    board_pane_active = ""
+    catalog_badge = ""
+    if (report_dir / "fr-catalog.snapshot.json").exists():
+        catalog_badge = f'<code>{html.escape((report_dir / "fr-catalog.snapshot.json").name)}</code>'
     return (
         '<section class="card review-board-card-shell">'
         '<div class="page-intro review-board-intro"><div><h2>Project FRs</h2>'
         '<ul class="review-board-intro-list">'
-        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>Functional Requirements (FR) have one or more tests (TBT) that provide evidence for Assurance.</span></li>'
-        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>On this board we can easily map existing tests to project FRs in order to provide more evidence.</span></li>'
-        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>If a Project FR has no test, we can use an agent to write it before having a human approve it.</span></li>'
+        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>Functional Requirements (FR) have one or more tests (TBT) that provide evidence for Assurance; the supplied catalog is the project-declared baseline scope until reviewed updates change it.</span></li>'
+        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>Blueprint alignment: reusable security/compliance blueprints can confirm, standardise, extend, or reject mappings through review-gated proposals.</span></li>'
+        '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg><span>Project-specific discovery: bespoke FR/TBT gaps found in the codebase are proposed separately before the Board creates, reviews, or runs tests.</span></li>'
         '</ul>'
-        '</div></div>'
+        '</div>'
+        f'{catalog_badge}'
+        '</div>'
         f'<div class="review-board" data-review-board data-report-dir="{report_dir_s}" data-manifest="{manifest_path}" data-proposal="{proposal_path}">'
         f'<script type="application/json" data-review-board-cards>{cards_json}</script>'
         f'<script type="application/json" data-review-board-state>{board_state_json}</script>'
         '<div class="review-board-tabs" role="tablist" aria-label="Native review board views">'
         + fr_tab_html +
+        f'<button type="button" class="review-board-tab{blueprint_tab_active}" data-review-board-tab="blueprints">Blueprint Proposals</button>'
+        '<button type="button" class="review-board-tab" data-review-board-tab="project-specific">Project-Specific FRs</button>'
         f'<button type="button" class="review-board-tab{board_tab_active}" data-review-board-tab="board">Board</button>'
         '</div>'
         + fr_pane_html +
+        f'<div class="review-board-pane{blueprint_pane_active}" data-review-board-pane="blueprints">'
+        + blueprint_proposals_html +
+        '</div>'
+        '<div class="review-board-pane" data-review-board-pane="project-specific">'
+        + project_specific_frs_html +
+        '</div>'
         f'<div class="review-board-pane{board_pane_active}" data-review-board-pane="board">'
         '<div class="review-board-toolbar"><span>Move cards or select a subset, then use the lane action to generate the right prompt, review brief, or command.</span>'
-        '<button type="button" class="review-board-save-btn" data-review-board-save>Save state</button></div>'
+        '<div class="review-board-toolbar-actions">'
+        '<button type="button" class="review-board-save-btn" data-review-board-save>Persist board state</button>'
+        '</div></div>'
         '<div class="review-board-workspace">'
         '<div class="review-board-lanes">' + ''.join(lane_html) + '</div>'
         '<aside class="review-board-context" data-review-context>'
@@ -2279,7 +2947,7 @@ def render_native_review_board_page(
         '</div>'
         '<div class="review-context-rationale"><span data-review-context-rationale-label>Rationale</span><p data-review-context-rationale></p></div>'
         '<div class="review-context-controls" data-review-context-map-controls>'
-        '<label><span data-review-operation-label>Mapping decision</span><select data-review-map-operation><option value="accept_recommendation">Accept recommendation</option><option value="remap_as_orphan">Clear mapping / remap as orphan</option><option value="leave_unmapped">Leave unmapped</option><option value="mark_not_assurance_relevant">Mark not assurance relevant</option><option value="needs_new_tbt_fr">Needs new TBT/FR</option><option value="blocked">Blocked</option></select></label>'
+        '<label><span data-review-operation-label>Mapping decision</span><select data-review-map-operation><option value="accept_recommendation">Accept recommendation</option><option value="remap_as_orphan">Clear mapping / remap as orphan</option><option value="leave_unmapped">Leave unmapped</option><option value="mark_not_assurance_relevant">Mark not assurance relevant</option><option value="mark_project_specific_only">Project only / bespoke FR</option><option value="needs_new_tbt_fr">Needs new TBT/FR</option><option value="blocked">Blocked</option></select></label>'
         '<label><span data-review-fr-label>Suggested FR</span><input data-review-map-fr placeholder="FR-xxx"></label>'
         '<label><span data-review-tbt-label>Suggested TBT</span><input data-review-map-tbt placeholder="TBT-xxx"></label>'
         '<label class="review-context-wide"><span data-review-test-path-input-label>Manual test path</span><input data-review-test-path placeholder="tests/asvs/unit/TBT-xxx.assurance.test.js"></label>'
@@ -2288,16 +2956,16 @@ def render_native_review_board_page(
         '</div>'
         '</div>'
         '</aside>'
+        '</div>'
+        '</div>'
         '<aside class="review-prompt-drawer" data-review-prompt-drawer hidden>'
         '<div class="review-prompt-drawer-head">'
-        '<div><span data-review-prompt-kicker>Lane prompt</span><strong data-review-prompt-title></strong><em data-review-prompt-scope></em></div>'
+        '<div><span data-review-prompt-kicker>Prompt</span><strong data-review-prompt-title></strong><em data-review-prompt-scope></em></div>'
         '<div class="review-prompt-head-actions"><button type="button" class="mini-btn" data-review-prompt-copy>Copy prompt</button><button type="button" class="review-context-close" data-review-prompt-close aria-label="Close prompt">×</button></div>'
         '</div>'
         '<div class="review-prompt-warning" data-review-prompt-warning hidden></div>'
         '<pre><code data-review-prompt-body></code></pre>'
         '</aside>'
-        '</div>'
-        '</div>'
         '</div></section>'
     )
 
@@ -2530,7 +3198,7 @@ def render_assurance_tests_page(report_dir: Path) -> str:
                 '<option value="map_native_test_to_existing_tbt">Map to existing FR/TBT</option>'
                 '<option value="create_tbt_under_existing_fr">Create TBT under existing FR</option>'
                 '<option value="create_new_fr_and_tbt">Create new FR and TBT</option>'
-                '<option value="mark_not_assurance_relevant">Mark not assurance relevant</option>'
+                '<option value="mark_not_assurance_relevant">Mark not assurance relevant</option><option value="mark_project_specific_only">Project only / bespoke FR</option>'
                 '</select></label>'
                 f'<label><span>Suggested FR</span><select data-map-fr><option value="">No FR selected</option>{fr_options_html}</select></label>'
                 f'<label><span>Suggested TBT</span><select data-map-tbt><option value="">No TBT selected</option>{tbt_options_html}</select></label>'
@@ -2785,6 +3453,7 @@ def render_prompt_panel(
 ) -> str:
     prompt_path = report_dir / filename
     prompt_md = prompt_path.read_text(errors="replace") if prompt_path.exists() else f"{heading} is not available for this run. The scan may have stopped before report generation completed."
+    prompt_md = prompt_md.replace("/Users/jd/Development/asvs-scanner", str(REPO_ROOT))
     prompt_html = md_to_html(prompt_md)
     return f'''
 <section class="section">
@@ -2886,7 +3555,7 @@ def render_config_update_prompt_tab(report_dir: Path) -> str:
       <div class="workflow-step">
         <strong>1. Validate</strong>
         <p>Check schema and cross-references before review.</p>
-        <pre><code>asvs-scanner validate-config-update proposal.json \
+        <pre><code>assurance-scan validate-config-update proposal.json \
   --fr-catalog /path/to/project.fr-catalog.enriched.json \
   --ruleset /path/to/ruleset.json \
   --scanner-rules /path/to/scanner-rules.json \
@@ -2895,19 +3564,19 @@ def render_config_update_prompt_tab(report_dir: Path) -> str:
       <div class="workflow-step">
         <strong>2. Review</strong>
         <p>Render a human decision brief with confidence, provenance and review questions.</p>
-        <pre><code>asvs-scanner review-config-update proposal.json \
+        <pre><code>assurance-scan review-config-update proposal.json \
   --output proposal-review.md</code></pre>
       </div>
       <div class="workflow-step">
         <strong>3. Apply Selected</strong>
         <p>Write accepted entries to explicit output files. Originals are not changed in place.</p>
-        <pre><code>asvs-scanner apply-config-update proposal.json --list
-asvs-scanner apply-config-update proposal.json \
+        <pre><code>assurance-scan apply-config-update proposal.json --list
+assurance-scan apply-config-update proposal.json \
   --select fr_catalog_updates:1 \
   --reviewed-by "assessor-name" \
   --fr-catalog /path/to/current.fr-catalog.json \
   --fr-catalog-out /path/to/reviewed.fr-catalog.json
-asvs-scanner apply-config-update proposal.json \
+assurance-scan apply-config-update proposal.json \
   --select assurance_framework_or_instance_updates:1 \
   --reviewed-by "assessor-name" \
   --assurance-instance /path/to/current.assurance-instance.json \
@@ -2946,6 +3615,456 @@ def render_agent_prompts(report_dir: Path) -> str:
         f'<div class="fw-regime-pane active" id="agent-prompt-remediation">{render_fixplan(report_dir)}</div>'
         f'<div class="fw-regime-pane" id="agent-prompt-config">{render_config_update_prompt_tab(report_dir)}</div>'
         f'<div class="fw-regime-pane" id="agent-prompt-assurance">{render_assurance_prompt_tab(report_dir)}</div>'
+        '</div>'
+    )
+
+
+def shell_quote(value: Any) -> str:
+    text = str(value)
+    return "'" + text.replace("'", "'\"'\"'") + "'"
+
+
+def docker_mount_root(source_repo: str, report_dir: Path) -> str:
+    candidates = [Path(source_repo).expanduser(), report_dir]
+    for path in candidates:
+        parts = path.parts
+        if len(parts) >= 5 and parts[:4] == ("/", "Users", "jd", "Development"):
+            return str(Path(*parts[:5]))
+    if source_repo:
+        return str(Path(source_repo).expanduser().parent)
+    return str(report_dir.parent)
+
+
+def render_instruction_command(command_id: str, title: str, body: str, note: str = "") -> str:
+    return (
+        '<div class="instruction-command">'
+        '<div class="instruction-command-head">'
+        f'<div><strong>{html.escape(title)}</strong>'
+        f'{f"<span>{html.escape(note)}</span>" if note else ""}</div>'
+        f'<button class="copy-btn" onclick="copyPrompt(\'{html.escape(command_id)}\', this)">{ICONS["copy"]}<span class="btn-label">Copy</span></button>'
+        '</div>'
+        f'<pre class="instruction-code" id="{html.escape(command_id)}"><code>{html.escape(body)}</code></pre>'
+        '</div>'
+    )
+
+
+def render_instruction_detail(row_id: str, command_id: str, command_title: str, command: str, notes: list[str]) -> str:
+    note_items = "".join(f"<li>{html.escape(str(note))}</li>" for note in notes)
+    return (
+        f'<tr class="instruction-detail-row" id="{html.escape(row_id)}" hidden>'
+        '<td colspan="6">'
+        '<div class="instruction-detail">'
+        f'{render_instruction_command(command_id, command_title, command)}'
+        '<div class="instruction-detail-notes"><strong>Review notes</strong>'
+        f'<ul>{note_items}</ul>'
+        '</div>'
+        '</div>'
+        '</td>'
+        '</tr>'
+    )
+
+
+def render_instructions_page(report_dir: Path, evidence: dict) -> str:
+    source_repo = str(evidence.get("source_repo") or evidence.get("target_dir") or "")
+    report_path = str(report_dir)
+    runtime_dir = report_dir.parent.parent
+    runtime_fr_catalog = runtime_dir / f"{str(evidence.get('repository') or 'target-project')}.fr-catalog.enriched.json"
+    report_fr_catalog = report_dir / "fr-catalog.snapshot.json"
+    fr_catalog = str(runtime_fr_catalog if runtime_fr_catalog.exists() else report_fr_catalog)
+    junit_path = str(report_dir / "reports" / "junit.xml")
+    framework_snapshot = report_dir / "assurance-framework.snapshot.json"
+    compliance_mapping_snapshot = report_dir / "compliance-mapping-pack.snapshot.json"
+    scanner_mapping_snapshot = report_dir / "scanner-compliance-mapping-packs"
+    docker_image = "__ASSURANCE_SCAN_IMAGE__"
+    mount_flags = "__MOUNT_FLAGS__"
+    workdir_expr = "__WORKDIR_EXPR__"
+    source_expr = "__SOURCE_REPO_EXPR__"
+    run_preamble = "__RUN_PREAMBLE__"
+    assurance_context_comment = "__ASSURANCE_CONTEXT_COMMENT__"
+    report_q = shell_quote(report_path)
+    fr_catalog_q = shell_quote(fr_catalog)
+    junit_q = shell_quote(junit_path)
+    project_id = str(evidence.get("repository") or "target-project")
+    default_project_fr_catalog = str(runtime_fr_catalog)
+    default_reviewed_fr_catalog = str(runtime_dir / f"{project_id}.fr-catalog.reviewed.json")
+    scan_config_flags = [
+        "__ASSURANCE_FRAMEWORK_FLAG__",
+        "  --scanner-compliance-mapping-pack '/opt/assurance-scan/data/scanner-mappings'",
+    ]
+    scan_config_suffix = "__SCAN_FR_CATALOG_FLAG__" + (" " + chr(92) + "\n").join(scan_config_flags)
+
+    fresh_scan_command = "\n".join([
+        assurance_context_comment,
+        run_preamble,
+        "docker run --rm -it \\",
+        "  -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \\",
+        "  -e ASSURANCE_SCAN_PARALLELISM=4 \\",
+        "  -v /var/run/docker.sock:/var/run/docker.sock \\",
+        mount_flags,
+        f"  -w {workdir_expr} \\",
+        f"  {docker_image} scan {source_expr} \\",
+        scan_config_suffix + " && " + chr(92),
+    ])
+    refresh_dashboard_command = (
+        f"python3 {shell_quote(str(REPO_ROOT / 'scripts' / 'generate_dashboard.py'))} "
+        f"--report-dir {report_q}"
+    )
+    sync_authority_command = "\n".join([
+        f"python3 {shell_quote(str(REPO_ROOT / 'scripts' / 'sync-authority-rulesets.py'))} --download",
+        f"python3 {shell_quote(str(REPO_ROOT / 'scripts' / 'load_target_artifacts.py'))} authority_source_registry "
+        f"{shell_quote(str(REPO_ROOT / 'data' / 'authority-sources' / 'rulesets.json'))} --strict",
+    ])
+    validate_report_command = "\n".join([
+        f"python3 {shell_quote(str(REPO_ROOT / 'scripts' / 'load_target_artifacts.py'))} graph_manifest {shell_quote(str(report_dir / 'graph-manifest.json'))} --strict",
+        f"python3 {shell_quote(str(REPO_ROOT / 'scripts' / 'load_target_artifacts.py'))} dashboard_payload {shell_quote(str(report_dir / 'dashboard-payload.json'))} --strict",
+    ])
+    reviewed_catalog_scan_command = "__REVIEWED_CATALOG_SCAN_COMMAND__"
+    approved_test_command = "__KANBAN_EVIDENCE_COMMAND__"
+    config_review_command = "\n".join([
+        "# Writes blueprint-decisions.json from the Blueprint Proposals tab selection, then applies reviewed scope.",
+        "# Review the Blueprint Proposals tab first if you need to reject or tailor anything.",
+        "__BLUEPRINT_DECISION_PRELUDE__",
+        "__DOCKER_CLI_BASE__ apply-reviewed-scope " + chr(92),
+        f"  --run-id {shell_quote(str(evidence.get('run_id') or 'scan-run-id'))} " + chr(92),
+        "  --proposal blueprint-proposal.json " + chr(92),
+        "  --decisions blueprint-decisions.json " + chr(92),
+        "  --blueprint '/opt/assurance-scan/data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json' " + chr(92),
+        "  --fr-catalog __FR_CATALOG_INPUT_PATH__ " + chr(92),
+        "  --fr-catalog-out __FR_CATALOG_OUTPUT_PATH__ " + chr(92),
+        '  --reviewed-by "${USER:-reviewer}"',
+    ])
+    project_specific_review_command = "\n".join([
+        "# Generate project-specific-fr-proposal.json from the Project-Specific FRs tab prompt first.",
+        "# This validates, reviews and applies only explicitly proposed bespoke FR/TBT catalog updates.",
+        "__DOCKER_CLI_BASE__ validate-config-update project-specific-fr-proposal.json " + chr(92),
+        "  --fr-catalog __FR_CATALOG_OUTPUT_PATH__ && " + chr(92),
+        "__DOCKER_CLI_BASE__ review-config-update project-specific-fr-proposal.json " + chr(92),
+        "  --output project-specific-fr-review.md && " + chr(92),
+        "__DOCKER_CLI_BASE__ apply-config-update project-specific-fr-proposal.json " + chr(92),
+        "  --select fr_catalog_updates:* " + chr(92),
+        '  --reviewed-by "${USER:-reviewer}" ' + chr(92),
+        "  --fr-catalog __FR_CATALOG_OUTPUT_PATH__ " + chr(92),
+        "  --fr-catalog-out __FR_CATALOG_OUTPUT_PATH__",
+    ])
+    blueprint_catalog_q = shell_quote("/opt/assurance-scan/data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json")
+    blueprint_mapping_pack_q = shell_quote("/opt/assurance-scan/data/blueprint-mappings/security-core/asvs/5.0.0.json")
+    blueprint_nist_mapping_pack_q = shell_quote("/opt/assurance-scan/data/blueprint-mappings/security-core/nist-800-53/5.2.0.json")
+    docker_cli_base = "\n".join([
+        "docker run --rm -it \\",
+        mount_flags,
+        f"  -w {workdir_expr} \\",
+        f"  {docker_image}",
+    ])
+    blueprint_command = "\n".join([
+        docker_cli_base + " propose-blueprint-frs " + chr(92),
+        f"  --project {shell_quote(project_id)} " + chr(92),
+        f"  --blueprint {blueprint_catalog_q} " + chr(92),
+        f"  --blueprint-compliance-mapping-pack {blueprint_mapping_pack_q} " + chr(92),
+        f"  --blueprint-compliance-mapping-pack {blueprint_nist_mapping_pack_q} " + chr(92),
+        "  --include-all " + chr(92),
+        "  --output blueprint-proposal.json",
+    ])
+    export_bundle_command = "\n".join([
+        assurance_context_comment,
+        run_preamble,
+        "docker run --rm -it \\",
+        mount_flags,
+        f"  -w {workdir_expr} \\",
+        f"  {docker_image} export-assurance-claim {report_q} \\",
+        "  --claim-type selected_scope_satisfied \\",
+        "  --target selected-scope \\",
+        f"  --out {shell_quote(str(report_dir / 'claims' / 'selected-scope.json'))} && \\",
+        "docker run --rm -it \\",
+        mount_flags,
+        f"  -w {workdir_expr} \\",
+        f"  {docker_image} export-assurance-proof-bundle {shell_quote(str(report_dir / 'claims' / 'selected-scope.json'))} \\",
+        f"  --report-dir {report_q} \\",
+        f"  --out {shell_quote(str(report_dir / 'proof-bundles' / 'selected-scope.proof-bundle.json'))} && \\",
+        f"cd {report_q} && zip -r compliance-bundle.zip graph-manifest.json dashboard-payload.json evidence-manifest.json evidence-bundle.json claims proof-bundles hashes",
+    ])
+
+    steps = [
+        {
+            "step": "1",
+            "title": "Update compliance and framework standards",
+            "input": "Official online standards, licensed user-supplied standards, assurance framework configs and scanner mapping packs.",
+            "output": "Canonical rulesets/framework configs with raw artifact hashes and transform hashes.",
+            "handoff": "Standards/config ball.",
+            "command_title": "Refresh authority standards",
+            "command": sync_authority_command,
+            "notes": [
+                "This is run when standards or framework sources change, not before every scan.",
+                "NIST and ASVS are transformed from official public artifacts. ISO detailed content must be supplied by a license holder.",
+                "Agentic help is useful for reviewing parser output and mapping gaps, but the final artifact is strict schema-validated config.",
+            ],
+        },
+        {
+            "step": "2",
+            "title": "Discovery scan and blueprint proposal",
+            "input": "Source repository, selected standards, assurance framework, scanner mapping packs and reusable blueprint FR/TBT templates.",
+            "output": "Discovery report plus blueprint-proposal.json. These candidates are not accepted project FRs yet.",
+            "handoff": "Candidate assurance-scope ball.",
+            "command_title": "Run discovery scan, then propose blueprint FRs",
+            "command": fresh_scan_command + "\n" + blueprint_command,
+            "notes": [
+                "Discovery may ingest an existing FR catalog if you select one, but proposed blueprint FRs remain separate until reviewed.",
+                "The scan writes the dashboard before blueprint-proposal.json is created. Refresh this report dashboard after Step 2 so the Blueprint Proposals tab can load the new proposal file.",
+                "The scan loads installed compliance regime metadata and scanner mapping packs by default; the dashboard dropdowns filter the resulting graph rather than requiring a new scanner run.",
+                "The selected assurance framework and gated flow remain the active governance context for this report.",
+                "Blueprints accelerate common security/compliance obligations; project-specific FRs still need explicit authoring and review.",
+                "For greenfield SOW work this same proposal step starts from planning answers rather than existing code discovery.",
+            ],
+        },
+        {
+            "step": "3",
+            "title": "Review reusable blueprint scope",
+            "input": "Supplied/discovered project FR catalog, blueprint-proposal.json and human decisions from the Blueprint Proposals tab.",
+            "output": "Reviewed project FR/TBT catalog with accepted blueprint lineage where applicable.",
+            "handoff": "Blueprint-reviewed scope ball.",
+            "command_title": "Apply reviewed blueprint decisions",
+            "command": config_review_command,
+            "notes": [
+                "Do not silently combine blueprint candidates with accepted FRs. This step is the review gate between recommendation and project obligation.",
+                "Accepted candidates become config-update proposals, then reviewed FR/TBT catalog entries with blueprint lineage.",
+                "Reject, mark not applicable or tailor candidates when the blueprint does not match observable project intent.",
+            ],
+        },
+        {
+            "step": "4A",
+            "title": "Optional: review project-specific FR gaps",
+            "input": "Blueprint-reviewed FR catalog plus an agent-authored project-specific-fr-proposal.json, if one has been created.",
+            "output": "The same reviewed FR/TBT catalog, amended only by validated and explicitly reviewed bespoke FR/TBT updates.",
+            "handoff": "Bespoke scope ball, only when needed.",
+            "command_title": "Optional: validate, review and apply bespoke FR/TBT proposals",
+            "command": project_specific_review_command,
+            "notes": [
+                "Run this only after using the Project-Specific FRs tab prompt and receiving project-specific-fr-proposal.json.",
+                "Skip this step when you are happy to start with the accepted blueprint scope from Step 3.",
+                "This is where project FRs not covered by supplied catalog entries or reusable blueprints are proposed and review-gated.",
+            ],
+        },
+        {
+            "step": "4B",
+            "title": "Required: rescan with reviewed FR catalog",
+            "input": "Reviewed FR/TBT catalog from Step 3, optionally amended by Step 4A.",
+            "output": "Fresh report whose supplied catalog, graph, board and compliance views are driven by the reviewed catalog.",
+            "handoff": "Accepted scope scan ball.",
+            "command_title": "Rescan with reviewed FR catalog",
+            "command": reviewed_catalog_scan_command,
+            "notes": [
+                "This is the normal next step after accepting blueprint scope.",
+                "It creates a new report directory and makes the accepted FR/TBT scope visible in the Supplied Catalog, Board, Compliance Regime and Traceability Graph views.",
+                "If you ran Step 4A, this command uses the amended reviewed catalog at the same path.",
+            ],
+        },
+        {
+            "step": "5",
+            "title": "Generate, approve and run assurance tests",
+            "input": "Accepted FR/TBT catalog, Kanban review decisions, ready-to-run tests, scanner outputs and optional JUnit XML.",
+            "output": "Observed test evidence, refreshed assurance graph, resolved FR/TBT/compliance status and dashboard.",
+            "handoff": "Observed evidence ball.",
+            "command_title": "Run approved tests or refresh evidence",
+            "command": approved_test_command,
+            "notes": [
+                "Use the Project FRs Board to draft tests, review agentic tests, approve them, then run approved tests.",
+                "Tests-only refreshes the current report evidence without creating a new scan directory.",
+                "Tests then full scan records JUnit evidence and creates a clean report against the accepted FR catalog.",
+            ],
+        },
+        {
+            "step": "6",
+            "title": "Export compliance zip bundle",
+            "input": "Graph manifest, evidence bundle, config commitments and optional openings.",
+            "output": "Compliance bundle containing graph commitments, evidence manifest, evidence bundle, claims and proof bundles.",
+            "handoff": "Audit/proof ball.",
+            "command_title": "Export selected-scope claim, proof bundle and zip",
+            "command": export_bundle_command,
+            "notes": [
+                "Your wording of a zip bundle is right, but it should include the claim/proof artifacts, not just raw reports.",
+                "A selected-scope claim may be unsatisfied if any FR/compliance row is still missing, failed, partial or blocked.",
+                "Future ZK packaging can use the same graph/config/evidence commitments with selective openings.",
+            ],
+        },
+    ]
+    def report_snapshot_has_reviewed_scope() -> bool:
+        snapshot_path = report_dir / "fr-catalog.snapshot.json"
+        if not snapshot_path.exists():
+            return False
+        try:
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        except Exception:
+            return False
+        frs = snapshot.get("frs") or snapshot.get("functional_requirements") or []
+        tbts = snapshot.get("tbts") or []
+        for item in list(frs) + list(tbts):
+            derived = item.get("derived_from") or item.get("derived_from_template") or item.get("blueprint_lineage")
+            metadata = item.get("metadata") or {}
+            review = metadata.get("config_update_review") if isinstance(metadata, dict) else None
+            if isinstance(derived, dict) and derived.get("review_status") == "accepted":
+                return True
+            if isinstance(review, dict) and review.get("review_status") == "accepted":
+                return True
+        return False
+
+    def workflow_stage_state() -> str:
+        if (report_dir / "proof-bundles").exists() or (report_dir / "claims").exists():
+            return "6"
+        if (report_dir / "reports" / "junit.xml").exists():
+            return "5"
+        if report_snapshot_has_reviewed_scope():
+            return "5"
+        if Path(default_reviewed_fr_catalog).exists():
+            return "4B"
+        if (Path(source_repo) / "project-specific-fr-proposal.json").exists():
+            return "4A"
+        if (Path(source_repo) / "blueprint-decisions.json").exists():
+            return "3"
+        if (Path(source_repo) / "blueprint-proposal.json").exists() or (report_dir / "blueprint-proposal.json").exists():
+            return "2"
+        return "1"
+
+    def approved_tbt_ids_for_instruction_step() -> list[str]:
+        state_path = report_dir / "project-fr-board-state.json"
+        state = load_json(state_path) or {}
+        ids: list[str] = []
+        for card in state.get("cards") or []:
+            if str(card.get("lane") or "") != "import":
+                continue
+            tbt_id = str(card.get("tbt") or "").strip()
+            if tbt_id and tbt_id not in ids:
+                ids.append(tbt_id)
+        return ids
+
+    approved_tbt_ids = approved_tbt_ids_for_instruction_step()
+    active_workflow_step = workflow_stage_state()
+    active_step_index = next((idx for idx, candidate in enumerate(steps) if str(candidate["step"]) == active_workflow_step), 0)
+    workflow_flow_json = json.dumps([
+        {
+            "id": str(item["step"]),
+            "title": str(item["title"]),
+            "input": str(item["input"]),
+            "output": str(item["output"]),
+            "handoff": str(item["handoff"]),
+            "command_title": str(item["command_title"]),
+            "command": str(item["command"]),
+            "notes": [str(note) for note in item["notes"]],
+            "active": str(item["step"]) == active_workflow_step,
+            "done": idx < active_step_index,
+        }
+        for idx, item in enumerate(steps)
+    ]).replace("</", "<\\/")
+
+    rows: list[str] = []
+    for item in steps:
+        detail_id = f"instruction-detail-{item['step']}"
+        command_id = f"instruction-command-{item['step']}"
+        rows.append(
+            '<tr class="instruction-row" tabindex="0" role="button" '
+            f'aria-expanded="false" data-instruction-detail="{html.escape(detail_id)}">'
+            f'<td><span class="instruction-step-pill">{html.escape(item["step"])}</span></td>'
+            f'<td><strong>{html.escape(item["title"])}</strong></td>'
+            f'<td>{html.escape(item["input"])}</td>'
+            f'<td>{html.escape(item["output"])}</td>'
+            f'<td>{html.escape(item["handoff"])}</td>'
+            '<td><span class="instruction-expand">Open</span></td>'
+            '</tr>'
+        )
+        rows.append(render_instruction_detail(
+            detail_id,
+            command_id,
+            str(item["command_title"]),
+            str(item["command"]),
+            list(item["notes"]),
+        ))
+    table_html = (
+        '<table class="matrix instruction-table"><thead><tr>'
+        f'{th("Step")}{th("Workflow step")}{th("Input")}{th("Output")}{th("Passes on")}{th("Commands")}'
+        '</tr></thead><tbody>'
+        + "".join(rows)
+        + '</tbody></table>'
+    )
+    tool_root = REPO_ROOT
+    if ".assurance-scan/runtime" in str(tool_root) or ".asvs-scanner/runtime" in str(tool_root):
+        tool_root = Path("/Users/jd/Development/assurance-scan")
+    return (
+        '<div class="instructions-page stack" '
+        f'data-report-dir="{html.escape(report_path)}" '
+        f'data-fr-catalog="{html.escape(fr_catalog)}" '
+        f'data-default-fr-catalog="{html.escape(default_project_fr_catalog)}" '
+        f'data-reviewed-fr-catalog="{html.escape(default_reviewed_fr_catalog)}" '
+        f'data-tool-root="{html.escape(str(tool_root))}" '
+        f'data-junit-path="{html.escape(junit_path)}" '
+        f'data-approved-tbts="{html.escape(json.dumps(approved_tbt_ids))}" '
+        f'data-source-repo="{html.escape(source_repo)}">'
+        '<section class="card instruction-hero-card">'
+        '<div class="instruction-hero">'
+        '<div><span class="instruction-eyebrow">Assurance workflow cockpit</span><h2>Instructions</h2>'
+        '<p>Follow the artifact handoff from standards and discovery through reviewed FR/TBT scope, evidence generation and exportable assurance proof. The commands and prompts below update from the selected framework, compliance regime, mount strategy and test execution choices.</p></div>'
+        '<div class="instruction-hero-facts">'
+        '<span><b>Current stage</b><strong>' + html.escape(active_workflow_step) + '</strong></span>'
+        '<span><b>Artifact model</b><strong>typed + review gated</strong></span>'
+        '<span><b>Execution</b><strong>copyable commands</strong></span>'
+        '</div>'
+        '</div>'
+        '<div class="instruction-flow-workspace">'
+        '<div class="instruction-flow-stage"><div class="instruction-flow-stage-head"><strong>Process routes</strong><span>Click a box to inspect commands and prompts. Diamonds are choices; dashed lines are optional paths; purple paths loop evidence back into a scan.</span></div>'
+        '<div class="instruction-flow-map" id="instruction-flow-map" aria-label="Assurance workflow map"></div></div>'
+        '<aside class="instruction-flow-detail" id="instruction-flow-detail" aria-live="polite"></aside>'
+        '</div>'
+        '<div class="instruction-flow-menu" id="instruction-flow-menu" hidden></div>'
+        f'<script type="application/json" id="instruction-workflow-data">{workflow_flow_json}</script>'
+        '<div class="instruction-context">'
+        f'<span><b>Source repo</b><code>{html.escape(source_repo or "not recorded")}</code></span>'
+        f'<span><b>Report dir</b><code>{html.escape(report_path)}</code></span>'
+        '</div>'
+        '<div class="instruction-options" aria-label="Instruction command options">'
+        '<label data-instruction-control="source" data-tooltip="Run from&#10;&#10;Choose how the command identifies the target code project.&#10;&#10;Target project folder means you first cd into the project and the command uses $PWD.&#10;&#10;Recorded source repo uses the source path captured in this report, so the command can be copied from another folder."><span>Run from</span><select id="instruction-source-mode-select">'
+        '<option value="pwd" selected>Target project folder ($PWD)</option>'
+        f'<option value="recorded">Recorded source repo ({html.escape(Path(source_repo).name if source_repo else "not recorded")})</option>'
+        '</select></label>'
+        '<label data-instruction-control="image" data-tooltip="Docker image&#10;&#10;The assurance-scan container image used to run the command.&#10;&#10;Use local after rebuilding on this machine. Use latest only when you intentionally want a published image tag."><span>Docker image</span><select id="instruction-image-select">'
+        '<option value="assurance-scan:local" selected>assurance-scan:local</option>'
+        '<option value="assurance-scan:latest">assurance-scan:latest</option>'
+        '</select></label>'
+        '<label data-instruction-control="mount" data-tooltip="Mount scope&#10;&#10;Controls which host folder is visible inside Docker. The path must include both the target project and any report/config files referenced by the command.&#10;&#10;Parent of current folder is the usual choice when you run from the project folder. Current project only is tighter but fails if the report directory lives outside the project. /Users/jd/Development is broader and useful when project and report folders are siblings. Custom lets you provide an explicit absolute host path."><span>Mount scope</span><select id="instruction-mount-select">'
+        '<option value="parent" selected>Parent of current folder</option>'
+        '<option value="project">Current project only</option>'
+        '<option value="development">/Users/jd/Development</option>'
+        '<option value="custom">Custom absolute path</option>'
+        '</select></label>'
+        '<label data-instruction-control="custom-mount" data-tooltip="Custom mount path&#10;&#10;Used only when Mount scope is Custom. Enter an absolute folder that contains every host path used by the generated Docker command."><span>Custom mount path</span><input id="instruction-custom-mount-input" value="/Users/jd/Development" /></label>'
+        '<label data-instruction-control="fr-catalog" data-tooltip="FR catalog for Step 2&#10;&#10;Controls whether the initial scan starts from no prior project FR catalog or intentionally reuses one.&#10;&#10;Discovery scan is the default for a new target project. Use this report snapshot only when you deliberately want to rescan against the current report catalog. Custom/project path is for a reviewed FR catalog you keep with the code project."><span>FR catalog</span><select id="instruction-fr-catalog-mode-select">'
+        '<option value="none" selected>Discovery scan, no prior FR catalog</option>'
+        '<option value="snapshot">Use this report snapshot</option>'
+        '<option value="custom">Custom/project FR catalog</option>'
+        '</select></label>'
+        '<label data-instruction-control="custom-fr-catalog" data-tooltip="Custom FR catalog path&#10;&#10;Used only when FR catalog is Custom/project FR catalog. Enter a path visible inside Docker, usually a file under the target project or mounted workspace."><span>Custom FR catalog</span><input id="instruction-custom-fr-catalog-input" value="./.assurance-scan/runtime/{project_id}.fr-catalog.enriched.json" /></label>'
+        '<label data-instruction-control="test-execution" data-tooltip="Test execution&#10;&#10;Controls how approved project tests are run.&#10;&#10;Docker test container runs the tests inside a separate Node container, which is more repeatable and isolated.&#10;&#10;Host runner inside scan container runs from inside the assurance-scan container environment and is useful only when that image already has the project test runtime available."><span>Test execution</span><select id="instruction-test-mode-select">'
+        '<option value="docker" selected>Docker test container</option>'
+        '<option value="host">Host runner inside scan container</option>'
+        '</select></label>'
+        '<label data-instruction-control="evidence-outcome" data-tooltip="Evidence step outcome&#10;&#10;Full scan creates a fresh scan using the accepted FR catalog from Steps 3, 4A and 4B. This is the normal next step after accepting blueprint scope.&#10;&#10;Tests only writes JUnit XML and refreshes the current report evidence without creating a new scan directory. Use it only when approved tests already exist.&#10;&#10;Tests then full scan does both in sequence."><span>Evidence step outcome</span><select id="instruction-step4-outcome-select">'
+        '<option value="full-scan" selected>Full scan with reviewed FR catalog</option>'
+        '<option value="tests-only">Tests only, refresh current report</option>'
+        '<option value="tests-then-full-scan">Tests, then full scan</option>'
+        '</select></label>'
+        '</div>'
+        '</section>'
+        '<details class="card instruction-prompt-library fw-regime-tabs"><summary><span>Reference prompts</span><em>fallback prompts for cases not covered by the selected workflow node</em></summary>'
+        '<div class="fw-regime-tabbar" role="tablist" aria-label="Workflow prompt types">'
+        '<button type="button" class="fw-regime-tab-btn active" data-fw-tab-target="instruction-prompt-remediation" aria-selected="true">Remediation</button>'
+        '<button type="button" class="fw-regime-tab-btn" data-fw-tab-target="instruction-prompt-config" aria-selected="false">Config Updates</button>'
+        '<button type="button" class="fw-regime-tab-btn" data-fw-tab-target="instruction-prompt-assurance" aria-selected="false">Assurance Tests</button>'
+        '</div>'
+        f'<div class="fw-regime-pane active" id="instruction-prompt-remediation">{render_fixplan(report_dir)}</div>'
+        f'<div class="fw-regime-pane" id="instruction-prompt-config">{render_config_update_prompt_tab(report_dir)}</div>'
+        f'<div class="fw-regime-pane" id="instruction-prompt-assurance">{render_assurance_prompt_tab(report_dir)}</div>'
+        '</details>'
+        '<section class="card"><div class="card-head"><h2>Report Checks</h2><span class="meta">use after refresh or export</span></div>'
+        '<div class="instruction-command-grid">'
+        f'{render_instruction_command("cmd-validate-report", "Validate report graph artifacts", validate_report_command, "Checks dashboard payload and graph manifest.")}'
+        f'{render_instruction_command("cmd-refresh-dashboard", "Refresh this dashboard only", refresh_dashboard_command, "Keeps the same report directory.")}'
+        '</div></section>'
         '</div>'
     )
 
@@ -2991,6 +4110,7 @@ def render_test_evidence(evidence: dict) -> str:
         ("TBT tests needing design", pack_summary.get("planned_tbt", 0), pack.get("path") or "VG_TEST_FRAMEWORK not generated"),
         ("JUnit passed", junit.get("passed", 0), junit.get("path") or "no junit.xml supplied"),
         ("JUnit failed", junit.get("failed", 0), junit.get("path") or "no junit.xml supplied"),
+        ("JUnit execution errors", junit.get("execution_error", 0), junit.get("path") or "no junit.xml supplied"),
         ("JUnit skipped", junit.get("skipped", 0), junit.get("path") or "no junit.xml supplied"),
     ]
     type_bits = " · ".join(f"{html.escape(str(k))}: {html.escape(str(v))}" for k, v in sorted(by_type.items()))
@@ -3039,7 +4159,7 @@ def _normalise_dashboard_payload_graph(graph: dict) -> dict:
     }
     allowed_statuses = {
         "draft", "in_scope", "deferred", "not_applicable", "retired", "planned", "implemented",
-        "passed", "failed", "missing", "manual_review", "waived", "ready",
+        "passed", "failed", "execution_error", "missing", "manual_review", "waived", "ready",
         "blocked", "partial", "pending", "approved", "rejected",
     }
 
@@ -3086,7 +4206,7 @@ def _normalise_dashboard_payload_graph(graph: dict) -> dict:
     return {"nodes": nodes, "edges": edges}
 
 
-def _framework_gate_count(path: Path) -> tuple[int, int]:
+def _framework_gate_count(path: Path) -> tuple[int, int, int]:
     data = load_json(path) or {}
     processes = data.get("processes") or []
     gates = sum(len(process.get("gates") or []) for process in processes)
@@ -3095,19 +4215,25 @@ def _framework_gate_count(path: Path) -> tuple[int, int]:
         for process in processes
         for gate in process.get("gates") or []
     )
-    return gates, criteria
+    versioned = 1 if data.get("version") else 0
+    return gates, criteria, versioned
 
 
 def _richest_framework_path(report_dir: Path) -> str | None:
-    candidates = [report_dir / "assurance-framework.snapshot.json"]
+    repo_root = Path(__file__).resolve().parent.parent
+    candidates = [
+        report_dir / "assurance-framework.snapshot.json",
+        repo_root / "data" / "assurance-frameworks" / "jsp-453" / "1.0.0-draft.json",
+    ]
     for parent in [report_dir, *report_dir.parents]:
         if parent.name == "runtime":
             candidates.extend([
+                parent / "data" / "assurance-frameworks" / "jsp-453" / "1.0.0-draft.json",
                 parent / "jsp-453.assurance-framework.draft.json",
                 parent / "data" / "fixtures" / "target-schemas" / "assurance-framework.example.json",
             ])
             break
-    candidates.append(Path(__file__).resolve().parent.parent / "data" / "fixtures" / "target-schemas" / "assurance-framework.example.json")
+    candidates.append(repo_root / "data" / "fixtures" / "target-schemas" / "assurance-framework.example.json")
     existing = [path for path in candidates if path.exists()]
     if not existing:
         return None
@@ -3197,14 +4323,43 @@ def _default_scanner_compliance_mapping_paths(report_dir: Path) -> list[str]:
     return paths
 
 
+
+
+def _project_id_for_report(report_dir: Path) -> str:
+    evidence = load_json(report_dir / "evidence-manifest.json") or {}
+    project_id = str(
+        evidence.get("repository")
+        or evidence.get("repo_name")
+        or git_repo_name(str(evidence.get("source_repo") or evidence.get("target_dir") or ""))
+        or ""
+    ).strip()
+    return project_id
+
+
+def _discover_project_fr_catalog_path(report_dir: Path) -> str | None:
+    report_snapshot = report_dir / "fr-catalog.snapshot.json"
+    if report_snapshot.exists():
+        return str(report_snapshot)
+
+    project_id = _project_id_for_report(report_dir)
+    if not project_id:
+        return None
+
+    runtime_dir = report_dir.parent.parent if report_dir.parent.name == "reports" else report_dir.parent
+    for suffix in ("reviewed", "enriched", "draft"):
+        candidate = runtime_dir / f"{project_id}.fr-catalog.{suffix}.json"
+        if candidate.exists():
+            return str(candidate)
+    return None
+
 def render(*, report_dir: Path, fr_catalog_path: str | None = None,
            assurance_framework_path: str | None = None,
            assurance_instance_path: str | None = None,
            junit_xml_path: str | None = None,
            compliance_mapping_pack_path: str | None = None,
            scanner_compliance_mapping_paths: list[str] | None = None) -> str:
-    if not fr_catalog_path and (report_dir / "fr-catalog.snapshot.json").exists():
-        fr_catalog_path = str(report_dir / "fr-catalog.snapshot.json")
+    if not fr_catalog_path:
+        fr_catalog_path = _discover_project_fr_catalog_path(report_dir)
     if not assurance_framework_path:
         assurance_framework_path = _richest_framework_path(report_dir)
 
@@ -3254,8 +4409,8 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
 
     overview_html = render_overview(evidence, report_dir, ignored)
     evidence_html = render_coverage(evidence, report_dir)
+    instructions_html = render_instructions_page(report_dir, evidence)
 
-    agent_prompts_html = render_agent_prompts(report_dir)
     assurance_status_payload: dict[str, Any] = {}
     fr_catalog_html = ""
 
@@ -3277,6 +4432,10 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
     )
     scanner_findings_for_graph = scanner_finding_records(report_dir)
     scanner_compliance_packs_payload = _load_scanner_compliance_packs(scanner_compliance_mapping_paths)
+    compliance_regime_paths = discover_compliance_regime_paths(
+        fr_catalog_path=fr_catalog_path,
+        scanner_compliance_packs=scanner_compliance_packs_payload,
+    )
     if fr_catalog_path and target_evidence_bundle:
         try:
             import importlib.util
@@ -3310,11 +4469,31 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
             spec.loader.exec_module(loader_mod)
             try:
                 catalog = loader_mod.load_fr_catalog(Path(fr_catalog_path))
+                rulesets_to_render: list[str] = []
                 for fw in catalog.scope:
-                    if fw in RULESET_SNAPSHOTS:
-                        tab_html = render_framework_tab(fw, catalog, report_dir, junit_xml_path, assurance_status_payload)
-                        tab_id = f"fw-{fw.lower().replace('-', '').replace('_', '')}"
-                        framework_tabs_html.append((tab_id, fw, tab_html))
+                    if fw in RULESET_SNAPSHOTS and fw not in rulesets_to_render:
+                        rulesets_to_render.append(fw)
+                for pack in scanner_compliance_packs_payload or []:
+                    compliance = pack.get("compliance") or {}
+                    fw = str(compliance.get("ruleset") or "").strip()
+                    if fw in RULESET_SNAPSHOTS and fw not in rulesets_to_render:
+                        rulesets_to_render.append(fw)
+                    for mapping in pack.get("mappings") or []:
+                        for target in (mapping.get("targets") or {}).get("compliance_rows") or []:
+                            fw = str(target.get("ruleset") or "").strip()
+                            if fw in RULESET_SNAPSHOTS and fw not in rulesets_to_render:
+                                rulesets_to_render.append(fw)
+                for path in compliance_regime_paths or []:
+                    parts = Path(path).parts
+                    slug = parts[-2] if len(parts) >= 2 else ""
+                    slug_map = {"asvs": "ASVS", "nist-800-53": "NIST-800-53"}
+                    fw = slug_map.get(slug, "")
+                    if fw in RULESET_SNAPSHOTS and fw not in rulesets_to_render:
+                        rulesets_to_render.append(fw)
+                for fw in rulesets_to_render:
+                    tab_html = render_framework_tab(fw, catalog, report_dir, junit_xml_path, assurance_status_payload)
+                    tab_id = f"fw-{fw.lower().replace('-', '').replace('_', '')}"
+                    framework_tabs_html.append((tab_id, fw, tab_html))
 
                 # Build reverse lookup index for "Find ASVS impact" feature.
                 # Maps scanner TBT refs to the FR IDs + compliance rows they inform.
@@ -3382,6 +4561,14 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
                                     "location": record.get("source_locator") or record.get("source", ""),
                                     "message": record.get("source_excerpt") or f"{tbt_id} evidence failed",
                                 } for record in records if record.get("result_status") == "failed")
+                            elif "execution_error" in record_statuses:
+                                statuses.append("execution_error")
+                                evidence_notes.extend({
+                                    "scanner": record.get("tool") or tbt.get("type", "evidence"),
+                                    "rule_id": tbt_id,
+                                    "location": record.get("source_locator") or record.get("source", ""),
+                                    "message": (record.get("metadata") or {}).get("message") or f"{tbt_id} test execution had a harness/runtime error",
+                                } for record in records if record.get("result_status") == "execution_error")
                             elif "passed" in record_statuses and "missing" in record_statuses:
                                 statuses.append("partial")
                                 evidence_notes.append({
@@ -3410,6 +4597,8 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
                                 })
                         if "failed" in statuses:
                             fr_evidence_status[fr_id] = ("failed", evidence_notes)
+                        elif "execution_error" in statuses:
+                            fr_evidence_status[fr_id] = ("execution_error", evidence_notes)
                         elif statuses and all(status == "passed" for status in statuses):
                             fr_evidence_status[fr_id] = ("passed", [])
                         elif any(status in ("passed", "partial") for status in statuses):
@@ -3441,6 +4630,8 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
                 ]
                 if "failed" in linked_statuses:
                     tbt_state = "failed"
+                elif "execution_error" in linked_statuses:
+                    tbt_state = "execution_error"
                 elif "partial" in linked_statuses:
                     tbt_state = "partial"
                 elif linked_statuses and all(state == "passed" for state in linked_statuses):
@@ -3493,34 +4684,71 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
         project=dashboard_project,
         run_id=str(evidence.get("run_id") or ""),
         generated_at=dashboard_generated_at,
+        source_repo=str(evidence.get("source_repo") or evidence.get("target_dir") or ""),
     )
 
-    if assurance_framework_path:
-        import importlib.util
-        from process.process_tab import build_process_flow_data
-        loader_path = Path(__file__).resolve().parent / "load_assurance_framework.py"
-        spec = importlib.util.spec_from_file_location("load_assurance_framework_runtime", loader_path)
-        if spec and spec.loader:
-            loader_mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(loader_mod)
+    framework_options_payload = _load_assurance_framework_options(assurance_framework_path)
+
+    import importlib.util
+    from process.process_tab import build_process_flow_data
+    loader_path = Path(__file__).resolve().parent / "load_assurance_framework.py"
+    spec = importlib.util.spec_from_file_location("load_assurance_framework_runtime", loader_path)
+    loader_mod = None
+    if spec and spec.loader:
+        loader_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(loader_mod)
+
+    active_framework_resolved = Path(assurance_framework_path).resolve() if assurance_framework_path else None
+    if assurance_framework_path and loader_mod:
+        try:
+            assurance_framework = loader_mod.load_assurance_framework(
+                Path(assurance_framework_path),
+                assurance_instance_path=Path(assurance_instance_path) if assurance_instance_path else None,
+            )
+            assurance_framework_label = assurance_framework.title or assurance_framework.assurance_framework or assurance_framework_label
+        except loader_mod.AssuranceFrameworkError:
+            pass
+
+    for option in framework_options_payload:
+        option_path = Path(str(option.get("path") or ""))
+        option_framework = None
+        option_instance = None
+        if loader_mod and option_path.exists():
             try:
-                assurance_framework = loader_mod.load_assurance_framework(
-                    Path(assurance_framework_path),
-                    assurance_instance_path=Path(assurance_instance_path) if assurance_instance_path else None,
+                use_instance = bool(active_framework_resolved and option_path.resolve() == active_framework_resolved)
+                option_instance = assurance_instance_payload if use_instance else None
+                option_framework = assurance_framework if use_instance and assurance_framework else loader_mod.load_assurance_framework(
+                    option_path,
+                    assurance_instance_path=Path(assurance_instance_path) if use_instance and assurance_instance_path else None,
                 )
-                assurance_framework_label = assurance_framework.title or assurance_framework.assurance_framework or assurance_framework_label
             except loader_mod.AssuranceFrameworkError:
-                pass
-        process_flow_json = json.dumps(build_process_flow_data(
-            assurance_framework_path,
-            report_dir=report_dir,
-            fr_catalog=catalog,
-            fr_evidence=fr_evidence_status,
-            assurance_framework=assurance_framework,
-            evidence_bundle=target_evidence_bundle,
-            assurance_status=assurance_status_payload,
-            assurance_instance=assurance_instance_payload,
-        ))
+                option_framework = None
+        if option_path.exists():
+            option["process_flow"] = build_process_flow_data(
+                str(option_path),
+                report_dir=report_dir,
+                fr_catalog=catalog,
+                fr_evidence=fr_evidence_status,
+                assurance_framework=option_framework,
+                evidence_bundle=target_evidence_bundle,
+                assurance_status=assurance_status_payload if option_framework else {},
+                assurance_instance=option_instance,
+            )
+
+    if assurance_framework_path:
+        selected_flow = next((item.get("process_flow") for item in framework_options_payload if item.get("selected") and item.get("process_flow")), None)
+        if selected_flow is None:
+            selected_flow = build_process_flow_data(
+                assurance_framework_path,
+                report_dir=report_dir,
+                fr_catalog=catalog,
+                fr_evidence=fr_evidence_status,
+                assurance_framework=assurance_framework,
+                evidence_bundle=target_evidence_bundle,
+                assurance_status=assurance_status_payload,
+                assurance_instance=assurance_instance_payload,
+            )
+        process_flow_json = json.dumps(selected_flow)
 
     if catalog or assurance_framework:
         try:
@@ -3573,9 +4801,11 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
             "generated_at": dashboard_generated_at,
             "inputs": {
                 "fr_catalog": str(fr_catalog_path or ""),
+                "compliance_regimes": ",".join(str(path) for path in compliance_regime_paths),
                 "compliance_mapping_pack": str(compliance_mapping_pack_path or ""),
                 "scanner_compliance_mapping_packs": ",".join(scanner_compliance_mapping_paths or []),
                 "assurance_framework": str(assurance_framework_path or ""),
+                "assurance_frameworks": framework_options_payload,
                 "assurance_instance": str(assurance_instance_path or ""),
                 "evidence_manifest": "evidence-manifest.json",
                 "evidence_bundle": "evidence-bundle.json" if target_evidence_bundle else "",
@@ -3626,6 +4856,7 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
             report_dir,
             dashboard_payload,
             fr_catalog_path=fr_catalog_path,
+            compliance_regime_paths=compliance_regime_paths,
             compliance_mapping_pack_path=compliance_mapping_pack_path,
             scanner_compliance_mapping_paths=scanner_compliance_mapping_paths or [],
             assurance_framework_path=assurance_framework_path,
@@ -3633,14 +4864,16 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
             evidence_manifest=evidence,
         )
         refresh_existing_assurance_claims_and_proofs(report_dir)
+        evidence_html = render_coverage(evidence, report_dir, projections["evidence_files"])
     except Exception:
         pass
 
     run_id = html.escape(str(evidence.get("run_id", "-")))
     generated = html.escape(str(evidence.get("generated_at", "-"))[:19].replace("T", " "))
     target_raw = str(evidence.get("target_dir", "-"))
-    repo_name = html.escape(str(evidence.get("repository") or evidence.get("repo_name") or git_repo_name(target_raw) or "-"))
-    branch = html.escape(str(evidence.get("git_branch") or "-"))
+    source_repo_raw = str(evidence.get("source_repo") or "")
+    repo_name = html.escape(str(evidence.get("repository") or evidence.get("repo_name") or git_repo_name(source_repo_raw) or git_repo_name(target_raw) or "-"))
+    branch = html.escape(str(evidence.get("git_branch") or git_branch_name(source_repo_raw) or "-"))
     safe_branch = html.escape(str(evidence.get("safe_scan_branch") or git_branch_name(target_raw) or "-"))
     commit = html.escape(str(evidence.get("git_commit") or "-")[:12])
 
@@ -3664,14 +4897,16 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
             '</div>'
         )
 
-    framework_nav_html = "".join(
-        '<button class="tab-btn" data-tab="' + html.escape(tid) + '">' +
-        ICONS['shield'] +
-        '<span>' + html.escape('Compliance Regime' if fname == 'ASVS' else fname) + '</span></button>'
-        for tid, fname, _ in framework_tabs_html
+    compliance_page_html = "".join(
+        '<div class="compliance-ruleset-view" data-compliance-ruleset="' + html.escape(fw) + '" id="compliance-' + html.escape(tab_id) + '">' + html_ + '</div>'
+        for tab_id, fw, html_ in framework_tabs_html
     )
-    ruleset_tab_map_json = json.dumps({fname: tid for tid, fname, _ in framework_tabs_html})
-    industry_framework_label = 'Industry Framework'
+    compliance_nav_html = (
+        f'<button class="tab-btn" data-tab="compliance">{ICONS["shield"]}<span>Compliance Regime</span></button>'
+        if framework_tabs_html else ''
+    )
+    framework_options_json = json.dumps(framework_options_payload)
+    industry_framework_label = 'Assurance Framework'
     gateflow_intro = (
         '<div class="page-intro"><div><h2>Industry Framework</h2><ul>'
         '<li>Shows gated process flow and readiness</li>'
@@ -3689,12 +4924,12 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
 
     nav_html = f"""
       <button class="tab-btn" data-tab="overview">{ICONS['list']}<span>Scanner Results</span></button>
-      <button class="tab-btn" data-tab="evidence">{ICONS['list']}<span>Evidence Files</span></button>
+      <button class="tab-btn" data-tab="evidence">{ICONS['list']}<span>Files</span></button>
+      <button class="tab-btn" data-tab="instructions">{ICONS['doc']}<span>Instructions</span></button>
       <button class="tab-btn" data-tab="nativereview">{ICONS['shield']}<span>Project FRs</span></button>
-      {framework_nav_html}
+      {compliance_nav_html}
       {f'<button class="tab-btn" data-tab="gateflow">{ICONS["filter"]}<span>{industry_framework_label}</span></button>' if assurance_framework else ''}
       {'<button class="tab-btn" data-tab="graph">' + ICONS['filter'] + '<span>Traceability Graph</span></button>' if (fr_catalog_html or assurance_framework) else ''}
-      <button class="tab-btn" data-tab="agentprompts">{ICONS['doc']}<span>Agent Prompts</span></button>
     """
 
     return f"""<!doctype html>
@@ -3721,10 +4956,10 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
 
   <section class="assurance-context" aria-label="Assurance context">
     <div class="assurance-context-title"><strong>Assurance context</strong><span>These choices drive the framework, compliance and graph views.</span></div>
-    <label class="assurance-context-field"><span>Framework</span><select id="global-framework-select" class="graph-select"></select></label>
-    <label class="assurance-context-field"><span>Gated flow</span><select id="global-process-select" class="graph-select"></select></label>
-    <label class="assurance-context-field"><span>Compliance regime</span><select id="global-ruleset-select" class="graph-select"></select></label>
-    <label class="assurance-context-field assurance-context-wide"><span>Chapter / family</span><select id="global-chapter-select" class="graph-select"></select></label>
+    <label class="assurance-context-field assurance-context-framework"><span>Assurance Framework</span><select id="global-framework-select" class="graph-select"></select></label>
+    <label class="assurance-context-field assurance-context-framework"><span>Gated flow</span><select id="global-process-select" class="graph-select"></select></label>
+    <label class="assurance-context-field assurance-context-compliance"><span>Compliance regime</span><select id="global-ruleset-select" class="graph-select"></select></label>
+    <label class="assurance-context-field assurance-context-wide assurance-context-compliance"><span>Chapter / family</span><select id="global-chapter-select" class="graph-select"></select></label>
   </section>
 
   <div class="dashboard-shell">
@@ -3736,13 +4971,9 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
     </aside>
     <div class="dashboard-workspace">
   <section class="command-strip">
-    <section class="severity-card summary-action" data-overview-filter="matrix" role="button" tabindex="0" aria-pressed="false">
-      <div class="card-head"><h2>Severity Load</h2><span class="meta">matrix</span></div>
-      {render_severity_panel(sev, assurance)}
-    </section>
     <div class="metric-stack">
       <div class="metric-grid">
-        {metric('All findings', str(total_findings), C['warn'] if total_findings else C['pass'], 'all-findings')}
+        {metric('Raw scanner findings', str(total_findings), C['warn'] if total_findings else C['pass'], 'all-findings')}
         {split_metric('Critical load', 'Critical', critical_count, 'High', high_count, C['fail'] if critical_count or high_count else C['pass'], 'cves', left_color=C['critical'], right_color=C['high'])}
         {split_metric('Medium / Low', 'Medium', medium_count, 'Low', low_count, C['warn'] if medium_count or low_count else C['pass'], 'medium-low', left_color=C['medium'], right_color=C['low'])}
         {split_metric('Secrets', 'Secret Types', secret_type_count, 'Secret Files', secret_file_count, C['fail'] if secrets else C['pass'], 'secrets')}
@@ -3754,18 +4985,18 @@ def render(*, report_dir: Path, fr_catalog_path: str | None = None,
   <main>
     <div class="panel active" id="tab-overview">{overview_html}</div>
     <div class="panel" id="tab-evidence">{evidence_html}</div>
+    <div class="panel" id="tab-instructions">{instructions_html}</div>
     <div class="panel" id="tab-nativereview">{native_review_board_html}</div>
-    {"".join(f'<div class="panel" id="tab-{tid}">{html_}</div>' for tid, _, html_ in framework_tabs_html)}
+    {f'<div class="panel" id="tab-compliance">{compliance_page_html}</div>' if framework_tabs_html else ''}
     {f'<div class="panel" id="tab-gateflow"><section class="card process-flow-card">{gateflow_intro}<div id="process-profile-control" class="process-profile-control"></div><div class="process-flow-layout"><div id="process-flow-canvas" class="process-flow-canvas"></div><aside id="process-flow-detail" class="graph-detail-panel process-flow-detail"></aside></div></section></div>' if assurance_framework else ''}
-    {f'<div class="panel" id="tab-graph"><section class="card graph-card">{graph_intro}<div id="graph-banner" class="graph-banner" hidden></div><div class="graph-layout"><div id="graph-summary" class="graph-summary-band" aria-live="polite"></div><div class="graph-control-deck"><div class="graph-control-section graph-focus-section"><div class="graph-control-heading"><strong>Focus view</strong><span>Choose the chain you want the graph to explain.</span></div><label class="graph-field"><span>View type</span><select id="graph-entry-type" class="graph-select"><option value="fr">FR evidence chain</option><option value="row">ASVS row proof</option><option value="scannerImpact">Scanner impact</option><option value="scannerUnmapped">Unmapped scanner findings</option><option value="gateProof">Gate proof</option><option value="process">Process review</option><option value="gate">Gate review</option><option value="criterion">Criterion review</option><option value="complete">Complete map overview</option></select></label><label class="graph-field graph-field-wide"><span>Starting point</span><select id="graph-entry-id" class="graph-select"></select></label><button id="graph-load-btn" class="mini-btn graph-action-btn">Apply</button></div><div class="graph-control-section graph-filter-section"><div class="graph-control-heading"><strong>Filters</strong><span>Page-specific filters. Regime and chapter are set in the assurance context bar.</span></div><select id="graph-ruleset-filter" class="graph-select graph-context-proxy" hidden></select><select id="graph-chapter-filter" class="graph-select graph-context-proxy" hidden></select><label class="graph-field"><span>Scanner</span><select id="graph-scanner-filter" class="graph-select"></select></label><label class="graph-field"><span>Evidence state</span><select id="graph-status-filter" class="graph-select"><option value="">All evidence states</option><option value="failed">Failing evidence</option><option value="partial">Partial evidence</option><option value="passed">Passing evidence</option><option value="missing">Missing evidence</option><option value="manual_review">Review required</option></select></label></div></div><div id="graph-legend" class="graph-legend-box" hidden></div><div id="graph-canvas" class="graph-canvas"></div><aside id="graph-detail" class="graph-detail-panel graph-detail-strip"></aside></div></section></div>' if (fr_catalog_html or assurance_framework) else ''}
-    <div class="panel" id="tab-agentprompts">{agent_prompts_html}</div>
+    {f'<div class="panel" id="tab-graph"><section class="card graph-card">{graph_intro}<div id="graph-banner" class="graph-banner" hidden></div><div class="graph-layout"><div id="graph-summary" class="graph-summary-band" aria-live="polite"></div><div class="graph-control-deck"><div class="graph-control-section graph-focus-section"><div class="graph-control-heading"><strong>Focus view</strong><span>Choose the chain you want the graph to explain.</span></div><label class="graph-field"><span>View type</span><select id="graph-entry-type" class="graph-select"><option value="fr">FR evidence chain</option><option value="row">ASVS row proof</option><option value="scannerImpact">Scanner impact</option><option value="scannerUnmapped">Unmapped scanner findings</option><option value="gateProof">Gate proof</option><option value="process">Process review</option><option value="gate">Gate review</option><option value="criterion">Criterion review</option><option value="complete">Complete map overview</option></select></label><label class="graph-field graph-field-wide"><span>Starting point</span><select id="graph-entry-id" class="graph-select"></select></label><button id="graph-load-btn" class="mini-btn graph-action-btn">Apply</button></div><div class="graph-control-section graph-filter-section"><div class="graph-control-heading"><strong>Filters</strong><span>Page-specific filters. Regime and chapter are set in the assurance context bar.</span></div><select id="graph-ruleset-filter" class="graph-select graph-context-proxy" hidden></select><select id="graph-chapter-filter" class="graph-select graph-context-proxy" hidden></select><label class="graph-field"><span>Scanner</span><select id="graph-scanner-filter" class="graph-select"></select></label><label class="graph-field"><span>Evidence state</span><select id="graph-status-filter" class="graph-select"><option value="">All evidence states</option><option value="failed">Failing evidence</option><option value="execution_error">Execution errors</option><option value="partial">Partial evidence</option><option value="passed">Passing evidence</option><option value="missing">Missing evidence</option><option value="manual_review">Review required</option></select></label></div></div><div id="graph-legend" class="graph-legend-box" hidden></div><div id="graph-canvas" class="graph-canvas"></div><aside id="graph-detail" class="graph-detail-panel graph-detail-strip"></aside></div></section></div>' if (fr_catalog_html or assurance_framework) else ''}
   </main>
     </div>
   </div>
 <script type="application/json" id="reverse-lookup-data">{reverse_lookup_json}</script>
 <script type="application/json" id="graph-data">{graph_json}</script>
 <script type="application/json" id="process-flow-data">{process_flow_json}</script>
-<script type="application/json" id="ruleset-tab-map">{ruleset_tab_map_json}</script>
+<script type="application/json" id="framework-options-data">{framework_options_json}</script>
 </div>
 <script>{GRAPH_JS}</script>
 <script>{DASHBOARD_INTERACTIONS_JS.replace("__RUN_ID__", run_id)}</script>

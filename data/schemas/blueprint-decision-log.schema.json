@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/blueprint-decision-log.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/blueprint-decision-log.schema.json",
   "title": "Blueprint Decision Log",
   "type": "object",
   "required": ["schema_version", "id", "project", "proposal", "decisions"],

@@ -1,0 +1,2777 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "security-core-blueprint-to-asvs-5.0.0",
+    "pack_version": "1.0.0",
+    "created_at": "2026-07-13T00:00:00Z",
+    "updated_at": "2026-07-13T00:00:00Z",
+    "generator": "manual-curation-from-security-core-blueprint",
+    "source_hash": "sha256:0eaf78d2847eead04e752cd80fa94b2c3d668004732e47be8a3db08ac91839e0",
+    "input_artifacts": [
+      {
+        "kind": "fr_catalog_blueprint",
+        "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+        "version": "security-core-1.0.0",
+        "hash": "sha256:0eaf78d2847eead04e752cd80fa94b2c3d668004732e47be8a3db08ac91839e0"
+      }
+    ]
+  },
+  "blueprint": {
+    "catalog": "security-core",
+    "version": "security-core-1.0.0",
+    "source_ref": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+    "source_hash": "sha256:0eaf78d2847eead04e752cd80fa94b2c3d668004732e47be8a3db08ac91839e0"
+  },
+  "compliance": {
+    "ruleset": "ASVS",
+    "version": "5.0.0",
+    "source_ref": "data/rulesets/asvs/5.0.0.json"
+  },
+  "mappings": [
+    {
+      "id": "BCM-ASVS-5-FR-SESSION-MANAGEMENT-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-SESSION-MANAGEMENT-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.2.4"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.3.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.4.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-SESSION-MANAGEMENT-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-OUTPUT-ENCODING-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-OUTPUT-ENCODING-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.1.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.3"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-OUTPUT-ENCODING-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-INPUT-VALIDATION-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-INPUT-VALIDATION-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.2.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.3.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-INPUT-VALIDATION-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-BROWSER-SECURITY-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-BROWSER-SECURITY-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.4"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.3"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.4"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-BROWSER-SECURITY-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-FILE-HANDLING-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-FILE-HANDLING-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.2.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.3.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.4.3"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-FILE-HANDLING-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-AUTHORIZATION-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-AUTHORIZATION-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.2.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.3.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.4.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-AUTHORIZATION-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-TOKEN-INTEGRITY-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-TOKEN-INTEGRITY-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-9.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-9.1.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-9.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-9.2.3"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-TOKEN-INTEGRITY-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-DATA-PROTECTION-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DATA-PROTECTION-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.2.6"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.2.7"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.3.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-DATA-PROTECTION-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-DEPENDENCY-SECURITY-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.1.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.2.4"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-DEPENDENCY-SECURITY-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-CRYPTOGRAPHY-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-CRYPTOGRAPHY-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.3.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.4.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.5.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-CRYPTOGRAPHY-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-SESSION-MANAGEMENT-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-SESSION-MANAGEMENT-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-SESSION-MANAGEMENT-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.1.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-SESSION-MANAGEMENT-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-SESSION-MANAGEMENT-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-SESSION-MANAGEMENT-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-SESSION-MANAGEMENT-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-SESSION-MANAGEMENT-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-SESSION-MANAGEMENT-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-SESSION-MANAGEMENT-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-SESSION-MANAGEMENT-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.2.4"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-SESSION-MANAGEMENT-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-SESSION-MANAGEMENT-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-SESSION-MANAGEMENT-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-SESSION-MANAGEMENT-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.3.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-SESSION-MANAGEMENT-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-SESSION-MANAGEMENT-001-E",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-SESSION-MANAGEMENT-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-SESSION-MANAGEMENT-001-E"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.4.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-SESSION-MANAGEMENT-001-E is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-OUTPUT-ENCODING-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-OUTPUT-ENCODING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-OUTPUT-ENCODING-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.1.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-OUTPUT-ENCODING-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-OUTPUT-ENCODING-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-OUTPUT-ENCODING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-OUTPUT-ENCODING-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-OUTPUT-ENCODING-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-OUTPUT-ENCODING-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-OUTPUT-ENCODING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-OUTPUT-ENCODING-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-OUTPUT-ENCODING-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-OUTPUT-ENCODING-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-OUTPUT-ENCODING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-OUTPUT-ENCODING-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.3"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-OUTPUT-ENCODING-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-INPUT-VALIDATION-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-INPUT-VALIDATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-INPUT-VALIDATION-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.1.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-INPUT-VALIDATION-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-INPUT-VALIDATION-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-INPUT-VALIDATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-INPUT-VALIDATION-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-INPUT-VALIDATION-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-INPUT-VALIDATION-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-INPUT-VALIDATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-INPUT-VALIDATION-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.2.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-INPUT-VALIDATION-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-INPUT-VALIDATION-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-INPUT-VALIDATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-INPUT-VALIDATION-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-2.3.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-INPUT-VALIDATION-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-BROWSER-SECURITY-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-BROWSER-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-BROWSER-SECURITY-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-BROWSER-SECURITY-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-BROWSER-SECURITY-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-BROWSER-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-BROWSER-SECURITY-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-BROWSER-SECURITY-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-BROWSER-SECURITY-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-BROWSER-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-BROWSER-SECURITY-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.3.4"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-BROWSER-SECURITY-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-BROWSER-SECURITY-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-BROWSER-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-BROWSER-SECURITY-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-BROWSER-SECURITY-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-BROWSER-SECURITY-001-E",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-BROWSER-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-BROWSER-SECURITY-001-E"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.3"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-BROWSER-SECURITY-001-E is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-BROWSER-SECURITY-001-F",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-BROWSER-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-BROWSER-SECURITY-001-F"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.4"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-BROWSER-SECURITY-001-F is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-FILE-HANDLING-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-FILE-HANDLING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-FILE-HANDLING-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.1.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-FILE-HANDLING-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-FILE-HANDLING-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-FILE-HANDLING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-FILE-HANDLING-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-FILE-HANDLING-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-FILE-HANDLING-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-FILE-HANDLING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-FILE-HANDLING-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.2.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-FILE-HANDLING-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-FILE-HANDLING-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-FILE-HANDLING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-FILE-HANDLING-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.3.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-FILE-HANDLING-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-FILE-HANDLING-001-E",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-FILE-HANDLING-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-FILE-HANDLING-001-E"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-5.4.3"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-FILE-HANDLING-001-E is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-AUTHORIZATION-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-AUTHORIZATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-AUTHORIZATION-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.1.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-AUTHORIZATION-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-AUTHORIZATION-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-AUTHORIZATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-AUTHORIZATION-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-AUTHORIZATION-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-AUTHORIZATION-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-AUTHORIZATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-AUTHORIZATION-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.2.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-AUTHORIZATION-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-AUTHORIZATION-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-AUTHORIZATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-AUTHORIZATION-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.3.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-AUTHORIZATION-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-AUTHORIZATION-001-E",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-AUTHORIZATION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-AUTHORIZATION-001-E"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-8.4.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-AUTHORIZATION-001-E is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-TOKEN-INTEGRITY-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-TOKEN-INTEGRITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-TOKEN-INTEGRITY-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-9.1.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-TOKEN-INTEGRITY-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-TOKEN-INTEGRITY-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-TOKEN-INTEGRITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-TOKEN-INTEGRITY-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-9.1.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-TOKEN-INTEGRITY-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-TOKEN-INTEGRITY-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-TOKEN-INTEGRITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-TOKEN-INTEGRITY-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-9.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-TOKEN-INTEGRITY-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-TOKEN-INTEGRITY-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-TOKEN-INTEGRITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-TOKEN-INTEGRITY-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-9.2.3"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-TOKEN-INTEGRITY-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DATA-PROTECTION-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DATA-PROTECTION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DATA-PROTECTION-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.1.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DATA-PROTECTION-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DATA-PROTECTION-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DATA-PROTECTION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DATA-PROTECTION-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DATA-PROTECTION-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DATA-PROTECTION-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DATA-PROTECTION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DATA-PROTECTION-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.2.6"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DATA-PROTECTION-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DATA-PROTECTION-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DATA-PROTECTION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DATA-PROTECTION-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.2.7"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DATA-PROTECTION-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DATA-PROTECTION-001-E",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DATA-PROTECTION-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DATA-PROTECTION-001-E"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-14.3.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DATA-PROTECTION-001-E is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DEPENDENCY-SECURITY-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DEPENDENCY-SECURITY-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.1.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DEPENDENCY-SECURITY-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DEPENDENCY-SECURITY-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DEPENDENCY-SECURITY-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.1.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DEPENDENCY-SECURITY-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DEPENDENCY-SECURITY-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DEPENDENCY-SECURITY-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DEPENDENCY-SECURITY-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-DEPENDENCY-SECURITY-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-DEPENDENCY-SECURITY-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.2.4"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-DEPENDENCY-SECURITY-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-CRYPTOGRAPHY-001-A",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-CRYPTOGRAPHY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-CRYPTOGRAPHY-001-A"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.1.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-CRYPTOGRAPHY-001-A is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-CRYPTOGRAPHY-001-B",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-CRYPTOGRAPHY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-CRYPTOGRAPHY-001-B"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.2.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-CRYPTOGRAPHY-001-B is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-CRYPTOGRAPHY-001-C",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-CRYPTOGRAPHY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-CRYPTOGRAPHY-001-C"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.3.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-CRYPTOGRAPHY-001-C is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-CRYPTOGRAPHY-001-D",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-CRYPTOGRAPHY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-CRYPTOGRAPHY-001-D"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.4.2"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-CRYPTOGRAPHY-001-D is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-TBT-CRYPTOGRAPHY-001-E",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-CRYPTOGRAPHY-001"
+        ],
+        "tbt_refs": [
+          "TBT-BP-SEC-CRYPTOGRAPHY-001-E"
+        ]
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-11.5.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint TBT TBT-BP-SEC-CRYPTOGRAPHY-001-E is the expected test basis for the listed ASVS 5.0.0 row(s).",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-GOVERNED-OPERATIONS-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-14T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Governed operation metadata blueprint maps to ASVS logging documentation, log metadata, and security-event coverage. It does not claim runtime authorization enforcement.",
+      "mapping_level": "compliance_row",
+      "relationship": "supports",
+      "traceability_strength": "partial",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-GOVERNED-OPERATIONS-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-16.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-16.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-16.3.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "This mapping proves declared governance metadata only; separate FR/TBTs are required for runtime authorization allow/deny enforcement.",
+        "Project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:0eaf78d2847eead04e752cd80fa94b2c3d668004732e47be8a3db08ac91839e0"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Governed service operation metadata supports auditability and security-event logging by declaring audit event, clearance and agent capability metadata on service operations.",
+      "confidence": "medium"
+    }
+  ]
+}

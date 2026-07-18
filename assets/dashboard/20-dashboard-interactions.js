@@ -22,12 +22,34 @@
 })();
 let activeOverviewFilter = null;
 let activeIssueTraceFilter = 'all';
+function setIssueTraceButtons() {
+  document.querySelectorAll('[data-issue-trace-filter]').forEach(action => {
+    const selected = action.dataset.issueTraceFilter === activeIssueTraceFilter;
+    action.classList.toggle('is-filtered', selected);
+    action.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+}
+function resetIssueTraceRows() {
+  activeIssueTraceFilter = 'all';
+  document.querySelectorAll('[data-issue-trace-category]').forEach(row => {
+    row.hidden = false;
+    row.setAttribute('aria-expanded', 'false');
+    row.classList.remove('is-selected');
+    const detail = document.getElementById(row.dataset.findingToggle || '');
+    if (detail) detail.hidden = true;
+  });
+  document.querySelectorAll('[data-issue-trace-detail]').forEach(row => {
+    row.hidden = true;
+  });
+  setIssueTraceButtons();
+}
 function setOverviewFilter(filter, force) {
   const overview = document.querySelector('#tab-overview .overview-grid');
   if (!overview) return;
   const next = force ? filter : (activeOverviewFilter === filter ? null : filter);
   activeOverviewFilter = next;
   overview.dataset.activeFilter = next || '';
+  resetIssueTraceRows();
   document.querySelectorAll('[data-overview-section]').forEach(section => {
     if (section.dataset.overviewPersistent === 'true') {
       section.hidden = false;
@@ -48,6 +70,20 @@ function setOverviewFilter(filter, force) {
 function setIssueTraceFilter(filter) {
   activeIssueTraceFilter = filter || 'all';
   const isAll = activeIssueTraceFilter === 'all';
+  activeOverviewFilter = null;
+  const overview = document.querySelector('#tab-overview .overview-grid');
+  if (overview) overview.dataset.activeFilter = 'issue-trace:' + activeIssueTraceFilter;
+  document.querySelectorAll('[data-overview-filter]').forEach(action => {
+    action.classList.remove('is-filtered');
+    action.setAttribute('aria-pressed', 'false');
+  });
+  document.querySelectorAll('[data-overview-section]').forEach(section => {
+    if (section.dataset.overviewPersistent === 'true') {
+      section.hidden = false;
+      return;
+    }
+    section.hidden = section.dataset.issueTableSection !== 'true';
+  });
   document.querySelectorAll('[data-issue-trace-category]').forEach(row => {
     const matches = isAll || row.dataset.issueTraceCategory === activeIssueTraceFilter;
     row.hidden = !matches;
@@ -66,17 +102,16 @@ function setIssueTraceFilter(filter) {
     const section = table.closest('[data-overview-section]');
     if (!section) return;
     const hasVisible = [...table.querySelectorAll('[data-issue-trace-category]')].some(row => !row.hidden);
-    const overviewAllowsSection = !activeOverviewFilter || section.dataset.overviewSection === activeOverviewFilter;
-    section.hidden = !hasVisible || !overviewAllowsSection;
+    section.hidden = !hasVisible;
+  });
+  document.querySelectorAll('[data-overview-group]').forEach(group => {
+    const visibleChild = [...group.querySelectorAll('[data-overview-section]')].some(section => !section.hidden);
+    group.hidden = !visibleChild;
   });
   document.querySelectorAll('[data-overview-persistent="true"]').forEach(section => {
     section.hidden = false;
   });
-  document.querySelectorAll('[data-issue-trace-filter]').forEach(action => {
-    const selected = action.dataset.issueTraceFilter === activeIssueTraceFilter;
-    action.classList.toggle('is-filtered', selected);
-    action.setAttribute('aria-pressed', selected ? 'true' : 'false');
-  });
+  setIssueTraceButtons();
 }
 function showPanel(tabName) {
   document.body.dataset.activeTab = tabName;
@@ -118,7 +153,6 @@ setOverviewFilter('matrix', true);
 document.querySelectorAll('[data-issue-trace-filter]').forEach(action => {
   function activateIssueTraceFilter() {
     showPanel('overview');
-    setOverviewFilter('', true);
     setIssueTraceFilter(action.dataset.issueTraceFilter || 'all');
   }
   action.addEventListener('click', activateIssueTraceFilter);
@@ -126,6 +160,780 @@ document.querySelectorAll('[data-issue-trace-filter]').forEach(action => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       activateIssueTraceFilter();
+    }
+  });
+});
+document.querySelectorAll('[data-file-tab]').forEach(tab => {
+  function activateFileTab() {
+    const target = tab.dataset.fileTab;
+    document.querySelectorAll('[data-file-tab]').forEach(item => {
+      const selected = item.dataset.fileTab === target;
+      item.classList.toggle('active', selected);
+      item.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-file-tab-panel]').forEach(panel => {
+      panel.hidden = panel.dataset.fileTabPanel !== target;
+    });
+  }
+  tab.addEventListener('click', activateFileTab);
+  tab.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      activateFileTab();
+    }
+  });
+});
+document.querySelectorAll('.instruction-row[data-instruction-detail]').forEach(row => {
+  function toggleInstructionRow() {
+    const detail = document.getElementById(row.dataset.instructionDetail || '');
+    if (!detail) return;
+    const willOpen = detail.hidden;
+    document.querySelectorAll('.instruction-row[data-instruction-detail]').forEach(item => {
+      const selected = willOpen && item === row;
+      item.classList.toggle('is-selected', selected);
+      item.setAttribute('aria-expanded', selected ? 'true' : 'false');
+      const label = item.querySelector('.instruction-expand');
+      if (label) label.textContent = selected ? 'Close' : 'Open';
+    });
+    document.querySelectorAll('.instruction-detail-row').forEach(item => {
+      item.hidden = true;
+    });
+    detail.hidden = !willOpen;
+  }
+  row.addEventListener('click', toggleInstructionRow);
+  row.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleInstructionRow();
+    }
+  });
+});
+function setupInstructionWorkflowMap() {
+  const target = document.getElementById('instruction-flow-map');
+  const detail = document.getElementById('instruction-flow-detail');
+  const menu = document.getElementById('instruction-flow-menu');
+  const dataEl = document.getElementById('instruction-workflow-data');
+  if (!target || !dataEl) return;
+  let steps = [];
+  try { steps = JSON.parse(dataEl.textContent || '[]') || []; } catch (_) { steps = []; }
+  if (!steps.length) return;
+  const stepMap = new Map(steps.map(step => [String(step.id), step]));
+  const activeStep = steps.find(step => step.active) || steps[0];
+  let selectedNodeId = String(activeStep.id || '1');
+  function commandNode(id, label, subtitle, x, y) {
+    const step = stepMap.get(String(id)) || steps[0];
+    return {
+      ...step,
+      nodeId: String(id),
+      stepId: String(id),
+      label,
+      subtitle,
+      x,
+      y,
+      kind: 'command',
+      w: 150,
+      h: 64,
+      active: !!step.active,
+      done: !!step.done,
+    };
+  }
+  function choiceNode(nodeId, label, subtitle, x, y, detailText, notes, focusStep) {
+    return {
+      nodeId,
+      stepId: focusStep,
+      id: nodeId,
+      label,
+      title: label,
+      subtitle,
+      x,
+      y,
+      kind: 'choice',
+      w: 150,
+      h: 88,
+      handoff: subtitle,
+      input: detailText,
+      output: 'Choose the branch that matches the project state. The selected branch determines which command or prompt to run next.',
+      command_title: 'Decision point',
+      command: '',
+      notes,
+      active: false,
+      done: false,
+    };
+  }
+  function buildRouteModel(width) {
+    const left = 92;
+    const right = 92;
+    const span = Math.max(1000, width - left - right);
+    const x = fraction => left + span * fraction;
+    const main = 108;
+    const lower = 232;
+    const mid = main;
+    const top = lower;
+    const low = lower;
+    const nodes = [
+      commandNode('1', 'Standards', 'sync sources', x(0), main),
+      commandNode('2', 'Discover', 'scan + blueprints', x(.16), main),
+      commandNode('3', 'Blueprints', 'accept or reject', x(.32), main),
+      {...choiceNode('scope-choice', 'Scope gap?', 'optional branch', x(.48), main, 'After reusable blueprints are reviewed, decide whether the project still needs bespoke FR/TBT scope.', [
+        'Yes: use the Project-Specific FRs prompt and apply reviewed bespoke updates.',
+        'No: continue directly to the accepted-scope rescan.',
+      ], '4A'), options: [{text: 'bespoke needed', dx: 0, dy: 72, tone: 'optional'}, {text: 'skip bespoke', dx: 104, dy: -30, tone: 'normal'}]},
+      commandNode('4A', 'Project FRs', 'optional updates', x(.48), lower),
+      commandNode('4B', 'Accepted scan', 'rescan catalog', x(.64), main),
+      {...choiceNode('evidence-choice', 'Evidence?', 'Kanban loop', x(.80), main, 'Use the Project FR board to decide how each missing assurance point is resolved.', [
+        'Map existing native tests when they truly prove an FR/TBT.',
+        'Draft, approve and run assurance tests when evidence is missing.',
+        'Mark reviewed tests as not evidence or project-only rather than leaving them unresolved.',
+      ], '5'), options: [{text: 'approve tests', dx: 0, dy: 72, tone: 'optional'}, {text: 'ready export', dx: 112, dy: -30, tone: 'normal'}, {text: 'rescan loop', dx: -98, dy: 72, tone: 'loop'}]},
+      commandNode('5', 'Run evidence', 'tests + results', x(.80), lower),
+      commandNode('6', 'Export proof', 'claim + bundle', x(.96), main),
+    ];
+    const links = [
+      {from: '1', to: '2', label: 'sources ready', labelDy: -13},
+      {from: '2', to: '3', label: 'proposal', labelDy: -13},
+      {from: '3', to: 'scope-choice', label: 'reviewed choices', labelDy: -13},
+      {from: 'scope-choice', to: '4A', label: 'bespoke needed', tone: 'optional', labelDy: -15},
+      {from: 'scope-choice', to: '4B', label: 'skip bespoke', labelDy: -13},
+      {from: '4A', to: '4B', label: 'apply updates', labelDy: -14},
+      {from: '4B', to: 'evidence-choice', label: 'graph populated', labelDy: -13},
+      {from: 'evidence-choice', to: '5', label: 'approve/run tests', tone: 'optional', labelDy: -15},
+      {from: '5', to: '4B', label: 'rescan loop', tone: 'loop', labelDy: 10},
+      {from: 'evidence-choice', to: '6', label: 'ready to export', labelDy: 18},
+      {from: '5', to: '6', label: 'evidence observed', labelDy: -8},
+    ];
+    return {nodes, links};
+  }
+  function stepById(stepId) {
+    return steps.find(step => String(step.id) === String(stepId)) || steps[0];
+  }
+  function routeNodeById(nodeId) {
+    return routeNodes.find(node => String(node.nodeId) === String(nodeId)) || routeNodes[0];
+  }
+  function refreshGeneratedCommands() {
+    if (typeof refreshInstructionCommandOptions === 'function') refreshInstructionCommandOptions();
+  }
+  function hideMenu() {
+    if (menu) menu.hidden = true;
+  }
+  function parkInstructionOptions() {
+    const page = document.querySelector('.instructions-page');
+    const options = document.querySelector('.instruction-options');
+    if (!page || !options) return null;
+    let parking = document.getElementById('instruction-options-parking');
+    if (!parking) {
+      parking = document.createElement('div');
+      parking.id = 'instruction-options-parking';
+      parking.hidden = true;
+      page.appendChild(parking);
+    }
+    if (detail && detail.contains(options)) parking.appendChild(options);
+    options.classList.remove('is-in-detail');
+    return options;
+  }
+  function placeInstructionOptionsFor(node) {
+    const options = parkInstructionOptions();
+    if (!options || !node.command) return;
+    const slot = detail ? detail.querySelector('[data-instruction-options-slot]') : null;
+    if (!slot) return;
+    options.classList.add('is-in-detail');
+    slot.appendChild(options);
+    updateInstructionOptionVisibility(node.command || '');
+  }
+  function copyActiveCommand(button) {
+    const code = document.querySelector('#instruction-active-command code');
+    if (!code || !code.textContent.trim()) return;
+    navigator.clipboard.writeText(code.textContent || '').then(() => {
+      if (button) {
+        const label = button.querySelector('.btn-label') || button;
+        const original = label.textContent;
+        label.textContent = 'Copied';
+        window.setTimeout(() => { label.textContent = original; }, 1200);
+      }
+    }).catch(() => {});
+  }
+  function renderDetail(node) {
+    selectedNodeId = String(node.nodeId || node.id);
+    target.querySelectorAll('[data-step-node]').forEach(item => {
+      item.classList.toggle('is-selected', item.dataset.stepNode === selectedNodeId);
+    });
+    if (!detail) return;
+    parkInstructionOptions();
+    const notes = (node.notes || []).map(note => '<li>' + escHtml(note) + '</li>').join('');
+    const commandBlock = node.command
+      ? '<div class="instruction-command instruction-flow-command">' +
+          '<div class="instruction-command-head"><div><strong>' + escHtml(node.command_title || 'Command') + '</strong><span>Generated from the selected dashboard options.</span></div>' +
+          '<button class="copy-btn" type="button" data-copy-active-command><span class="btn-label">Copy</span></button></div>' +
+          '<pre class="instruction-code" id="instruction-active-command"><code data-command-template="' + escAttr(node.command || '') + '">' + escHtml(node.command || '') + '</code></pre>' +
+        '</div>'
+      : '<div class="instruction-flow-decision-card"><strong>No command for this box</strong><span>Select the relevant branch, then use the connected step command or prompt.</span></div>';
+    const openStepButton = '';
+    detail.innerHTML =
+      '<div class="instruction-flow-detail-head">' +
+        '<span>' + (node.kind === 'choice' ? 'Decision point' : 'Workflow step') + '</span>' +
+        '<strong>' + escHtml(node.label || node.title) + '</strong>' +
+        '<p>' + escHtml(node.subtitle || node.handoff || '') + '</p>' +
+      '</div>' +
+      '<div class="instruction-flow-kv"><span>Input</span><strong>' + escHtml(node.input || '-') + '</strong></div>' +
+      '<div class="instruction-flow-kv"><span>Output</span><strong>' + escHtml(node.output || '-') + '</strong></div>' +
+      '<div class="instruction-detail-notes instruction-flow-notes"><strong>Review notes</strong><ul>' + notes + '</ul></div>' +
+      '<div class="instruction-flow-options-slot" data-instruction-options-slot></div>' +
+      commandBlock +
+      '<div class="instruction-flow-actions">' + openStepButton +
+        '<button type="button" class="mini-btn" data-jump-prompt-library>Prompt library</button>' +
+      '</div>';
+    placeInstructionOptionsFor(node);
+    detail.querySelector('[data-copy-active-command]')?.addEventListener('click', event => copyActiveCommand(event.currentTarget));
+    detail.querySelector('[data-jump-prompt-library]')?.addEventListener('click', () => document.querySelector('.instruction-prompt-library')?.scrollIntoView({behavior: 'smooth', block: 'start'}));
+    refreshGeneratedCommands();
+  }
+  function showMenu(event, node) {
+    if (!menu) return;
+    event.preventDefault();
+    renderDetail(node);
+    menu.innerHTML =
+      (node.command ? '<button type="button" data-menu-copy>Copy command</button>' : '') +
+      '<button type="button" data-menu-prompts>Prompt library</button>';
+    const bounds = target.getBoundingClientRect();
+    menu.style.left = Math.min(event.clientX - bounds.left, bounds.width - 190) + 'px';
+    menu.style.top = Math.max(8, event.clientY - bounds.top) + 'px';
+    menu.hidden = false;
+    menu.querySelector('[data-menu-copy]')?.addEventListener('click', () => { copyActiveCommand(); hideMenu(); });
+    menu.querySelector('[data-menu-prompts]')?.addEventListener('click', () => { document.querySelector('.instruction-prompt-library')?.scrollIntoView({behavior: 'smooth', block: 'start'}); hideMenu(); });
+  }
+  document.addEventListener('click', event => {
+    if (menu && !menu.hidden && !event.target.closest('#instruction-flow-menu')) hideMenu();
+  });
+  target.innerHTML = '';
+  const width = Math.max(1180, target.clientWidth || 1180);
+  const height = 320;
+  const {nodes: routeNodes, links: routeLinks} = buildRouteModel(width);
+  if (typeof d3 === 'undefined') {
+    const nodeById = new Map(routeNodes.map(node => [node.nodeId, node]));
+    function plainPath(link) {
+      const source = nodeById.get(link.from);
+      const targetNode = nodeById.get(link.to);
+      if (!source || !targetNode) return '';
+      const sourceHalf = (source.kind === 'choice' ? source.w * .46 : source.w / 2);
+      const targetHalf = (targetNode.kind === 'choice' ? targetNode.w * .46 : targetNode.w / 2);
+      const sx = source.x + (targetNode.x >= source.x ? sourceHalf : -sourceHalf);
+      const tx = targetNode.x + (targetNode.x >= source.x ? -targetHalf : targetHalf);
+      if (Math.abs(source.x - targetNode.x) < 12) {
+        const down = targetNode.y > source.y;
+        return 'M' + source.x + ',' + (source.y + (down ? source.h / 2 : -source.h / 2)) + ' L' + targetNode.x + ',' + (targetNode.y + (down ? -targetNode.h / 2 : targetNode.h / 2));
+      }
+      if (link.tone === 'loop') {
+        return 'M' + source.x + ',' + (source.y + source.h / 2) + ' C' + source.x + ',' + (source.y + 94) + ' ' + targetNode.x + ',' + (targetNode.y + 94) + ' ' + targetNode.x + ',' + (targetNode.y + targetNode.h / 2);
+      }
+      if (Math.abs(source.y - targetNode.y) < 10) return 'M' + sx + ',' + source.y + ' L' + tx + ',' + targetNode.y;
+      return 'M' + sx + ',' + source.y + ' C' + ((sx + tx) / 2) + ',' + source.y + ' ' + ((sx + tx) / 2) + ',' + targetNode.y + ' ' + tx + ',' + targetNode.y;
+    }
+    const linkSvg = routeLinks.map(link => {
+      const source = nodeById.get(link.from);
+      const targetNode = nodeById.get(link.to);
+      const labelX = source && targetNode ? (source.x + targetNode.x) / 2 : 0;
+      const labelY = source && targetNode
+        ? (link.tone === 'loop' ? Math.max(source.y, targetNode.y) + 74 : (source.y + targetNode.y) / 2 + (link.labelDy || -9))
+        : 0;
+      const color = link.tone === 'optional' ? '#ffd166' : link.tone === 'loop' ? '#b794f4' : '#8fcbe8';
+      const dash = link.tone ? ' stroke-dasharray="7 5"' : '';
+      return '<path class="instruction-flow-link' + (link.tone ? ' is-' + escHtml(link.tone) : '') + '" d="' + escAttr(plainPath(link)) + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-opacity="0.78"' + dash + ' marker-end="url(#instruction-flow-arrow-plain)"></path>';
+    }).join('');
+    const nodeSvg = routeNodes.map(node => {
+      const transform = 'translate(' + node.x + ',' + node.y + ')';
+      const selected = node.nodeId === selectedNodeId ? ' is-selected' : '';
+      const shape = node.kind === 'choice'
+        ? '<path d="M0,-44L75,0L0,44L-75,0Z"></path>'
+        : '<rect x="-' + (node.w / 2) + '" y="-' + (node.h / 2) + '" width="' + node.w + '" height="' + node.h + '" rx="9"></rect>';
+      return '<g class="instruction-flow-node is-' + escHtml(node.kind) + (node.active ? ' is-active' : '') + (node.done ? ' is-done' : '') + selected + '" data-step-node="' + escHtml(node.nodeId) + '" transform="' + transform + '" tabindex="0" role="button" aria-label="Open workflow ' + escAttr(node.label) + '">' +
+        shape +
+        '<text class="instruction-flow-id" text-anchor="middle" y="' + (node.kind === 'choice' ? -9 : -12) + '">' + escHtml(node.kind === 'choice' ? 'CHOICE' : node.stepId) + '</text>' +
+        '<text class="instruction-flow-title" text-anchor="middle" y="' + (node.kind === 'choice' ? 8 : 7) + '">' + escHtml(node.label.length > 24 ? node.label.slice(0, 21) + '...' : node.label) + '</text>' +
+        '<text class="instruction-flow-handoff" text-anchor="middle" y="' + (node.kind === 'choice' ? 23 : 24) + '">' + escHtml(node.subtitle.length > 26 ? node.subtitle.slice(0, 23) + '...' : node.subtitle) + '</text>' +
+      '</g>';
+    }).join('');
+    const optionSvg = routeNodes.flatMap(node => (node.options || []).map(option => ({...option, x: node.x + option.dx, y: node.y + option.dy}))).map(option => {
+      const tone = option.tone || 'normal';
+      return '<g class="instruction-flow-option is-' + escHtml(tone) + '" transform="translate(' + option.x + ',' + option.y + ')"><rect x="-62" y="-11" width="124" height="22" rx="11"></rect><text text-anchor="middle" y="4">' + escHtml(option.text) + '</text></g>';
+    }).join('');
+    target.innerHTML = '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Assurance workflow route map with optional branches">' +
+      '<defs><marker id="instruction-flow-arrow-plain" viewBox="0 -5 10 10" refX="9" refY="0" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,-5L10,0L0,5" fill="#8fcbe8"></path></marker></defs>' +
+      '<g class="instruction-flow-links">' + linkSvg + '</g><g>' + optionSvg + '</g><g>' + nodeSvg + '</g></svg>';
+    target.querySelectorAll('[data-step-node]').forEach(item => {
+      item.addEventListener('click', () => renderDetail(routeNodeById(item.dataset.stepNode || '')));
+      item.addEventListener('contextmenu', event => showMenu(event, routeNodeById(item.dataset.stepNode || '')));
+      item.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          renderDetail(routeNodeById(item.dataset.stepNode || ''));
+        }
+      });
+    });
+    renderDetail(routeNodeById(selectedNodeId));
+    return;
+  }
+  const nodeById = new Map(routeNodes.map(node => [node.nodeId, node]));
+  const svg = d3.select(target).append('svg')
+    .attr('viewBox', '0 0 ' + width + ' ' + height)
+    .attr('role', 'img')
+    .attr('aria-label', 'Assurance workflow route map with optional branches');
+  const defs = svg.append('defs');
+  defs.append('marker').attr('id', 'instruction-flow-arrow').attr('viewBox', '0 -5 10 10')
+    .attr('refX', 9).attr('refY', 0).attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('orient', 'auto').append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#8fcbe8');
+  defs.append('marker').attr('id', 'instruction-flow-arrow-optional').attr('viewBox', '0 -5 10 10')
+    .attr('refX', 9).attr('refY', 0).attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('orient', 'auto').append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#ffd166');
+  function linkPath(link) {
+    const source = nodeById.get(link.from);
+    const targetNode = nodeById.get(link.to);
+    if (!source || !targetNode) return '';
+    const sourceHalf = (source.kind === 'choice' ? source.w * .46 : source.w / 2);
+    const targetHalf = (targetNode.kind === 'choice' ? targetNode.w * .46 : targetNode.w / 2);
+    const sx = source.x + (targetNode.x >= source.x ? sourceHalf : -sourceHalf);
+    const tx = targetNode.x + (targetNode.x >= source.x ? -targetHalf : targetHalf);
+    if (Math.abs(source.x - targetNode.x) < 12) {
+      const down = targetNode.y > source.y;
+      return 'M' + source.x + ',' + (source.y + (down ? source.h / 2 : -source.h / 2)) + ' L' + targetNode.x + ',' + (targetNode.y + (down ? -targetNode.h / 2 : targetNode.h / 2));
+    }
+    if (link.tone === 'loop') {
+      return 'M' + source.x + ',' + (source.y + source.h / 2) + ' C' + source.x + ',' + (source.y + 94) + ' ' + targetNode.x + ',' + (targetNode.y + 94) + ' ' + targetNode.x + ',' + (targetNode.y + targetNode.h / 2);
+    }
+    if (Math.abs(source.y - targetNode.y) < 10) return 'M' + sx + ',' + source.y + ' L' + tx + ',' + targetNode.y;
+    return 'M' + sx + ',' + source.y + ' C' + ((sx + tx) / 2) + ',' + source.y + ' ' + ((sx + tx) / 2) + ',' + targetNode.y + ' ' + tx + ',' + targetNode.y;
+  }
+  const linkGroup = svg.append('g').attr('class', 'instruction-flow-links');
+  linkGroup.selectAll('path').data(routeLinks).enter().append('path')
+    .attr('class', d => 'instruction-flow-link' + (d.tone ? ' is-' + d.tone : ''))
+    .attr('d', linkPath)
+    .attr('marker-end', d => d.tone === 'optional' ? 'url(#instruction-flow-arrow-optional)' : 'url(#instruction-flow-arrow)');
+  const options = routeNodes.flatMap(node => (node.options || []).map(option => ({...option, x: node.x + option.dx, y: node.y + option.dy})));
+  const option = svg.append('g').attr('class', 'instruction-flow-options').selectAll('g').data(options).enter().append('g')
+    .attr('class', d => 'instruction-flow-option is-' + (d.tone || 'normal'))
+    .attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+  option.append('rect').attr('x', -62).attr('y', -11).attr('width', 124).attr('height', 22).attr('rx', 11);
+  option.append('text').attr('text-anchor', 'middle').attr('y', 4).text(d => d.text);
+  const node = svg.append('g').selectAll('g').data(routeNodes).enter().append('g')
+    .attr('class', d => 'instruction-flow-node is-' + d.kind + (d.active ? ' is-active' : '') + (d.done ? ' is-done' : ''))
+    .attr('data-step-node', d => d.nodeId)
+    .attr('transform', d => 'translate(' + d.x + ',' + d.y + ')')
+    .attr('tabindex', 0)
+    .attr('role', 'button')
+    .attr('aria-label', d => 'Open workflow ' + d.label)
+    .on('click', (event, d) => renderDetail(d))
+    .on('contextmenu', (event, d) => showMenu(event, d))
+    .on('keydown', (event, d) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); renderDetail(d); } });
+  node.filter(d => d.kind === 'command').append('rect').attr('x', d => -d.w / 2).attr('y', d => -d.h / 2).attr('width', d => d.w).attr('height', d => d.h).attr('rx', 9);
+  node.filter(d => d.kind === 'choice').append('path').attr('d', 'M0,-44L75,0L0,44L-75,0Z');
+  node.append('text').attr('class', 'instruction-flow-id').attr('text-anchor', 'middle').attr('y', d => d.kind === 'choice' ? -9 : -12).text(d => d.kind === 'choice' ? 'CHOICE' : d.stepId);
+  node.append('text').attr('class', 'instruction-flow-title').attr('text-anchor', 'middle').attr('y', d => d.kind === 'choice' ? 8 : 7).text(d => d.label.length > 24 ? d.label.slice(0, 21) + '...' : d.label);
+  node.append('text').attr('class', 'instruction-flow-handoff').attr('text-anchor', 'middle').attr('y', d => d.kind === 'choice' ? 23 : 24).text(d => d.subtitle.length > 26 ? d.subtitle.slice(0, 23) + '...' : d.subtitle);
+  renderDetail(routeNodeById(selectedNodeId));
+}
+function escHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function escAttr(value) {
+  return escHtml(value).replace(/\n/g, '&#10;');
+}
+const instructionImageSelect = document.getElementById('instruction-image-select');
+const instructionMountSelect = document.getElementById('instruction-mount-select');
+const instructionCustomMountInput = document.getElementById('instruction-custom-mount-input');
+const instructionSourceModeSelect = document.getElementById('instruction-source-mode-select');
+const instructionFrCatalogModeSelect = document.getElementById('instruction-fr-catalog-mode-select');
+const instructionCustomFrCatalogInput = document.getElementById('instruction-custom-fr-catalog-input');
+const instructionTestModeSelect = document.getElementById('instruction-test-mode-select');
+const instructionStep4OutcomeSelect = document.getElementById('instruction-step4-outcome-select');
+function shellQuoteInstruction(value) {
+  const text = String(value || '');
+  return "'" + text.replaceAll("'", "'\"'\"'") + "'";
+}
+function currentInstructionContextComment() {
+  const framework = document.getElementById('global-framework-select');
+  const process = document.getElementById('global-process-select');
+  const ruleset = document.getElementById('global-ruleset-select');
+  const chapter = document.getElementById('global-chapter-select');
+  const selectedText = select => select && select.selectedOptions && select.selectedOptions[0]
+    ? select.selectedOptions[0].textContent.trim()
+    : '';
+  return [
+    '# Dashboard context selected when this command was copied:',
+    '# Assurance framework: ' + (selectedText(framework) || 'not selected'),
+    '# Gated flow: ' + (selectedText(process) || 'not selected'),
+    '# Compliance regime: ' + (selectedText(ruleset) || 'not selected'),
+    '# Chapter / family: ' + (selectedText(chapter) || 'not selected')
+  ].join('\n');
+}
+function instructionToolRoot() {
+  const page = document.querySelector('.instructions-page');
+  const recorded = page ? (page.dataset.toolRoot || '') : '';
+  const localToolRoot = '/Users/jd/Development/assurance-scan';
+  if (!recorded) return localToolRoot;
+  if (recorded.includes('/.assurance-scan/runtime') || recorded.includes('/.asvs-scanner/runtime')) {
+    return localToolRoot;
+  }
+  return recorded;
+}
+function instructionMountFlags() {
+  const toolRoot = instructionToolRoot();
+  const toolMount = toolRoot
+    ? '\n  -v ' + shellQuoteInstruction(toolRoot) + ':' + shellQuoteInstruction('/opt/assurance-scan') + ' \\'
+    : '';
+  const mode = instructionMountSelect ? instructionMountSelect.value : 'parent';
+  if (mode === 'project') return '  -v "$PWD":"$PWD" \\' + toolMount;
+  if (mode === 'development') return "  -v '/Users/jd/Development':'/Users/jd/Development' \\" + toolMount;
+  if (mode === 'custom') {
+    const custom = instructionCustomMountInput && instructionCustomMountInput.value
+      ? instructionCustomMountInput.value.trim()
+      : '/Users/jd/Development';
+    return '  -v ' + shellQuoteInstruction(custom) + ':' + shellQuoteInstruction(custom) + ' \\' + toolMount;
+  }
+  return '  -v "$(dirname "$PWD")":"$(dirname "$PWD")" \\' + toolMount;
+}
+function instructionSourceMode() {
+  const page = document.querySelector('.instructions-page');
+  const recorded = page ? (page.dataset.sourceRepo || '') : '';
+  const mode = instructionSourceModeSelect ? instructionSourceModeSelect.value : 'pwd';
+  if (mode === 'recorded' && recorded) {
+    return {
+      preamble: '# Run from any folder; the command uses the recorded source repository path.\n',
+      workdir: shellQuoteInstruction(recorded),
+      source: shellQuoteInstruction(recorded)
+    };
+  }
+  return {
+    preamble: '# Run this command from inside the target project folder.\n',
+    workdir: '"$PWD"',
+    source: '"$PWD"'
+  };
+}
+function instructionFrCatalogFlag() {
+  const page = document.querySelector('.instructions-page');
+  const mode = instructionFrCatalogModeSelect ? instructionFrCatalogModeSelect.value : 'none';
+  if (mode === 'snapshot') {
+    const snapshot = page ? (page.dataset.frCatalog || '') : '';
+    return snapshot ? '  --fr-catalog ' + shellQuoteInstruction(snapshot) + ' \\\n' : '';
+  }
+  if (mode === 'custom') {
+    const custom = instructionCustomFrCatalogInput && instructionCustomFrCatalogInput.value
+      ? instructionCustomFrCatalogInput.value.trim()
+      : './project.fr-catalog.json';
+    return custom ? '  --fr-catalog ' + shellQuoteInstruction(custom) + ' \\\n' : '';
+  }
+  return '';
+}
+function selectedAssuranceFrameworkImagePath() {
+  const select = document.getElementById('global-framework-select');
+  const option = select && select.selectedOptions && select.selectedOptions[0] ? select.selectedOptions[0] : null;
+  return option ? (option.dataset.imagePath || option.dataset.path || '') : '';
+}
+function instructionAssuranceFrameworkFlag() {
+  const frameworkPath = selectedAssuranceFrameworkImagePath();
+  return frameworkPath ? '  --assurance-framework ' + shellQuoteInstruction(frameworkPath) : '';
+}
+function instructionFrCatalogPath() {
+  const page = document.querySelector('.instructions-page');
+  const mode = instructionFrCatalogModeSelect ? instructionFrCatalogModeSelect.value : 'none';
+  if (mode === 'snapshot') {
+    return page ? (page.dataset.frCatalog || '') : '';
+  }
+  if (mode === 'custom' && instructionCustomFrCatalogInput && instructionCustomFrCatalogInput.value) {
+    return instructionCustomFrCatalogInput.value.trim();
+  }
+  return page ? (page.dataset.defaultFrCatalog || './.assurance-scan/runtime/project.fr-catalog.enriched.json') : './.assurance-scan/runtime/project.fr-catalog.enriched.json';
+}
+function instructionReviewedFrCatalogPath() {
+  const page = document.querySelector('.instructions-page');
+  return page ? (page.dataset.reviewedFrCatalog || './.assurance-scan/runtime/project.fr-catalog.reviewed.json') : './.assurance-scan/runtime/project.fr-catalog.reviewed.json';
+}
+function instructionConfigReviewFrCatalogFlag() {
+  const catalog = instructionFrCatalogPath();
+  return catalog ? '--fr-catalog ' + shellQuoteInstruction(catalog) : '';
+}
+function instructionTestExecutionFlags() {
+  const mode = instructionTestModeSelect ? instructionTestModeSelect.value : 'docker';
+  if (mode === 'host') {
+    return '  --execution-mode host \\';
+  }
+  return '  --execution-mode docker \\';
+}
+function buildInstructionDockerBase(image, mountFlags, workdir) {
+  return [
+    'docker run --rm -it \\',
+    '  -v /var/run/docker.sock:/var/run/docker.sock \\',
+    mountFlags,
+    '  -w ' + workdir + ' \\',
+    '  ' + image
+  ].join('\n');
+}
+function readBlueprintProposal() {
+  const page = document.querySelector('[data-blueprint-proposal-page]');
+  const dataEl = page ? page.querySelector('[data-blueprint-proposal-json]') : null;
+  if (!dataEl) return null;
+  try { return JSON.parse(dataEl.textContent || '{}') || null; } catch (_) { return null; }
+}
+function currentBlueprintDecisionLog() {
+  const proposal = readBlueprintProposal();
+  if (!proposal) return null;
+  const page = document.querySelector('[data-blueprint-proposal-page]');
+  const reviewedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const decisions = [];
+  document.querySelectorAll('[data-blueprint-candidate]').forEach(row => {
+    const candidate = row.dataset.blueprintCandidate || '';
+    const checked = row.querySelector('[data-blueprint-check]')?.checked;
+    if (!candidate || !checked) return;
+    const decision = row.querySelector('[data-blueprint-decision]')?.value || 'accepted_as_is';
+    const reason = row.querySelector('[data-blueprint-reason]')?.value || 'Reviewed blueprint FR/TBT scope for this project.';
+    decisions.push({
+      candidate,
+      decision,
+      reviewed_by: 'dashboard-review',
+      reviewed_at: reviewedAt,
+      reason
+    });
+  });
+  return {
+    schema_version: 1,
+    id: 'BLUEPRINT-DECISIONS-' + (proposal.project || 'target-project'),
+    project: proposal.project || 'target-project',
+    proposal: proposal.id || 'blueprint-proposal',
+    decisions
+  };
+}
+function blueprintDecisionPrelude() {
+  const decisionLog = currentBlueprintDecisionLog();
+  if (!decisionLog) return '';
+  return [
+    "cat > blueprint-decisions.json <<'JSON'",
+    JSON.stringify(decisionLog, null, 2),
+    'JSON',
+    ''
+  ].join('\n');
+}
+function buildReviewedCatalogScanCommand(image, mountFlags, workdir, source, frCatalog) {
+  return [
+    currentInstructionContextComment(),
+    instructionSourceMode().preamble,
+    'docker run --rm -it \\',
+    '  -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \\',
+    '  -e ASSURANCE_SCAN_PARALLELISM=4 \\',
+    '  -v /var/run/docker.sock:/var/run/docker.sock \\',
+    mountFlags,
+    '  -w ' + workdir + ' \\',
+    '  ' + image + ' scan ' + source + ' \\',
+    '  --fr-catalog ' + shellQuoteInstruction(frCatalog) + ' \\',
+    instructionAssuranceFrameworkFlag() + ' \\',
+    "  --scanner-compliance-mapping-pack '/opt/assurance-scan/data/scanner-mappings'"
+  ].join('\n');
+}
+
+function instructionApprovedTbtIds() {
+  const page = document.querySelector('.instructions-page');
+  if (!page) return [];
+  try {
+    const parsed = JSON.parse(page.dataset.approvedTbts || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(item => String(item || '').trim()).filter(Boolean);
+  } catch (_) {
+    return [];
+  }
+}
+
+function buildKanbanEvidenceCommand(image, mountFlags, workdir, source, reportDir, junitPath) {
+  const tbtIds = instructionApprovedTbtIds();
+  if (!tbtIds.length) {
+    return [
+      '# Step 5 is not ready for this report yet.',
+      '# No TBT cards are currently in the Project FRs Board / Run Approved Tests lane.',
+      '# First draft/review/approve tests from the Project FRs Board, then regenerate or refresh this dashboard.',
+      '# When approved TBTs exist, this node will emit run-approved-tests with explicit --tbt flags.'
+    ].join('\n');
+  }
+  const base = buildInstructionDockerBase(image, mountFlags, workdir);
+  const tbtLines = tbtIds.map(id => '  --tbt ' + shellQuoteInstruction(id));
+  return [
+    currentInstructionContextComment(),
+    instructionSourceMode().preamble,
+    base + ' run-approved-tests ' + shellQuoteInstruction(reportDir) + ' \\',
+    '  --source-repo ' + source + ' \\',
+    instructionTestExecutionFlags(),
+    '  --junit-out ' + shellQuoteInstruction(junitPath) + ' \\',
+    ...tbtLines.map(line => line + ' \\'),
+    '  && \\',
+    base + ' refresh-approved-test-evidence ' + shellQuoteInstruction(reportDir) + ' \\',
+    '  --junit-xml ' + shellQuoteInstruction(junitPath)
+  ].join('\n');
+}
+
+function buildStep4Command(image, mountFlags, workdir, source, reportDir, frCatalog, junitPath) {
+  const base = buildInstructionDockerBase(image, mountFlags, workdir);
+  const runTests = [
+    currentInstructionContextComment(),
+    instructionSourceMode().preamble,
+    base + ' run-approved-tests ' + shellQuoteInstruction(reportDir) + ' \\',
+    '  --source-repo ' + source + ' \\',
+    instructionTestExecutionFlags(),
+    '  --junit-out ' + shellQuoteInstruction(junitPath) + ' && \\',
+    base + ' refresh-approved-test-evidence ' + shellQuoteInstruction(reportDir) + ' \\',
+    '  --junit-xml ' + shellQuoteInstruction(junitPath)
+  ].join('\n');
+  const fullScan = [
+    currentInstructionContextComment(),
+    instructionSourceMode().preamble,
+    'docker run --rm -it \\',
+    '  -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \\',
+    '  -e ASSURANCE_SCAN_PARALLELISM=4 \\',
+    '  -v /var/run/docker.sock:/var/run/docker.sock \\',
+    mountFlags,
+    '  -w ' + workdir + ' \\',
+    '  ' + image + ' scan ' + source + ' \\',
+    '  --fr-catalog ' + shellQuoteInstruction(frCatalog) + ' \\',
+    instructionAssuranceFrameworkFlag() + ' \\',
+    "  --scanner-compliance-mapping-pack '/opt/assurance-scan/data/scanner-mappings'"
+  ].join('\n');
+  const outcome = instructionStep4OutcomeSelect ? instructionStep4OutcomeSelect.value : 'full-scan';
+  if (outcome === 'full-scan') return fullScan;
+  if (outcome === 'tests-then-full-scan') {
+    const fullScanWithJunit = fullScan + ' \\' + '\n  --junit-xml ' + shellQuoteInstruction(junitPath);
+    const chainedFullScan = fullScanWithJunit
+      .split('\n')
+      .filter(line => line.trim() && !line.trim().startsWith('#'))
+      .join('\n');
+    return runTests + '\n' + chainedFullScan;
+  }
+  return runTests;
+}
+
+function activeInstructionCommandTemplate() {
+  const code = document.querySelector('#instruction-active-command code');
+  return code ? (code.dataset.commandTemplate || code.textContent || '') : '';
+}
+function instructionTemplateHasAny(template, tokens) {
+  return tokens.some(token => template.includes(token));
+}
+function affectedInstructionControlKeys(template) {
+  const keys = new Set();
+  const dynamicCommand = instructionTemplateHasAny(template, [
+    '__REVIEWED_CATALOG_SCAN_COMMAND__',
+    '__KANBAN_EVIDENCE_COMMAND__',
+    '__STEP4_COMMAND__'
+  ]);
+  const dockerBase = template.includes('__DOCKER_CLI_BASE__');
+  if (dynamicCommand || dockerBase || instructionTemplateHasAny(template, ['__ASSURANCE_SCAN_IMAGE__'])) keys.add('image');
+  if (dynamicCommand || dockerBase || instructionTemplateHasAny(template, ['__MOUNT_FLAGS__'])) {
+    keys.add('mount');
+    if (instructionMountSelect && instructionMountSelect.value === 'custom') keys.add('custom-mount');
+  }
+  if (dynamicCommand || dockerBase || instructionTemplateHasAny(template, ['__WORKDIR_EXPR__', '__SOURCE_REPO_EXPR__', '__RUN_PREAMBLE__'])) keys.add('source');
+  if (dynamicCommand || instructionTemplateHasAny(template, ['__ASSURANCE_FRAMEWORK_FLAG__'])) {
+    // Controlled by the global Assurance Context bar, not repeated in the node pane.
+  }
+  if (instructionTemplateHasAny(template, ['__SCAN_FR_CATALOG_FLAG__', '__CONFIG_REVIEW_FR_CATALOG_FLAG__', '__FR_CATALOG_INPUT_PATH__'])) {
+    keys.add('fr-catalog');
+    if (instructionFrCatalogModeSelect && instructionFrCatalogModeSelect.value === 'custom') keys.add('custom-fr-catalog');
+  }
+  if (instructionTemplateHasAny(template, ['__FR_CATALOG_OUTPUT_PATH__'])) {
+    keys.add('fr-catalog');
+  }
+  if (instructionTemplateHasAny(template, ['__KANBAN_EVIDENCE_COMMAND__'])) {
+    keys.add('test-execution');
+  }
+  if (instructionTemplateHasAny(template, ['__STEP4_COMMAND__'])) {
+    keys.add('test-execution');
+    keys.add('evidence-outcome');
+  }
+  if (!template.trim()) keys.clear();
+  return keys;
+}
+function updateInstructionOptionVisibility(template = activeInstructionCommandTemplate()) {
+  const options = document.querySelector('.instruction-options');
+  if (!options) return;
+  const keys = affectedInstructionControlKeys(template);
+  let visible = 0;
+  options.querySelectorAll('[data-instruction-control]').forEach(label => {
+    const key = label.dataset.instructionControl || '';
+    const show = keys.has(key);
+    label.hidden = !show;
+    if (show) visible += 1;
+  });
+  options.hidden = visible === 0;
+}
+function refreshInstructionCommandOptions() {
+  const page = document.querySelector('.instructions-page');
+  const image = instructionImageSelect ? instructionImageSelect.value : 'assurance-scan:local';
+  const mountFlags = instructionMountFlags();
+  const sourceMode = instructionSourceMode();
+  const reportDir = page ? (page.dataset.reportDir || '') : '';
+  const frCatalog = page ? (page.dataset.reviewedFrCatalog || page.dataset.frCatalog || '') : '';
+  const junitPath = page ? (page.dataset.junitPath || '') : '';
+  const reviewedCatalogScanCommand = buildReviewedCatalogScanCommand(image, mountFlags, sourceMode.workdir, sourceMode.source, frCatalog);
+  const kanbanEvidenceCommand = buildKanbanEvidenceCommand(image, mountFlags, sourceMode.workdir, sourceMode.source, reportDir, junitPath);
+  const step4Command = buildStep4Command(image, mountFlags, sourceMode.workdir, sourceMode.source, reportDir, frCatalog, junitPath);
+  const dockerCliBase = buildInstructionDockerBase(image, mountFlags, sourceMode.workdir);
+  document.querySelectorAll('.instruction-code code').forEach(code => {
+    if (!code.dataset.commandTemplate) {
+      code.dataset.commandTemplate = code.textContent || '';
+    }
+    code.textContent = code.dataset.commandTemplate
+      .replaceAll('__ASSURANCE_SCAN_IMAGE__', image)
+      .replaceAll('__MOUNT_FLAGS__', mountFlags)
+      .replaceAll('__WORKDIR_EXPR__', sourceMode.workdir)
+      .replaceAll('__SOURCE_REPO_EXPR__', sourceMode.source)
+      .replaceAll('__RUN_PREAMBLE__', sourceMode.preamble)
+      .replaceAll('__ASSURANCE_CONTEXT_COMMENT__', currentInstructionContextComment())
+      .replaceAll('__SCAN_FR_CATALOG_FLAG__', instructionFrCatalogFlag())
+      .replaceAll('__ASSURANCE_FRAMEWORK_FLAG__', instructionAssuranceFrameworkFlag())
+      .replaceAll('__BLUEPRINT_DECISION_PRELUDE__', blueprintDecisionPrelude())
+      .replaceAll('__DOCKER_CLI_BASE__', dockerCliBase)
+      .replaceAll('__CONFIG_REVIEW_FR_CATALOG_FLAG__', instructionConfigReviewFrCatalogFlag())
+      .replaceAll('__FR_CATALOG_INPUT_PATH__', shellQuoteInstruction(instructionFrCatalogPath()))
+      .replaceAll('__FR_CATALOG_OUTPUT_PATH__', shellQuoteInstruction(instructionReviewedFrCatalogPath()))
+      .replaceAll('__REVIEWED_CATALOG_SCAN_COMMAND__', reviewedCatalogScanCommand)
+      .replaceAll('__KANBAN_EVIDENCE_COMMAND__', kanbanEvidenceCommand)
+      .replaceAll('__STEP4_COMMAND__', step4Command);
+  });
+  updateInstructionOptionVisibility();
+}
+[
+  instructionImageSelect,
+  instructionMountSelect,
+  instructionCustomMountInput,
+  instructionSourceModeSelect,
+  instructionFrCatalogModeSelect,
+  instructionCustomFrCatalogInput,
+  instructionTestModeSelect,
+  instructionStep4OutcomeSelect,
+  document.getElementById('global-framework-select'),
+  document.getElementById('global-process-select'),
+  document.getElementById('global-ruleset-select'),
+  document.getElementById('global-chapter-select')
+].forEach(control => {
+  if (!control) return;
+  control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', refreshInstructionCommandOptions);
+});
+if (document.querySelector('.instructions-page')) {
+  setupInstructionWorkflowMap();
+  refreshInstructionCommandOptions();
+  window.addEventListener('asvs-runtime-context-changed', refreshInstructionCommandOptions);
+}
+document.querySelectorAll('.config-artifact-row').forEach(row => {
+  function toggleConfigDetail() {
+    const detail = document.getElementById(row.dataset.configDetail || '');
+    if (!detail) return;
+    const willOpen = detail.hidden;
+    document.querySelectorAll('.config-artifact-row').forEach(item => {
+      item.classList.toggle('is-selected', willOpen && item === row);
+      item.setAttribute('aria-expanded', willOpen && item === row ? 'true' : 'false');
+    });
+    document.querySelectorAll('.config-detail-row').forEach(item => {
+      item.hidden = true;
+    });
+    detail.hidden = !willOpen;
+  }
+  row.addEventListener('click', toggleConfigDetail);
+  row.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleConfigDetail();
     }
   });
 });
@@ -411,7 +1219,7 @@ function setupAssuranceTests() {
         manual_evidence_updates: [],
         native_test_mapping_updates: nativeUpdates,
         uncertain_mappings: nativeUpdates
-          .filter(update => update.operation === 'leave_unmapped' || update.operation === 'mark_not_assurance_relevant' || update.confidence === 'low')
+          .filter(update => update.operation === 'leave_unmapped' || update.operation === 'mark_not_assurance_relevant' || update.operation === 'mark_project_specific_only' || update.confidence === 'low')
           .map(update => ({
             kind: 'native_test_mapping',
             refs: [update.native_test.native_path || update.native_test.pack_id],
@@ -427,63 +1235,69 @@ function setupAssuranceTests() {
           }
         ]
       };
+      const compactCandidates = nativeSummaries.map((summary, idx) => ({
+        native_path: summary.native_path,
+        pack_path: summary.pack_path,
+        type: summary.type,
+        test_names: summary.test_names || [],
+        hypothesis: mappingHypotheses[idx] || {}
+      }));
       commandEl.textContent = [
         'Assurance Config Update Prompt',
         '',
-        'Mission:',
-        'Review the selected native test evidence and produce a typed config update proposal that maps each native test to the correct FR/TBT assurance chain.',
+        'Mission: inspect the selected native tests and write a typed config-update proposal for any FR/TBT mappings that are genuinely supported by source evidence.',
         '',
         'Context:',
         '- Project: ' + project,
-        '- Scan run: ' + runId,
-        '- Source repository: ' + sourceRepo,
+        '- Run: ' + runId,
+        '- Source repo: ' + sourceRepo,
         '- FR catalog: ' + frCatalog,
-        '- Assurance test manifest: ' + reportDir + '/generated-tests/VG_TEST_FRAMEWORK/manifest.json',
-        '- Copied/imported native tests are under: ' + reportDir + '/generated-tests/VG_TEST_FRAMEWORK/',
-        '- Selected native tests: ' + (nativeList.join(', ') || 'none'),
+        '- Test manifest: ' + reportDir + '/generated-tests/VG_TEST_FRAMEWORK/manifest.json',
+        '- Proposal output: ' + mappingProposalPath,
+        '- Review brief output: ' + mappingReviewPath,
         '',
-        'Selected native-test manifest context:',
-        JSON.stringify(nativeSummaries, null, 2),
+        'Selected candidates:',
+        JSON.stringify(compactCandidates, null, 2),
         '',
-        'Assessor hypotheses from the Map tab:',
-        JSON.stringify(mappingHypotheses, null, 2),
+        'Contract:',
+        '- Inspect the real native test files and the manifest before deciding.',
+        '- Assessor hypotheses are hints only; replace weak placeholder rationales with post-inspection rationale.',
+        '- Map to an existing FR/TBT only when the test clearly proves that assurance target.',
+        '- If the FR fits but no TBT fits, propose add_tbt. If no FR fits, propose add_fr only for real product behaviour.',
+        '- Use leave_unmapped when more reviewer/source context is needed; use mark_not_assurance_relevant when inspection shows the test is intentionally not assurance evidence; use mark_project_specific_only when it may justify bespoke project FR/TBT work but is not reusable blueprint scope.',
+        '- Do not modify product code or claim evidence; this is a review-gated config proposal only.',
+        '- Preserve native_path, pack_path, test names, assumptions, inspected files, rationale, confidence and review_status.',
         '',
-        'Rules:',
-        '1. Do not modify application source code.',
-        '2. Do not invent product behaviour, endpoints, roles, data shapes, or evidence.',
-        '3. Treat any selected FR/TBT or new FR/TBT id as an assessor hypothesis, not an accepted mapping.',
-        '4. Inspect each selected native test source file and the generated test manifest before accepting, changing, or rejecting a mapping.',
-        '5. Prefer mapping to an existing FR/TBT only when the test behaviour clearly proves that target.',
-        '6. If the suggested target is wrong but another existing FR/TBT fits, propose that better existing target and explain the mismatch.',
-        '7. Create a new TBT under an existing FR only when the FR is correct but no current TBT captures the evidence type.',
-        '8. Create a new FR only when the native test proves a real product requirement that is absent from the catalog.',
-        '9. Use leave_unmapped or mark_not_assurance_relevant when the proof relationship is unclear or absent.',
-        '10. Preserve provenance: cite native path, copied pack path, manifest case names, rationale, confidence, and assumptions.',
-        '11. Do not return the placeholder rationale unchanged. Every selected native test must end with a post-inspection disposition and a specific rationale.',
+        'Write exactly one JSON document matching config-update-proposal.schema.json to:',
+        mappingProposalPath,
         '',
-        'Expected output:',
-        '- Return one JSON document matching config-update-proposal.schema.json.',
-        '- Keep all ids stable and type-safe: FR ids use FR-xxx; TBT ids use TBT-xxx.',
-        '- For new FR proposals include at minimum id, title, description, status/category if known, and the source basis.',
-        '- For new TBT proposals include at minimum id, title, type, proves, evidence_policy, expected_evidence, and how JUnit or equivalent evidence will carry the TBT id.',
-        '- Include review_required entries for every non-obvious or low-confidence mapping.',
-        '- Return the JSON in the response and save the same JSON to the report-local proposal path below so the dashboard can display recommendations before any mapping is accepted.',
-        '- Proposal path: ' + mappingProposalPath,
-        '- Review brief path: ' + mappingReviewPath,
+        'Also write a concise human review brief to:',
+        mappingReviewPath,
         '',
-        'Draft proposal to review and refine:',
-        '',
-        JSON.stringify(proposal, null, 2),
+        'Required top-level JSON shape:',
+        JSON.stringify({
+          schema_version: 1,
+          mode: 'config_update_proposal',
+          project,
+          run_id: runId,
+          source_inputs: [
+            {path: 'fr-catalog.snapshot.json', kind: 'fr_catalog', used_for: 'Existing FR/TBT choices'},
+            {path: 'generated-tests/VG_TEST_FRAMEWORK/manifest.json', kind: 'assurance_test_pack', used_for: 'Native test candidates'}
+          ],
+          fr_catalog_updates: [],
+          compliance_mapping_pack_updates: [],
+          assurance_framework_or_instance_updates: [],
+          manual_evidence_updates: [],
+          native_test_mapping_updates: []
+        }, null, 2),
         '',
         'Validation command:',
-        'asvs-scanner validate-config-update ' + shellQuote(mappingProposalPath) + ' --fr-catalog ' + shellQuote(frCatalog),
+        'assurance-scan validate-config-update ' + shellQuote(mappingProposalPath) + ' --fr-catalog ' + shellQuote(frCatalog),
         '',
-        'Review and apply commands after validation:',
-        'asvs-scanner review-config-update ' + shellQuote(mappingProposalPath) + ' --output ' + shellQuote(mappingReviewPath),
-        'asvs-scanner apply-config-update ' + shellQuote(mappingProposalPath) + ' --list',
-        'asvs-scanner apply-config-update ' + shellQuote(mappingProposalPath) + ' --select <section:index> --reviewed-by <name> --assurance-test-pack ' + shellQuote(assuranceTestPack) + ' --assurance-test-pack-out ' + shellQuote(assuranceTestPack),
-        'For current-dashboard inspection, the assurance-test-pack output above intentionally replaces this report-local manifest after validation and human-reviewed selection.',
-        'If selected entries affect other sections, add the matching reviewed input/output flags, such as --fr-catalog/--fr-catalog-out, --compliance-mapping-pack/--compliance-mapping-pack-out, --assurance-test-pack/--assurance-test-pack-out, or --assurance-instance/--assurance-instance-out.',
+        'Review/apply after validation:',
+        'assurance-scan review-config-update ' + shellQuote(mappingProposalPath) + ' --output ' + shellQuote(mappingReviewPath),
+        'assurance-scan apply-config-update ' + shellQuote(mappingProposalPath) + ' --list',
+        'assurance-scan apply-config-update ' + shellQuote(mappingProposalPath) + ' --select <section:index> --reviewed-by <name> --assurance-test-pack ' + shellQuote(assuranceTestPack) + ' --assurance-test-pack-out ' + shellQuote(assuranceTestPack),
         ...dashboardInspectionLines('map')
       ].join('\n');
     } else if (state === 'design') {
@@ -510,7 +1324,7 @@ function setupAssuranceTests() {
         '5. Every generated draft test must keep the TBT id in the file name, test title, and future JUnit classname or testcase name.',
         '6. Mark each draft test as review_required until a human approves it. Skipped scaffolds are review artifacts, not executable assurance evidence.',
         '7. Do not count generated draft tests as passing evidence.',
-        '8. Use tests/asvs/ as the ASVS-owned execution surface for generated tests and wrappers; do not duplicate existing native tests there unless writing a reviewed wrapper.',
+        '8. Use tests/asvs/ as the assurance-owned execution surface for generated tests and wrappers; do not duplicate existing native tests there unless writing a reviewed wrapper.',
         '9. Inspect the real implementation before drafting. If the codebase cannot currently support the FR/TBT behaviour, do not invent a test; report that the FR/TBT is not currently supported by observable project behaviour.',
         '10. If only part of the FR/TBT is supportable, create a review-required draft only for the observable portion and explicitly list the unsupported portions. Do not let a partial draft imply full FR/TBT coverage.',
         '11. For each selected TBT, report one disposition: draft_created_full, draft_created_partial_support, blocked_unsupported_by_project, blocked_insufficient_source_evidence, or blocked_needs_human_decision.',
@@ -529,10 +1343,10 @@ function setupAssuranceTests() {
         '- Set lane to blocked, decision to blocked, and reviewer_note to the disposition plus the inspected-source reason.',
         '- Refresh the dashboard after saving the board state so the blocked reason is visible in the current report.',
         'Command template after writing blocked-board-state.json:',
-        'asvs-scanner update-project-fr-board-state ' + shellQuote(reportDir) + ' --state-json blocked-board-state.json --strict --refresh-dashboard',
+        'assurance-scan update-project-fr-board-state ' + shellQuote(reportDir) + ' --state-json blocked-board-state.json --strict --refresh-dashboard',
         '',
         'Command to generate selected draft tests only after source inspection confirms the FR/TBT is supportable:',
-        'asvs-scanner promote-assurance-specs ' + shellQuote(reportDir) + ' \\',
+        'assurance-scan promote-assurance-specs ' + shellQuote(reportDir) + ' \\',
         ...tbtList.map((tbt, idx) => '  --tbt ' + shellQuote(tbt) + (idx === tbtList.length - 1 ? '' : ' \\')),
         ...dashboardInspectionLines('design')
       ].join('\n');
@@ -542,7 +1356,7 @@ function setupAssuranceTests() {
         'Approved Assurance Test Implementation Prompt',
         '',
         'Mission:',
-        'Implement only the selected human-approved assurance draft tests so they become executable ASVS-owned tests. This step creates runnable tests; it must not claim evidence or import results.',
+        'Implement only the selected human-approved assurance draft tests so they become executable assurance-owned tests. This step creates runnable tests; it must not claim evidence or import results.',
         '',
         'Context:',
         '- Project: ' + project,
@@ -557,18 +1371,25 @@ function setupAssuranceTests() {
         '2. Do not invent product endpoints, behaviour, roles, or data shapes.',
         '3. Use disposable fixtures and a safe/containerized test environment.',
         '4. Keep the TBT id in the file name, test title, and JUnit classname or testcase name.',
-        '5. Do not modify product/application behaviour. Limit changes to ASVS-owned tests, wrappers, fixtures, mocks, or test harness configuration.',
+        '5. Do not modify product/application behaviour. Limit changes to assurance-owned tests, wrappers, fixtures, mocks, or test harness configuration.',
         '6. Do not run destructive operations against real data or shared services.',
-        '7. Keep ASVS-owned executable tests and wrappers under tests/asvs/; native project tests remain source-of-truth in their original paths.',
+        '7. Keep assurance-owned executable tests and wrappers under tests/asvs/; native project tests remain source-of-truth in their original paths.',
         '8. A selected card may still show review_required/needs_design at the start of this prompt. If it has decision: approve_for_implementation, treat that as human approval to implement only the approved scope.',
         '9. If a selected card lacks decision: approve_for_implementation or an explicit reviewer approval note, do not implement it; report the blocker instead.',
         '10. Remove describe.skip, test.skip, TODO(review-required), and review-only blockers only for the approved TBT scope. Preserve blocked notes for unsupported FR/TBT behaviour.',
         '11. Do not export or import JUnit evidence in this step; evidence belongs to the Run Approved Tests lane after the implemented test is reviewed as runnable.',
+        '12. Before marking any test ready_to_run, smoke-run that selected test with the same adapter and execution mode that Run Approved Tests will use. If the manifest declares a test_adapter, use that adapter; do not assume Jest unless the manifest says so.',
+        '13. A test is ready_to_run only when the smoke run reaches the intended assertions and exits without harness/runtime/import/dependency errors. The smoke run is readiness validation only; it is not assurance evidence.',
+        '14. If the smoke run fails because of harness/runtime/import/dependency errors, fix the assurance-owned test harness, fixtures, mocks, or narrow wrappers and rerun it. Do not hide the failure by weakening assertions, changing product behaviour, or installing broad/global dependencies.',
+        '15. Mock irrelevant heavy top-level dependencies before requiring broad controllers or route modules, especially native modules, browser/canvas extractors, cloud SDKs, network clients, queues, and external services. Keep mocks narrow and explain them.',
+        '16. If the smoke run still cannot be made to execute safely, do not set ready_to_run. Leave the TBT review_required or move it to blocked with a blocked_harness_error or blocked_runtime_dependency disposition and a reviewer_note that includes the failing command and error summary.',
+        '17. If the harness executes cleanly but the assertion fails against product behaviour, report a potential conformance failure separately. Do not claim observed evidence in this step.',
         '',
         'Expected output:',
-        '- Implement the selected draft tests only under tests/asvs/ in the ASVS branch/worktree.',
+        '- Implement the selected draft tests only under tests/asvs/ in the assurance branch/worktree.',
         '- Update the report-local generated test pack metadata so implemented tests use status: ready_to_run, assessment: useful_as_is, and safety: non_destructive. Do not use status: executed until observed result evidence exists.',
-        '- Run only lightweight local validation if needed to prove the test harness is wired; do not treat that as assurance evidence.',
+        '- Run lightweight smoke validation for every implemented selected TBT using the selected adapter/execution mode; do not treat that validation as assurance evidence.',
+        '- For each selected TBT, report one implementation disposition: implemented_ready_to_run, blocked_harness_error, blocked_runtime_dependency, blocked_unsupported_by_project, or skipped_not_approved.',
         '- Report implemented tests, skipped/unimplemented tests, assumptions, and any manual follow-up.',
         '- Regenerate the current dashboard so implemented tests can move to Run Approved Tests.',
         '',
@@ -584,35 +1405,36 @@ function setupAssuranceTests() {
       const runnerLines = [
         'docker run --rm -it \\',
         '  -v /var/run/docker.sock:/var/run/docker.sock \\',
-        '  -v ' + shellQuote('/Users/jd/Development/asvs-scanner') + ':' + shellQuote('/opt/asvs-scanner') + ' \\',
+        '  -v ' + shellQuote('/Users/jd/Development/assurance-scan') + ':' + shellQuote('/opt/assurance-scan') + ' \\',
         '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
         '  -w ' + shellQuote(sourceRepo) + ' \\',
-        '  asvs-scanner:local run-approved-tests ' + shellQuote(reportDir) + ' \\',
+        '  assurance-scan:local run-approved-tests ' + shellQuote(reportDir) + ' \\',
         '  --source-repo ' + shellQuote(sourceRepo) + ' \\',
         '  --execution-mode docker \\',
-        '  --test-container-image ' + shellQuote('node:20') + ' \\',
         '  --junit-out ' + shellQuote(reportJunit) + (tbtList.length ? ' \\' : '')
       ];
       tbtList.forEach((tbt, idx) => runnerLines.push('  --tbt ' + shellQuote(tbt) + (idx === tbtList.length - 1 ? '' : ' \\')));
       const refreshLines = [
         'docker run --rm -it --entrypoint python3 \\',
         '  -v /var/run/docker.sock:/var/run/docker.sock \\',
-        '  -v ' + shellQuote('/Users/jd/Development/asvs-scanner') + ':' + shellQuote('/opt/asvs-scanner') + ' \\',
+        '  -v ' + shellQuote('/Users/jd/Development/assurance-scan') + ':' + shellQuote('/opt/assurance-scan') + ' \\',
         '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
         '  -w ' + shellQuote(sourceRepo) + ' \\',
-        '  asvs-scanner:local /opt/asvs-scanner/scripts/refresh-approved-test-evidence.py ' + shellQuote(reportDir) + ' \\',
-        '  --junit-xml ' + shellQuote(reportJunit)
+        '  assurance-scan:local /opt/assurance-scan/scripts/refresh-approved-test-evidence.py ' + shellQuote(reportDir) + ' \\',
+        '  --junit-xml ' + shellQuote(reportJunit) + ' \\',
+        '  --carry-forward-report ' + shellQuote(reportDir)
       ];
       const scanLines = [
         'docker run --rm -it \\',
-        '  -e ASVS_IMAGE_BUILD_PARALLELISM=2 \\',
-        '  -e ASVS_PARALLELISM=4 \\',
+        '  -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \\',
+        '  -e ASSURANCE_SCAN_PARALLELISM=4 \\',
         '  -v /var/run/docker.sock:/var/run/docker.sock \\',
         '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
         '  -w ' + shellQuote(sourceRepo) + ' \\',
-        '  asvs-scanner:local scan ' + shellQuote(sourceRepo) + ' \\',
+        '  assurance-scan:local scan ' + shellQuote(sourceRepo) + ' \\',
         '  --fr-catalog ' + shellQuote(frCatalog) + ' \\',
-        '  --junit-xml ' + shellQuote(reportJunit)
+        '  --junit-xml ' + shellQuote(reportJunit) + ' \\',
+        '  --carry-forward-report ' + shellQuote(reportDir)
       ];
       const fastLines = runnerLines.slice();
       if (fastLines.length) fastLines[fastLines.length - 1] += ' && \\';
@@ -628,7 +1450,7 @@ function setupAssuranceTests() {
         '',
         'Fresh scan path: run selected tests, then import the same JUnit into a new full scanner report',
         '',
-        'Use this when you want a new immutable scan report and refreshed scanner outputs. Browser-only Kanban state will reset because this creates a new report.',
+        'Use this when you want a new immutable scan report and refreshed scanner outputs. The command carries forward this report-local assurance test pack and Project FR board state.',
         '',
         ...scanLines,
         '',
@@ -1104,18 +1926,33 @@ function renderFrLocalGraph(detail) {
     const idx = data.nodes.indexOf(nodeData);
     const selected = graphHost.querySelectorAll('.fr-local-nodes g')[idx];
     if (selected) selected.classList.add('is-selected');
-    const details = (nodeData.details || [])
+    const grouped = new Map();
+    (nodeData.details || [])
       .filter(item => item && item.value)
-      .map(item => `<dt>${escapeHtml(item.label || 'Detail')}</dt><dd>${escapeHtml(item.value)}</dd>`)
-      .join('');
+      .forEach(item => {
+        const group = item.group || 'Details';
+        if (!grouped.has(group)) grouped.set(group, []);
+        grouped.get(group).push(item);
+      });
+    const details = [...grouped.entries()].map(([group, items]) => `
+      <section class="fr-local-context-section">
+        <h4>${escapeHtml(group)}</h4>
+        <dl>${items.map(item => {
+          const value = item.format === 'json'
+            ? `<pre class="fr-local-json">${escapeHtml(item.value)}</pre>`
+            : escapeHtml(item.value);
+          return `<dt>${escapeHtml(item.label || 'Detail')}</dt><dd>${value}</dd>`;
+        }).join('')}</dl>
+      </section>
+    `).join('');
     context.innerHTML = `
       <div class="fr-local-context-head">
         <span>${escapeHtml(typeLabels[nodeData.type] || nodeData.type || 'Node')}</span>
         <strong>${escapeHtml(nodeData.title || nodeData.id)}</strong>
       </div>
-      ${nodeData.subtitle ? `<p>${escapeHtml(nodeData.subtitle)}</p>` : ''}
-      ${nodeData.status ? `<b class="fr-local-context-status">${escapeHtml(nodeData.status)}</b>` : ''}
-      ${details ? `<dl>${details}</dl>` : '<span>No additional details.</span>'}
+      ${nodeData.type !== 'test_result' && nodeData.subtitle ? `<p>${escapeHtml(nodeData.subtitle)}</p>` : ''}
+      ${nodeData.type !== 'test_result' && nodeData.status ? `<b class="fr-local-context-status">${escapeHtml(nodeData.status)}</b>` : ''}
+      ${details || '<span>No additional details.</span>'}
     `;
   }
 
@@ -1150,8 +1987,10 @@ function setupRegimeTabs() {
   });
 }
 setupRegimeTabs();
+const frameworkTabControllers = [];
 function setupFrameworkTabs() {
-  document.querySelectorAll('[id^="tab-fw-"]').forEach(panel => {
+  frameworkTabControllers.length = 0;
+  document.querySelectorAll('.compliance-ruleset-view').forEach(panel => {
     const card = panel.querySelector('.fw-card');
     if (!card) return;
     const prefix = card.querySelector('[id$="-search"]')?.id.replace('-search', '') || '';
@@ -1170,6 +2009,27 @@ function setupFrameworkTabs() {
       groupFilter.appendChild(opt);
     });
 
+    function normalizedChapterValue(value) {
+      const raw = String(value || '');
+      if (!raw) return '';
+      const candidates = [raw];
+      if (raw.includes(':')) candidates.push(raw.split(':').slice(1).join(':'));
+      const tail = candidates[candidates.length - 1] || raw;
+      const versionMatch = tail.match(/^v\d+(?:\.\d+)*-(\d+)\./i);
+      if (versionMatch) candidates.push('V' + versionMatch[1]);
+      const vMatch = tail.match(/^v(\d+)$/i);
+      if (vMatch) candidates.push('V' + vMatch[1]);
+      const sectionMatch = tail.match(/^(V\d+)\./i);
+      if (sectionMatch) candidates.push(sectionMatch[1].toUpperCase());
+      for (const candidate of candidates) {
+        if ([...groupFilter.options].some(option => option.value === candidate)) return candidate;
+      }
+      return '';
+    }
+    function setChapterFromContext(value) {
+      groupFilter.value = normalizedChapterValue(value);
+      applyFilters();
+    }
     function applyFilters() {
       const q = (search.value || '').toLowerCase();
       const grp = groupFilter.value;
@@ -1192,7 +2052,11 @@ function setupFrameworkTabs() {
         row.dataset.filterMatch = visible ? '1' : '0';
         row.classList.toggle('hidden-by-filter', !visible || groupCollapsed);
         const detail = panel.querySelector('.fw-detail-row[data-row-id="' + row.dataset.rowId + '"]');
-        if (detail) detail.classList.toggle('hidden-by-filter', !visible || groupCollapsed);
+        if (detail) {
+          detail.classList.toggle('hidden-by-filter', !visible || groupCollapsed);
+          if (!visible || groupCollapsed) detail.setAttribute('hidden', '');
+        }
+        if (!visible || groupCollapsed) row.setAttribute('aria-expanded', 'false');
       });
       panel.querySelectorAll('.fw-group-header').forEach(h => {
         let any = false;
@@ -1224,11 +2088,19 @@ function setupFrameworkTabs() {
     panel.querySelectorAll('.fw-row').forEach(row => {
       row.addEventListener('click', () => {
         const detail = panel.querySelector('.fw-detail-row[data-row-id="' + row.dataset.rowId + '"]');
-        if (!detail) return;
-        const isHidden = detail.hasAttribute('hidden');
-        if (isHidden) detail.removeAttribute('hidden'); else detail.setAttribute('hidden', '');
-        row.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
-        if (isHidden) {
+        if (!detail || row.classList.contains('hidden-by-filter')) return;
+        const willOpen = detail.hasAttribute('hidden');
+        panel.querySelectorAll('.fw-detail-row').forEach(item => item.setAttribute('hidden', ''));
+        panel.querySelectorAll('.fw-row').forEach(item => {
+          item.setAttribute('aria-expanded', 'false');
+          item.classList.remove('is-selected');
+        });
+        if (willOpen) {
+          detail.removeAttribute('hidden');
+          row.setAttribute('aria-expanded', 'true');
+          row.classList.add('is-selected');
+        }
+        if (willOpen) {
           const mini = detail.querySelector('.mini-trace[data-trace-node]');
           const renderMini = () => {
             if (mini && window.asvsGraph && window.asvsGraph.renderMiniTrace) {
@@ -1244,10 +2116,31 @@ function setupFrameworkTabs() {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
       });
     });
+    const frameworkId = prefix.replace(/^fw-/, '');
+    frameworkTabControllers.push({
+      panel,
+      framework: frameworkId,
+      setChapterFromContext,
+      applyFilters
+    });
     applyFilters();
   });
 }
+window.asvsFrameworkTabs = {
+  applyRuntimeContext: function(ctx) {
+    const regime = ctx && ctx.compliance_regime ? String(ctx.compliance_regime.value || '') : '';
+    const chapter = ctx && ctx.chapter_family ? String(ctx.chapter_family.value || '') : '';
+    frameworkTabControllers.forEach(controller => {
+      const isSelected = !regime || controller.framework === regime;
+      if (controller.panel) controller.panel.hidden = !isSelected;
+      if (isSelected) controller.setChapterFromContext(chapter);
+    });
+  }
+};
 setupFrameworkTabs();
+if (window.asvsRuntimeContext && window.asvsFrameworkTabs && window.asvsFrameworkTabs.applyRuntimeContext) {
+  window.asvsFrameworkTabs.applyRuntimeContext(window.asvsRuntimeContext);
+}
 function setupReverseLookup() {
   const dataEl = document.getElementById('reverse-lookup-data');
   if (!dataEl) return;
@@ -1329,13 +2222,16 @@ function setupReverseLookup() {
           }
           const rows = matchedEntry.compliance_rows;
           const fw = rows[0].ruleset;
-          const tabId = 'fw-' + fw.toLowerCase().replace(/[-_]/g, '');
-          // Switch to framework tab
-          const btn2 = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-          if (btn2) btn2.click();
-          // Highlight the affected rows
+          const complianceBtn = document.querySelector('.tab-btn[data-tab="compliance"]');
+          if (complianceBtn) complianceBtn.click();
+          const rulesetSelect = document.getElementById('global-ruleset-select');
+          if (rulesetSelect && [...rulesetSelect.options].some(option => option.value === fw)) {
+            rulesetSelect.value = fw;
+            rulesetSelect.dispatchEvent(new Event('change', {bubbles: true}));
+          }
+          // Highlight the affected rows inside the single compliance page.
           setTimeout(() => {
-            const panel = document.getElementById('tab-' + tabId);
+            const panel = document.querySelector('.compliance-ruleset-view[data-compliance-ruleset="' + fw + '"]');
             if (!panel) return;
             const rowIds = new Set(rows.map(r => r.row));
             panel.querySelectorAll('.fw-row').forEach(r => {
@@ -1353,6 +2249,80 @@ function setupReverseLookup() {
   });
 }
 setupReverseLookup();
+function setupBlueprintProposalReview() {
+  const page = document.querySelector('[data-blueprint-proposal-page]');
+  if (!page) return;
+  function refresh() {
+    refreshInstructionCommandOptions();
+  }
+  page.querySelectorAll('[data-blueprint-candidate]').forEach(row => {
+    function toggleDetail(event) {
+      if (event && (event.target.closest('input') || event.target.closest('select'))) return;
+      const detail = document.getElementById(row.dataset.blueprintDetail || '');
+      if (!detail) return;
+      const willOpen = detail.hidden;
+      page.querySelectorAll('[data-blueprint-candidate]').forEach(item => {
+        item.classList.toggle('is-selected', willOpen && item === row);
+        item.setAttribute('aria-expanded', willOpen && item === row ? 'true' : 'false');
+      });
+      page.querySelectorAll('.blueprint-proposal-detail-row').forEach(item => { item.hidden = true; });
+      detail.hidden = !willOpen;
+    }
+    row.addEventListener('click', toggleDetail);
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        toggleDetail(event);
+      }
+    });
+  });
+  page.querySelectorAll('[data-blueprint-check], [data-blueprint-decision], [data-blueprint-reason]').forEach(control => {
+    control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', refresh);
+    control.addEventListener('click', event => event.stopPropagation());
+  });
+  const selectAll = page.querySelector('[data-blueprint-select-all]');
+  const clearAll = page.querySelector('[data-blueprint-clear-all]');
+  if (selectAll) selectAll.addEventListener('click', event => {
+    event.stopPropagation();
+    page.querySelectorAll('[data-blueprint-check]').forEach(input => { input.checked = true; });
+    refresh();
+  });
+  if (clearAll) clearAll.addEventListener('click', event => {
+    event.stopPropagation();
+    page.querySelectorAll('[data-blueprint-check]').forEach(input => { input.checked = false; });
+    refresh();
+  });
+  refresh();
+}
+function setupProjectSpecificFrReview() {
+  const page = document.querySelector('[data-project-specific-fr-page]');
+  if (!page) return;
+  page.querySelectorAll('[data-project-specific-fr-detail]').forEach(row => {
+    function toggleDetail(event) {
+      if (event && (event.target.closest('input') || event.target.closest('select') || event.target.closest('button'))) return;
+      const detail = document.getElementById(row.dataset.projectSpecificFrDetail || '');
+      if (!detail) return;
+      const willOpen = detail.hidden;
+      page.querySelectorAll('[data-project-specific-fr-detail]').forEach(item => {
+        const selected = willOpen && item === row;
+        item.classList.toggle('is-selected', selected);
+        item.setAttribute('aria-expanded', selected ? 'true' : 'false');
+        const label = item.querySelector('.instruction-expand');
+        if (label) label.textContent = selected ? 'Close' : 'Open';
+      });
+      page.querySelectorAll('.project-specific-fr-detail-row').forEach(item => { item.hidden = true; });
+      detail.hidden = !willOpen;
+    }
+    row.addEventListener('click', toggleDetail);
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        toggleDetail(event);
+      }
+    });
+  });
+}
+
 function setupReviewBoard() {
   const board = document.querySelector('[data-review-board]');
   if (!board) return;
@@ -1371,6 +2341,7 @@ function setupReviewBoard() {
   const promptDrawerCopy = board.querySelector('[data-review-prompt-copy]');
   const promptDrawerClose = board.querySelector('[data-review-prompt-close]');
   const saveBoardStateBtn = board.querySelector('[data-review-board-save]');
+  const projectSpecificFrPromptBtn = board.querySelector('[data-project-specific-fr-prompt]');
   const storageKey = 'native-review-board:' + reportDir;
   let activeCard = null;
   let draggingCard = null;
@@ -1384,6 +2355,14 @@ function setupReviewBoard() {
   function meaningfulText(value) {
     const text = String(value || '').trim();
     return text === '-' ? '' : text;
+  }
+  function parseJsonList(value) {
+    try {
+      const parsed = JSON.parse(value || '[]');
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch (_) {
+      return [];
+    }
   }
   function cardData(card) {
     return {
@@ -1409,7 +2388,11 @@ function setupReviewBoard() {
       assessment: card.dataset.assessment || '',
       type: card.dataset.type || 'test',
       status: card.dataset.status || '',
-      confidence: card.dataset.confidence || ''
+      confidence: card.dataset.confidence || '',
+      test_names: parseJsonList(card.dataset.testNames),
+      review_status: card.dataset.reviewStatus || '',
+      reviewed_by: card.dataset.reviewedBy || '',
+      source_basis: parseJsonList(card.dataset.sourceBasis)
     };
   }
   function normaliseStoredCardState(value) {
@@ -1446,7 +2429,19 @@ function setupReviewBoard() {
       return {};
     }
   }
-  let state = {...readEmbeddedBoardState(), ...readLocalBoardState()};
+  const embeddedState = readEmbeddedBoardState();
+  const localState = readLocalBoardState();
+  let state = {...embeddedState, ...localState};
+  Object.entries(embeddedState).forEach(([id, embedded]) => {
+    const local = localState[id] || {};
+    const embeddedRecommendation = embedded.lane === 'recommended' && local.lane === 'map' && embedded.recommendation;
+    const embeddedBlocked = embedded.lane === 'blocked' && local.lane && local.lane !== 'blocked' && (
+      embedded.decision === 'blocked' || embedded.reviewer_note || embedded.discovery_rationale
+    );
+    if (embeddedRecommendation || embeddedBlocked) {
+      state[id] = {...local, ...embedded};
+    }
+  });
   const embeddedBoardDocument = readEmbeddedBoardDocument();
   function boardStateForCard(card) {
     const data = cardData(card);
@@ -1555,7 +2550,10 @@ function setupReviewBoard() {
     });
   }
   function pickedCardsForLane(laneId) {
-    return [...board.querySelectorAll(`[data-review-lane="${CSS.escape(laneId)}"] [data-review-card].is-picked`)];
+    const picked = [...board.querySelectorAll(`[data-review-lane="${CSS.escape(laneId)}"] [data-review-card].is-picked`)];
+    if (picked.length) return picked;
+    if (activeCard && laneOf(activeCard) === laneId) return [activeCard];
+    return [];
   }
   function cardsForLane(laneId) {
     return [...board.querySelectorAll(`[data-review-lane="${CSS.escape(laneId)}"] [data-review-card]`)];
@@ -1567,6 +2565,7 @@ function setupReviewBoard() {
   }
   function promptModeForLane(laneId) {
     if (laneId === 'map') return 'map';
+    if (laneId === 'reviewed_not_evidence' || laneId === 'bespoke_project_only') return 'reviewDispositionBrief';
     if (laneId === 'recommended') return 'reviewMappingBrief';
     if (laneId === 'specify') return 'specify';
     if (laneId === 'review') return 'review';
@@ -1601,7 +2600,7 @@ function setupReviewBoard() {
   }
   function inferSourceRepoFromReportDir(value) {
     const text = String(value || '');
-    const match = text.match(/^(.*)\/([^/]+)-asvs-scan-[^/]+\/\.asvs-scanner\/runtime\/reports\/[^/]+\/?$/);
+    const match = text.match(/^(.*)\/([^/]+)-assurance-scan-[^/]+\/\.assurance-scan\/runtime\/reports\/[^/]+\/?$/);
     if (!match) return '/path/to/project';
     const parent = match[1];
     const repo = match[2];
@@ -1612,6 +2611,43 @@ function setupReviewBoard() {
   }
   function reviewBriefForLane(laneId, items) {
     const lines = [];
+    if (laneId === 'reviewed_not_evidence' || laneId === 'bespoke_project_only') {
+      const notEvidence = laneId === 'reviewed_not_evidence';
+      lines.push(notEvidence ? 'Reviewed Not Evidence Brief' : 'Project-Only Native Test Brief');
+      lines.push('');
+      lines.push(notEvidence
+        ? 'Purpose: record native tests inspected and intentionally excluded from assurance evidence.'
+        : 'Purpose: record native tests that may support bespoke project FR/TBT work but are not reusable blueprint scope.');
+      lines.push('');
+      lines.push('Review checklist:');
+      if (notEvidence) {
+        lines.push('- Confirm the test was inspected and does not prove any FR/TBT assurance target.');
+        lines.push('- Confirm it should not remain in unresolved mapping work.');
+        lines.push('- Confirm rationale explains why it is useful context, irrelevant, or not a real test.');
+      } else {
+        lines.push('- Confirm the test is implementation-specific and should not become a generic blueprint control.');
+        lines.push('- If it proves real product behaviour, route it through a bespoke project FR/TBT config update.');
+        lines.push('- Do not promote it into reusable blueprint scope unless the behavior is generic across projects.');
+      }
+      lines.push('');
+      lines.push('Cards:');
+      items.forEach((item, idx) => {
+        lines.push('');
+        lines.push(String(idx + 1) + '. ' + (item.title || item.native_path || item.id));
+        lines.push('   Native path: ' + (item.native_path || item.pack_path || '-'));
+        lines.push('   Pack path: ' + (item.pack_path || '-'));
+        lines.push('   Test names: ' + ((item.test_names || []).join(', ') || '-'));
+        lines.push('   Review status: ' + (item.review_status || 'accepted'));
+        lines.push('   Reviewed by: ' + (item.reviewed_by || '-'));
+        lines.push('   Rationale: ' + (item.agentic_rationale || item.discovery_rationale || 'No rationale recorded'));
+        lines.push('   Confidence: ' + (item.confidence || 'unknown'));
+      });
+      lines.push('');
+      lines.push(notEvidence
+        ? 'Human action: keep these out of unresolved Map work unless new source evidence appears.'
+        : 'Human action: decide whether a bespoke project FR/TBT proposal is needed; do not treat these as reusable blueprint controls.');
+      return lines.join('\n');
+    }
     if (laneId === 'recommended') {
       lines.push('Agentic Mapping Review Brief');
       lines.push('');
@@ -1822,6 +2858,7 @@ function setupReviewBoard() {
         {value: 'remap_as_orphan', label: 'Clear mapping / remap as orphan'},
         {value: 'leave_unmapped', label: 'Leave unmapped'},
         {value: 'mark_not_assurance_relevant', label: 'Mark not assurance relevant'},
+        {value: 'mark_project_specific_only', label: 'Project only / bespoke FR'},
         {value: 'needs_new_tbt_fr', label: 'Needs new TBT/FR'},
         {value: 'blocked', label: 'Blocked'}
       ], data.decision || (data.selector ? 'accept_recommendation' : 'leave_unmapped'));
@@ -1839,6 +2876,14 @@ function setupReviewBoard() {
     if (!card) return;
     if (laneId === 'map' || laneId === 'recommended') {
       delete card.dataset.reviewDecision;
+      return;
+    }
+    if (laneId === 'reviewed_not_evidence') {
+      card.dataset.reviewDecision = 'mark_not_assurance_relevant';
+      return;
+    }
+    if (laneId === 'bespoke_project_only') {
+      card.dataset.reviewDecision = 'mark_project_specific_only';
       return;
     }
     if (laneId === 'specify') {
@@ -1873,6 +2918,9 @@ function setupReviewBoard() {
   function allowedDropLanes(card) {
     const current = laneOf(card);
     const flow = ['map', 'recommended', 'specify', 'review', 'import'];
+    if (current === 'reviewed_not_evidence' || current === 'bespoke_project_only') {
+      return ['map', 'recommended', current, 'specify', 'blocked'];
+    }
     if (current === 'blocked') return flow.concat('blocked');
     const index = flow.indexOf(current);
     if (index < 0) return [current, 'blocked'];
@@ -1884,11 +2932,9 @@ function setupReviewBoard() {
   }
   function hasAgenticMappingRecommendation(card) {
     if (!card) return false;
-    const targetParts = targetPartsForCard(card);
-    const hasTarget = Boolean(targetParts.fr && targetParts.tbt);
     const hasOperation = Boolean(card.dataset.recommendation);
     const hasAgenticRationale = Boolean(meaningfulText(card.dataset.agenticRationale) || card.dataset.selector);
-    return hasTarget && hasOperation && hasAgenticRationale;
+    return hasOperation && hasAgenticRationale;
   }
   function isPlannedTbtCard(card) {
     if (!card) return false;
@@ -1959,6 +3005,7 @@ function setupReviewBoard() {
     if (laneId === 'recommended') {
       if (!hasAgenticMappingRecommendation(card)) return false;
     }
+    if ((laneId === 'reviewed_not_evidence' || laneId === 'bespoke_project_only') && !isOrphanTestCard(card)) return false;
     if (laneId === 'review' && !hasAgenticTestDraft(card)) return false;
     if (laneId === 'import') {
       const current = laneOf(card);
@@ -2173,7 +3220,7 @@ function setupReviewBoard() {
         manual_evidence_updates: [],
         native_test_mapping_updates: nativeUpdates,
         uncertain_mappings: nativeUpdates
-          .filter(update => update.operation === 'leave_unmapped' || update.operation === 'mark_not_assurance_relevant' || update.confidence === 'low')
+          .filter(update => update.operation === 'leave_unmapped' || update.operation === 'mark_not_assurance_relevant' || update.operation === 'mark_project_specific_only' || update.confidence === 'low')
           .map(update => ({
             kind: 'native_test_mapping',
             refs: [update.native_test.native_path || update.native_test.pack_id],
@@ -2189,268 +3236,359 @@ function setupReviewBoard() {
           }
         ]
       };
+      const compactCandidates = nativeSummaries.map((summary, idx) => ({
+        native_path: summary.native_path,
+        pack_path: summary.pack_path,
+        type: summary.type,
+        test_names: summary.test_names || [],
+        hypothesis: mappingHypotheses[idx] || {}
+      }));
       lines.push('Assurance Config Update Prompt');
       lines.push('');
-      lines.push('Mission:');
-      lines.push('Review the selected native test evidence and produce a typed config update proposal that maps each native test to the correct FR/TBT assurance chain.');
+      lines.push('Mission: inspect the selected native tests and write a typed config-update proposal for any FR/TBT mappings genuinely supported by source evidence.');
       lines.push('');
       lines.push('Context:');
       lines.push('- Project: ' + project);
-      lines.push('- Scan run: ' + runId);
-      lines.push('- Source repository: ' + sourceRepo);
+      lines.push('- Run: ' + runId);
+      lines.push('- Source repo: ' + sourceRepo);
       lines.push('- FR catalog: ' + frCatalog);
-      lines.push('- Assurance test manifest: ' + reportDir + '/generated-tests/VG_TEST_FRAMEWORK/manifest.json');
-      lines.push('- Copied/imported native tests are under: ' + reportDir + '/generated-tests/VG_TEST_FRAMEWORK/');
-      lines.push('- Selected native tests: ' + (nativeList.join(', ') || 'none'));
+      lines.push('- Test manifest: ' + reportDir + '/generated-tests/VG_TEST_FRAMEWORK/manifest.json');
+      lines.push('- Proposal output: ' + proposal);
+      lines.push('- Review brief output: ' + mappingReviewPath);
       lines.push('');
-      lines.push('Selected native-test manifest context:');
-      lines.push(JSON.stringify(nativeSummaries, null, 2));
+      lines.push('Selected candidates:');
+      lines.push(JSON.stringify(compactCandidates, null, 2));
       lines.push('');
-      lines.push('Assessor hypotheses from the Map Orphan Tests lane:');
-      lines.push(JSON.stringify(mappingHypotheses, null, 2));
+      lines.push('Contract:');
+      lines.push('- Inspect the native test files and manifest before deciding. Hypotheses are hints only.');
+      lines.push('- Map to an existing FR/TBT only when the test clearly proves that target.');
+      lines.push('- If the FR fits but no TBT fits, propose add_tbt. If no FR fits, propose add_fr only for real product behaviour.');
+      lines.push('- Use leave_unmapped when more reviewer/source context is needed; use mark_not_assurance_relevant when inspection shows the test is intentionally not assurance evidence; use mark_project_specific_only when it may justify bespoke project FR/TBT work but is not reusable blueprint scope.');
+      lines.push('- Do not modify product code or claim evidence; this is a review-gated config proposal only.');
+      lines.push('- Preserve native_path, pack_path, test names, assumptions, inspected files, rationale, confidence and review_status.');
       lines.push('');
-      lines.push('Rules:');
-      lines.push('1. Do not modify application source code.');
-      lines.push('2. Do not invent product behaviour, endpoints, roles, data shapes, or evidence.');
-      lines.push('3. Treat any selected FR/TBT or new FR/TBT id as an assessor hypothesis, not an accepted mapping.');
-      lines.push('4. Inspect each selected native test source file and the generated test manifest before accepting, changing, or rejecting a mapping.');
-      lines.push('5. Prefer mapping to an existing FR/TBT only when the test behaviour clearly proves that target.');
-      lines.push('6. If the suggested target is wrong but another existing FR/TBT fits, propose that better existing target and explain the mismatch.');
-      lines.push('7. Create a new TBT under an existing FR only when the FR is correct but no current TBT captures the evidence type.');
-      lines.push('8. Create a new FR only when the native test proves a real product requirement that is absent from the catalog.');
-      lines.push('9. Use leave_unmapped or mark_not_assurance_relevant when the proof relationship is unclear or absent.');
-      lines.push('10. Preserve provenance: cite native path, copied pack path, manifest case names, rationale, confidence, and assumptions.');
-      lines.push('11. Do not return the placeholder rationale unchanged. Every selected native test must end with a post-inspection disposition and a specific rationale.');
+      lines.push('Write exactly one JSON document matching config-update-proposal.schema.json to:');
+      lines.push(proposal);
       lines.push('');
-      lines.push('Expected output:');
-      lines.push('- Return one JSON document matching config-update-proposal.schema.json.');
-      lines.push('- Keep all ids stable and type-safe: FR ids use FR-xxx; TBT ids use TBT-xxx.');
-      lines.push('- For new FR proposals include at minimum id, title, description, status/category if known, and the source basis.');
-      lines.push('- For new TBT proposals include at minimum id, title, type, proves, evidence_policy, expected_evidence, and how JUnit or equivalent evidence will carry the TBT id.');
-      lines.push('- Include review_required entries for every non-obvious or low-confidence mapping.');
-      lines.push('- Return the JSON in the response and save the same JSON to the report-local proposal path below so the dashboard can display recommendations before any mapping is accepted.');
-      lines.push('- Proposal path: ' + proposal);
-      lines.push('- Review brief path: ' + mappingReviewPath);
+      lines.push('Also write a concise human review brief to:');
+      lines.push(mappingReviewPath);
       lines.push('');
-      lines.push('Draft proposal to review and refine:');
-      lines.push('');
-      lines.push(JSON.stringify(draftProposal, null, 2));
+      lines.push('Required top-level JSON shape:');
+      lines.push(JSON.stringify({
+        schema_version: 1,
+        mode: 'config_update_proposal',
+        project,
+        run_id: runId,
+        source_inputs: [
+          {path: 'fr-catalog.snapshot.json', kind: 'fr_catalog', used_for: 'Existing FR/TBT choices'},
+          {path: 'generated-tests/VG_TEST_FRAMEWORK/manifest.json', kind: 'assurance_test_pack', used_for: 'Native test candidates'}
+        ],
+        fr_catalog_updates: [],
+        compliance_mapping_pack_updates: [],
+        assurance_framework_or_instance_updates: [],
+        manual_evidence_updates: [],
+        native_test_mapping_updates: []
+      }, null, 2));
       lines.push('');
       lines.push('Validation command:');
-      lines.push('asvs-scanner validate-config-update ' + shellQuote(proposal) + ' --fr-catalog ' + shellQuote(frCatalog));
+      lines.push('assurance-scan validate-config-update ' + shellQuote(proposal) + ' --fr-catalog ' + shellQuote(frCatalog));
       lines.push('');
-      lines.push('Review and apply commands after validation:');
-      lines.push('asvs-scanner review-config-update ' + shellQuote(proposal) + ' --output ' + shellQuote(mappingReviewPath));
-      lines.push('asvs-scanner apply-config-update ' + shellQuote(proposal) + ' --list');
-      lines.push('asvs-scanner apply-config-update ' + shellQuote(proposal) + ' --select <section:index> --reviewed-by <name> --assurance-test-pack ' + shellQuote(assuranceTestPack) + ' --assurance-test-pack-out ' + shellQuote(assuranceTestPack));
-      lines.push('For current-dashboard inspection, the assurance-test-pack output above intentionally replaces this report-local manifest after validation and human-reviewed selection.');
-      lines.push('If selected entries affect other sections, add the matching reviewed input/output flags, such as --fr-catalog/--fr-catalog-out, --compliance-mapping-pack/--compliance-mapping-pack-out, --assurance-test-pack/--assurance-test-pack-out, or --assurance-instance/--assurance-instance-out.');
+      lines.push('Review/apply after validation:');
+      lines.push('assurance-scan review-config-update ' + shellQuote(proposal) + ' --output ' + shellQuote(mappingReviewPath));
+      lines.push('assurance-scan apply-config-update ' + shellQuote(proposal) + ' --list');
+      lines.push('assurance-scan apply-config-update ' + shellQuote(proposal) + ' --select <section:index> --reviewed-by <name> --assurance-test-pack ' + shellQuote(assuranceTestPack) + ' --assurance-test-pack-out ' + shellQuote(assuranceTestPack));
       addRefreshLines('map');
     }
-    function addSpecifyPrompt(items) {
-      const tbtList = selectedTbtList(items);
-      lines.push('Assurance Test Specification Prompt');
-      lines.push('');
-      lines.push('Mission:');
-      lines.push('Generate review-required draft tests/specifications for the selected planned TBTs by inspecting the project source and existing test patterns. This is a specification step only; it must not claim evidence, create ready-to-run tests, or modify product behaviour.');
-      lines.push('');
-      lines.push('Context:');
-      lines.push('- Scan run: ' + runId);
-      lines.push('- Source repository: ' + sourceRepo);
-      lines.push('- Report directory: ' + reportDir);
-      lines.push('- FR catalog: ' + frCatalog);
-      lines.push('- Selected TBTs: ' + (tbtList.join(', ') || 'none'));
-      lines.push('- Existing test conventions: inspect package scripts, Jest/Vitest or integration-test config, existing tests, relevant application code, and runtime configuration before drafting.');
-      lines.push('');
-      lines.push('Selected board cards:');
-      lines.push(JSON.stringify(items, null, 2));
-      lines.push('');
-      lines.push('Rules:');
-      lines.push('1. Use the FR catalog and report artifacts as the source of truth.');
-      lines.push('2. Generate only review-required draft tests/specifications for the selected TBTs.');
-      lines.push('3. Do not implement broad test suites or invent product endpoints, roles, data shapes, or expected behaviour.');
-      lines.push('4. Prefer safe, non-destructive tests using disposable fixtures or mocks.');
-      lines.push('5. Every generated draft test must keep the TBT id in the file name, test title, and future JUnit classname or testcase name.');
-      lines.push('6. Mark each draft test as review_required until a human approves it. Skipped scaffolds are review artifacts, not executable assurance evidence.');
-      lines.push('7. Do not count generated draft tests as passing evidence.');
-      lines.push('8. Use tests/asvs/ as the ASVS-owned execution surface for generated tests and wrappers; do not duplicate existing native tests there unless writing a reviewed wrapper.');
-      lines.push('9. Inspect the real implementation before drafting. If the codebase cannot currently support the FR/TBT behaviour, do not invent a test; report that the FR is not currently supported by the project and explain the missing implementation, endpoint, configuration, or observable behaviour.');
-      lines.push('10. If there is not enough source evidence to create a safe review draft, do not create a runnable test scaffold. Report the blocked disposition clearly so a reviewer can move the card to Blocked or adjust the FR/TBT.');
-      lines.push('11. For each selected TBT, report one disposition: draft_created_full, draft_created_partial_support, blocked_unsupported_by_project, blocked_insufficient_source_evidence, or blocked_needs_human_decision.');
-      lines.push('12. If only part of the FR/TBT is supportable, create a review-required draft only for the observable portion and explicitly list the unsupported portions. Do not let a partial draft imply full FR/TBT coverage.');
-      lines.push('');
-      lines.push('Expected output:');
-      lines.push('- Generate/update only the selected draft test files under the generated test pack, using tests/asvs/<type>/<TBT-ID>.assurance.test.js, for example tests/asvs/integration/TBT-016-ASVS-A.assurance.test.js.');
-      lines.push('- Preserve provenance back to FR/TBT/ruleset rows.');
-      lines.push('- Include the per-TBT disposition in the scaffold/spec metadata and in the final response.');
-      lines.push('- Summarize inspected files, assumptions, unknowns, and any project-support gap that requires human review.');
-      lines.push('- For partial support, list the observable behaviour covered by the draft and the unsupported FR/TBT behaviours that remain blocked.');
-      lines.push('- If the FR/TBT is not currently supported by the project, explicitly say so, do not run promote-assurance-specs for that TBT, and persist or propose a blocked board-state update rather than creating false assurance coverage.');
-      lines.push('- After draft tests are generated, rerun or refresh the dashboard to move them into Review Agentic Tests.');
-      lines.push('');
-      lines.push('Order of operations:');
-      lines.push('1. Inspect the source repository first.');
-      lines.push('2. Identify the actual implementation, configuration, existing tests, and safe test harness for each selected FR/TBT.');
-      lines.push('3. Decide whether each selected FR/TBT is currently supportable by observable project behaviour.');
-      lines.push('4. Only run promote-assurance-specs or write a draft scaffold if the implementation can support a safe review-required test/specification.');
-      lines.push('5. If unsupported, do not generate a runnable scaffold; report a blocked disposition explaining that the FR/TBT is not currently supported by observable project behaviour.');
-      lines.push('');
-      lines.push('Blocked-state persistence when no scaffold should be generated:');
-      lines.push('- Write or update project-fr-board-state.json through update-project-fr-board-state using the selected card id.');
-      lines.push('- Keep source, tbt, frs, type, status, assessment, safety, pack_path, and discovery_rationale from the selected card.');
-      lines.push('- Set lane to blocked, decision to blocked, and reviewer_note to the disposition plus the inspected-source reason.');
-      lines.push('- Refresh the dashboard after saving the board state so the blocked reason is visible in the current report.');
-      lines.push('Command template after writing blocked-board-state.json:');
-      lines.push('asvs-scanner update-project-fr-board-state ' + shellQuote(reportDir) + ' --state-json blocked-board-state.json --strict --refresh-dashboard');
-      lines.push('');
-      lines.push('Command to generate selected draft tests only after source inspection confirms the FR/TBT is supportable:');
-      lines.push('asvs-scanner promote-assurance-specs ' + shellQuote(reportDir) + (tbtList.length ? ' \\' : ''));
-      tbtList.forEach((tbt, idx) => lines.push('  --tbt ' + shellQuote(tbt) + (idx === tbtList.length - 1 ? '' : ' \\')));
-      addRefreshLines('design');
-    }
-    function addReviewPrompt(items) {
-      const tbtList = selectedTbtList(items);
-      lines.push('Approved Assurance Test Implementation Prompt');
-      lines.push('');
-      lines.push('Mission:');
-      lines.push('Implement only the selected human-approved assurance draft tests so they become executable ASVS-owned tests. This step creates runnable tests; it must not claim evidence or import results.');
-      lines.push('');
-      lines.push('Context:');
-      lines.push('- Project: ' + project);
-      lines.push('- Source repository: ' + sourceRepo);
-      lines.push('- Report directory: ' + reportDir);
-      lines.push('- FR catalog: ' + frCatalog);
-      lines.push('- Approved TBTs: ' + (tbtList.join(', ') || 'none'));
-      lines.push('- Future JUnit output when the Run Approved Tests lane is used: ' + junitOutput);
-      lines.push('');
-      lines.push('Selected board cards:');
-      lines.push(JSON.stringify(items, null, 2));
-      lines.push('');
-      lines.push('Rules:');
-      lines.push('1. Implement only selected generated draft tests that have been explicitly approved for implementation.');
-      lines.push('2. Do not invent product endpoints, behaviour, roles, or data shapes.');
-      lines.push('3. Use disposable fixtures and a safe/containerized test environment.');
-      lines.push('4. Keep the TBT id in the file name, test title, and JUnit classname or testcase name.');
-      lines.push('5. Do not modify product/application behaviour. Limit changes to ASVS-owned tests, wrappers, fixtures, mocks, or test harness configuration.');
-      lines.push('6. Do not run destructive operations against real data or shared services.');
-      lines.push('7. Keep ASVS-owned executable tests and wrappers under tests/asvs/; native project tests remain source-of-truth in their original paths.');
-      lines.push('8. A selected card may still show review_required/needs_design at the start of this prompt. If it has decision: approve_for_implementation, treat that as human approval to implement only the approved scope.');
-      lines.push('9. If a selected card lacks decision: approve_for_implementation or an explicit reviewer approval note, do not implement it; report the blocker instead.');
-      lines.push('10. Remove describe.skip, test.skip, TODO(review-required), and review-only blockers only for the approved TBT scope. Preserve blocked notes for unsupported FR/TBT behaviour.');
-      lines.push('11. Do not export or import JUnit evidence in this step; evidence belongs to the Run Approved Tests lane after the implemented test is reviewed as runnable.');
-      lines.push('');
-      lines.push('Expected output:');
-      lines.push('- Implement the selected draft tests only under tests/asvs/ in the ASVS branch/worktree.');
-      lines.push('- Update the report-local generated test pack metadata so implemented tests use status: ready_to_run, assessment: useful_as_is, and safety: non_destructive. Do not use status: executed until observed result evidence exists.');
-      lines.push('- Run only lightweight local validation if needed to prove the test harness is wired; do not treat that as assurance evidence.');
-      lines.push('- Report implemented tests, skipped/unimplemented tests, assumptions, and any manual follow-up.');
-      lines.push('- Regenerate the current dashboard so implemented tests can move to Run Approved Tests.');
-      lines.push('');
-      lines.push('Selected board cards must include human approval:');
-      lines.push('- Preferred review decision: approve_for_implementation.');
-      lines.push('- If approval is only recorded in reviewer_note, cite it in the final report.');
-      lines.push('- If no selected card is approved, stop and report that there is nothing safe to implement.');
-      addRefreshLines('approve');
-    }
-    function addImportPrompt(items) {
-      const tbtList = selectedTbtList(items);
-      const hasReviewedExistingAsvs = items.some(item => String(item.source || '').toLowerCase() === 'existing_asvs');
-      const runnerLines = [
-        'docker run --rm -it \\',
-        '  -v /var/run/docker.sock:/var/run/docker.sock \\',
-        '  -v ' + shellQuote('/Users/jd/Development/asvs-scanner') + ':' + shellQuote('/opt/asvs-scanner') + ' \\',
-        '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
-        '  -w ' + shellQuote(sourceRepo) + ' \\',
-        '  asvs-scanner:local run-approved-tests ' + shellQuote(reportDir) + ' \\',
-        '  --source-repo ' + shellQuote(sourceRepo) + ' \\',
-        '  --execution-mode docker \\',
-        '  --test-container-image ' + shellQuote('node:20') + ' \\',
-        '  --junit-out ' + shellQuote(reportDir.replace(/\/$/, '') + '/reports/junit.xml') + (hasReviewedExistingAsvs || tbtList.length ? ' \\' : '')
-      ];
-      if (hasReviewedExistingAsvs) {
-        runnerLines.push('  --allow-reviewed-existing-asvs' + (tbtList.length ? ' \\' : ''));
-      }
-      tbtList.forEach((tbt, idx) => runnerLines.push('  --tbt ' + shellQuote(tbt) + (idx === tbtList.length - 1 ? '' : ' \\')));
-      const refreshLines = [
-        'docker run --rm -it --entrypoint python3 \\',
-        '  -v /var/run/docker.sock:/var/run/docker.sock \\',
-        '  -v ' + shellQuote('/Users/jd/Development/asvs-scanner') + ':' + shellQuote('/opt/asvs-scanner') + ' \\',
-        '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
-        '  -w ' + shellQuote(sourceRepo) + ' \\',
-        '  asvs-scanner:local /opt/asvs-scanner/scripts/refresh-approved-test-evidence.py ' + shellQuote(reportDir) + ' \\',
-        '  --junit-xml ' + shellQuote(reportDir.replace(/\/$/, '') + '/reports/junit.xml')
-      ];
-      const importLines = [
-        'docker run --rm -it \\',
-        '  -e ASVS_IMAGE_BUILD_PARALLELISM=2 \\',
-        '  -e ASVS_PARALLELISM=4 \\',
-        '  -v /var/run/docker.sock:/var/run/docker.sock \\',
-        '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
-        '  -w ' + shellQuote(sourceRepo) + ' \\',
-        '  asvs-scanner:local scan ' + shellQuote(sourceRepo) + ' \\',
-        '  --fr-catalog ' + shellQuote(frCatalog) + ' \\',
-        '  --junit-xml ' + shellQuote(reportDir.replace(/\/$/, '') + '/reports/junit.xml')
-      ];
-      const fastLines = runnerLines.slice();
-      if (fastLines.length) fastLines[fastLines.length - 1] = fastLines[fastLines.length - 1] + ' && \\';
-      const fastCommand = fastLines.concat(refreshLines).join('\n');
-      const freshCommand = importLines.join('\n');
-      lastPromptCopyText = action === 'fresh-scan' ? freshCommand : fastCommand;
-      lines.push('Run Approved Tests');
-      lines.push('');
-      if (action === 'fresh-scan') {
-        lines.push('Import evidence / fresh scan');
-        lines.push('');
-        lines.push('Use this after reports/junit.xml already exists and you want a new immutable scan report with the observed JUnit imported into the assurance graph.');
-        lines.push('');
-        importLines.forEach(line => lines.push(line));
-        lines.push('');
-        lines.push('This creates a new report directory and browser-only Kanban state resets because it is a fresh scan.');
-      } else if (action === 'run-only') {
-        lines.push('Run tests only');
-        lines.push('');
-        lines.push('Use this to run the selected TBT tests and refresh this report without rerunning Semgrep, Trivy, image scans, or other scanner outputs.');
-        lines.push('');
-        fastCommand.split('\n').forEach(line => lines.push(line));
-        lines.push('');
-        lines.push('This writes reports/junit.xml, refreshes evidence-bundle.json/dashboard.html in this report, and preserves the current board state.');
-      } else {
-        lines.push('Fast path: run selected tests only and refresh this report');
-        lines.push('');
-        lines.push('Use this when you want to see the selected TBT evidence update in Project FRs, Compliance Regime, Traceability Graph, and Evidence Files without rerunning Semgrep/Trivy/etc.');
-        lines.push('');
-        fastCommand.split('\n').forEach(line => lines.push(line));
-        lines.push('');
-        lines.push('Fresh scan path: run selected tests, then import their JUnit into a new full scanner report');
-        lines.push('');
-        lines.push('Use this when you want a new immutable scan report with scanner outputs refreshed as well.');
-        lines.push('');
-        importLines.forEach(line => lines.push(line));
-        lines.push('');
-        lines.push('The copy button copies the fast path. The runner refuses non-ready tests and skipped scaffolds. The fresh scan path resets browser-only Kanban state because it creates a new report.');
-      }
-    }
-    function addBlockedPrompt(items) {
-      lines.push('Blocked / Review Required Prompt');
-      lines.push('');
-      lines.push('Mission:');
-      lines.push('Record why these assurance cards cannot advance and identify the missing evidence, source inspection, product decision, or safer test design needed.');
-      lines.push('');
-      lines.push('Selected board cards:');
-      lines.push(JSON.stringify(items, null, 2));
-      addRefreshLines('map');
-    }
-    if (mode === 'map') addMapPrompt(map.concat(recommended));
+  function addSpecifyPrompt(items) {
+    const tbtList = selectedTbtList(items);
+    lines.push('Assurance Test Specification Prompt');
+    lines.push('');
+    lines.push('Mission:');
+    lines.push('Generate review-required draft tests/specifications for the selected planned TBTs by inspecting the project source and existing test patterns. This is a specification step only; it must not claim evidence, create ready-to-run tests, or modify product behaviour.');
+    lines.push('');
+    lines.push('Context:');
+    lines.push('- Project: ' + project);
+    lines.push('- Scan run: ' + runId);
+    lines.push('- Source repository: ' + sourceRepo);
+    lines.push('- Report directory: ' + reportDir);
+    lines.push('- FR catalog: ' + frCatalog);
+    lines.push('- Selected TBTs: ' + (tbtList.join(', ') || 'none'));
+    lines.push('- Existing test conventions: inspect package scripts, Jest/Vitest or integration-test config, existing tests, relevant application code, and runtime configuration before drafting.');
+    lines.push('');
+    lines.push('Selected board cards:');
+    lines.push(JSON.stringify(items, null, 2));
+    lines.push('');
+    lines.push('Rules:');
+    lines.push('1. Use the FR catalog and report artifacts as the source of truth.');
+    lines.push('2. Generate only review-required draft tests/specifications for the selected TBTs.');
+    lines.push('3. Do not implement broad test suites or invent product endpoints, roles, data shapes, or expected behaviour.');
+    lines.push('4. Prefer safe, non-destructive tests using disposable fixtures or mocks.');
+    lines.push('5. Every generated draft test must keep the TBT id in the file name, test title, and future JUnit classname or testcase name.');
+    lines.push('6. Mark each draft test as review_required until a human approves it. Skipped scaffolds are review artifacts, not executable assurance evidence.');
+    lines.push('7. Do not count generated draft tests as passing evidence.');
+    lines.push('8. Use tests/asvs/ as the assurance-owned execution surface for generated tests and wrappers; do not duplicate existing native tests there unless writing a reviewed wrapper.');
+    lines.push('9. Inspect the real implementation before drafting. If the codebase cannot currently support the FR/TBT behaviour, do not invent a test; report that the FR/TBT is not currently supported by observable project behaviour.');
+    lines.push('10. If only part of the FR/TBT is supportable, create a review-required draft only for the observable portion and explicitly list unsupported portions.');
+    lines.push('11. For each selected TBT, report one disposition: draft_created_full, draft_created_partial_support, blocked_unsupported_by_project, blocked_insufficient_source_evidence, or blocked_needs_human_decision.');
+    lines.push('');
+    lines.push('Expected output:');
+    lines.push('- Generate/update only the selected draft test files under the generated test pack, using tests/asvs/<type>/<TBT-ID>.assurance.test.js.');
+    lines.push('- Preserve provenance back to FR/TBT/ruleset rows.');
+    lines.push('- Include the per-TBT disposition in the scaffold/spec metadata and in the final response.');
+    lines.push('- Summarize inspected files, assumptions, unknowns, and any project-support gap that requires human review.');
+    lines.push('- If unsupported, do not run promote-assurance-specs for that TBT. Persist or propose a blocked board-state update with lane=blocked, decision=blocked, and reviewer_note explaining the missing observable behaviour.');
+    lines.push('- After draft tests are generated, rerun or refresh the dashboard to move supportable drafts into Review Agentic Tests.');
+    lines.push('');
+    lines.push('Command to generate selected draft tests only after source inspection confirms the FR/TBT is supportable:');
+    lines.push('assurance-scan promote-assurance-specs ' + shellQuote(reportDir) + (tbtList.length ? ' \\' : ''));
+    tbtList.forEach((tbt, idx) => lines.push('  --tbt ' + shellQuote(tbt) + (idx === tbtList.length - 1 ? '' : ' \\')));
+    addRefreshLines('design');
+  }
+  function addReviewPrompt(items) {
+    const approvedItems = items.map(item => ({
+      ...item,
+      decision: item.decision || 'approve_for_implementation',
+      reviewer_note: item.reviewer_note || 'Human selected this Review Agentic Tests card for implementation from the dashboard.'
+    }));
+    const tbtList = selectedTbtList(approvedItems);
+    const generatedPack = reportDir.replace(/\/$/, '') + '/generated-tests/VG_TEST_FRAMEWORK';
+    lines.push('Approved Assurance Test Implementation Prompt');
+    lines.push('');
+    lines.push('Mission:');
+    lines.push('Implement only the selected human-approved assurance draft tests so they become executable assurance-owned tests. This step creates runnable tests; it must not claim evidence, execute tests as evidence, or import results.');
+    lines.push('');
+    lines.push('Context:');
+    lines.push('- Project: ' + project);
+    lines.push('- Source repository: ' + sourceRepo);
+    lines.push('- Report directory: ' + reportDir);
+    lines.push('- FR catalog: ' + frCatalog);
+    lines.push('- Generated assurance test pack: ' + generatedPack);
+    lines.push('- Generated assurance manifest: ' + generatedPack + '/manifest.json');
+    lines.push('- Test adapter: read test_adapter from the generated assurance manifest; do not assume Jest unless the manifest selects the JavaScript/Jest adapter.');
+    lines.push('- Approved TBTs: ' + (tbtList.join(', ') || 'none'));
+    lines.push('');
+    lines.push('Selected board cards:');
+    lines.push(JSON.stringify(approvedItems, null, 2));
+    lines.push('');
+    lines.push('Rules:');
+    lines.push('1. Implement only selected generated draft tests that have been explicitly approved for implementation.');
+    lines.push('2. A selected card may still show review_required/needs_design at the start of this prompt. If it has decision: approve_for_implementation, treat that as human approval to implement only the approved scope.');
+    lines.push('3. If a selected card lacks decision: approve_for_implementation or an explicit reviewer approval note, do not implement it; report the blocker instead.');
+    lines.push('4. Do not invent product endpoints, behaviour, roles, data shapes, timeout thresholds, or re-authentication flows.');
+    lines.push('5. Keep the TBT id in the file name, test title, and future JUnit classname or testcase name.');
+    lines.push('6. Limit changes to assurance-owned tests, wrappers, fixtures, mocks, or test harness configuration. Do not modify product/application behaviour.');
+    lines.push('7. Remove describe.skip, test.skip, TODO(review-required), and review-only blockers only for the approved observable TBT scope. Preserve blocked notes for unsupported FR/TBT behaviour.');
+    lines.push('8. Partial-support drafts must remain partial. Do not rewrite metadata or assertions in a way that implies full FR/TBT or compliance-rule coverage.');
+    lines.push('9. Keep blocked TBTs blocked. Do not implement or move TBTs that were blocked_unsupported_by_project unless the implementation gap has actually been closed in product code by a separate reviewed change.');
+    lines.push('10. Do not export or import JUnit evidence in this step; evidence belongs to Run Approved Tests. Do not set executed, passed, or observed evidence fields.');
+    lines.push('11. Before marking any selected test ready_to_run, smoke-run that exact test with the same adapter and execution mode that Run Approved Tests will use. Read test_adapter from the manifest; do not assume Jest unless the manifest selects the JavaScript/Jest adapter.');
+    lines.push('12. A test is ready_to_run only when the smoke run reaches the intended assertions and exits without harness/runtime/import/dependency errors. The smoke run is readiness validation only; it is not assurance evidence.');
+    lines.push('13. If the smoke run fails because of harness/runtime/import/dependency errors, fix the assurance-owned test harness, fixtures, mocks, or narrow wrappers and rerun it. Do not hide the failure by weakening assertions, changing product behaviour, or installing broad/global dependencies.');
+    lines.push('14. Mock irrelevant heavy top-level dependencies before requiring broad controllers or route modules, especially native modules, browser/canvas extractors, cloud SDKs, network clients, queues, and external services. Keep mocks narrow and explain them.');
+    lines.push('15. If the smoke run still cannot be made to execute safely, do not set ready_to_run. Leave the TBT review_required or move it to blocked with a blocked_harness_error or blocked_runtime_dependency disposition and a reviewer_note that includes the failing command and error summary.');
+    lines.push('16. If the harness executes cleanly but the assertion fails against product behaviour, report a potential conformance failure separately. Do not claim observed evidence in this step.');
+    lines.push('');
+    lines.push('Expected output:');
+    lines.push('- Implement the selected draft tests only under the report-local generated pack tests/asvs/ tree: ' + generatedPack + '/tests/asvs/.');
+    lines.push('- Update report-local generated test pack metadata so implemented tests use status: ready_to_run, assessment: useful_as_is, and safety: non_destructive. Do not use status: executed until observed result evidence exists.');
+    lines.push('- Leave unsupported scope, assumptions, and partial-support rationale visible in metadata and the final response.');
+    lines.push('- Run lightweight smoke validation for every implemented selected TBT using the selected adapter/execution mode; do not treat that validation as assurance evidence.');
+    lines.push('- For each selected TBT, report one implementation disposition: implemented_ready_to_run, blocked_harness_error, blocked_runtime_dependency, blocked_unsupported_by_project, or skipped_not_approved.');
+    lines.push('- Regenerate the current dashboard so implemented tests can move to Run Approved Tests.');
+    lines.push('');
+    lines.push('Final response requirements:');
+    lines.push('- Report implemented tests, skipped/unimplemented tests, assumptions, and any manual follow-up.');
+    lines.push('- Include the exact smoke command run for each implemented TBT, whether it passed, and any harness mocks or wrappers added.');
+    lines.push('- State clearly that no evidence was claimed and that Run Approved Tests is still required before the graph can show observed passing evidence.');
+    addRefreshLines('approve');
+  }
+  function addImportPrompt(items) {
+    const tbtList = selectedTbtList(items);
+    const reportJunit = reportDir.replace(/\/$/, '') + '/reports/junit.xml';
+    const runnerLines = [
+      'docker run --rm -it \\',
+      '  -v /var/run/docker.sock:/var/run/docker.sock \\',
+      '  -v ' + shellQuote('/Users/jd/Development/assurance-scan') + ':' + shellQuote('/opt/assurance-scan') + ' \\',
+      '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
+      '  -w ' + shellQuote(sourceRepo) + ' \\',
+      '  assurance-scan:local run-approved-tests ' + shellQuote(reportDir) + ' \\',
+      '  --source-repo ' + shellQuote(sourceRepo) + ' \\',
+      '  --execution-mode docker \\',
+      '  --junit-out ' + shellQuote(reportJunit) + (tbtList.length ? ' \\' : '')
+    ];
+    tbtList.forEach((tbt, idx) => runnerLines.push('  --tbt ' + shellQuote(tbt) + (idx === tbtList.length - 1 ? '' : ' \\')));
+    const refreshLines = [
+      'docker run --rm -it --entrypoint python3 \\',
+      '  -v /var/run/docker.sock:/var/run/docker.sock \\',
+      '  -v ' + shellQuote('/Users/jd/Development/assurance-scan') + ':' + shellQuote('/opt/assurance-scan') + ' \\',
+      '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
+      '  -w ' + shellQuote(sourceRepo) + ' \\',
+      '  assurance-scan:local /opt/assurance-scan/scripts/refresh-approved-test-evidence.py ' + shellQuote(reportDir) + ' \\',
+      '  --junit-xml ' + shellQuote(reportJunit) + ' \\',
+      '  --carry-forward-report ' + shellQuote(reportDir)
+    ];
+    const scanLines = [
+      'docker run --rm -it \\',
+      '  -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \\',
+      '  -e ASSURANCE_SCAN_PARALLELISM=4 \\',
+      '  -v /var/run/docker.sock:/var/run/docker.sock \\',
+      '  -v ' + shellQuote('/Users/jd/Development/assurance-scan') + ':' + shellQuote('/opt/assurance-scan') + ' \\',
+      '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
+      '  -w ' + shellQuote(sourceRepo) + ' \\',
+      '  assurance-scan:local scan ' + shellQuote(sourceRepo) + ' \\',
+      '  --fr-catalog ' + shellQuote(frCatalog) + ' \\',
+      '  --junit-xml ' + shellQuote(reportJunit) + ' \\',
+      '  --carry-forward-report ' + shellQuote(reportDir)
+    ];
+    lines.push('Run Approved Tests');
+    lines.push('');
+    lines.push(action === 'fresh-scan'
+      ? 'Full scan path selected: run selected approved tests, then create a fresh scan that imports the observed JUnit evidence and carries forward this board state.'
+      : 'Tests-only path selected: run selected approved tests and refresh this current report with observed JUnit evidence.');
+    lines.push('');
+    const commandLines = [...runnerLines];
+    if (commandLines.length) commandLines[commandLines.length - 1] += ' && \\';
+    commandLines.push(...(action === 'fresh-scan' ? scanLines : refreshLines));
+    lines.push(...commandLines);
+    lastPromptCopyText = commandLines.join('\n');
+  }
+    if (mode === 'map') addMapPrompt(map);
     else if (mode === 'specify') addSpecifyPrompt(specify);
     else if (mode === 'review') addReviewPrompt(review);
     else if (mode === 'import') addImportPrompt(importLane);
-    else if (mode === 'blocked') addBlockedPrompt(blocked);
-    else return '';
+    else if (mode === 'blocked') lines.push(emptyLaneMessage('blocked', 'Blocked'));
+    return lines.join('\n');
+  }
+  function projectSpecificFrPrompt() {
+    const sourceRepo = inferSourceRepoFromReportDir(reportDir);
+    const sourceMount = sourceRepo === '/path/to/project' ? '/path/to' : sourceRepo.replace(/\/[^/]+$/, '') || '/path/to';
+    const project = inferProjectFromSourceRepo(sourceRepo);
+    const runId = (reportDir.match(/reports\/([^/]+)\/?$/) || [])[1] || 'current';
+    const reviewedFrCatalog = reportDir.replace(/\/reports\/[^/]+\/?$/, '/' + project + '.fr-catalog.reviewed.json');
+    const decisionLog = currentBlueprintDecisionLog() || {decisions: []};
+    const proposal = readBlueprintProposal() || {candidates: []};
+    const decisionsByCandidate = new Map((decisionLog.decisions || []).map(decision => [decision.candidate, decision]));
+    const acceptedBlueprintDetails = (proposal.candidates || [])
+      .filter(candidate => {
+        const decision = decisionsByCandidate.get(candidate.id || candidate.blueprint_fr || '');
+        return decision && String(decision.decision || '').startsWith('accepted');
+      })
+      .map(candidate => ({
+        candidate: candidate.id || candidate.blueprint_fr || '',
+        blueprint_fr: candidate.blueprint_fr || '',
+        title: candidate.title || candidate.summary || '',
+        blueprint_tbts: candidate.blueprint_tbts || [],
+        compliance_mappings: candidate.compliance_mappings || [],
+        rationale: candidate.rationale || ''
+      }));
+    const rejectedBlueprintDetails = (proposal.candidates || [])
+      .filter(candidate => {
+        const decision = decisionsByCandidate.get(candidate.id || candidate.blueprint_fr || '');
+        return decision && !String(decision.decision || '').startsWith('accepted');
+      })
+      .map(candidate => ({
+        candidate: candidate.id || candidate.blueprint_fr || '',
+        blueprint_fr: candidate.blueprint_fr || '',
+        decision: decisionsByCandidate.get(candidate.id || candidate.blueprint_fr || '')?.decision || '',
+        reason: decisionsByCandidate.get(candidate.id || candidate.blueprint_fr || '')?.reason || ''
+      }));
+    const draftProposal = {
+      schema_version: 1,
+      mode: 'config_update_proposal',
+      project,
+      run_id: runId,
+      source_inputs: [
+        {path: reviewedFrCatalog, kind: 'fr_catalog', used_for: 'Reviewed project FR/TBT catalog after blueprint review'},
+        {path: sourceRepo + '/blueprint-proposal.json', kind: 'blueprint_selection_proposal', used_for: 'Reusable blueprint candidates already considered'},
+        {path: sourceRepo + '/blueprint-decisions.json', kind: 'blueprint_decision_log', used_for: 'Accepted/rejected blueprint scope decisions'}
+      ],
+      fr_catalog_updates: [],
+      compliance_mapping_pack_updates: [],
+      assurance_framework_or_instance_updates: [],
+      manual_evidence_updates: [],
+      native_test_mapping_updates: [],
+      uncertain_mappings: [],
+      review_required: [
+        {
+          item: 'project-specific-fr-scope',
+          question: 'Which observable project behaviours require bespoke FR/TBT obligations after blueprint candidates are accepted or rejected?',
+          why: 'Blueprints cover generic security obligations; product/domain workflows must be explicit project-specific FRs when they affect assurance, audit, governance, or compliance posture.'
+        }
+      ]
+    };
+    const lines = [];
+    lines.push('Project-Specific FR/TBT Gap Proposal Prompt');
     lines.push('');
-    lines.push('Tip: moving a card only changes this board state in your browser. Assurance changes happen only after the generated prompt or command is run and a refreshed scan/dashboard is produced.');
-    const text = lines.join('\n');
-    if (commandEl) commandEl.textContent = text;
-    return text;
+    lines.push('IMPORTANT: This is an agent prompt, not a terminal command. Paste it into Codex, Claude, Cursor, or another coding agent. Do not run it in bash.');
+    lines.push('Terminal validation/review/apply commands are generated separately in Instructions Step 4 after project-specific-fr-proposal.json exists.');
+    lines.push('');
+    lines.push('Mission:');
+    lines.push('Inspect the project and produce a review-gated config update proposal for bespoke FR/TBT obligations that remain after the supplied project catalog and reviewed blueprint alignment are considered. This is a scope-authoring step only; it must not claim evidence, generate tests, or mutate the accepted FR catalog directly.');
+    lines.push('');
+    lines.push('Context:');
+    lines.push('- Project: ' + project);
+    lines.push('- Scan run: ' + runId);
+    lines.push('- Source repository: ' + sourceRepo);
+    lines.push('- Report directory: ' + reportDir);
+    lines.push('- Reviewed FR catalog: ' + reviewedFrCatalog);
+    lines.push('- Blueprint proposal: ' + sourceRepo + '/blueprint-proposal.json');
+    lines.push('- Blueprint decisions: ' + sourceRepo + '/blueprint-decisions.json');
+    lines.push('- Output proposal path: ' + sourceRepo + '/project-specific-fr-proposal.json');
+    lines.push('- Output review brief path: ' + sourceRepo + '/project-specific-fr-review.md');
+    lines.push('- Source mount for later terminal commands: ' + sourceMount);
+    lines.push('');
+    lines.push('Reviewed blueprint decision log:');
+    lines.push(JSON.stringify(decisionLog, null, 2));
+    lines.push('');
+    lines.push('Accepted/tailored blueprint alignment to avoid duplicating or weakening:');
+    lines.push(JSON.stringify(acceptedBlueprintDetails, null, 2));
+    lines.push('');
+    lines.push('Rejected/not-applicable blueprint decisions:');
+    lines.push(JSON.stringify(rejectedBlueprintDetails, null, 2));
+    lines.push('');
+    lines.push('Current Project FR board state:');
+    lines.push(JSON.stringify(currentBoardStateDocument(), null, 2));
+    lines.push('');
+    lines.push('Rules:');
+    lines.push('1. Do not overwrite or silently replace supplied catalog FRs/TBTs. To standardise, extend, or deprecate them, emit explicit review-gated fr_catalog_updates.');
+    lines.push('2. Treat accepted/tailored blueprint entries as reusable alignment already under review; do not duplicate their generic security FR/TBT obligations.');
+    lines.push('3. A supplied project FR with no blueprint lineage may be proposed for blueprint alignment only if source behaviour and accepted blueprint clearly match. Otherwise leave it as project-specific.');
+    lines.push('4. Propose new bespoke project-specific FRs only for observable product, domain, workflow, governance, audit, safety, or above-standard behaviours absent from the supplied catalog and accepted blueprints.');
+    lines.push('5. Do not invent product endpoints, roles, data shapes, business rules, or compliance obligations. Inspect source, docs, routes, controllers, tests, configuration, and existing scan/report artifacts.');
+    lines.push('6. If a candidate behaviour is already covered by an accepted/tailored blueprint, reference that blueprint and do not create a duplicate FR.');
+    lines.push('7. If a behaviour appears important but unsupported by source evidence, add it to review_required rather than creating a confident FR.');
+    lines.push('8. Keep project FR IDs separate from blueprint IDs. New project FR ids should use the next available project namespace; new TBT ids must prove one or more project FRs.');
+    lines.push('9. Each proposed TBT must state expected evidence, test type, and how future evidence will carry the TBT id. Include proposed_fields.compliance as an array: use direct compliance row mappings when known, or [] for project-specific TBTs with no direct compliance row yet.');
+    lines.push('10. Preserve provenance through source_basis entries pointing at inspected source files, routes, docs, board cards, blueprint decisions, catalog entries, or report artifacts.');
+    lines.push('11. Do not mark generated scope as accepted. Emit a review-gated config-update proposal only.');
+    lines.push('');
+    lines.push('Expected output:');
+    lines.push('- Return exactly one JSON document matching config-update-proposal.schema.json, then save the same JSON to disk.');
+    lines.push('- Use fr_catalog_updates for add_fr/add_tbt/update_fr/update_tbt/deprecate_fr/deprecate_tbt operations only where review is needed.');
+    lines.push('- Include review_required entries for uncertain project-specific behaviours, missing source evidence, unclear blueprint overlap, or supplied catalog entries that need human interpretation.');
+    lines.push('- Save the same JSON to: ' + sourceRepo + '/project-specific-fr-proposal.json');
+    lines.push('- Save a short review brief to: ' + sourceRepo + '/project-specific-fr-review.md');
+    lines.push('');
+    lines.push('Starter proposal shape:');
+    lines.push(JSON.stringify(draftProposal, null, 2));
+    lines.push('');
+    lines.push('After the agent creates project-specific-fr-proposal.json, return to the dashboard Instructions page and run Step 4 to validate, review, and apply the selected updates.');
+    return lines.join('\n');
+  }
+  function openProjectSpecificFrPrompt() {
+    if (!promptDrawer || !promptDrawerBody) return;
+    closeContext();
+    const text = projectSpecificFrPrompt();
+    promptDrawer.dataset.copyText = text;
+    promptDrawerBody.textContent = text;
+    if (promptDrawerTitle) promptDrawerTitle.textContent = 'Agent Prompt: Project-Specific FR/TBT Gaps';
+    if (promptDrawerScope) promptDrawerScope.textContent = 'Paste this into a coding agent, not a terminal. It finds bespoke obligations after supplied catalog and blueprint alignment are considered.';
+    if (promptDrawerWarning) {
+      promptDrawerWarning.hidden = false;
+      promptDrawerWarning.textContent = 'Agent prompt only. Do not run in bash. After the agent writes project-specific-fr-proposal.json, run Instructions Step 4.';
+    }
+    if (promptDrawerCopy) promptDrawerCopy.textContent = 'Copy agent prompt';
+    promptDrawer.hidden = false;
   }
   function emptyLaneMessage(laneId, title) {
     const messages = {
@@ -2532,7 +3670,7 @@ function setupReviewBoard() {
       promptDrawer.hidden = false;
       return;
     }
-    if (mode === 'reviewMappingBrief') {
+    if (mode === 'reviewMappingBrief' || mode === 'reviewDispositionBrief') {
       delete promptDrawer.dataset.copyText;
       promptDrawerBody.textContent = reviewBriefForLane(laneId, scopedItems);
       if (promptDrawerTitle) promptDrawerTitle.textContent = title + ' Review';
@@ -2575,10 +3713,10 @@ function setupReviewBoard() {
     return [
       'docker run --rm -i \\',
       '  -v /var/run/docker.sock:/var/run/docker.sock \\',
-      '  -v ' + shellQuote('/Users/jd/Development/asvs-scanner') + ':' + shellQuote('/opt/asvs-scanner') + ' \\',
+      '  -v ' + shellQuote('/Users/jd/Development/assurance-scan') + ':' + shellQuote('/opt/assurance-scan') + ' \\',
       '  -v ' + shellQuote(sourceMount) + ':' + shellQuote(sourceMount) + ' \\',
       '  -w ' + shellQuote(sourceRepo) + ' \\',
-      '  asvs-scanner:local update-project-fr-board-state ' + shellQuote(reportDir) + ' \\',
+      '  assurance-scan:local update-project-fr-board-state ' + shellQuote(reportDir) + ' \\',
       '  --state-json - \\',
       '  --strict \\',
       "  --refresh-dashboard <<'JSON'",
@@ -2624,6 +3762,12 @@ function setupReviewBoard() {
       openLanePrompt(btn.dataset.reviewLanePrompt || '', btn.dataset.reviewLaneAction || '');
     });
   });
+  if (projectSpecificFrPromptBtn) {
+    projectSpecificFrPromptBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      openProjectSpecificFrPrompt();
+    });
+  }
   if (saveBoardStateBtn) {
     saveBoardStateBtn.addEventListener('click', event => {
       event.stopPropagation();
@@ -2707,8 +3851,9 @@ function setupReviewBoard() {
       const laneMap = {
         accept_recommendation: 'specify',
         remap_as_orphan: 'map',
-        leave_unmapped: 'blocked',
-        mark_not_assurance_relevant: 'blocked',
+        leave_unmapped: 'recommended',
+        mark_not_assurance_relevant: 'reviewed_not_evidence',
+        mark_project_specific_only: 'bespoke_project_only',
         needs_new_tbt_fr: 'specify',
         approve_for_implementation: 'review',
         approve_to_run: 'import',
@@ -2744,6 +3889,8 @@ function setupReviewBoard() {
   applyStoredState();
   updateCommand();
 }
+setupBlueprintProposalReview();
+setupProjectSpecificFrReview();
 setupReviewBoard();
 function copyPrompt(bodyId, btn) {
   btn = btn || document.querySelector('.copy-btn');

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json",
   "title": "Shared Assurance Schema Definitions",
   "description": "Shared enum and reference definitions used by target assurance schemas.",
   "$defs": {
@@ -33,7 +33,7 @@
     },
     "evidence_result": {
       "type": "string",
-      "enum": ["passed", "failed", "partial", "missing", "manual_review", "waived", "compensating_control", "not_observed"]
+      "enum": ["passed", "failed", "execution_error", "partial", "missing", "manual_review", "waived", "compensating_control", "not_observed"]
     },
     "approval_status": {
       "type": "string",

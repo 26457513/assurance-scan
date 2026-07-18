@@ -12,7 +12,7 @@ SKIP_DIRS = {
     ".git",
     ".hg",
     ".svn",
-    ".asvs-scanner",
+    ".assurance-scan",
     "node_modules",
     "vendor",
     "dist",

@@ -1,23 +1,89 @@
 {
   "schema_version": 1,
   "project": "security-core-blueprints",
-  "generated_at": "2026-07-11T00:00:00Z",
+  "generated_at": "2026-07-13T00:00:00Z",
+  "blueprint_profile": {
+    "id": "security-core",
+    "version": "security-core-1.0.0",
+    "domain": "application-security",
+    "description": "Reusable security and assurance FR/TBT templates. This pack currently includes versioned mappings to OWASP ASVS 5.0.0 rows; other compliance mappings must be authored as additional versioned mapping packs rather than encoded in the blueprint IDs.",
+    "authority_rulesets": [
+      "ASVS"
+    ],
+    "applicability_tags": [
+      "web_app",
+      "api",
+      "authenticated_application",
+      "data_processing",
+      "file_handling",
+      "dependency_management",
+      "governance_metadata",
+      "auditability",
+      "agent_capabilities"
+    ],
+    "review_status": "accepted"
+  },
   "scope": {
     "ASVS": {
       "include_rows": [
+        "v5.0.0-1.1.2",
+        "v5.0.0-1.2.1",
+        "v5.0.0-1.2.2",
+        "v5.0.0-1.2.3",
+        "v5.0.0-2.1.1",
+        "v5.0.0-2.2.1",
+        "v5.0.0-2.2.2",
+        "v5.0.0-2.3.2",
+        "v5.0.0-3.3.1",
+        "v5.0.0-3.3.2",
+        "v5.0.0-3.3.4",
+        "v5.0.0-3.4.1",
+        "v5.0.0-3.4.3",
+        "v5.0.0-3.4.4",
+        "v5.0.0-5.1.1",
+        "v5.0.0-5.2.1",
+        "v5.0.0-5.2.2",
+        "v5.0.0-5.3.2",
+        "v5.0.0-5.4.3",
         "v5.0.0-7.1.1",
         "v5.0.0-7.2.1",
         "v5.0.0-7.2.4",
         "v5.0.0-7.3.1",
-        "v5.0.0-7.4.1"
+        "v5.0.0-7.4.1",
+        "v5.0.0-8.1.1",
+        "v5.0.0-8.2.1",
+        "v5.0.0-8.2.2",
+        "v5.0.0-8.3.1",
+        "v5.0.0-8.4.2",
+        "v5.0.0-9.1.1",
+        "v5.0.0-9.1.2",
+        "v5.0.0-9.2.1",
+        "v5.0.0-9.2.3",
+        "v5.0.0-11.1.1",
+        "v5.0.0-11.2.1",
+        "v5.0.0-11.3.2",
+        "v5.0.0-11.4.2",
+        "v5.0.0-11.5.1",
+        "v5.0.0-14.1.1",
+        "v5.0.0-14.2.1",
+        "v5.0.0-14.2.6",
+        "v5.0.0-14.2.7",
+        "v5.0.0-14.3.2",
+        "v5.0.0-15.1.1",
+        "v5.0.0-15.1.2",
+        "v5.0.0-15.2.1",
+        "v5.0.0-15.2.4",
+        "v5.0.0-16.1.1",
+        "v5.0.0-16.2.1",
+        "v5.0.0-16.3.1"
       ],
-      "reason": "Reusable session-management assurance blueprint."
+      "reason": "Reusable security-core assurance blueprint coverage for common application security obligations."
     }
   },
   "na_rows": [],
   "frs": [
     {
-      "id": "FR-BP-ASVS-SESSION-MANAGEMENT-001",
+      "id": "FR-BP-SEC-SESSION-MANAGEMENT-001",
       "title": "Session timeout and re-authentication",
       "lifecycle_status": "in_scope",
       "category": "authentication",
@@ -30,28 +96,806 @@
         }
       ],
       "satisfies": [
-        {"ruleset": "ASVS", "row": "v5.0.0-7.1.1"},
-        {"ruleset": "ASVS", "row": "v5.0.0-7.2.1"},
-        {"ruleset": "ASVS", "row": "v5.0.0-7.2.4"},
-        {"ruleset": "ASVS", "row": "v5.0.0-7.3.1"},
-        {"ruleset": "ASVS", "row": "v5.0.0-7.4.1"}
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.2.4"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.3.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.4.1"
+        }
       ],
+      "applicability": {
+        "applies_when": [
+          "web_app",
+          "authenticated_sessions",
+          "jwt",
+          "session_management"
+        ],
+        "project_profile_hints": [
+          "has_authentication",
+          "has_session_state"
+        ],
+        "inspection_hints": [
+          "authentication middleware",
+          "session store",
+          "token verifier",
+          "logout/session cleanup flow"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
       "metadata": {
         "blueprint_catalog": "security-core",
-        "blueprint_version": "asvs-5.0.0",
-        "applicability_tags": ["web_app", "authenticated_sessions", "jwt", "session_management"],
-        "project_profile_hints": ["has_authentication", "has_session_state"]
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "web_app",
+          "authenticated_sessions",
+          "jwt",
+          "session_management"
+        ],
+        "project_profile_hints": [
+          "has_authentication",
+          "has_session_state"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-OUTPUT-ENCODING-001",
+      "title": "Contextual output encoding and injection resistance",
+      "lifecycle_status": "in_scope",
+      "category": "validation_and_encoding",
+      "description": "The application must canonicalize input safely and apply context-appropriate output encoding for HTML, XML, URL, JavaScript, JSON, CSS, and HTTP response contexts.",
+      "assignments": [
+        {
+          "party": "app-security-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-1.1.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-1.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-1.2.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-1.2.3"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "web_app",
+          "api",
+          "output_encoding",
+          "injection_prevention"
+        ],
+        "project_profile_hints": [
+          "renders_untrusted_content",
+          "builds_urls",
+          "returns_json_or_html"
+        ],
+        "inspection_hints": [
+          "templating/rendering layer",
+          "response serializers",
+          "URL builders",
+          "API output handlers"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "web_app",
+          "api",
+          "output_encoding",
+          "injection_prevention"
+        ],
+        "project_profile_hints": [
+          "renders_untrusted_content",
+          "builds_urls",
+          "returns_json_or_html"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-INPUT-VALIDATION-001",
+      "title": "Trusted service-layer input validation and business rules",
+      "lifecycle_status": "in_scope",
+      "category": "validation_and_business_logic",
+      "description": "The application must document and enforce trusted service-layer validation for expected input formats, contextual consistency, and business logic limits.",
+      "assignments": [
+        {
+          "party": "app-security-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-2.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-2.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-2.2.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-2.3.2"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "web_app",
+          "api",
+          "input_validation",
+          "business_logic"
+        ],
+        "project_profile_hints": [
+          "accepts_user_input",
+          "has_business_workflows",
+          "has_server_validation"
+        ],
+        "inspection_hints": [
+          "request validators",
+          "DTO/schema validation",
+          "controller/service validation",
+          "business rule guards"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "web_app",
+          "api",
+          "input_validation",
+          "business_logic"
+        ],
+        "project_profile_hints": [
+          "accepts_user_input",
+          "has_business_workflows",
+          "has_server_validation"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-BROWSER-SECURITY-001",
+      "title": "Browser security headers and cookie protections",
+      "lifecycle_status": "in_scope",
+      "category": "browser_security",
+      "description": "The application must set secure cookie attributes and browser security response headers that constrain transport, content loading, content sniffing, and client-side exposure.",
+      "assignments": [
+        {
+          "party": "platform-security-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.3.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.3.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.3.4"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.4.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.4.3"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.4.4"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "web_app",
+          "browser",
+          "cookies",
+          "security_headers"
+        ],
+        "project_profile_hints": [
+          "serves_browser_clients",
+          "sets_cookies",
+          "returns_http_responses"
+        ],
+        "inspection_hints": [
+          "HTTP middleware",
+          "reverse proxy configuration",
+          "cookie writer",
+          "security header configuration"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "web_app",
+          "browser",
+          "cookies",
+          "security_headers"
+        ],
+        "project_profile_hints": [
+          "serves_browser_clients",
+          "sets_cookies",
+          "returns_http_responses"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-FILE-HANDLING-001",
+      "title": "Safe file upload, storage and download handling",
+      "lifecycle_status": "in_scope",
+      "category": "file_handling",
+      "description": "The application must constrain uploaded files by documented type and size, use safe server-side file names and paths, and scan untrusted files before serving them back to users.",
+      "assignments": [
+        {
+          "party": "document-platform-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.2.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.3.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.4.3"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "file_upload",
+          "document_processing",
+          "content_storage"
+        ],
+        "project_profile_hints": [
+          "accepts_file_uploads",
+          "processes_documents",
+          "stores_user_files"
+        ],
+        "inspection_hints": [
+          "upload endpoints",
+          "file validators",
+          "storage adapters",
+          "download handlers",
+          "malware scanning integration"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "file_upload",
+          "document_processing",
+          "content_storage"
+        ],
+        "project_profile_hints": [
+          "accepts_file_uploads",
+          "processes_documents",
+          "stores_user_files"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-AUTHORIZATION-001",
+      "title": "Function and data authorization at trusted service boundaries",
+      "lifecycle_status": "in_scope",
+      "category": "authorization",
+      "description": "The application must document and enforce function-level, data-specific, and administrative authorization rules at a trusted service layer.",
+      "assignments": [
+        {
+          "party": "auth-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.2.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.3.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.4.2"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "authorization",
+          "access_control",
+          "roles",
+          "permissions",
+          "admin"
+        ],
+        "project_profile_hints": [
+          "has_roles",
+          "has_permissions",
+          "has_admin_functions",
+          "has_multi_user_data"
+        ],
+        "inspection_hints": [
+          "route guards",
+          "policy engine",
+          "role checks",
+          "object ownership checks",
+          "admin interfaces"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "authorization",
+          "access_control",
+          "roles",
+          "permissions",
+          "admin"
+        ],
+        "project_profile_hints": [
+          "has_roles",
+          "has_permissions",
+          "has_admin_functions",
+          "has_multi_user_data"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-TOKEN-INTEGRITY-001",
+      "title": "Self-contained token integrity and audience validation",
+      "lifecycle_status": "in_scope",
+      "category": "tokens",
+      "description": "The application must validate self-contained token signatures, allowed algorithms, token validity windows, and intended audience before accepting token claims.",
+      "assignments": [
+        {
+          "party": "auth-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-9.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-9.1.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-9.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-9.2.3"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "jwt",
+          "tokens",
+          "api_authentication"
+        ],
+        "project_profile_hints": [
+          "uses_jwt",
+          "uses_self_contained_tokens",
+          "has_api_authentication"
+        ],
+        "inspection_hints": [
+          "token verifier",
+          "JWT middleware",
+          "issuer/audience configuration",
+          "algorithm allowlist"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "jwt",
+          "tokens",
+          "api_authentication"
+        ],
+        "project_profile_hints": [
+          "uses_jwt",
+          "uses_self_contained_tokens",
+          "has_api_authentication"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-DATA-PROTECTION-001",
+      "title": "Sensitive data classification, minimization and retention",
+      "lifecycle_status": "in_scope",
+      "category": "data_protection",
+      "description": "The application must identify sensitive data, avoid leaking it through URLs or excessive responses, apply retention controls, and use anti-cache controls where sensitive data is returned.",
+      "assignments": [
+        {
+          "party": "data-security-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.2.6"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.2.7"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.3.2"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "sensitive_data",
+          "privacy",
+          "data_minimization",
+          "retention"
+        ],
+        "project_profile_hints": [
+          "handles_sensitive_data",
+          "handles_personal_data",
+          "returns_user_data"
+        ],
+        "inspection_hints": [
+          "data model",
+          "API responses",
+          "logging and cache configuration",
+          "retention jobs",
+          "privacy documentation"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "sensitive_data",
+          "privacy",
+          "data_minimization",
+          "retention"
+        ],
+        "project_profile_hints": [
+          "handles_sensitive_data",
+          "handles_personal_data",
+          "returns_user_data"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-DEPENDENCY-SECURITY-001",
+      "title": "Dependency inventory and vulnerability remediation",
+      "lifecycle_status": "in_scope",
+      "category": "secure_coding",
+      "description": "The application must maintain an SBOM or dependency inventory and keep third-party components within documented risk-based remediation timeframes.",
+      "assignments": [
+        {
+          "party": "platform-security-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-15.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-15.1.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-15.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-15.2.4"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "dependencies",
+          "sbom",
+          "supply_chain",
+          "vulnerability_management"
+        ],
+        "project_profile_hints": [
+          "uses_third_party_dependencies",
+          "builds_container_images",
+          "has_package_manifests"
+        ],
+        "inspection_hints": [
+          "package manifests",
+          "SBOM output",
+          "dependency scanner output",
+          "remediation policy"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "dependencies",
+          "sbom",
+          "supply_chain",
+          "vulnerability_management"
+        ],
+        "project_profile_hints": [
+          "uses_third_party_dependencies",
+          "builds_container_images",
+          "has_package_manifests"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-CRYPTOGRAPHY-001",
+      "title": "Approved cryptography, key lifecycle and random values",
+      "lifecycle_status": "in_scope",
+      "category": "cryptography",
+      "description": "The application must maintain cryptographic inventory and use approved cryptographic implementations, algorithms, password hashing, and non-guessable random values.",
+      "assignments": [
+        {
+          "party": "platform-security-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.3.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.4.2"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.5.1"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "cryptography",
+          "keys",
+          "password_hashing",
+          "randomness"
+        ],
+        "project_profile_hints": [
+          "uses_encryption",
+          "stores_passwords",
+          "generates_tokens",
+          "uses_crypto_libraries"
+        ],
+        "inspection_hints": [
+          "crypto inventory",
+          "password hashing code",
+          "random value generation",
+          "key management configuration"
+        ],
+        "notes": "Blueprint applicability must be reviewed against the project SOW/design and implementation before adoption."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "cryptography",
+          "keys",
+          "password_hashing",
+          "randomness"
+        ],
+        "project_profile_hints": [
+          "uses_encryption",
+          "stores_passwords",
+          "generates_tokens",
+          "uses_crypto_libraries"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "FR-BP-SEC-GOVERNED-OPERATIONS-001",
+      "title": "Governed service operation metadata",
+      "lifecycle_status": "in_scope",
+      "category": "governance_metadata",
+      "description": "Security-relevant service operations must declare governance metadata that supports auditability, clearance requirements, and permitted agent capabilities.",
+      "assignments": [
+        {
+          "party": "platform-security-team",
+          "responsibility": "owner",
+          "source": "security-core-blueprint"
+        }
+      ],
+      "satisfies": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-16.1.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-16.2.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-16.3.1"
+        }
+      ],
+      "applicability": {
+        "applies_when": [
+          "governed_service_operations",
+          "agentic_workflows",
+          "service_governance_metadata"
+        ],
+        "project_profile_hints": [
+          "uses_governed_services",
+          "uses_agent_tools",
+          "requires_auditable_service_operations"
+        ],
+        "inspection_hints": [
+          "service method decorators or metadata",
+          "audit event declarations",
+          "clearance metadata",
+          "allowed agent capability metadata"
+        ],
+        "notes": "This blueprint proves metadata declaration only. It must not be used as runtime authorization allow/deny enforcement evidence."
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "applicability_tags": [
+          "governance_metadata",
+          "auditability",
+          "agent_capabilities",
+          "governed_service_operations"
+        ],
+        "project_profile_hints": [
+          "uses_governed_services",
+          "uses_agent_tools",
+          "requires_auditable_service_operations"
+        ],
+        "mapped_rulesets": [
+          "ASVS v5.0.0",
+          "NIST-800-53 v5.2.0"
+        ],
+        "proof_boundary": "metadata_presence_not_runtime_authorization_enforcement"
       }
     }
   ],
   "tbts": [
     {
-      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-A",
+      "id": "TBT-BP-SEC-SESSION-MANAGEMENT-001-A",
       "title": "Expired session credential rejection",
       "type": "integration",
       "lifecycle_status": "planned",
-      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
-      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.1.1"}],
+      "proves": [
+        "FR-BP-SEC-SESSION-MANAGEMENT-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.1.1"
+        }
+      ],
       "evidence_policy": "automated_required",
       "expected_evidence": [
         {
@@ -59,18 +903,60 @@
           "format": "junit",
           "required": true,
           "strength": "strong",
-          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-A"]}
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-SESSION-MANAGEMENT-001-A"
+            ]
+          }
         }
       ],
-      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Session Management Documentation",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that the user's session inactivity timeout and absolute maximum session lifetime are documented, are appropriate in combination with other controls, and that the documentation includes justification for any deviations from NIST SP 800-63B re-authentication requirements.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
     },
     {
-      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-B",
+      "id": "TBT-BP-SEC-SESSION-MANAGEMENT-001-B",
       "title": "Inactivity timeout enforcement",
       "type": "integration",
       "lifecycle_status": "planned",
-      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
-      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.2.1"}],
+      "proves": [
+        "FR-BP-SEC-SESSION-MANAGEMENT-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.2.1"
+        }
+      ],
       "evidence_policy": "automated_required",
       "expected_evidence": [
         {
@@ -78,18 +964,60 @@
           "format": "junit",
           "required": true,
           "strength": "strong",
-          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-B"]}
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-SESSION-MANAGEMENT-001-B"
+            ]
+          }
         }
       ],
-      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Fundamental Session Management Security",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application performs all session token verification using a trusted, backend service.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
     },
     {
-      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-C",
+      "id": "TBT-BP-SEC-SESSION-MANAGEMENT-001-C",
       "title": "Re-authentication after session expiry",
       "type": "integration",
       "lifecycle_status": "planned",
-      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
-      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.2.4"}],
+      "proves": [
+        "FR-BP-SEC-SESSION-MANAGEMENT-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.2.4"
+        }
+      ],
       "evidence_policy": "automated_required",
       "expected_evidence": [
         {
@@ -97,18 +1025,60 @@
           "format": "junit",
           "required": true,
           "strength": "strong",
-          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-C"]}
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-SESSION-MANAGEMENT-001-C"
+            ]
+          }
         }
       ],
-      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Fundamental Session Management Security",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application generates a new session token on user authentication, including re-authentication, and terminates the current session token.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
     },
     {
-      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-D",
+      "id": "TBT-BP-SEC-SESSION-MANAGEMENT-001-D",
       "title": "Session activity and stale timestamp handling",
       "type": "integration",
       "lifecycle_status": "planned",
-      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
-      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.3.1"}],
+      "proves": [
+        "FR-BP-SEC-SESSION-MANAGEMENT-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.3.1"
+        }
+      ],
       "evidence_policy": "automated_required",
       "expected_evidence": [
         {
@@ -116,18 +1086,60 @@
           "format": "junit",
           "required": true,
           "strength": "strong",
-          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-D"]}
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-SESSION-MANAGEMENT-001-D"
+            ]
+          }
         }
       ],
-      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Session Timeout",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that there is an inactivity timeout such that re-authentication is enforced according to risk analysis and documented security decisions.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
     },
     {
-      "id": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-E",
+      "id": "TBT-BP-SEC-SESSION-MANAGEMENT-001-E",
       "title": "Expired or empty session cleanup and denial",
       "type": "integration",
       "lifecycle_status": "planned",
-      "proves": ["FR-BP-ASVS-SESSION-MANAGEMENT-001"],
-      "compliance": [{"ruleset": "ASVS", "row": "v5.0.0-7.4.1"}],
+      "proves": [
+        "FR-BP-SEC-SESSION-MANAGEMENT-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-7.4.1"
+        }
+      ],
       "evidence_policy": "automated_required",
       "expected_evidence": [
         {
@@ -135,10 +1147,2777 @@
           "format": "junit",
           "required": true,
           "strength": "strong",
-          "match": {"tags": ["TBT-BP-ASVS-SESSION-MANAGEMENT-001-E"]}
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-SESSION-MANAGEMENT-001-E"
+            ]
+          }
         }
       ],
-      "metadata": {"blueprint_catalog": "security-core", "blueprint_version": "asvs-5.0.0"}
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Session Termination",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that when session termination is triggered (such as logout or expiration), the application disallows any further use of the session. For reference tokens or stateful sessions, this means invalidating the session data at the application backend. Applications using self-contained tokens will need a solution such as maintaining a list of terminated tokens, disallowing tokens produced before a per-user date and time or rotating a per-user signing key.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-OUTPUT-ENCODING-001-A",
+      "title": "Output encoding occurs at the final interpreter boundary",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-OUTPUT-ENCODING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-1.1.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-OUTPUT-ENCODING-001-A"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Encoding and Sanitization Architecture",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that the application performs output encoding and escaping either as a final step before being used by the interpreter for which it is intended or by the interpreter itself.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-OUTPUT-ENCODING-001-B",
+      "title": "HTML/XML/HTTP response output encoding",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-OUTPUT-ENCODING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-1.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-OUTPUT-ENCODING-001-B"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Injection Prevention",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that output encoding for an HTTP response, HTML document, or XML document is relevant for the context required, such as encoding the relevant characters for HTML elements, HTML attributes, HTML comments, CSS, or HTTP header fields, to avoid changing the message or document structure.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-OUTPUT-ENCODING-001-C",
+      "title": "Safe dynamic URL construction",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-OUTPUT-ENCODING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-1.2.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-OUTPUT-ENCODING-001-C"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Injection Prevention",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that when dynamically building URLs, untrusted data is encoded according to its context (e.g., URL encoding or base64url encoding for query or path parameters). Ensure that only safe URL protocols are permitted (e.g., disallow javascript: or data:).",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-OUTPUT-ENCODING-001-D",
+      "title": "JavaScript and JSON injection prevention",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-OUTPUT-ENCODING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-1.2.3"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-OUTPUT-ENCODING-001-D"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Injection Prevention",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that output encoding or escaping is used when dynamically building JavaScript content (including JSON), to avoid changing the message or document structure (to avoid JavaScript and JSON injection).",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-INPUT-VALIDATION-001-A",
+      "title": "Documented data item validation rules",
+      "type": "document_review",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-INPUT-VALIDATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-2.1.1"
+        }
+      ],
+      "evidence_policy": "manual_decision",
+      "expected_evidence": [
+        {
+          "type": "document",
+          "format": "review_note",
+          "required": true,
+          "strength": "manual_review",
+          "match": {
+            "tags": [
+              "document-review"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Confirm the required project documentation exists and is review-approved.",
+        "harness_hints": [
+          "Review SOW/design/security documentation and record approval evidence."
+        ],
+        "inputs": [
+          "project design document",
+          "security policy or SOW section"
+        ],
+        "expected_observations": [
+          "Documentation explicitly covers the control expectation."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "reviewed project documentation"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Validation and Business Logic Documentation",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application's documentation defines input validation rules for how to check the validity of data items against an expected structure. This could be common data formats such as credit card numbers, email addresses, telephone numbers, or it could be an internal data format.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-INPUT-VALIDATION-001-B",
+      "title": "Positive or bounded input validation",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-INPUT-VALIDATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-2.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-INPUT-VALIDATION-001-B"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Input Validation",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that input is validated to enforce business or functional expectations for that input. This should either use positive validation against an allow list of values, patterns, and ranges, or be based on comparing the input to an expected structure and logical limits according to predefined rules. For L1, this can focus on input which is used to make specific business or security decisions. For L2 and up, this should apply to all input.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-INPUT-VALIDATION-001-C",
+      "title": "Trusted service-layer validation enforcement",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-INPUT-VALIDATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-2.2.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-INPUT-VALIDATION-001-C"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Input Validation",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application is designed to enforce input validation at a trusted service layer. While client-side validation improves usability and should be encouraged, it must not be relied upon as a security control.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-INPUT-VALIDATION-001-D",
+      "title": "Business logic limits enforced",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-INPUT-VALIDATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-2.3.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-INPUT-VALIDATION-001-D"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Business Logic Security",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that business logic limits are implemented per the application's documentation to avoid business logic flaws being exploited.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-BROWSER-SECURITY-001-A",
+      "title": "Secure cookie attribute or secure cookie prefix",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-BROWSER-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.3.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-BROWSER-SECURITY-001-A"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Cookie Setup",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that cookies have the 'Secure' attribute set, and if the '\\__Host-' prefix is not used for the cookie name, the '__Secure-' prefix must be used for the cookie name.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-BROWSER-SECURITY-001-B",
+      "title": "Purpose-appropriate SameSite cookie attribute",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-BROWSER-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.3.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-BROWSER-SECURITY-001-B"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Cookie Setup",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that each cookie's 'SameSite' attribute value is set according to the purpose of the cookie, to limit exposure to user interface redress attacks and browser-based request forgery attacks, commonly known as cross-site request forgery (CSRF).",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-BROWSER-SECURITY-001-C",
+      "title": "HttpOnly for cookies not meant for client scripts",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-BROWSER-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.3.4"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-BROWSER-SECURITY-001-C"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Cookie Setup",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that if the value of a cookie is not meant to be accessible to client-side scripts (such as a session token), the cookie must have the 'HttpOnly' attribute set and the same value (e. g. session token) must only be transferred to the client via the 'Set-Cookie' header field.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-BROWSER-SECURITY-001-D",
+      "title": "Strict Transport Security header",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-BROWSER-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.4.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "scanner_mapping",
+          "required": true,
+          "strength": "supporting",
+          "match": {
+            "tags": [
+              "scanner-mapped-compliance"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Use mapped scanner evidence as supporting evidence and add project-specific tests if the scanner signal is not sufficient.",
+        "harness_hints": [
+          "Inspect scanner mapping pack and finding provenance."
+        ],
+        "inputs": [
+          "scanner result artifact",
+          "scanner compliance mapping pack"
+        ],
+        "expected_observations": [
+          "Mapped scanner result is present and traceable to the compliance row."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "scanner artifact",
+          "accepted scanner mapping"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Browser Security Mechanism Headers",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that a Strict-Transport-Security header field is included on all responses to enforce an HTTP Strict Transport Security (HSTS) policy. A maximum age of at least 1 year must be defined, and for L2 and up, the policy must apply to all subdomains as well.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-BROWSER-SECURITY-001-E",
+      "title": "Content Security Policy header",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-BROWSER-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.4.3"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "scanner_mapping",
+          "required": true,
+          "strength": "supporting",
+          "match": {
+            "tags": [
+              "scanner-mapped-compliance"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Use mapped scanner evidence as supporting evidence and add project-specific tests if the scanner signal is not sufficient.",
+        "harness_hints": [
+          "Inspect scanner mapping pack and finding provenance."
+        ],
+        "inputs": [
+          "scanner result artifact",
+          "scanner compliance mapping pack"
+        ],
+        "expected_observations": [
+          "Mapped scanner result is present and traceable to the compliance row."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "scanner artifact",
+          "accepted scanner mapping"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Browser Security Mechanism Headers",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that HTTP responses include a Content-Security-Policy response header field which defines directives to ensure the browser only loads and executes trusted content or resources, in order to limit execution of malicious JavaScript. As a minimum, a global policy must be used which includes the directives object-src 'none' and base-uri 'none' and defines either an allowlist or uses nonces or hashes. For an L3 application, a per-response policy with nonces or hashes must be defined.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-BROWSER-SECURITY-001-F",
+      "title": "X-Content-Type-Options nosniff header",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-BROWSER-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-3.4.4"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "scanner_mapping",
+          "required": true,
+          "strength": "supporting",
+          "match": {
+            "tags": [
+              "scanner-mapped-compliance"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Use mapped scanner evidence as supporting evidence and add project-specific tests if the scanner signal is not sufficient.",
+        "harness_hints": [
+          "Inspect scanner mapping pack and finding provenance."
+        ],
+        "inputs": [
+          "scanner result artifact",
+          "scanner compliance mapping pack"
+        ],
+        "expected_observations": [
+          "Mapped scanner result is present and traceable to the compliance row."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "scanner artifact",
+          "accepted scanner mapping"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Browser Security Mechanism Headers",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that all HTTP responses contain an 'X-Content-Type-Options: nosniff' header field. This instructs browsers not to use content sniffing and MIME type guessing for the given response, and to require the response's Content-Type header field value to match the destination resource. For example, the response to a request for a style is only accepted if the response's Content-Type is 'text/css'. This also enables the use of the Cross-Origin Read Blocking (CORB) functionality by the browser.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-FILE-HANDLING-001-A",
+      "title": "Permitted file types and limits documented",
+      "type": "document_review",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-FILE-HANDLING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.1.1"
+        }
+      ],
+      "evidence_policy": "manual_decision",
+      "expected_evidence": [
+        {
+          "type": "document",
+          "format": "review_note",
+          "required": true,
+          "strength": "manual_review",
+          "match": {
+            "tags": [
+              "document-review"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Confirm the required project documentation exists and is review-approved.",
+        "harness_hints": [
+          "Review SOW/design/security documentation and record approval evidence."
+        ],
+        "inputs": [
+          "project design document",
+          "security policy or SOW section"
+        ],
+        "expected_observations": [
+          "Documentation explicitly covers the control expectation."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "reviewed project documentation"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "File Handling Documentation",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that the documentation defines the permitted file types, expected file extensions, and maximum size (including unpacked size) for each upload feature. Additionally, ensure that the documentation specifies how files are made safe for end-users to download and process, such as how the application behaves when a malicious file is detected.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-FILE-HANDLING-001-B",
+      "title": "Maximum file size enforcement",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-FILE-HANDLING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-FILE-HANDLING-001-B"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "File Upload and Content",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application will only accept files of a size which it can process without causing a loss of performance or a denial of service attack.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-FILE-HANDLING-001-C",
+      "title": "Extension and content validation",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-FILE-HANDLING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.2.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-FILE-HANDLING-001-C"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "File Upload and Content",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that when the application accepts a file, either on its own or within an archive such as a zip file, it checks if the file extension matches an expected file extension and validates that the contents correspond to the type represented by the extension. This includes, but is not limited to, checking the initial 'magic bytes', performing image re-writing, and using specialized libraries for file content validation. For L1, this can focus just on files which are used to make specific business or security decisions. For L2 and up, this must apply to all files being accepted.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-FILE-HANDLING-001-D",
+      "title": "Internally generated or validated storage paths",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-FILE-HANDLING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.3.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-FILE-HANDLING-001-D"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "File Storage",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that when the application creates file paths for file operations, instead of user-submitted filenames, it uses internally generated or trusted data, or if user-submitted filenames or file metadata must be used, strict validation and sanitization must be applied. This is to protect against path traversal, local or remote file inclusion (LFI, RFI), and server-side request forgery (SSRF) attacks.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-FILE-HANDLING-001-E",
+      "title": "Antivirus scanning before serving untrusted files",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-FILE-HANDLING-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-5.4.3"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-FILE-HANDLING-001-E"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "File Download",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that files obtained from untrusted sources are scanned by antivirus scanners to prevent serving of known malicious content.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-AUTHORIZATION-001-A",
+      "title": "Function and data authorization rules documented",
+      "type": "document_review",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-AUTHORIZATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.1.1"
+        }
+      ],
+      "evidence_policy": "manual_decision",
+      "expected_evidence": [
+        {
+          "type": "document",
+          "format": "review_note",
+          "required": true,
+          "strength": "manual_review",
+          "match": {
+            "tags": [
+              "document-review"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Confirm the required project documentation exists and is review-approved.",
+        "harness_hints": [
+          "Review SOW/design/security documentation and record approval evidence."
+        ],
+        "inputs": [
+          "project design document",
+          "security policy or SOW section"
+        ],
+        "expected_observations": [
+          "Documentation explicitly covers the control expectation."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "reviewed project documentation"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Authorization Documentation",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that authorization documentation defines rules for restricting function-level and data-specific access based on consumer permissions and resource attributes.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-AUTHORIZATION-001-B",
+      "title": "Function-level explicit permission enforcement",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-AUTHORIZATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-AUTHORIZATION-001-B"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "General Authorization Design",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application ensures that function-level access is restricted to consumers with explicit permissions.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-AUTHORIZATION-001-C",
+      "title": "Data-specific explicit permission enforcement",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-AUTHORIZATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.2.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-AUTHORIZATION-001-C"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "General Authorization Design",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application ensures that data-specific access is restricted to consumers with explicit permissions to specific data items to mitigate insecure direct object reference (IDOR) and broken object level authorization (BOLA).",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-AUTHORIZATION-001-D",
+      "title": "Trusted service-layer authorization enforcement",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-AUTHORIZATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.3.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-AUTHORIZATION-001-D"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Operation Level Authorization",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application enforces authorization rules at a trusted service layer and doesn't rely on controls that an untrusted consumer could manipulate, such as client-side JavaScript.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-AUTHORIZATION-001-E",
+      "title": "Administrative interface layered security",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-AUTHORIZATION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-8.4.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-AUTHORIZATION-001-E"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Other Authorization Considerations",
+        "asvs_level": "L3",
+        "asvs_description": "Verify that access to administrative interfaces incorporates multiple layers of security, including continuous consumer identity verification, device security posture assessment, and contextual risk analysis, ensuring that network location or trusted endpoints are not the sole factors for authorization even though they may reduce the likelihood of unauthorized access.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-TOKEN-INTEGRITY-001-A",
+      "title": "Digital signature or MAC validation before accepting token claims",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-TOKEN-INTEGRITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-9.1.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-TOKEN-INTEGRITY-001-A"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Token source and integrity",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that self-contained tokens are validated using their digital signature or MAC to protect against tampering before accepting the token's contents.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-TOKEN-INTEGRITY-001-B",
+      "title": "Token algorithm allowlist enforcement",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-TOKEN-INTEGRITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-9.1.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-TOKEN-INTEGRITY-001-B"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Token source and integrity",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that only algorithms on an allowlist can be used to create and verify self-contained tokens, for a given context. The allowlist must include the permitted algorithms, ideally only either symmetric or asymmetric algorithms, and must not include the 'None' algorithm. If both symmetric and asymmetric must be supported, additional controls will be needed to prevent key confusion.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-TOKEN-INTEGRITY-001-C",
+      "title": "Token validity time span enforcement",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-TOKEN-INTEGRITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-9.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-TOKEN-INTEGRITY-001-C"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Token content",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that, if a validity time span is present in the token data, the token and its content are accepted only if the verification time is within this validity time span. For example, for JWTs, the claims 'nbf' and 'exp' must be verified.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-TOKEN-INTEGRITY-001-D",
+      "title": "Token audience validation",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-TOKEN-INTEGRITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-9.2.3"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-TOKEN-INTEGRITY-001-D"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Token content",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that the service only accepts tokens which are intended for use with that service (audience). For JWTs, this can be achieved by validating the 'aud' claim against an allowlist defined in the service.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DATA-PROTECTION-001-A",
+      "title": "Sensitive data inventory and classification",
+      "type": "document_review",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DATA-PROTECTION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.1.1"
+        }
+      ],
+      "evidence_policy": "manual_decision",
+      "expected_evidence": [
+        {
+          "type": "document",
+          "format": "review_note",
+          "required": true,
+          "strength": "manual_review",
+          "match": {
+            "tags": [
+              "document-review"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Confirm the required project documentation exists and is review-approved.",
+        "harness_hints": [
+          "Review SOW/design/security documentation and record approval evidence."
+        ],
+        "inputs": [
+          "project design document",
+          "security policy or SOW section"
+        ],
+        "expected_observations": [
+          "Documentation explicitly covers the control expectation."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "reviewed project documentation"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Data Protection Documentation",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that all sensitive data created and processed by the application has been identified and classified into protection levels. This includes data that is only encoded and therefore easily decoded, such as Base64 strings or the plaintext payload inside a JWT. Protection levels need to take into account any data protection and privacy regulations and standards which the application is required to comply with.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DATA-PROTECTION-001-B",
+      "title": "Sensitive data not exposed in URLs/query strings",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DATA-PROTECTION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-DATA-PROTECTION-001-B"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "General Data Protection",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that sensitive data is only sent to the server in the HTTP message body or header fields, and that the URL and query string do not contain sensitive information, such as an API key or session token.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DATA-PROTECTION-001-C",
+      "title": "Minimum required sensitive data returned",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DATA-PROTECTION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.2.6"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-DATA-PROTECTION-001-C"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "General Data Protection",
+        "asvs_level": "L3",
+        "asvs_description": "Verify that the application only returns the minimum required sensitive data for the application's functionality. For example, only returning some of the digits of a credit card number and not the full number. If the complete data is required, it should be masked in the user interface unless the user specifically views it.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DATA-PROTECTION-001-D",
+      "title": "Sensitive data retention and deletion controls",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DATA-PROTECTION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.2.7"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-DATA-PROTECTION-001-D"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "General Data Protection",
+        "asvs_level": "L3",
+        "asvs_description": "Verify that sensitive information is subject to data retention classification, ensuring that outdated or unnecessary data is deleted automatically, on a defined schedule, or as the situation requires.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DATA-PROTECTION-001-E",
+      "title": "Anti-cache headers for sensitive data",
+      "type": "integration",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DATA-PROTECTION-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-14.3.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-DATA-PROTECTION-001-E"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Client-side Data Protection",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that the application sets sufficient anti-caching HTTP response header fields (i.e., Cache-Control: no-store) so that sensitive data is not cached in browsers.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DEPENDENCY-SECURITY-001-A",
+      "title": "Risk-based third-party remediation timeframes documented",
+      "type": "document_review",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-15.1.1"
+        }
+      ],
+      "evidence_policy": "manual_decision",
+      "expected_evidence": [
+        {
+          "type": "document",
+          "format": "review_note",
+          "required": true,
+          "strength": "manual_review",
+          "match": {
+            "tags": [
+              "document-review"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Confirm the required project documentation exists and is review-approved.",
+        "harness_hints": [
+          "Review SOW/design/security documentation and record approval evidence."
+        ],
+        "inputs": [
+          "project design document",
+          "security policy or SOW section"
+        ],
+        "expected_observations": [
+          "Documentation explicitly covers the control expectation."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "reviewed project documentation"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Secure Coding and Architecture Documentation",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that application documentation defines risk based remediation time frames for 3rd party component versions with vulnerabilities and for updating libraries in general, to minimize the risk from these components.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DEPENDENCY-SECURITY-001-B",
+      "title": "Third-party component inventory or SBOM maintained",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-15.1.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "scanner_mapping",
+          "required": true,
+          "strength": "supporting",
+          "match": {
+            "tags": [
+              "scanner-mapped-compliance"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Use mapped scanner evidence as supporting evidence and add project-specific tests if the scanner signal is not sufficient.",
+        "harness_hints": [
+          "Inspect scanner mapping pack and finding provenance."
+        ],
+        "inputs": [
+          "scanner result artifact",
+          "scanner compliance mapping pack"
+        ],
+        "expected_observations": [
+          "Mapped scanner result is present and traceable to the compliance row."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "scanner artifact",
+          "accepted scanner mapping"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Secure Coding and Architecture Documentation",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that an inventory catalog, such as software bill of materials (SBOM), is maintained of all third-party libraries in use, including verifying that components come from pre-defined, trusted, and continually maintained repositories.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DEPENDENCY-SECURITY-001-C",
+      "title": "Components have not breached remediation timeframes",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-15.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "scanner_mapping",
+          "required": true,
+          "strength": "supporting",
+          "match": {
+            "tags": [
+              "scanner-mapped-compliance"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Use mapped scanner evidence as supporting evidence and add project-specific tests if the scanner signal is not sufficient.",
+        "harness_hints": [
+          "Inspect scanner mapping pack and finding provenance."
+        ],
+        "inputs": [
+          "scanner result artifact",
+          "scanner compliance mapping pack"
+        ],
+        "expected_observations": [
+          "Mapped scanner result is present and traceable to the compliance row."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "scanner artifact",
+          "accepted scanner mapping"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Security Architecture and Dependencies",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that the application only contains components which have not breached the documented update and remediation time frames.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-DEPENDENCY-SECURITY-001-D",
+      "title": "Dependencies come from expected repositories",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-DEPENDENCY-SECURITY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-15.2.4"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "scanner_mapping",
+          "required": true,
+          "strength": "supporting",
+          "match": {
+            "tags": [
+              "scanner-mapped-compliance"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Use mapped scanner evidence as supporting evidence and add project-specific tests if the scanner signal is not sufficient.",
+        "harness_hints": [
+          "Inspect scanner mapping pack and finding provenance."
+        ],
+        "inputs": [
+          "scanner result artifact",
+          "scanner compliance mapping pack"
+        ],
+        "expected_observations": [
+          "Mapped scanner result is present and traceable to the compliance row."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "scanner artifact",
+          "accepted scanner mapping"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Security Architecture and Dependencies",
+        "asvs_level": "L3",
+        "asvs_description": "Verify that third-party components and all of their transitive dependencies are included from the expected repository, whether internally owned or an external source, and that there is no risk of a dependency confusion attack.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-CRYPTOGRAPHY-001-A",
+      "title": "Cryptographic key lifecycle policy documented",
+      "type": "document_review",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-CRYPTOGRAPHY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.1.1"
+        }
+      ],
+      "evidence_policy": "manual_decision",
+      "expected_evidence": [
+        {
+          "type": "document",
+          "format": "review_note",
+          "required": true,
+          "strength": "manual_review",
+          "match": {
+            "tags": [
+              "document-review"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Confirm the required project documentation exists and is review-approved.",
+        "harness_hints": [
+          "Review SOW/design/security documentation and record approval evidence."
+        ],
+        "inputs": [
+          "project design document",
+          "security policy or SOW section"
+        ],
+        "expected_observations": [
+          "Documentation explicitly covers the control expectation."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "reviewed project documentation"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Cryptographic Inventory and Documentation",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that there is a documented policy for management of cryptographic keys and a cryptographic key lifecycle that follows a key management standard such as NIST SP 800-57. This should include ensuring that keys are not overshared (for example, with more than two entities for shared secrets and more than one entity for private keys).",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-CRYPTOGRAPHY-001-B",
+      "title": "Industry-validated cryptographic implementations",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-CRYPTOGRAPHY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "scanner_mapping",
+          "required": true,
+          "strength": "supporting",
+          "match": {
+            "tags": [
+              "scanner-mapped-compliance"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Use mapped scanner evidence as supporting evidence and add project-specific tests if the scanner signal is not sufficient.",
+        "harness_hints": [
+          "Inspect scanner mapping pack and finding provenance."
+        ],
+        "inputs": [
+          "scanner result artifact",
+          "scanner compliance mapping pack"
+        ],
+        "expected_observations": [
+          "Mapped scanner result is present and traceable to the compliance row."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "scanner artifact",
+          "accepted scanner mapping"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Secure Cryptography Implementation",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that industry-validated implementations (including libraries and hardware-accelerated implementations) are used for cryptographic operations.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-CRYPTOGRAPHY-001-C",
+      "title": "Approved ciphers and modes",
+      "type": "scanner",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-CRYPTOGRAPHY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.3.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "scanner_result",
+          "format": "scanner_mapping",
+          "required": true,
+          "strength": "supporting",
+          "match": {
+            "tags": [
+              "scanner-mapped-compliance"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "manual_review",
+        "intent": "Use mapped scanner evidence as supporting evidence and add project-specific tests if the scanner signal is not sufficient.",
+        "harness_hints": [
+          "Inspect scanner mapping pack and finding provenance."
+        ],
+        "inputs": [
+          "scanner result artifact",
+          "scanner compliance mapping pack"
+        ],
+        "expected_observations": [
+          "Mapped scanner result is present and traceable to the compliance row."
+        ],
+        "side_effects": [
+          "None"
+        ],
+        "blocked_without": [
+          "scanner artifact",
+          "accepted scanner mapping"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Encryption Algorithms",
+        "asvs_level": "L1",
+        "asvs_description": "Verify that only approved ciphers and modes such as AES with GCM are used.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-CRYPTOGRAPHY-001-D",
+      "title": "Approved password hashing function",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-CRYPTOGRAPHY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.4.2"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-CRYPTOGRAPHY-001-D"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Hashing and Hash-based Functions",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that passwords are stored using an approved, computationally intensive, key derivation function (also known as a \"password hashing function\"), with parameter settings configured based on current guidance. The settings should balance security and performance to make brute-force attacks sufficiently challenging for the required level of security.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-CRYPTOGRAPHY-001-E",
+      "title": "Cryptographically secure random values",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-CRYPTOGRAPHY-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-11.5.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-CRYPTOGRAPHY-001-E"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Generate a project-specific automated assurance test only after inspecting implementation and existing test patterns.",
+        "harness_hints": [
+          "Prefer existing project test runner and disposable fixtures."
+        ],
+        "inputs": [
+          "project source",
+          "existing test conventions",
+          "runtime configuration"
+        ],
+        "expected_observations": [
+          "Observable behavior proves the selected FR/TBT without modifying product behavior."
+        ],
+        "side_effects": [
+          "Test fixtures only; no production data changes."
+        ],
+        "blocked_without": [
+          "observable implementation behavior",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "asvs_title": "Random Values",
+        "asvs_level": "L2",
+        "asvs_description": "Verify that all random numbers and strings which are intended to be non-guessable must be generated using a cryptographically secure pseudo-random number generator (CSPRNG) and have at least 128 bits of entropy. Note that UUIDs do not respect this condition.",
+        "mapped_rulesets": [
+          "ASVS v5.0.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-GOVERNED-OPERATIONS-001-A",
+      "title": "Governed service methods declare audit event metadata",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-GOVERNED-OPERATIONS-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-16.3.1"
+        },
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-16.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-GOVERNED-OPERATIONS-001-A"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Governed service methods declare audit event metadata without asserting runtime authorization allow/deny enforcement.",
+        "harness_hints": [
+          "Prefer existing project test runner and metadata registry inspection.",
+          "Do not modify product behavior or production data."
+        ],
+        "inputs": [
+          "governed service method declarations",
+          "metadata/decorator registry",
+          "existing service tests"
+        ],
+        "expected_observations": [
+          "Every governed service operation under review declares at least one audit event identifier."
+        ],
+        "side_effects": [
+          "Read-only metadata inspection or disposable test fixtures only."
+        ],
+        "blocked_without": [
+          "observable governed service metadata model",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "governance_metadata_title": "Governed service methods declare audit event metadata",
+        "proof_boundary": "metadata_presence_not_runtime_authorization_enforcement",
+        "mapped_rulesets": [
+          "ASVS v5.0.0",
+          "NIST-800-53 v5.2.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-GOVERNED-OPERATIONS-001-B",
+      "title": "Governed service methods declare required clearance metadata",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-GOVERNED-OPERATIONS-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-16.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-GOVERNED-OPERATIONS-001-B"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Governed service methods declare required clearance metadata without asserting runtime authorization allow/deny enforcement.",
+        "harness_hints": [
+          "Prefer existing project test runner and metadata registry inspection.",
+          "Do not modify product behavior or production data."
+        ],
+        "inputs": [
+          "governed service method declarations",
+          "clearance metadata schema",
+          "existing service tests"
+        ],
+        "expected_observations": [
+          "Every governed service operation under review declares required clearance metadata."
+        ],
+        "side_effects": [
+          "Read-only metadata inspection or disposable test fixtures only."
+        ],
+        "blocked_without": [
+          "observable governed service metadata model",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "governance_metadata_title": "Governed service methods declare required clearance metadata",
+        "proof_boundary": "metadata_presence_not_runtime_authorization_enforcement",
+        "mapped_rulesets": [
+          "ASVS v5.0.0",
+          "NIST-800-53 v5.2.0"
+        ]
+      }
+    },
+    {
+      "id": "TBT-BP-SEC-GOVERNED-OPERATIONS-001-C",
+      "title": "Governed service methods declare allowed agent capability metadata",
+      "type": "unit",
+      "lifecycle_status": "planned",
+      "proves": [
+        "FR-BP-SEC-GOVERNED-OPERATIONS-001"
+      ],
+      "compliance": [
+        {
+          "ruleset": "ASVS",
+          "row": "v5.0.0-16.2.1"
+        }
+      ],
+      "evidence_policy": "automated_required",
+      "expected_evidence": [
+        {
+          "type": "test_result",
+          "format": "junit",
+          "required": true,
+          "strength": "strong",
+          "match": {
+            "tags": [
+              "TBT-BP-SEC-GOVERNED-OPERATIONS-001-C"
+            ]
+          }
+        }
+      ],
+      "test_template": {
+        "mode": "scaffold_after_source_inspection",
+        "intent": "Governed service methods declare allowed agent capability metadata without asserting runtime authorization allow/deny enforcement.",
+        "harness_hints": [
+          "Prefer existing project test runner and metadata registry inspection.",
+          "Do not modify product behavior or production data."
+        ],
+        "inputs": [
+          "governed service method declarations",
+          "agent capability metadata schema",
+          "existing service tests"
+        ],
+        "expected_observations": [
+          "Every governed service operation under review declares allowed agent capability metadata."
+        ],
+        "side_effects": [
+          "Read-only metadata inspection or disposable test fixtures only."
+        ],
+        "blocked_without": [
+          "observable governed service metadata model",
+          "safe test harness"
+        ]
+      },
+      "metadata": {
+        "blueprint_catalog": "security-core",
+        "blueprint_version": "security-core-1.0.0",
+        "governance_metadata_title": "Governed service methods declare allowed agent capability metadata",
+        "proof_boundary": "metadata_presence_not_runtime_authorization_enforcement",
+        "mapped_rulesets": [
+          "ASVS v5.0.0",
+          "NIST-800-53 v5.2.0"
+        ]
+      }
     }
   ]
 }

@@ -178,6 +178,9 @@ def _brief(proposal: dict[str, Any]) -> str:
             continue
         md.append(f"## {title}")
         md.append("")
+        if section == "native_test_mapping_updates":
+            md.append("Disposition guide: `leave_unmapped` means more review/context is needed; `mark_not_assurance_relevant` records an inspected test intentionally excluded from assurance evidence; `mark_project_specific_only` records a test that may support bespoke project FR/TBT work but is not reusable blueprint scope; `blocked` is reserved for missing evidence, source context, or reviewer input.")
+            md.append("")
         md.extend(_update_rows(section, updates))
         md.append("")
         for index, update in enumerate(updates, start=1):
@@ -190,7 +193,7 @@ def _brief(proposal: dict[str, Any]) -> str:
             md.append(f"- Confidence: `{_confidence(update)}`")
             md.append(f"- Review status: `{update.get('review_status', '')}`")
             if _is_applyable_update(section, update):
-                md.append(f"- Apply after approval: `asvs-scanner apply-config-update proposal.json --select {selector} --reviewed-by <name> ... --*-out <reviewed-file>`")
+                md.append(f"- Apply after approval: `assurance-scan apply-config-update proposal.json --select {selector} --reviewed-by <name> ... --*-out <reviewed-file>`")
             else:
                 md.append("- Apply after approval: manual/review-only in this version.")
             if update.get("limitations"):

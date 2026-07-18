@@ -6,7 +6,7 @@
   "generated_at": "2026-07-09T00:00:00Z",
   "source_commit": "abc123",
   "graph_builder": {
-    "name": "asvs-scanner.dashboard.graph",
+    "name": "assurance-scan.dashboard.graph",
     "version": 1,
     "vocabulary": "data/schemas/defs.schema.json"
   },

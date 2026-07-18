@@ -167,7 +167,7 @@ The test must not invent product behaviour. If the referenced source does not ex
 ## Implementation Notes
 
 - Preferred ASVS execution location after approval: `tests/asvs/{tbt.get('type', 'test')}/{tbt_id}.assurance.test.js`
-- Existing native tests should remain in their original locations; use `tests/asvs/` for ASVS-owned wrappers or new assurance tests.
+- Existing native tests should remain in their original locations; use `tests/asvs/` for assurance-owned wrappers or new assurance tests.
 - Keep the test isolated from the application source tree until it is reviewed.
 - If this cannot be automated safely, classify the TBT as `manual_evidence` and attach the manual artifact instead.
 """
@@ -236,7 +236,7 @@ def build_specs(report_dir: Path) -> dict[str, Any]:
         "Generated assurance specifications are design artifacts, not evidence.\n\n"
         "To convert one into executable evidence:\n\n"
         "1. Review the specification and referenced source files.\n"
-        "2. Implement only behaviour that already exists or is explicitly documented under `tests/asvs/` in the ASVS-owned execution surface.\n"
+        "2. Implement only behaviour that already exists or is explicitly documented under `tests/asvs/` in the assurance-owned execution surface.\n"
         "3. Keep the TBT identifier in the test file, test title and JUnit testcase name.\n"
         "4. Run the test in a disposable/containerized environment.\n"
         "5. Export JUnit XML and rerun the scanner with `--junit-xml <path>`.\n\n"

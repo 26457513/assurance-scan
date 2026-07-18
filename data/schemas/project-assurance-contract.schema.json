@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-assurance-contract.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/project-assurance-contract.schema.json",
   "title": "Project Assurance Contract Export",
   "description": "Derived export bundle that references canonical assurance artifacts produced from an approved planning contract.",
   "type": "object",
@@ -24,7 +24,7 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["fr_catalog", "compliance_mapping_pack", "scanner_compliance_mapping_pack", "assurance_framework", "assurance_instance", "evidence_policy", "graph_manifest"]
+          "enum": ["fr_catalog", "compliance_regime", "compliance_mapping_pack", "blueprint_compliance_mapping_pack", "scanner_compliance_mapping_pack", "assurance_framework", "assurance_instance", "evidence_policy", "graph_manifest"]
         },
         "path": {"type": "string", "minLength": 1},
         "sha256": {"type": "string"}

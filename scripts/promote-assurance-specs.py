@@ -21,6 +21,17 @@ from artifact_hashing import file_sha256, write_hash_sidecar
 DEFAULT_TBTS = ["TBT-018", "TBT-019", "TBT-021"]
 
 
+DEFAULT_TEST_ADAPTER = {
+    "language": "javascript",
+    "framework": "jest",
+    "container_image": "node:20",
+    "result_format": "junit",
+    "command_template": "{runner} {config_flag} --runTestsByPath {test_file} --runInBand --no-cache",
+    "config_path": "tests/asvs/jest.config.js",
+    "detection_source": "default for promoted JavaScript assurance scaffolds",
+}
+
+
 def load_json(path: Path) -> dict[str, Any]:
     if path.exists() and path.stat().st_size > 0:
         return json.loads(path.read_text(errors="replace"))
@@ -266,6 +277,7 @@ def promote(report_dir: Path, selected_tbts: list[str]) -> dict[str, Any]:
     for item in promoted:
         existing_tests[item["pack_id"]] = item
     manifest["tests"] = [existing_tests[key] for key in sorted(existing_tests)]
+    manifest.setdefault("test_adapter", DEFAULT_TEST_ADAPTER)
     summary = manifest.setdefault("summary", {})
     summary["generated_scaffolds"] = len([
         item for item in manifest["tests"] if item.get("source") == "generated"

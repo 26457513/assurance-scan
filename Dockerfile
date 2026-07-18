@@ -15,19 +15,20 @@ RUN apk add --no-cache \
     sed \
     tar
 
-WORKDIR /opt/asvs-scanner
+WORKDIR /opt/assurance-scan
 
-LABEL org.opencontainers.image.source="https://github.com/jondowson/asvs-scanner" \
-      org.opencontainers.image.url="https://github.com/jondowson/asvs-scanner" \
-      org.opencontainers.image.documentation="https://github.com/jondowson/asvs-scanner/blob/main/README.md" \
-      org.opencontainers.image.title="asvs-scanner" \
+LABEL org.opencontainers.image.source="https://github.com/jondowson/assurance-scan" \
+      org.opencontainers.image.url="https://github.com/jondowson/assurance-scan" \
+      org.opencontainers.image.documentation="https://github.com/jondowson/assurance-scan/blob/main/README.md" \
+      org.opencontainers.image.title="assurance-scan" \
       org.opencontainers.image.description="Portable security scan and evidence bundle generator for application codebases, built around the OWASP Application Security Verification Standard."
 
-COPY . /opt/asvs-scanner
+COPY . /opt/assurance-scan
 
-RUN rm -rf /opt/asvs-scanner/reports /opt/asvs-scanner/scripts/__pycache__ \
-    && chmod +x /opt/asvs-scanner/run-local.sh /opt/asvs-scanner/scripts/*.sh /opt/asvs-scanner/bin/asvs-scanner \
-    && ln -s /opt/asvs-scanner/bin/asvs-scanner /usr/local/bin/asvs-scanner
+RUN rm -rf /opt/assurance-scan/reports /opt/assurance-scan/scripts/__pycache__ \
+    && chmod +x /opt/assurance-scan/run-local.sh /opt/assurance-scan/scripts/*.sh /opt/assurance-scan/bin/assurance-scan \
+    && ln -s /opt/assurance-scan/bin/assurance-scan /usr/local/bin/assurance-scan \
+    && git config --system --add safe.directory '*'
 
-ENTRYPOINT ["asvs-scanner"]
+ENTRYPOINT ["assurance-scan"]
 CMD ["help"]

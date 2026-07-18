@@ -3,11 +3,11 @@ set -euo pipefail
 
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-DEFAULT_IMAGE_BUNDLE_DIR="/opt/asvs-scanner"
+DEFAULT_IMAGE_BUNDLE_DIR="/opt/assurance-scan"
 if [ ! -d "$DEFAULT_IMAGE_BUNDLE_DIR" ]; then
   DEFAULT_IMAGE_BUNDLE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
-IMAGE_BUNDLE_DIR="${ASVS_IMAGE_BUNDLE_DIR:-$DEFAULT_IMAGE_BUNDLE_DIR}"
+IMAGE_BUNDLE_DIR="${ASSURANCE_SCAN_IMAGE_BUNDLE_DIR:-$DEFAULT_IMAGE_BUNDLE_DIR}"
 
 if [ -t 1 ] && [ "${NO_COLOR:-}" = "" ]; then
   C_RESET=$'\033[0m'
@@ -33,9 +33,9 @@ DIVIDER="───────────────────────�
 
 wrapper_banner() {
   printf '\n%s\n' "${C_CYAN}${C_BOLD}╭────────────────────────────────────────────╮${C_RESET}"
-  printf '%s\n' "${C_CYAN}${C_BOLD}│              ASVS Scanner                  │${C_RESET}"
+  printf '%s\n' "${C_CYAN}${C_BOLD}│              Assurance Scan                │${C_RESET}"
   printf '%s\n' "${C_CYAN}${C_BOLD}╰────────────────────────────────────────────╯${C_RESET}"
-  printf '%s\n\n' "${C_DIM}Application Security Verification Standard security scanner${C_RESET}"
+  printf '%s\n\n' "${C_DIM}Config-driven assurance scanner${C_RESET}"
 }
 
 wrapper_section() {
@@ -69,38 +69,40 @@ format_seconds() {
 
 usage() {
   cat <<'USAGE'
-ASVS Scanner
+Assurance Scan
 
 Usage:
-  asvs-scanner scan <host-project-dir> [--image <name>]... [--url <url>]... [--uploads <host-dir>]... [--fr-catalog <json>] [--compliance-mapping-pack <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--assurance-framework <json>] [--assurance-instance <json>] [--no-auto-build-images]
-  asvs-scanner validate-report <report-dir> [--strict]
-  asvs-scanner validate-scanner-compliance-mappings [path-or-dir]...
-  asvs-scanner propose-blueprint-frs --project <id> --blueprint <fr-catalog.json> --output <proposal.json> [--config-selection <json>] [--include-all]
-  asvs-scanner blueprint-decisions-to-config-update --project <id> --run-id <id> --proposal <json> --decisions <json> --blueprint <fr-catalog.json> --output <proposal.json>
-  asvs-scanner validate-config-update <proposal.json> [validator flags]
-  asvs-scanner review-config-update <proposal.json> [--output <review.md>]
-  asvs-scanner apply-config-update <proposal.json> --select <section:index> --reviewed-by <name> [apply flags]
-  asvs-scanner generate-missing-tests <report-dir>
-  asvs-scanner promote-assurance-specs <report-dir> [--tbt TBT-018]...
-  asvs-scanner run-approved-tests <report-dir> --tbt TBT-018 [--source-repo <dir>]
-  asvs-scanner refresh-approved-test-evidence <report-dir> [--junit-xml <file>]
-  asvs-scanner update-project-fr-board-state <report-dir> [--state-json <json> | --validate-only] [--refresh-dashboard]
-  asvs-scanner export-assurance-claim <report-dir> --claim-type <type> --target <id>
-  asvs-scanner verify-assurance-claim <claim.json> --report-dir <report-dir>
-  asvs-scanner export-assurance-proof-bundle <claim.json> --report-dir <report-dir>
-  asvs-scanner verify-assurance-proof-bundle <bundle.json> [--report-dir <report-dir>]
-  asvs-scanner safe-image-worktree <host-project-dir> [branch-name]
-  asvs-scanner prefetch [--only trivy,grype,osv,clamav]
-  asvs-scanner help
+  assurance-scan scan <host-project-dir> [--image <name>]... [--url <url>]... [--uploads <host-dir>]... [--fr-catalog <json>] [--compliance-mapping-pack <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--assurance-framework <json>] [--assurance-instance <json>] [--carry-forward-report <report-dir>] [--no-auto-build-images]
+  assurance-scan validate-report <report-dir> [--strict]
+  assurance-scan validate-scanner-compliance-mappings [path-or-dir]...
+  assurance-scan validate-blueprint-compliance-coverage --blueprint <fr-catalog.json> --mapping-pack <json>...
+  assurance-scan propose-blueprint-frs --project <id> --blueprint <fr-catalog.json> --output <proposal.json> [--config-selection <json>] [--include-all]
+  assurance-scan blueprint-decisions-to-config-update --project <id> --run-id <id> --proposal <json> --decisions <json> --blueprint <fr-catalog.json> --output <proposal.json>
+  assurance-scan apply-reviewed-scope --run-id <id> --fr-catalog <json> --fr-catalog-out <json> --reviewed-by <name> [--proposal <json>] [--decisions <json>] [--accept-all-blueprints]
+  assurance-scan validate-config-update <proposal.json> [validator flags]
+  assurance-scan review-config-update <proposal.json> [--output <review.md>]
+  assurance-scan apply-config-update <proposal.json> --select <section:index> --reviewed-by <name> [apply flags]
+  assurance-scan generate-missing-tests <report-dir>
+  assurance-scan promote-assurance-specs <report-dir> [--tbt TBT-018]...
+  assurance-scan run-approved-tests <report-dir> --tbt TBT-018 [--source-repo <dir>]
+  assurance-scan refresh-approved-test-evidence <report-dir> [--junit-xml <file>]
+  assurance-scan update-project-fr-board-state <report-dir> [--state-json <json> | --validate-only] [--refresh-dashboard]
+  assurance-scan export-assurance-claim <report-dir> --claim-type <type> --target <id>
+  assurance-scan verify-assurance-claim <claim.json> --report-dir <report-dir>
+  assurance-scan export-assurance-proof-bundle <claim.json> --report-dir <report-dir>
+  assurance-scan verify-assurance-proof-bundle <bundle.json> [--report-dir <report-dir>]
+  assurance-scan safe-image-worktree <host-project-dir> [branch-name]
+  assurance-scan prefetch [--only trivy,grype,osv,clamav]
+  assurance-scan help
 
 Docker image example:
   docker run --rm -it \
-    -e ASVS_IMAGE_BUILD_PARALLELISM=2 \
-    -e ASVS_PARALLELISM=4 \
+    -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \
+    -e ASSURANCE_SCAN_PARALLELISM=4 \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$(dirname "$PWD"):$(dirname "$PWD")" \
     -w "$PWD" \
-    asvs-scanner:latest scan "$PWD"
+    assurance-scan:latest scan "$PWD"
 
 Useful scan flags:
   --fr-catalog <json>             Project FR/TBT catalog for traceability
@@ -110,13 +112,17 @@ Useful scan flags:
   --assurance-framework <json>    Gate/role/criterion framework such as JSP-453
   --assurance-instance <json>     Project mappings, role assignments and decisions
   --junit-xml <file>              Existing test execution evidence to import
+  --carry-forward-report <dir>    Preserve report-local generated tests and Project FR board state from a previous report
 
 Config proposal workflow:
   validate-scanner-compliance-mappings
                                   Validate scanner rule/finding to compliance-row mapping packs
+  validate-blueprint-compliance-coverage
+                                  Validate blueprint FR/TBT coverage across blueprint-to-compliance mapping packs
   propose-blueprint-frs           Propose reusable blueprint FR/TBT chains for project review
   blueprint-decisions-to-config-update
                                   Convert accepted blueprint decisions to config-update proposal JSON
+  apply-reviewed-scope             One-command wrapper to apply reviewed blueprint scope into a reviewed FR catalog
   validate-config-update           Validate agent-authored config proposal JSON
   review-config-update             Render a human review brief for a proposal
   apply-config-update              Apply selected reviewed entries to explicit output files
@@ -133,21 +139,21 @@ Config proposal workflow:
   verify-assurance-proof-bundle    Verify a proof bundle and optional disclosed openings
 
 Mount the parent directory at the same absolute path inside the container. The
-scanner creates a fresh ASVS Git worktree beside the repo and scans that copy.
-Reports are written to the safe worktree under .asvs-scanner/runtime/reports.
+scanner creates a fresh assurance Git worktree beside the repo and scans that copy.
+Reports are written to the safe worktree under .assurance-scan/runtime/reports.
 
 When no --image flags are supplied, scan automatically builds images from
 Dockerfiles found in the safe worktree and scans those images too.
 Built scan images are tagged by source commit and reused on later scans of the
-same commit. Set ASVS_FORCE_IMAGE_BUILD=1 to rebuild them.
-Image builds run in parallel by default with ASVS_IMAGE_BUILD_PARALLELISM=2.
+same commit. Set ASSURANCE_SCAN_FORCE_IMAGE_BUILD=1 to rebuild them.
+Image builds run in parallel by default with ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2.
 
-Scanner containers run concurrently by default. Set ASVS_PARALLELISM=1 for
+Scanner containers run concurrently by default. Set ASSURANCE_SCAN_PARALLELISM=1 for
 sequential troubleshooting, or raise it on machines with more CPU/RAM.
 
 Scanner databases are cached in Docker named volumes and refresh at most once
-every 24 hours during normal scans. Set ASVS_DB_REFRESH_TTL_HOURS=0 to refresh
-every run, or run "asvs-scanner prefetch" to force a refresh.
+every 24 hours during normal scans. Set ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS=0 to refresh
+every run, or run "assurance-scan prefetch" to force a refresh.
 
 For repos that need temporary Dockerfile/build changes before image scanning,
 safe-image-worktree creates a separate Git worktree and branch without
@@ -168,13 +174,13 @@ to_abs_path() {
 }
 
 ensure_runtime() {
-  local runtime_dir="${ASVS_WORKDIR:-$PWD/.asvs-scanner/runtime}"
+  local runtime_dir="${ASSURANCE_SCAN_WORKDIR:-$PWD/.assurance-scan/runtime}"
   mkdir -p "$runtime_dir"
   (
     cd "$IMAGE_BUNDLE_DIR"
     tar \
       --exclude='./.git' \
-      --exclude='./.asvs-scanner' \
+      --exclude='./.assurance-scan' \
       --exclude='./reports' \
       --exclude='./scripts/__pycache__' \
       -cf - .
@@ -182,13 +188,13 @@ ensure_runtime() {
     cd "$runtime_dir"
     tar -xf -
   )
-  chmod +x "$runtime_dir/run-local.sh" "$runtime_dir"/scripts/*.sh "$runtime_dir"/bin/asvs-scanner 2>/dev/null || true
+  chmod +x "$runtime_dir/run-local.sh" "$runtime_dir"/scripts/*.sh "$runtime_dir"/bin/assurance-scan 2>/dev/null || true
   printf '%s\n' "$runtime_dir"
 }
 
 create_source_snapshot() {
   local worktree_dir="$1"
-  local snapshot_dir="$worktree_dir/.asvs-scanner/source-snapshot"
+  local snapshot_dir="$worktree_dir/.assurance-scan/source-snapshot"
   mkdir -p "$(dirname "$snapshot_dir")"
   rm -rf "$snapshot_dir"
   mkdir -p "$snapshot_dir"
@@ -196,7 +202,7 @@ create_source_snapshot() {
     cd "$worktree_dir"
     tar \
       --exclude='./.git' \
-      --exclude='./.asvs-scanner' \
+      --exclude='./.assurance-scan' \
       -cf - .
   ) | (
     cd "$snapshot_dir"
@@ -218,7 +224,7 @@ safe_image_worktree() {
   echo ""
   printf '%s\n' "${C_CYAN}${C_BOLD}Next command:${C_RESET}"
   printf '  cd "%s"\n' "$SAFE_WORKTREE_DIR"
-  printf '  docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock -v "$(dirname "$PWD"):$(dirname "$PWD")" -w "$PWD" asvs-scanner:latest scan "$PWD"\n'
+  printf '  docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock -v "$(dirname "$PWD"):$(dirname "$PWD")" -w "$PWD" assurance-scan:latest scan "$PWD"\n'
 }
 
 create_safe_worktree() {
@@ -227,6 +233,19 @@ create_safe_worktree() {
   local requested_branch="${3:-}"
 
   [ -d "$target_dir" ] || die "target directory is not visible: $target_dir"
+  local target_base
+  target_base="$(basename "$target_dir")"
+  case "$target_base" in
+    *-assurance-scan-*)
+      if [ -d "$target_dir/.assurance-scan/runtime" ]; then
+        die "target looks like a generated assurance-scan output folder, not the source project: $target_dir
+
+Run this from the original project folder instead. For example, first run:
+  cd /path/to/your/project
+Then copy the scan command from the dashboard Instructions page."
+      fi
+      ;;
+  esac
   git -C "$target_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "target is not a Git worktree: $target_dir"
 
   local repo_root
@@ -247,15 +266,15 @@ create_safe_worktree() {
   if [ -n "$requested_branch" ]; then
     branch="$requested_branch"
   elif [ "$scan_kind" = "image-scan" ]; then
-    branch="asvs/image-scan-$nonce"
+    branch="assurance/image-scan-$nonce"
   else
-    branch="asvs/scan-$nonce"
+    branch="assurance/scan-$nonce"
   fi
   worktree_parent="$(dirname "$repo_root")"
   if [ "$scan_kind" = "image-scan" ]; then
-    worktree_dir="${ASVS_IMAGE_WORKTREE_DIR:-$worktree_parent/${repo_name}-asvs-image-scan-$RUN_ID}"
+    worktree_dir="${ASSURANCE_SCAN_IMAGE_WORKTREE_DIR:-$worktree_parent/${repo_name}-assurance-image-scan-$RUN_ID}"
   else
-    worktree_dir="${ASVS_SCAN_WORKTREE_DIR:-$worktree_parent/${repo_name}-asvs-scan-$RUN_ID}"
+    worktree_dir="${ASSURANCE_SCAN_WORKTREE_DIR:-$worktree_parent/${repo_name}-assurance-scan-$RUN_ID}"
   fi
 
   [ ! -e "$worktree_dir" ] || die "worktree path already exists: $worktree_dir"
@@ -373,11 +392,73 @@ DOCKERFILE
   fi
 }
 
+append_injected_manifest() {
+  local manifest="$1" path="$2"
+  python3 - "$manifest" "$path" <<'PY' || true
+import json, pathlib, sys
+p, path = sys.argv[1], sys.argv[2]
+data = json.loads(pathlib.Path(p).read_text() or "[]")
+data.append({"path": path, "source": "gitignored_working_tree"})
+pathlib.Path(p).write_text(json.dumps(data, indent=2))
+PY
+}
+
+inject_gitignored_lockfiles() {
+  local worktree_dir="$1"
+  local repo_root="$2"
+  local dockerfiles_file="$3"
+
+  local lockfiles=("package-lock.json" "yarn.lock" "pnpm-lock.yaml")
+  local runtime_dir="$worktree_dir/.assurance-scan/runtime"
+  local manifest="$runtime_dir/injected-lockfiles.json"
+  mkdir -p "$runtime_dir"
+  printf '[]\n' > "$manifest"
+
+  [ "${ASSURANCE_SCAN_INJECT_LOCKFILES:-1}" = "1" ] || return 0
+
+  local dockerfile context rel source_ctx lockfile source_file injected=0
+  while IFS= read -r dockerfile; do
+    [ -n "$dockerfile" ] || continue
+    context="$(dirname "$dockerfile")"
+    if [ "$context" = "$worktree_dir" ]; then
+      rel=""
+      source_ctx="$repo_root"
+    else
+      rel="${context#$worktree_dir/}"
+      source_ctx="$repo_root/$rel"
+    fi
+    for lockfile in "${lockfiles[@]}"; do
+      source_file="$source_ctx/$lockfile"
+      [ -f "$source_file" ] || continue
+      [ -f "$context/$lockfile" ] && continue
+      git -C "$repo_root" check-ignore -q "$source_file" 2>/dev/null || continue
+      if cp "$source_file" "$context/$lockfile" \
+        && git -C "$worktree_dir" add -f "$context/$lockfile" 2>/dev/null; then
+        injected=$((injected + 1))
+        wrapper_info "injected" "${rel:+$rel/}$lockfile"
+        append_injected_manifest "$manifest" "${rel:+$rel/}$lockfile"
+      else
+        wrapper_warn "inject failed" "${rel:+$rel/}$lockfile"
+      fi
+    done
+  done < "$dockerfiles_file"
+
+  if [ "$injected" -gt 0 ]; then
+    if git -C "$worktree_dir" -c user.email=assurance-scan@local \
+        -c user.name="assurance-scan" commit -q \
+        -m "assurance-scan: inject gitignored lockfiles for image build"; then
+      wrapper_ok "lockfiles" "$injected injected"
+    else
+      wrapper_warn "lockfiles" "injected but commit failed"
+    fi
+  fi
+}
+
 auto_build_images() {
   local worktree_dir="$1"
   local repo_name="$2"
   local nonce="$3"
-  local build_root="$worktree_dir/.asvs-scanner"
+  local build_root="$worktree_dir/.assurance-scan"
   local build_log="$build_root/image-build.log"
   local jobs_dir="$build_root/image-build-jobs"
   local dockerfiles=()
@@ -386,11 +467,10 @@ auto_build_images() {
 
   builds_started_at="$(date +%s)"
   AUTO_IMAGE_BUILD_SECONDS=0
-  build_parallelism="${ASVS_IMAGE_BUILD_PARALLELISM:-2}"
+  build_parallelism="${ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM:-2}"
   if ! [[ "$build_parallelism" =~ ^[0-9]+$ ]] || [ "$build_parallelism" -lt 1 ]; then
     build_parallelism=1
   fi
-  image_key="${ASVS_IMAGE_CACHE_KEY:-$(git -C "$worktree_dir" rev-parse --short=12 HEAD 2>/dev/null || printf '%s' "$nonce")}"
   mkdir -p "$build_root" "$jobs_dir"
   : > "$build_log"
 
@@ -411,6 +491,14 @@ auto_build_images() {
     wrapper_warn "dockerfiles" "none found; image scanners skipped"
     return 0
   fi
+
+  local tmp_dockerfiles_file
+  tmp_dockerfiles_file="$(mktemp)"
+  printf '%s\n' "${dockerfiles[@]}" > "$tmp_dockerfiles_file"
+  inject_gitignored_lockfiles "$worktree_dir" "$SAFE_REPO_ROOT" "$tmp_dockerfiles_file"
+  rm -f "$tmp_dockerfiles_file"
+
+  image_key="${ASSURANCE_SCAN_IMAGE_CACHE_KEY:-$(git -C "$worktree_dir" rev-parse --short=12 HEAD 2>/dev/null || printf '%s' "$nonce")}"
 
   wrapper_section "Image build"
   wrapper_ok "dockerfiles" "${#dockerfiles[@]} discovered"
@@ -456,10 +544,10 @@ auto_build_images() {
     else
       component="$(basename "$context")"
     fi
-    tag="$(sanitize_tag_part "$repo_name-$component"):asvs-v2-$image_key"
+    tag="$(sanitize_tag_part "$repo_name-$component"):assurance-v1-$image_key"
     build_dockerfile="$(dockerfile_for_build "$dockerfile" "$context" "$component" "$build_root")"
 
-    if [ "${ASVS_FORCE_IMAGE_BUILD:-0}" != "1" ] && docker image inspect "$tag" >/dev/null 2>&1; then
+    if [ "${ASSURANCE_SCAN_FORCE_IMAGE_BUILD:-0}" != "1" ] && docker image inspect "$tag" >/dev/null 2>&1; then
       wrapper_ok "$rel" "$tag (cached)"
       AUTO_IMAGE_ARGS+=("--image" "$tag")
       continue
@@ -517,6 +605,7 @@ auto_build_images() {
   AUTO_IMAGE_BUILD_SECONDS=$(( $(date +%s) - builds_started_at ))
 }
 
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 if [ "${1:-}" = "" ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "help" ]; then
   usage
   exit 0
@@ -525,19 +614,19 @@ fi
 cmd="$1"
 shift
 
-export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-asvs-scanner}"
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-assurance-scan}"
 
 case "$cmd" in
   scan)
     [ "${1:-}" != "" ] || die "scan requires a host project directory"
-    export ASVS_RUN_START_EPOCH="${ASVS_RUN_START_EPOCH:-$(date +%s)}"
+    export ASSURANCE_SCAN_RUN_START_EPOCH="${ASSURANCE_SCAN_RUN_START_EPOCH:-$(date +%s)}"
     wrapper_banner
     target_dir="$(to_abs_path "$1")"
     shift
     [ -d "$target_dir" ] || die "target directory is not visible inside the container: $target_dir
 
 Mount it at the same absolute path, for example:
-  docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock -v \"\$(dirname \"\$PWD\"):\$(dirname \"\$PWD\")\" -w \"\$PWD\" asvs-scanner:latest scan \"\$PWD\""
+  docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock -v \"\$(dirname \"\$PWD\"):\$(dirname \"\$PWD\")\" -w \"\$PWD\" assurance-scan:latest scan \"\$PWD\""
 
     rewritten_args=()
     explicit_image_count=0
@@ -559,14 +648,14 @@ Mount it at the same absolute path, for example:
           [ "${2:-}" != "" ] || die "--fr-catalog requires a JSON path"
           catalog_path="$(to_abs_path "$2")"
           [ -f "$catalog_path" ] || die "--fr-catalog file not found: $catalog_path"
-          export ASVS_FR_CATALOG="$catalog_path"
+          export ASSURANCE_SCAN_FR_CATALOG="$catalog_path"
           shift 2
           ;;
         --compliance-mapping-pack)
           [ "${2:-}" != "" ] || die "--compliance-mapping-pack requires a JSON path"
           compliance_mapping_path="$(to_abs_path "$2")"
           [ -f "$compliance_mapping_path" ] || die "--compliance-mapping-pack file not found: $compliance_mapping_path"
-          export ASVS_COMPLIANCE_MAPPING_PACK="$compliance_mapping_path"
+          export ASSURANCE_SCAN_COMPLIANCE_MAPPING_PACK="$compliance_mapping_path"
           shift 2
           ;;
         --scanner-compliance-mapping-pack)
@@ -580,21 +669,28 @@ Mount it at the same absolute path, for example:
           [ "${2:-}" != "" ] || die "--assurance-framework requires a JSON path"
           assurance_framework_path="$(to_abs_path "$2")"
           [ -f "$assurance_framework_path" ] || die "--assurance-framework file not found: $assurance_framework_path"
-          export ASVS_ASSURANCE_FRAMEWORK="$assurance_framework_path"
+          export ASSURANCE_SCAN_ASSURANCE_FRAMEWORK="$assurance_framework_path"
           shift 2
           ;;
         --assurance-instance)
           [ "${2:-}" != "" ] || die "--assurance-instance requires a JSON path"
           assurance_instance_path="$(to_abs_path "$2")"
           [ -f "$assurance_instance_path" ] || die "--assurance-instance file not found: $assurance_instance_path"
-          export ASVS_ASSURANCE_INSTANCE="$assurance_instance_path"
+          export ASSURANCE_SCAN_ASSURANCE_INSTANCE="$assurance_instance_path"
           shift 2
           ;;
         --junit-xml)
           [ "${2:-}" != "" ] || die "--junit-xml requires a file path"
           junit_path="$(to_abs_path "$2")"
           [ -f "$junit_path" ] || die "--junit-xml file not found: $junit_path"
-          export ASVS_JUNIT_XML="$junit_path"
+          export ASSURANCE_SCAN_JUNIT_XML="$junit_path"
+          shift 2
+          ;;
+        --carry-forward-report)
+          [ "${2:-}" != "" ] || die "--carry-forward-report requires a report directory"
+          carry_forward_report="$(to_abs_path "$2")"
+          [ -d "$carry_forward_report" ] || die "--carry-forward-report directory not found: $carry_forward_report"
+          export ASSURANCE_SCAN_CARRY_FORWARD_REPORT="$carry_forward_report"
           shift 2
           ;;
         --no-auto-build-images)
@@ -619,7 +715,7 @@ Mount it at the same absolute path, for example:
 
     if [ "$explicit_image_count" -eq 0 ] && [ "$auto_build_images_enabled" -eq 1 ]; then
       auto_build_images "$SAFE_WORKTREE_DIR" "$SAFE_REPO_NAME" "$SAFE_NONCE"
-      export ASVS_IMAGE_BUILD_SECONDS="${AUTO_IMAGE_BUILD_SECONDS:-0}"
+      export ASSURANCE_SCAN_IMAGE_BUILD_SECONDS="${AUTO_IMAGE_BUILD_SECONDS:-0}"
       if [ ${#AUTO_IMAGE_ARGS[@]} -gt 0 ]; then
         rewritten_args+=("${AUTO_IMAGE_ARGS[@]}")
         echo ""
@@ -627,21 +723,21 @@ Mount it at the same absolute path, for example:
     elif [ "$explicit_image_count" -gt 0 ]; then
       wrapper_section "Image build"
       wrapper_ok "mode" "using explicit --image tag(s)"
-      export ASVS_IMAGE_BUILD_SECONDS=0
+      export ASSURANCE_SCAN_IMAGE_BUILD_SECONDS=0
     else
       wrapper_section "Image build"
       wrapper_warn "mode" "skipped by --no-auto-build-images"
-      export ASVS_IMAGE_BUILD_SECONDS=0
+      export ASSURANCE_SCAN_IMAGE_BUILD_SECONDS=0
     fi
 
-    export ASVS_WORKDIR="$SAFE_WORKTREE_DIR/.asvs-scanner/runtime"
+    export ASSURANCE_SCAN_WORKDIR="$SAFE_WORKTREE_DIR/.assurance-scan/runtime"
     export SCAN_SOURCE_DIR="$scan_source_dir"
-    export ASVS_REPOSITORY_NAME="$SAFE_REPO_NAME"
-    export ASVS_ORIGINAL_BRANCH="$SAFE_CURRENT_REF"
-    export ASVS_SAFE_SCAN_BRANCH="$SAFE_BRANCH"
-    export ASVS_SOURCE_REPO="$SAFE_REPO_ROOT"
-    export ASVS_IMAGE_CACHE_KEY="$SAFE_COMMIT"
-    export ASVS_BANNER_SHOWN=1
+    export ASSURANCE_SCAN_REPOSITORY_NAME="$SAFE_REPO_NAME"
+    export ASSURANCE_SCAN_ORIGINAL_BRANCH="$SAFE_CURRENT_REF"
+    export ASSURANCE_SCAN_SAFE_SCAN_BRANCH="$SAFE_BRANCH"
+    export ASSURANCE_SCAN_SOURCE_REPO="$SAFE_REPO_ROOT"
+    export ASSURANCE_SCAN_IMAGE_CACHE_KEY="$SAFE_COMMIT"
+    export ASSURANCE_SCAN_BANNER_SHOWN=1
     runtime_dir="$(ensure_runtime)"
     exec "$runtime_dir/run-local.sh" "$SAFE_WORKTREE_DIR" "${rewritten_args[@]}"
     ;;
@@ -664,6 +760,10 @@ Mount it at the same absolute path, for example:
     runtime_dir="$(ensure_runtime)"
     exec python3 "$runtime_dir/scripts/validate-scanner-compliance-mappings.py" "$@"
     ;;
+  validate-blueprint-compliance-coverage)
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/validate-blueprint-compliance-coverage.py" "$@"
+    ;;
   propose-blueprint-frs)
     runtime_dir="$(ensure_runtime)"
     exec python3 "$runtime_dir/scripts/propose-blueprint-frs.py" "$@"
@@ -671,6 +771,10 @@ Mount it at the same absolute path, for example:
   blueprint-decisions-to-config-update)
     runtime_dir="$(ensure_runtime)"
     exec python3 "$runtime_dir/scripts/blueprint-decisions-to-config-update.py" "$@"
+    ;;
+  apply-reviewed-scope)
+    runtime_dir="$(ensure_runtime)"
+    exec python3 "$runtime_dir/scripts/apply-reviewed-scope.py" "$@"
     ;;
   validate-config-update)
     [ "${1:-}" != "" ] || die "validate-config-update requires a proposal JSON file"
@@ -776,3 +880,4 @@ Mount it at the same absolute path, for example:
     die "unknown command: $cmd"
     ;;
 esac
+fi

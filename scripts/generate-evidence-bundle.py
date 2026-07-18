@@ -60,6 +60,27 @@ def _xml_attrs(text: str) -> dict[str, str]:
     }
 
 
+def _junit_failure_status(raw_status: str, diagnostic: str) -> str:
+    if raw_status != "failed":
+        return raw_status
+    text = diagnostic.lower()
+    harness_markers = (
+        "cannot find module",
+        "cannot find native binding",
+        "module_not_found",
+        "syntaxerror",
+        "referenceerror",
+        "typeerror: ",
+        "npm has a bug related to optional dependencies",
+        "test suite failed to run",
+        "your test suite must contain at least one test",
+        "environment teardown",
+    )
+    if any(marker in text for marker in harness_markers):
+        return "execution_error"
+    return "failed"
+
+
 def _junit_case_records(path: Path) -> list[dict]:
     if not path.exists() or path.stat().st_size == 0:
         return []
@@ -71,13 +92,17 @@ def _junit_case_records(path: Path) -> list[dict]:
             error = case.find("error")
             skipped = case.find("skipped")
             body_status = "failed" if failure is not None or error is not None else "missing" if skipped is not None else "passed"
-            elem = failure or error or skipped
+            elem = failure if failure is not None else error if error is not None else skipped
+            message = (elem.get("message") if elem is not None else "") or ("Skipped" if skipped is not None else "")
+            diagnostic = (elem.text if elem is not None else "") or ""
+            status = _junit_failure_status(body_status, " ".join(part for part in (message, diagnostic) if part))
             cases.append({
                 "name": case.get("name", ""),
                 "classname": case.get("classname", ""),
                 "file": case.get("file", ""),
-                "status": body_status,
-                "message": (elem.get("message") if elem is not None else "") or ("Skipped" if skipped is not None else ""),
+                "status": status,
+                "message": message,
+                "diagnostic": diagnostic,
             })
         return cases
     except Exception:
@@ -95,12 +120,15 @@ def _junit_case_records(path: Path) -> list[dict]:
                 status = "passed"
             message_match = re.search(r"<(?:failure|error|skipped)\b([^>]*)", body, re.IGNORECASE)
             message = _xml_attrs(message_match.group(1)).get("message", "") if message_match else ""
+            diagnostic = re.sub(r"<[^>]+>", " ", body).strip()
+            status = _junit_failure_status(status, " ".join(part for part in (message, diagnostic) if part))
             cases.append({
                 "name": attrs.get("name", ""),
                 "classname": attrs.get("classname", ""),
                 "file": attrs.get("file", ""),
                 "status": status,
                 "message": message or ("Skipped" if status == "missing" else ""),
+                "diagnostic": diagnostic,
             })
         return cases
 
@@ -395,18 +423,54 @@ def get_git_commit(target_dir: str) -> str | None:
     return None
 
 
+def get_git_branch(target_dir: str | None) -> str | None:
+    if not target_dir:
+        return None
+    try:
+        out = subprocess.run(
+            ["git", "-C", target_dir, "branch", "--show-current"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def get_git_repo_name(target_dir: str | None) -> str | None:
+    if not target_dir:
+        return None
+    try:
+        out = subprocess.run(
+            ["git", "-C", target_dir, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            return Path(out.stdout.strip()).name
+    except Exception:
+        pass
+    return None
+
+
 def junit_summary(path: Path) -> dict:
     if not path.exists() or path.stat().st_size == 0:
         return {"present": False, "tests": 0, "passed": 0, "failed": 0, "skipped": 0}
     cases = _junit_case_records(path)
     tests = len(cases)
     failed = sum(1 for case in cases if case.get("status") == "failed")
+    execution_error = sum(1 for case in cases if case.get("status") == "execution_error")
     skipped = sum(1 for case in cases if case.get("status") == "missing")
     return {
         "present": True,
         "tests": tests,
-        "passed": max(0, tests - failed - skipped),
+        "passed": max(0, tests - failed - execution_error - skipped),
         "failed": failed,
+        "execution_error": execution_error,
         "skipped": skipped,
         "path": "reports/junit.xml",
     }
@@ -423,12 +487,14 @@ def junit_records(path: Path) -> dict[str, dict]:
         file_attr = case.get("file", "")
         status = case.get("status", "passed")
         message = case.get("message", "")
+        diagnostic = case.get("diagnostic", "")
         record = {
             "status": status,
             "name": name,
             "classname": classname,
             "file": file_attr,
             "message": message,
+            "diagnostic": diagnostic,
         }
         keys = {name}
         if classname and name:
@@ -562,6 +628,9 @@ def _test_actions_for_record(record: dict | None, tbt: dict, status: str, locato
             "description": "Recorded the TBT identifier in JUnit classname/name so the scanner can join evidence back to the FR/TBT graph.",
         })
     message = str((record or {}).get("message") or "")
+    diagnostic = str((record or {}).get("diagnostic") or "")
+    if status == "execution_error" and diagnostic:
+        message = diagnostic
     if message:
         actions.append({
             "type": "diagnostic_recorded",
@@ -692,9 +761,12 @@ def build_target_evidence_bundle(
             }
             if record:
                 ev["observed"] = True
-                ev["evidence_strength"] = "strong"
-            if record and record.get("message"):
-                ev["metadata"] = {"message": record["message"]}
+                ev["evidence_strength"] = "not_sufficient" if status == "execution_error" else "strong"
+            if record and (record.get("message") or record.get("diagnostic") or status == "execution_error"):
+                ev["metadata"] = {
+                    "message": record.get("diagnostic") or record.get("message") or "",
+                    "failure_kind": "harness_or_runner" if status == "execution_error" else "assertion_or_conformance",
+                }
             evidence.append(ev)
         elif tbt_type == "scanner":
             scanner, _, rule = (tbt.get("ref") or "").partition(":")
@@ -727,12 +799,12 @@ def build_target_evidence_bundle(
                 "tool": scanner,
                 "run_id": run_id,
                 "provenance": _provenance(
-                    collector="asvs-scanner",
+                    collector="assurance-scan",
                     collected_at=now,
                     output_artifacts=[artifact],
                     tool=scanner,
                     container_image=scanner_def.get("image"),
-                    normalizer=f"asvs-scanner.{scanner_def.get('format')}" if scanner_def.get("format") else None,
+                    normalizer=f"assurance-scan.{scanner_def.get('format')}" if scanner_def.get("format") else None,
                 ),
                 "metadata": {"scanner_health": health_status or "missing"},
             })
@@ -924,7 +996,37 @@ def main() -> int:
     )
     release_recommendation = "READY" if ready else "NOT READY"
 
-    git_commit = get_git_commit(args.target_dir)
+    existing_manifest = {}
+    try:
+        manifest_path = report_dir / "evidence-manifest.json"
+        if manifest_path.exists() and manifest_path.stat().st_size > 0:
+            existing_manifest = json.loads(manifest_path.read_text(errors="replace"))
+    except Exception:
+        existing_manifest = {}
+
+    source_repo = (
+        os.environ.get("ASSURANCE_SCAN_SOURCE_REPO")
+        or existing_manifest.get("source_repo")
+        or None
+    )
+    repository_name = (
+        os.environ.get("ASSURANCE_SCAN_REPOSITORY_NAME")
+        or existing_manifest.get("repository")
+        or get_git_repo_name(source_repo)
+        or get_git_repo_name(args.target_dir)
+    )
+    original_branch = (
+        os.environ.get("ASSURANCE_SCAN_ORIGINAL_BRANCH")
+        or existing_manifest.get("git_branch")
+        or get_git_branch(source_repo)
+        or get_git_branch(args.target_dir)
+    )
+    safe_scan_branch = (
+        os.environ.get("ASSURANCE_SCAN_SAFE_SCAN_BRANCH")
+        or existing_manifest.get("safe_scan_branch")
+        or None
+    )
+    git_commit = get_git_commit(args.target_dir) or existing_manifest.get("git_commit")
 
     target_evidence_bundle = build_target_evidence_bundle(
         project=Path(args.target_dir).name or "target-project",
@@ -995,14 +1097,14 @@ def main() -> int:
 
     # ----- Write evidence-manifest.json --------------------------------------
     manifest = {
-        "project": "ASVS Scanner",
+        "project": "Assurance Scan",
         "run_id": args.run_id,
         "generated_at": now,
         "target_dir": args.target_dir,
-        "source_repo": os.environ.get("ASVS_SOURCE_REPO") or None,
-        "repository": os.environ.get("ASVS_REPOSITORY_NAME") or None,
-        "git_branch": os.environ.get("ASVS_ORIGINAL_BRANCH") or None,
-        "safe_scan_branch": os.environ.get("ASVS_SAFE_SCAN_BRANCH") or None,
+        "source_repo": source_repo,
+        "repository": repository_name,
+        "git_branch": original_branch,
+        "safe_scan_branch": safe_scan_branch,
         "git_commit": git_commit,
         "image_scanned": image_names or None,
         "url_scanned": target_urls or None,

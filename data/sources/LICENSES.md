@@ -47,9 +47,9 @@ Each snapshot in this directory is generated from a third-party source. The orig
 ## security-headers
 
 - **Source:** in-repo at `scripts/security-headers.py`
-- **License:** Same as the asvs-scanner project.
+- **License:** Same as the assurance-scan project.
 - **Snapshot file:** `security_headers_rules.json`
-- **Attribution:** "asvs-scanner's bundled security-headers check script."
+- **Attribution:** "assurance-scan's bundled security-headers check script."
 
 ## testssl.sh
 

@@ -30,7 +30,7 @@
     {
       "id": "SCM-TESTSSL-ASVS-5-TLS",
       "review_status": "accepted",
-      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_by": "assurance-scan-maintainers",
       "reviewed_at": "2026-07-08T00:00:00Z",
       "review_decision": "accepted_as_supporting_or_blocking_signal",
       "review_notes": "TLS scan findings are direct runtime signals for transport configuration rows.",

@@ -1,0 +1,534 @@
+{
+  "schema_version": 1,
+  "assurance_framework": "HEALTHCARE-DIGITAL-ASSURANCE",
+  "version": "1.0.0-draft",
+  "title": "Healthcare Digital Assurance Framework",
+  "description": "Reusable gated assurance framework for healthcare digital services. It models clinical safety, privacy, security, service readiness and post-release monitoring as governance gates. Compliance regimes such as ASVS, NIST, ISO or local healthcare standards remain separate versioned rulesets and mapping packs.",
+  "assurance_profiles": [
+    {
+      "id": "healthcare-digital-service",
+      "title": "Healthcare digital service",
+      "description": "Default profile for patient, clinician or operational healthcare software."
+    },
+    {
+      "id": "patient-facing-service",
+      "title": "Patient-facing service",
+      "description": "Services used directly by patients, carers or members of the public."
+    },
+    {
+      "id": "clinical-workflow-service",
+      "title": "Clinical workflow service",
+      "description": "Services used by clinical staff or affecting clinical workflow, safety or decision making."
+    },
+    {
+      "id": "operational-healthcare-service",
+      "title": "Operational healthcare service",
+      "description": "Back-office, integration or operational services supporting healthcare delivery."
+    }
+  ],
+  "roles": [
+    {
+      "id": "ROLE-CLINICAL-SAFETY-OFFICER",
+      "title": "Clinical Safety Officer",
+      "party_type": "assurance",
+      "description": "Reviews clinical safety hazards, mitigations, residual clinical risk and clinical safety case evidence.",
+      "responsibilities": [
+        "Reviews clinical safety case",
+        "Approves clinical risk disposition",
+        "Confirms clinical hazard controls are testable"
+      ]
+    },
+    {
+      "id": "ROLE-CALDICOTT-GUARDIAN",
+      "title": "Caldicott Guardian or Health Data Steward",
+      "party_type": "authority",
+      "description": "Confirms that patient-identifiable information use is justified, proportionate and governed.",
+      "responsibilities": [
+        "Reviews patient data use",
+        "Confirms confidentiality and information-sharing principles",
+        "Supports exceptional disclosure decisions"
+      ]
+    },
+    {
+      "id": "ROLE-DATA-PROTECTION-LEAD",
+      "title": "Data Protection Lead",
+      "party_type": "assurance",
+      "description": "Reviews privacy, lawful basis, DPIA, retention and data-subject-rights evidence.",
+      "responsibilities": [
+        "Reviews DPIA evidence",
+        "Confirms privacy controls and lawful basis",
+        "Reviews retention and minimization obligations"
+      ]
+    },
+    {
+      "id": "ROLE-SECURITY-ASSURANCE-LEAD",
+      "title": "Security Assurance Lead",
+      "party_type": "assurance",
+      "description": "Reviews security design, vulnerability evidence, assurance tests and residual security risk.",
+      "responsibilities": [
+        "Reviews security test evidence",
+        "Confirms required mitigations",
+        "Approves security residual-risk position"
+      ]
+    },
+    {
+      "id": "ROLE-CLINICAL-PRODUCT-OWNER",
+      "title": "Clinical Product Owner",
+      "party_type": "internal",
+      "description": "Owns clinical workflow intent, user acceptance and patient/clinician outcome alignment.",
+      "responsibilities": [
+        "Owns clinical workflow requirements",
+        "Confirms clinical acceptance criteria",
+        "Approves clinical user acceptance evidence"
+      ]
+    },
+    {
+      "id": "ROLE-SERVICE-OWNER",
+      "title": "Service Owner",
+      "party_type": "authority",
+      "description": "Owns service readiness, operational impact and release decision accountability.",
+      "responsibilities": [
+        "Owns release decision",
+        "Accepts residual delivery risk",
+        "Confirms operational readiness"
+      ]
+    },
+    {
+      "id": "ROLE-CLINICAL-OPERATIONS-LEAD",
+      "title": "Clinical Operations Lead",
+      "party_type": "internal",
+      "description": "Confirms operational workflow readiness, support model and clinical service impact.",
+      "responsibilities": [
+        "Reviews clinical operational readiness",
+        "Confirms support and escalation routes",
+        "Reviews downtime and fallback procedures"
+      ]
+    },
+    {
+      "id": "ROLE-SUPPLIER-ENGINEERING-LEAD",
+      "title": "Supplier or Engineering Lead",
+      "party_type": "supplier",
+      "description": "Provides implementation, test, deployment, remediation and release evidence.",
+      "responsibilities": [
+        "Provides technical evidence",
+        "Maintains deployment and rollback plan",
+        "Remediates gate-blocking findings"
+      ]
+    },
+    {
+      "id": "ROLE-HEALTHCARE-CAB",
+      "title": "Healthcare Change Advisory Board",
+      "party_type": "authority",
+      "description": "Authorises release or live change after assurance evidence and residual risks have been reviewed.",
+      "responsibilities": [
+        "Authorises healthcare service changes",
+        "Reviews release impact and rollback approach",
+        "Confirms residual risk is acceptable"
+      ]
+    },
+    {
+      "id": "ROLE-PATIENT-REPRESENTATIVE",
+      "title": "Patient or Service User Representative",
+      "party_type": "user",
+      "description": "Represents patient or service-user usability, accessibility and communication concerns where applicable.",
+      "responsibilities": [
+        "Reviews patient-facing experience evidence",
+        "Confirms communication and accessibility concerns are considered"
+      ]
+    }
+  ],
+  "processes": [
+    {
+      "id": "HDA-PROC-ASSURANCE-PATH",
+      "title": "Healthcare Assurance Path to Release",
+      "description": "End-to-end healthcare assurance path from initial scope through clinical safety, privacy, security, validation, release and live monitoring.",
+      "profiles": [
+        "healthcare-digital-service",
+        "patient-facing-service",
+        "clinical-workflow-service",
+        "operational-healthcare-service"
+      ],
+      "entry_conditions": [
+        "A digital service handles healthcare data, supports healthcare operations or affects clinical workflow.",
+        "The project requires explicit clinical safety, privacy, security or operational assurance before release."
+      ],
+      "exit_outcomes": [
+        {
+          "id": "OUTCOME-HDA-RELEASE-APPROVED",
+          "title": "Healthcare release approved",
+          "description": "Required clinical, privacy, security and operational evidence has been reviewed and release is approved.",
+          "status": "approved"
+        },
+        {
+          "id": "OUTCOME-HDA-CONDITIONAL-RELEASE",
+          "title": "Conditional healthcare release",
+          "description": "Release is approved with explicit conditions, compensating controls, waivers or follow-up actions.",
+          "status": "conditional"
+        },
+        {
+          "id": "OUTCOME-HDA-RELEASE-DEFERRED",
+          "title": "Healthcare release deferred",
+          "description": "Release is deferred because required evidence, approvals or risk decisions are missing or unacceptable.",
+          "status": "deferred"
+        }
+      ],
+      "transitions": [
+        {"from": "GATE-HDA-INTAKE", "to": "GATE-HDA-DESIGN", "label": "Scope accepted", "style": "primary"},
+        {"from": "GATE-HDA-DESIGN", "to": "GATE-HDA-TEST-READINESS", "label": "Design obligations reviewable", "style": "primary"},
+        {"from": "GATE-HDA-TEST-READINESS", "to": "GATE-HDA-CLINICAL-VALIDATION", "label": "Test evidence plan approved", "style": "primary"},
+        {"from": "GATE-HDA-CLINICAL-VALIDATION", "to": "GATE-HDA-RELEASE", "label": "Validation evidence accepted", "style": "success"},
+        {"from": "GATE-HDA-RELEASE", "to": "GATE-HDA-LIVE-MONITORING", "label": "Release authorised", "outcome": "OUTCOME-HDA-RELEASE-APPROVED", "style": "success"},
+        {"from": "GATE-HDA-RELEASE", "to": "OUTCOME-HDA-RELEASE-DEFERRED", "label": "Release deferred", "outcome": "OUTCOME-HDA-RELEASE-DEFERRED", "style": "warning"}
+      ],
+      "gates": [
+        {
+          "id": "GATE-HDA-INTAKE",
+          "title": "Healthcare assurance intake",
+          "sequence": 10,
+          "description": "Classify clinical, privacy, security and operational assurance scope before design or release commitments are made.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {"role": "ROLE-SERVICE-OWNER", "responsibility": "accountable"},
+            {"role": "ROLE-CLINICAL-PRODUCT-OWNER", "responsibility": "consulted"},
+            {"role": "ROLE-DATA-PROTECTION-LEAD", "responsibility": "consulted"},
+            {"role": "ROLE-SECURITY-ASSURANCE-LEAD", "responsibility": "consulted"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-INTAKE-001",
+              "title": "Healthcare service scope is classified",
+              "description": "The service declares whether it is patient-facing, clinical-workflow, operational or integration-only, and records why.",
+              "evidence_policy": "manual_decision",
+              "requirements": [
+                {"type": "decision", "ref": "healthcare-service-scope-classification"}
+              ]
+            },
+            {
+              "id": "CRIT-HDA-INTAKE-002",
+              "title": "Initial assurance obligations are declared",
+              "description": "Clinical safety, privacy, security and operational assurance obligations are identified before blueprint/project FR selection.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "manual_artifact", "ref": "initial-assurance-scope-record"},
+                {"type": "fr_placeholder", "ref": "project-fr-tbt-catalog"}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-HDA-DESIGN",
+          "title": "Clinical, privacy and security design assurance",
+          "sequence": 20,
+          "description": "Confirm the design has reviewable clinical safety, data protection and security obligations before implementation proceeds.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {"role": "ROLE-CLINICAL-SAFETY-OFFICER", "responsibility": "reviewer"},
+            {"role": "ROLE-CALDICOTT-GUARDIAN", "responsibility": "consulted"},
+            {"role": "ROLE-DATA-PROTECTION-LEAD", "responsibility": "reviewer"},
+            {"role": "ROLE-SECURITY-ASSURANCE-LEAD", "responsibility": "reviewer"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-DESIGN-001",
+              "title": "Clinical hazards and mitigations are reviewable",
+              "description": "Clinical hazards, mitigations and safety assumptions are recorded and linked to testable FR/TBT obligations where software behaviour is involved.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "manual_artifact", "ref": "clinical-safety-case"},
+                {"type": "fr_placeholder", "ref": "clinical-safety-fr-tbt-coverage"}
+              ]
+            },
+            {
+              "id": "CRIT-HDA-DESIGN-002",
+              "title": "Privacy and patient data obligations are reviewable",
+              "description": "DPIA, lawful basis, minimization, retention and confidentiality obligations are declared and mapped to FR/TBT or manual evidence where applicable.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "manual_artifact", "ref": "data-protection-impact-assessment"},
+                {"type": "manual_artifact", "ref": "patient-data-flow-map"},
+                {"type": "fr_placeholder", "ref": "privacy-and-data-protection-fr-tbt-coverage"}
+              ]
+            },
+            {
+              "id": "CRIT-HDA-DESIGN-003",
+              "title": "Security assurance obligations are mapped",
+              "description": "Security blueprint/project FRs and TBTs are selected for the service, including applicable ASVS/NIST/other ruleset mappings.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "fr_placeholder", "ref": "security-fr-tbt-catalog"},
+                {"type": "manual_artifact", "ref": "security-architecture-record"}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-HDA-TEST-READINESS",
+          "title": "Assurance test readiness",
+          "sequence": 30,
+          "description": "Confirm that clinical, privacy, security and operational obligations have planned evidence before validation starts.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {"role": "ROLE-SUPPLIER-ENGINEERING-LEAD", "responsibility": "contributor"},
+            {"role": "ROLE-SECURITY-ASSURANCE-LEAD", "responsibility": "reviewer"},
+            {"role": "ROLE-CLINICAL-SAFETY-OFFICER", "responsibility": "reviewer"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-TEST-READINESS-001",
+              "title": "Required TBTs have evidence plans",
+              "description": "Every accepted FR/TBT obligation has a planned test, manual artifact, waiver or compensating control before validation proceeds.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "fr_placeholder", "ref": "accepted-fr-tbt-evidence-plan"}
+              ]
+            },
+            {
+              "id": "CRIT-HDA-TEST-READINESS-002",
+              "title": "Test environments and synthetic data are safe",
+              "description": "Test execution uses synthetic/disposable data or approved privacy-preserving fixtures, with no unnecessary patient-identifiable data exposure.",
+              "evidence_policy": "manual_decision",
+              "requirements": [
+                {"type": "decision", "ref": "test-data-safety-decision"},
+                {"type": "manual_artifact", "ref": "test-environment-readiness-record"}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-HDA-CLINICAL-VALIDATION",
+          "title": "Clinical and user validation",
+          "sequence": 40,
+          "description": "Review observed clinical workflow, usability, accessibility, privacy and security evidence before release authority.",
+          "continuation_policy": "manual_plus_automated",
+          "required_roles": [
+            {"role": "ROLE-CLINICAL-PRODUCT-OWNER", "responsibility": "accountable"},
+            {"role": "ROLE-CLINICAL-SAFETY-OFFICER", "responsibility": "reviewer"},
+            {"role": "ROLE-PATIENT-REPRESENTATIVE", "responsibility": "consulted", "required": false},
+            {"role": "ROLE-SECURITY-ASSURANCE-LEAD", "responsibility": "reviewer"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-VALIDATION-001",
+              "title": "Clinical workflow validation is complete",
+              "description": "Representative clinical users validate the workflow, known hazards and fallback behaviours, or record why this is not applicable.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "manual_artifact", "ref": "clinical-user-acceptance-record"},
+                {"type": "manual_artifact", "ref": "clinical-safety-validation-record"}
+              ]
+            },
+            {
+              "id": "CRIT-HDA-VALIDATION-002",
+              "title": "Security and privacy evidence is observed",
+              "description": "Required security/privacy TBTs and scanner evidence have been observed or formally dispositioned before release.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "fr_placeholder", "ref": "observed-security-privacy-evidence"},
+                {"type": "decision", "ref": "scanner-findings-disposition"}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-HDA-RELEASE",
+          "title": "Healthcare release authority",
+          "sequence": 50,
+          "description": "Confirm release readiness, residual-risk acceptance, rollback and operational ownership before go-live.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {"role": "ROLE-SERVICE-OWNER", "responsibility": "accountable"},
+            {"role": "ROLE-HEALTHCARE-CAB", "responsibility": "approver"},
+            {"role": "ROLE-CLINICAL-OPERATIONS-LEAD", "responsibility": "reviewer"},
+            {"role": "ROLE-DATA-PROTECTION-LEAD", "responsibility": "reviewer"},
+            {"role": "ROLE-SECURITY-ASSURANCE-LEAD", "responsibility": "reviewer"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-RELEASE-001",
+              "title": "Residual risks and exceptions are accepted",
+              "description": "Open clinical, privacy, security and operational risks are either remediated or accepted by accountable roles with conditions recorded.",
+              "evidence_policy": "manual_decision",
+              "requirements": [
+                {"type": "decision", "ref": "residual-risk-decision"},
+                {"type": "waiver", "ref": "accepted-release-waivers", "required": false},
+                {"type": "compensating_control", "ref": "release-compensating-controls", "required": false}
+              ]
+            },
+            {
+              "id": "CRIT-HDA-RELEASE-002",
+              "title": "Deployment, rollback and support are ready",
+              "description": "Deployment plan, rollback plan, monitoring and support routes are approved before release.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "manual_artifact", "ref": "deployment-plan"},
+                {"type": "manual_artifact", "ref": "rollback-plan"},
+                {"type": "manual_artifact", "ref": "support-and-escalation-plan"},
+                {"type": "approval", "ref": "healthcare-release-approval"}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-HDA-LIVE-MONITORING",
+          "title": "Live monitoring and continual assurance",
+          "sequence": 60,
+          "description": "Confirm monitoring, incident response, clinical safety review and evidence refresh after release.",
+          "continuation_policy": "manual_plus_automated",
+          "required_roles": [
+            {"role": "ROLE-SERVICE-OWNER", "responsibility": "accountable"},
+            {"role": "ROLE-CLINICAL-OPERATIONS-LEAD", "responsibility": "reviewer"},
+            {"role": "ROLE-SECURITY-ASSURANCE-LEAD", "responsibility": "reviewer"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-LIVE-001",
+              "title": "Clinical and operational monitoring is active",
+              "description": "Clinical safety signals, operational incidents, security alerts and privacy incidents have defined monitoring and escalation routes.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "manual_artifact", "ref": "live-monitoring-plan"},
+                {"type": "manual_artifact", "ref": "incident-response-and-escalation-plan"}
+              ]
+            },
+            {
+              "id": "CRIT-HDA-LIVE-002",
+              "title": "Assurance evidence refresh is scheduled",
+              "description": "Security scans, TBT execution, clinical safety review and privacy review cadence are recorded for through-life assurance.",
+              "evidence_policy": "manual_decision",
+              "requirements": [
+                {"type": "decision", "ref": "through-life-assurance-refresh-cadence"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "HDA-PROC-URGENT-SAFETY-CHANGE",
+      "title": "Urgent Healthcare Safety Change",
+      "description": "Accelerated path for urgent changes needed to address patient safety, clinical continuity, privacy breach containment or active security risk.",
+      "profiles": [
+        "healthcare-digital-service",
+        "clinical-workflow-service"
+      ],
+      "entry_conditions": [
+        "A change is required urgently to protect patient safety, clinical continuity, privacy or security.",
+        "Normal release cadence would introduce unacceptable healthcare risk."
+      ],
+      "exit_outcomes": [
+        {
+          "id": "OUTCOME-HDA-URGENT-APPROVED",
+          "title": "Urgent change approved",
+          "description": "Urgent change is approved with explicit residual-risk conditions and post-change review.",
+          "status": "conditional"
+        },
+        {
+          "id": "OUTCOME-HDA-URGENT-REJECTED",
+          "title": "Urgent change rejected",
+          "description": "Urgent change is rejected or returned to the standard assurance path.",
+          "status": "rejected"
+        }
+      ],
+      "transitions": [
+        {"from": "GATE-HDA-URGENT-TRIAGE", "to": "GATE-HDA-URGENT-AUTHORITY", "label": "Urgency justified", "style": "warning"},
+        {"from": "GATE-HDA-URGENT-AUTHORITY", "to": "GATE-HDA-URGENT-POST-CHANGE", "label": "Urgent change authorised", "outcome": "OUTCOME-HDA-URGENT-APPROVED", "style": "success"},
+        {"from": "GATE-HDA-URGENT-AUTHORITY", "to": "OUTCOME-HDA-URGENT-REJECTED", "label": "Not authorised", "outcome": "OUTCOME-HDA-URGENT-REJECTED", "style": "danger"}
+      ],
+      "gates": [
+        {
+          "id": "GATE-HDA-URGENT-TRIAGE",
+          "title": "Urgent safety-change triage",
+          "sequence": 10,
+          "description": "Confirm the urgent route is justified and define the minimum evidence required before change authority.",
+          "continuation_policy": "manual_decision",
+          "required_roles": [
+            {"role": "ROLE-SERVICE-OWNER", "responsibility": "accountable"},
+            {"role": "ROLE-CLINICAL-SAFETY-OFFICER", "responsibility": "reviewer"},
+            {"role": "ROLE-SECURITY-ASSURANCE-LEAD", "responsibility": "reviewer"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-URGENT-TRIAGE-001",
+              "title": "Urgent route justification is recorded",
+              "description": "The reason for bypassing the standard path is documented with patient safety, privacy, security or continuity rationale.",
+              "evidence_policy": "manual_decision",
+              "requirements": [
+                {"type": "decision", "ref": "urgent-change-justification"}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-HDA-URGENT-AUTHORITY",
+          "title": "Urgent change authority",
+          "sequence": 20,
+          "description": "Authorise or reject the urgent change with explicit minimum evidence, rollback and post-change review requirements.",
+          "continuation_policy": "all_required",
+          "required_roles": [
+            {"role": "ROLE-HEALTHCARE-CAB", "responsibility": "approver"},
+            {"role": "ROLE-SERVICE-OWNER", "responsibility": "accountable"},
+            {"role": "ROLE-SUPPLIER-ENGINEERING-LEAD", "responsibility": "contributor"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-URGENT-AUTHORITY-001",
+              "title": "Minimum safety and rollback evidence is accepted",
+              "description": "The urgent change has enough evidence to proceed, a rollback plan and a named accountable residual-risk owner.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "manual_artifact", "ref": "urgent-change-minimum-test-evidence"},
+                {"type": "manual_artifact", "ref": "urgent-change-rollback-plan"},
+                {"type": "decision", "ref": "urgent-change-residual-risk-decision"},
+                {"type": "approval", "ref": "urgent-change-approval"}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "GATE-HDA-URGENT-POST-CHANGE",
+          "title": "Post-change assurance review",
+          "sequence": 30,
+          "description": "Confirm the urgent change behaved as expected and capture any remediation or permanent assurance work.",
+          "continuation_policy": "manual_plus_automated",
+          "required_roles": [
+            {"role": "ROLE-SERVICE-OWNER", "responsibility": "accountable"},
+            {"role": "ROLE-CLINICAL-SAFETY-OFFICER", "responsibility": "reviewer"},
+            {"role": "ROLE-SECURITY-ASSURANCE-LEAD", "responsibility": "reviewer"}
+          ],
+          "criteria": [
+            {
+              "id": "CRIT-HDA-URGENT-POST-001",
+              "title": "Post-change outcomes and follow-up actions are recorded",
+              "description": "Post-change monitoring, incidents, clinical safety outcomes, security evidence and follow-up actions are recorded.",
+              "evidence_policy": "manual_plus_automated",
+              "requirements": [
+                {"type": "manual_artifact", "ref": "urgent-change-post-implementation-review"},
+                {"type": "decision", "ref": "urgent-change-follow-up-decision"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "process_links": [
+    {
+      "from_process": "HDA-PROC-ASSURANCE-PATH",
+      "from_gate": "GATE-HDA-LIVE-MONITORING",
+      "to_process": "HDA-PROC-URGENT-SAFETY-CHANGE",
+      "to_gate": "GATE-HDA-URGENT-TRIAGE",
+      "relationship": "triggers",
+      "label": "Live safety/security signal may trigger urgent change",
+      "description": "Operational monitoring can trigger the urgent safety-change path when patient safety, privacy, security or clinical continuity risk cannot wait for normal release cadence."
+    },
+    {
+      "from_process": "HDA-PROC-URGENT-SAFETY-CHANGE",
+      "from_gate": "GATE-HDA-URGENT-POST-CHANGE",
+      "to_process": "HDA-PROC-ASSURANCE-PATH",
+      "to_gate": "GATE-HDA-LIVE-MONITORING",
+      "relationship": "informs",
+      "label": "Post-change review informs continual assurance",
+      "description": "Post-change outcomes and follow-up actions feed back into the live monitoring and continual assurance gate."
+    }
+  ]
+}

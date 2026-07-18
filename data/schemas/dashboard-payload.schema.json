@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/dashboard-payload.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/dashboard-payload.schema.json",
   "title": "Dashboard Payload",
   "description": "Normalised derived payload consumed by the static dashboard.",
   "type": "object",
@@ -37,7 +37,7 @@
       "additionalProperties": true,
       "properties": {
         "id": {"type": "string", "minLength": 1},
-        "type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_node_type"},
+        "type": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_node_type"},
         "label": {"type": "string", "minLength": 1},
         "status": {
           "type": "string",
@@ -50,6 +50,7 @@
             "implemented",
             "passed",
             "failed",
+            "execution_error",
             "missing",
             "manual_review",
             "waived",
@@ -79,8 +80,8 @@
       "properties": {
         "source": {"type": "string", "minLength": 1},
         "target": {"type": "string", "minLength": 1},
-        "type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_edge_type"},
-        "responsibility": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_responsibility"},
+        "type": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_edge_type"},
+        "responsibility": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/graph_responsibility"},
         "key": {"type": "string"},
         "label": {"type": "string"},
         "metadata": {"type": "object", "additionalProperties": true}

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-claim.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/assurance-claim.schema.json",
   "title": "Assurance Claim",
   "description": "A typed, hash-bound claim evaluated from a generated runtime graph and graph proof manifest.",
   "type": "object",

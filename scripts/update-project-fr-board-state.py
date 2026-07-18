@@ -13,13 +13,14 @@ from artifact_hashing import file_sha256, write_hash_sidecar
 from load_target_artifacts import TargetArtifactError, load_target_artifact
 
 
-VALID_LANES = {"map", "recommended", "specify", "review", "import", "blocked"}
+VALID_LANES = {"map", "recommended", "reviewed_not_evidence", "bespoke_project_only", "specify", "review", "import", "blocked"}
 VALID_DECISIONS = {
     "",
     "accept_recommendation",
     "remap_as_orphan",
     "leave_unmapped",
     "mark_not_assurance_relevant",
+    "mark_project_specific_only",
     "needs_new_tbt_fr",
     "approve_for_implementation",
     "approve_to_run",
@@ -95,6 +96,10 @@ def normalise_cards(raw: Any) -> list[dict[str, Any]]:
             "status": str(item.get("status") or ""),
             "assessment": str(item.get("assessment") or ""),
             "safety": str(item.get("safety") or ""),
+            "test_names": [str(name) for name in item.get("test_names") or [] if name],
+            "review_status": str(item.get("review_status") or ""),
+            "reviewed_by": str(item.get("reviewed_by") or ""),
+            "source_basis": [source for source in item.get("source_basis") or [] if isinstance(source, dict)],
             "updated_at": str(item.get("updated_at") or ""),
         })
     return cards

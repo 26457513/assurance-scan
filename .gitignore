@@ -4,7 +4,7 @@ scanner-config.yaml
 
 # Scanner output
 reports/
-.asvs-scanner/
+.assurance-scan/
 
 # Local proposal/output scratch files
 proposal*.json

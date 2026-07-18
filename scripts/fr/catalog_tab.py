@@ -77,27 +77,21 @@ def render_fr_catalog(
     }
     scanner_blockers_by_fr = _scanner_blockers_by_fr(assurance_status)
     scanner_blockers_by_row = _scanner_blockers_by_row(assurance_status)
+    evidence_by_tbt = _load_evidence_by_tbt(artifact_dir)
+    for tbt_id, records in evidence_by_tbt.items():
+        status_item = tbt_status_by_id.setdefault(tbt_id, {"id": tbt_id, "status": "missing"})
+        status_item["observed_evidence"] = records
+        record_statuses = [str(record.get("result_status") or "missing") for record in records]
+        for candidate in ("failed", "execution_error", "passed", "partial", "missing"):
+            if candidate in record_statuses:
+                status_item["status"] = candidate
+                break
 
     from collections import defaultdict
     by_category: dict[str, list[dict]] = defaultdict(list)
     for req in top_level:
         cat = req.get("category", "uncategorized")
         by_category[cat].append(req)
-
-    catalog_name = Path(fr_catalog_path).name
-    intro = (
-        '<div class="page-intro">'
-        '<div>'
-        '<h2>Project Functional Requirements</h2>'
-        '<ul>'
-        '<li>Declares the assurance scope for this scan</li>'
-        '<li>Maps project FRs to TBTs, evidence and compliance rows</li>'
-        '<li>Expands each FR to show provenance and gaps</li>'
-        '</ul>'
-        '</div>'
-        f'<code>{html.escape(catalog_name)}</code>'
-        '</div>'
-    )
 
     filter_bar = """
     <div class="card-head fr-filter-bar">
@@ -121,7 +115,7 @@ def render_fr_catalog(
         cat_reqs = by_category[category]
         rows_html.append(
             f'<tr class="category-row fr-category-header" data-category="{html.escape(category)}">'
-            f'<td colspan="5">{html.escape(category)} '
+            f'<td colspan="6">{html.escape(category)} '
             f'<span class="category-meta">· Epic · {len(cat_reqs)} FRs</span></td></tr>'
         )
         for req in cat_reqs:
@@ -154,10 +148,9 @@ def render_fr_catalog(
     body = (
         f'{warning_banner}'
         f'<section class="card fr-card">'
-        f'{intro}'
         f'{filter_bar}'
         f'<table class="matrix fr-table"><thead><tr>'
-        f'<th>ID</th><th>Status</th><th>Owner</th><th>Refs</th><th>Assurance</th>'
+        f'<th>ID</th><th>Status</th><th>Owner</th><th>Source</th><th>Refs</th><th>Assurance</th>'
         f'</tr></thead><tbody>{"".join(rows_html)}</tbody></table>'
         f'</section>'
     )
@@ -206,6 +199,8 @@ def _render_fr_row(
     }.get(status, status)
     status_text = f'<span class="fr-status-text">{html.escape(status_label)}</span>'
 
+    source_cell = _fr_source_cell(req)
+
     links = (
         f'<span class="fr-link-count" title="Code references declared in implemented_by">Code {impl_count}</span>'
         f'<span class="fr-link-count" title="Test Basis records proving this FR">TBT {verified_count}</span>'
@@ -218,31 +213,27 @@ def _render_fr_row(
             f'title="{html.escape(assurance_title)}">{html.escape(assurance_label)}</span>'
         )
 
+    scanner_blockers = scanner_blockers_by_fr.get(req.get("id", "")) or []
+    context_details = _fr_context_details(
+        req,
+        fr_tbts,
+        assurance,
+        scanner_blockers,
+        status_label,
+        owner_raw,
+        tbt_status_by_id,
+        test_pack_by_tbt,
+    )
     detail_parts: list[str] = [
-        _render_project_context_table(req, status_label, owner_raw),
-        _render_framework_context_table(req),
-        _render_code_references_table(req),
-        _render_lineage_table(req, fr_tbts),
-        _render_compliance_context_table(req, fr_tbts),
         _render_fr_chain_graph(
             req,
             fr_tbts,
             tbt_status_by_id,
             test_pack_by_tbt,
             scanner_blockers_by_row,
-        ),
-        _render_assurance_chain_table(
-            req,
-            fr_tbts,
-            tbt_status_by_id,
-            test_pack_by_tbt,
+            context_details,
         ),
     ]
-    if assurance.get("reasons"):
-        detail_parts.append(_render_assurance_summary(assurance.get("reasons") or []))
-    scanner_blockers = scanner_blockers_by_fr.get(req.get("id", "")) or []
-    if scanner_blockers:
-        detail_parts.append(_render_scanner_blockers(scanner_blockers))
 
     detail_html = ""
     if detail_parts:
@@ -255,6 +246,7 @@ def _render_fr_row(
         f'<td><code>{rid}</code></td>'
         f'<td>{status_text}</td>'
         f'<td>{owner}</td>'
+        f'<td>{source_cell}</td>'
         f'<td>{links}</td>'
         f'<td>{assurance_cell}</td>'
         f'</tr>'
@@ -262,11 +254,23 @@ def _render_fr_row(
     if detail_html:
         rows.append(
             f'<tr class="fr-detail-row" data-fr-id="{rid}" hidden>'
-            f'<td colspan="5">{detail_html}</td></tr>'
+            f'<td colspan="6">{detail_html}</td></tr>'
         )
     for child in by_parent.get(req["id"], []):
         rows.extend(_render_fr_row(child, by_parent, tbts_by_fr, fr_status_by_id, tbt_status_by_id, scanner_blockers_by_fr, scanner_blockers_by_row, test_pack_by_tbt, depth + 1))
     return rows
+
+
+def _fr_source_cell(req: dict) -> str:
+    lineage = _lineage_summary(req.get("derived_from"))
+    if not lineage:
+        return '<span class="fr-source-text is-project" title="Project-specific FR with no blueprint lineage recorded">Project</span>'
+    item = lineage.get("item") or "blueprint"
+    version = lineage.get("version") or "unversioned"
+    title = f"Blueprint-derived FR\n{item}\nVersion: {version}"
+    return (
+        f'<span class="fr-source-text is-blueprint" title="{html.escape(title)}">Blueprint</span>'
+    )
 
 
 def _load_assurance_pack_by_tbt(report_dir: Path) -> dict[str, dict]:
@@ -301,6 +305,92 @@ def _assurance_pack_item_priority(item: dict) -> int:
     if source == "planned_tbt" or status == "planned":
         return 10
     return 0
+
+
+def _join_context_values(values: list[str], *, limit: int = 6) -> str:
+    clean = [str(value).strip() for value in values if str(value or "").strip()]
+    if not clean:
+        return ""
+    shown = clean[:limit]
+    if len(clean) > limit:
+        shown.append(f"and {len(clean) - limit} more")
+    return "; ".join(shown)
+
+
+def _fr_context_details(
+    req: dict,
+    fr_tbts: list[dict],
+    assurance: dict,
+    scanner_blockers: list[dict],
+    status_label: str,
+    owner: str,
+    tbt_status_by_id: dict[str, dict],
+    test_pack_by_tbt: dict[str, dict],
+) -> list[dict[str, str]]:
+    details: list[dict[str, str]] = []
+
+    def add(group: str, label: str, value: Any) -> None:
+        text = str(value or "").strip()
+        if text:
+            details.append({"group": group, "label": label, "value": text})
+
+    add("Project", "Lifecycle", status_label)
+    add("Project", "Owner", owner)
+    add("Project", "Title", req.get("title"))
+    add("Project", "Description", req.get("description") or "No description supplied.")
+    code_refs = req.get("implemented_by") or []
+    add("Project", "Code references", _join_context_values([
+        f"{ref.get('path') or ''} ({ref.get('label') or 'no label'})" for ref in code_refs
+    ], limit=5) or "No code references declared")
+
+    description = str(req.get("description") or "")
+    add("Framework", "Gate", _gate_from_description(description))
+    add("Framework", "Trace", _trace_from_description(description))
+    add("Framework", "Source document", _source_from_description(description))
+
+    fr_lineage = _lineage_summary(req.get("derived_from"))
+    add("Lineage", "FR blueprint", f"{fr_lineage['item']} ({fr_lineage['version'] or 'unversioned'})" if fr_lineage else "Project specific")
+    tbt_lineage_values = []
+    for tbt in fr_tbts:
+        lineage = _lineage_summary(tbt.get("derived_from"))
+        if lineage:
+            tbt_lineage_values.append(f"{tbt.get('id')}: {lineage['item']} ({lineage['version'] or 'unversioned'})")
+    add("Lineage", "TBT blueprints", _join_context_values(tbt_lineage_values, limit=6))
+
+    compliance_values = []
+    for item in req.get("satisfies") or []:
+        ruleset = item.get("ruleset") or ""
+        row = item.get("row") or item.get("row_id") or ""
+        if ruleset or row:
+            compliance_values.append(f"FR: {ruleset} {row}".strip())
+    for tbt in fr_tbts:
+        for item in tbt.get("compliance") or []:
+            ruleset = item.get("ruleset") or ""
+            row = item.get("row") or item.get("row_id") or ""
+            if ruleset or row:
+                compliance_values.append(f"{tbt.get('id')}: {ruleset} {row}".strip())
+    add("Compliance", "Mapped rows", _join_context_values(compliance_values, limit=8) or "No compliance rows mapped")
+
+    tbt_values = []
+    for tbt in fr_tbts:
+        tbt_id = str(tbt.get("id") or "")
+        status = tbt_status_by_id.get(tbt_id, {})
+        pack_item = test_pack_by_tbt.get(tbt_id, {})
+        test_state = _test_existence_state(tbt, status, pack_item)
+        evidence_state = str(status.get("status") or "missing")
+        tbt_values.append(f"{tbt_id}: {test_state['label']} / {evidence_state}")
+    add("Assurance", "TBT states", _join_context_values(tbt_values, limit=8) or "No TBTs declared")
+    add("Assurance", "Resolver notes", _join_context_values([str(reason) for reason in assurance.get("reasons") or []], limit=4))
+
+    scanner_values = []
+    for blocker in scanner_blockers:
+        normalized = blocker.get("normalized_finding") or {}
+        tool = blocker.get("tool") or normalized.get("scanner") or "scanner"
+        rule = normalized.get("rule_id") or blocker.get("rule_id") or blocker.get("mapping_id") or "mapped finding"
+        status = blocker.get("status") or normalized.get("status") or "failed"
+        scanner_values.append(f"{tool} {status}: {rule}")
+    add("Scanner", "Mapped blockers", _join_context_values(scanner_values, limit=5) or "No mapped scanner blockers")
+    return details
 
 
 def _render_project_context_table(req: dict, status_label: str, owner: str) -> str:
@@ -490,6 +580,76 @@ def _lineage_summary(derived_from: Any) -> dict[str, str] | None:
     }
 
 
+def _load_evidence_by_tbt(report_dir: Path) -> dict[str, list[dict]]:
+    bundle = load_json(report_dir / "evidence-bundle.json") or {}
+    by_tbt: dict[str, list[dict]] = {}
+    for record in bundle.get("evidence") or []:
+        if not isinstance(record, dict):
+            continue
+        produced_by = str(record.get("produced_by") or "")
+        if produced_by:
+            by_tbt.setdefault(produced_by, []).append(record)
+    return by_tbt
+
+
+def _json_value(value: Any) -> str:
+    if value in (None, "", [], {}):
+        return ""
+    try:
+        return json.dumps(value, indent=2, sort_keys=True)
+    except TypeError:
+        return json.dumps(str(value), indent=2)
+
+
+def _detail(label: str, value: Any, group: str = "Details", fmt: str | None = None) -> dict[str, str]:
+    item = {"label": label, "value": str(value or ""), "group": group}
+    if fmt:
+        item["format"] = fmt
+    return item
+
+
+def _evidence_context_details(record: dict | None, fallback_state: str, fallback_artifact: str) -> list[dict[str, str]]:
+    if not record:
+        return [
+            _detail("Evidence state", fallback_state, "Evidence"),
+            _detail("Artifact", fallback_artifact, "Evidence"),
+        ]
+    artifact = record.get("artifact") or {}
+    provenance = record.get("provenance") or {}
+    inputs = record.get("inputs") or provenance.get("input_artifacts") or []
+    outputs = record.get("outputs") or provenance.get("output_artifacts") or record.get("raw_artifacts") or []
+    details = [
+        _detail("Evidence state", record.get("result_status") or fallback_state, "Evidence"),
+        _detail("Evidence type", record.get("type") or "test_result", "Evidence"),
+        _detail("Strength", record.get("evidence_strength") or "", "Evidence"),
+        _detail("Producer", record.get("produced_by") or "", "Evidence"),
+        _detail("Source", record.get("source") or "", "Evidence"),
+        _detail("Locator", record.get("source_locator") or fallback_artifact, "Evidence"),
+    ]
+    if artifact:
+        details.extend([
+            _detail("Artifact path", artifact.get("path") or "", "Artifact"),
+            _detail("Artifact format", artifact.get("format") or "", "Artifact"),
+            _detail("Schema", artifact.get("schema_ref") or "", "Artifact"),
+            _detail("Bytes", artifact.get("bytes") or "", "Artifact"),
+            _detail("SHA-256", artifact.get("sha256") or "", "Artifact"),
+        ])
+    if inputs:
+        details.append(_detail("Input JSON", _json_value(inputs), "Test input", "json"))
+    if outputs:
+        details.append(_detail("Output JSON", _json_value(outputs), "Test output", "json"))
+    actions = record.get("test_actions") or []
+    if actions:
+        details.append(_detail("Actions JSON", _json_value(actions), "Test actions", "json"))
+    side_effects = record.get("side_effects") or []
+    if side_effects:
+        details.append(_detail("Side effects JSON", _json_value(side_effects), "Side effects", "json"))
+    metadata = record.get("metadata") or {}
+    if metadata:
+        details.append(_detail("Metadata JSON", _json_value(metadata), "Metadata", "json"))
+    return [item for item in details if item.get("value")]
+
+
 def _lineage_context_details(derived_from: Any) -> list[dict[str, str]]:
     lineage = _lineage_summary(derived_from)
     if not lineage:
@@ -526,9 +686,10 @@ def _render_fr_chain_graph(
     tbt_status_by_id: dict[str, dict],
     test_pack_by_tbt: dict[str, dict],
     scanner_blockers_by_row: dict[str, list[dict]],
+    context_details: list[dict[str, str]] | None = None,
 ) -> str:
     rid = str(req.get("id") or "FR")
-    graph = _fr_local_graph_data(req, fr_tbts, tbt_status_by_id, test_pack_by_tbt, scanner_blockers_by_row)
+    graph = _fr_local_graph_data(req, fr_tbts, tbt_status_by_id, test_pack_by_tbt, scanner_blockers_by_row, context_details)
     graph_json = json.dumps(graph, separators=(",", ":")).replace("<", "\\u003c")
     return (
         '<div class="fr-local-graph">'
@@ -551,6 +712,7 @@ def _fr_local_graph_data(
     tbt_status_by_id: dict[str, dict],
     test_pack_by_tbt: dict[str, dict],
     scanner_blockers_by_row: dict[str, list[dict]],
+    context_details: list[dict[str, str]] | None = None,
 ) -> dict:
     rid = str(req.get("id") or "FR")
     nodes: list[dict] = [
@@ -560,11 +722,11 @@ def _fr_local_graph_data(
             "title": rid,
             "subtitle": str(req.get("title") or "Functional requirement"),
             "status": str(req.get("lifecycle_status") or req.get("status") or ""),
-            "details": [
-                {"label": "Title", "value": str(req.get("title") or "")},
-                {"label": "Owner", "value": str(req.get("owner") or "")},
-                {"label": "Description", "value": str(req.get("description") or "")},
-            ] + _lineage_context_details(req.get("derived_from")),
+            "details": context_details or ([
+                {"group": "Project", "label": "Title", "value": str(req.get("title") or "")},
+                {"group": "Project", "label": "Owner", "value": str(req.get("owner") or "")},
+                {"group": "Project", "label": "Description", "value": str(req.get("description") or "")},
+            ] + _lineage_context_details(req.get("derived_from"))),
         }
     ]
     edges: list[dict] = []
@@ -675,16 +837,15 @@ def _fr_local_graph_data(
         edges.append({"source": tbt_node_id, "target": test_node_id, "label": "implemented by"})
 
         evidence_node_id = f"evidence:{tbt_id}"
+        observed_records = status.get("observed_evidence") or []
+        evidence_record = observed_records[0] if observed_records else None
         nodes.append({
             "id": evidence_node_id,
             "type": "test_result",
             "title": evidence_label,
             "subtitle": evidence_meta,
             "status": evidence_state,
-            "details": [
-                {"label": "Evidence state", "value": evidence_state},
-                {"label": "Artifact", "value": evidence_meta},
-            ],
+            "details": _evidence_context_details(evidence_record, evidence_state, evidence_meta),
         })
         edges.append({"source": test_node_id, "target": evidence_node_id, "label": "produces"})
 
@@ -990,6 +1151,7 @@ def _assurance_badge_copy(state: str | None) -> tuple[str, str]:
         "manual_review": "review",
         "missing": "unproven",
         "failed": "failed",
+        "execution_error": "harness error",
         "waived": "waived",
         "compensating_control": "control",
         "out_of_scope": "out scope",
@@ -1000,6 +1162,7 @@ def _assurance_badge_copy(state: str | None) -> tuple[str, str]:
         "manual_review": "Resolved assurance: human review or manual evidence is required.",
         "missing": "Resolved assurance: this FR has declared TBTs, but no sufficient observed evidence was found in this scan.",
         "failed": "Resolved assurance: failing evidence was observed for this FR.",
+        "execution_error": "Resolved assurance: an approved test ran but hit a harness or runtime error, so it did not produce a conformance verdict.",
         "waived": "Resolved assurance: this FR has waiver handling and should not be counted as proved.",
         "compensating_control": "Resolved assurance: this FR relies on a compensating control.",
         "out_of_scope": "Resolved assurance: this FR is outside the selected assurance scope.",

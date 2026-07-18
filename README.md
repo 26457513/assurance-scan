@@ -1,17 +1,17 @@
-# ASVS Scanner
+# Assurance Scan
 
-ASVS Scanner is a portable security scan and evidence bundle generator for application codebases. It runs source, dependency, container image, runtime URL, TLS, header, and uploaded-file checks through Docker, then produces a compact dashboard, raw evidence files, a manual evidence checklist, and an agent-ready fix prompt.
+Assurance Scan is a portable security scan and evidence bundle generator for application codebases. It runs source, dependency, container image, runtime URL, TLS, header, and uploaded-file checks through Docker, then produces a compact dashboard, raw evidence files, a manual evidence checklist, and an agent-ready fix prompt.
 
 The scanner is built around the **Application Security Verification Standard (ASVS)** — an OWASP standard that lists security requirements an application should satisfy. Automated checks produce the evidence they can; manual ASVS evidence remains visible and trackable alongside them. The tool is designed for repeatable assurance work, not as a magic compliance stamp.
 
-> **Image location placeholder:** commands below use `<dockerhub-user>/asvs-scanner`. Substitute your Docker Hub username or org name when you copy them.
+> **Image location placeholder:** commands below use `<dockerhub-user>/assurance-scan`. Substitute your Docker Hub username or org name when you copy them.
 
 ## Quick Start
 
 ```bash
 # One-time per machine: authenticate + pull the image
 docker login
-docker pull <dockerhub-user>/asvs-scanner:latest
+docker pull <dockerhub-user>/assurance-scan:latest
 
 # Scan a project
 cd /path/to/project
@@ -20,24 +20,24 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$(dirname "$PWD"):$(dirname "$PWD")" \
   -w "$PWD" \
-  <dockerhub-user>/asvs-scanner:latest scan "$PWD"
+  <dockerhub-user>/assurance-scan:latest scan "$PWD"
 
 # Open the dashboard (path is printed at the end of the scan)
-open "<worktree-path>/.asvs-scanner/runtime/reports/$(ls -t <worktree-path>/.asvs-scanner/runtime/reports | head -1)/dashboard.html"
+open "<worktree-path>/.assurance-scan/runtime/reports/$(ls -t <worktree-path>/.assurance-scan/runtime/reports | head -1)/dashboard.html"
 ```
 
 First scan in a project downloads vulnerability databases (Trivy / Grype / OSV), so expect it to be slower. Subsequent scans reuse the cache.
 
 ### Where to find the docs
 
-- This README is also rendered on the Docker Hub image page (`hub.docker.com/r/<dockerhub-user>/asvs-scanner`) once you link the source repo under Repository → General → Description.
+- This README is also rendered on the Docker Hub image page (`hub.docker.com/r/<dockerhub-user>/assurance-scan`) once you link the source repo under Repository → General → Description.
 - Runtime graph architecture and proof-direction notes live in `docs/RUNTIME_GRAPH_ARCHITECTURE.md`.
-- Inside a terminal, `<dockerhub-user>/asvs-scanner:latest help` prints the supported subcommands and key flags.
-- The README is baked into the image at `/opt/asvs-scanner/README.md`. Extract it without a browser:
+- Inside a terminal, `<dockerhub-user>/assurance-scan:latest help` prints the supported subcommands and key flags.
+- The README is baked into the image at `/opt/assurance-scan/README.md`. Extract it without a browser:
   ```bash
-  docker run --rm --entrypoint cat <dockerhub-user>/asvs-scanner:latest /opt/asvs-scanner/README.md
+  docker run --rm --entrypoint cat <dockerhub-user>/assurance-scan:latest /opt/assurance-scan/README.md
   ```
-- Source, issues, and release notes live at `https://github.com/jondowson/asvs-scanner`.
+- Source, issues, and release notes live at `https://github.com/jondowson/assurance-scan`.
 
 ## Prerequisites
 
@@ -46,6 +46,7 @@ First scan in a project downloads vulnerability databases (Trivy / Grype / OSV),
 - **Internet access** on first run, to pull scanner images and seed vulnerability databases. Later scans are offline-tolerant.
 - **Disk:** budget ~5 GB for caches plus the size of any built scan images.
 - For target repos with uncommitted changes you want scanned: **commit or stash first.** The scanner creates a safe worktree from the current branch and only committed files end up in the scan.
+- **Lockfile auto-injection.** Gitignored lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`) that sit next to a discovered Dockerfile are copied into the safe worktree and force-committed before image build, so `npm ci` and similar commands don't fail with `EUSAGE`. The list of injected files is written to `.assurance-scan/runtime/injected-lockfiles.json` in the worktree. Set `ASSURANCE_SCAN_INJECT_LOCKFILES=0` to disable.
 
 ## What It Produces
 
@@ -74,8 +75,8 @@ The scanner creates a safe Git worktree beside your repo (sibling directory) and
 ```text
 <project-parent>/
   your-project/                                              ← your repo, untouched
-  your-project-asvs-scan-<RUN_ID>/                           ← safe worktree (created by the scan)
-    .asvs-scanner/runtime/reports/<RUN_ID>/                  ← dashboard + all outputs
+  your-project-assurance-scan-<RUN_ID>/                           ← safe worktree (created by the scan)
+    .assurance-scan/runtime/reports/<RUN_ID>/                  ← dashboard + all outputs
 ```
 
 `<RUN_ID>` has the format `<UTCstamp>_<sha8>` (e.g. `20260702T104215Z_3e675e29`) — the same string the dashboard shows as "Run ID", so you can grep for it on disk.
@@ -86,15 +87,15 @@ Target-schema artifacts can be checked after a run:
 docker run --rm -it \
   -v "$(dirname "$PWD"):$(dirname "$PWD")" \
   -w "$PWD" \
-  <dockerhub-user>/asvs-scanner:latest validate-report \
-  "<worktree-path>/.asvs-scanner/runtime/reports/<RUN_ID>" \
+  <dockerhub-user>/assurance-scan:latest validate-report \
+  "<worktree-path>/.assurance-scan/runtime/reports/<RUN_ID>" \
   --strict
 ```
 
 Agent-authored config update proposals should be validated before review or application:
 
 ```bash
-asvs-scanner validate-config-update proposal.json \
+assurance-scan validate-config-update proposal.json \
   --fr-catalog /path/to/project.fr-catalog.enriched.json \
   --ruleset data/fixtures/target-schemas/ruleset.example.json \
   --assurance-framework /path/to/jsp453-framework.json
@@ -103,23 +104,23 @@ asvs-scanner validate-config-update proposal.json \
 Then render a human review brief:
 
 ```bash
-asvs-scanner review-config-update proposal.json \
+assurance-scan review-config-update proposal.json \
   --output proposal-review.md
 ```
 
 After human review, selected entries can be applied to explicit output files:
 
 ```bash
-asvs-scanner apply-config-update proposal.json \
+assurance-scan apply-config-update proposal.json \
   --list
 
-asvs-scanner apply-config-update proposal.json \
+assurance-scan apply-config-update proposal.json \
   --select fr_catalog_updates:1 \
   --reviewed-by "assessor-name" \
   --fr-catalog /path/to/project.fr-catalog.enriched.json \
   --fr-catalog-out /path/to/project.fr-catalog.reviewed.json
 
-asvs-scanner apply-config-update proposal.json \
+assurance-scan apply-config-update proposal.json \
   --select assurance_framework_or_instance_updates:1 \
   --reviewed-by "assessor-name" \
   --assurance-instance /path/to/project.assurance-instance.json \
@@ -129,7 +130,7 @@ asvs-scanner apply-config-update proposal.json \
 
 Automatic apply currently covers `fr_catalog_updates`, `compliance_mapping_pack_updates`, `native_test_mapping_updates` that update the assurance test-pack manifest, `assurance_framework_or_instance_updates` that target project instance mappings, gate decisions and waivers, plus manual evidence targeted at FRs, TBTs, criteria, and sufficiently-specified gate/role instance records. Reusable framework-structure changes and scanner-compliance mapping curation remain review-only until a human edits the relevant catalog deliberately.
 
-ASVS-owned executable tests and wrappers live under `tests/asvs/` in the generated pack or dedicated ASVS branch/worktree. Existing native project tests stay in their original source paths; report-local imported copies are provenance/review inputs, not a second source of truth.
+assurance-owned executable tests and wrappers live under `tests/asvs/` in the generated pack or dedicated assurance branch/worktree. Existing native project tests stay in their original source paths; report-local imported copies are provenance/review inputs, not a second source of truth.
 
 ### Worked Config Update Example
 
@@ -140,7 +141,7 @@ Use this when the dashboard shows FR/TBT gaps that are really config gaps, for e
 2. Validate the proposal against the current config and standards context:
 
 ```bash
-asvs-scanner validate-config-update proposal.json \
+assurance-scan validate-config-update proposal.json \
   --fr-catalog "$PWD/tapestry-mono.fr-catalog.enriched.json" \
   --ruleset "$PWD/data/fixtures/target-schemas/ruleset.example.json" \
   --assurance-framework "$PWD/jsp-453.assurance-framework.draft.json"
@@ -149,21 +150,21 @@ asvs-scanner validate-config-update proposal.json \
 3. Render the human review brief:
 
 ```bash
-asvs-scanner review-config-update proposal.json \
+assurance-scan review-config-update proposal.json \
   --output proposal-review.md
 ```
 
 4. List selectable proposal entries and approve only the entries you have reviewed:
 
 ```bash
-asvs-scanner apply-config-update proposal.json \
+assurance-scan apply-config-update proposal.json \
   --list
 ```
 
 5. Apply selected entries to explicit reviewed outputs. This is transactional: if any selected output fails validation, none of the reviewed outputs are replaced.
 
 ```bash
-asvs-scanner apply-config-update proposal.json \
+assurance-scan apply-config-update proposal.json \
   --select fr_catalog_updates:1 \
   --select assurance_framework_or_instance_updates:1 \
   --reviewed-by "assessor-name" \
@@ -180,18 +181,18 @@ asvs-scanner apply-config-update proposal.json \
 
 ```bash
 docker run --rm -it \
-  -e ASVS_IMAGE_BUILD_PARALLELISM=2 \
-  -e ASVS_PARALLELISM=4 \
+  -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \
+  -e ASSURANCE_SCAN_PARALLELISM=4 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$(dirname "$PWD"):$(dirname "$PWD")" \
   -w "$PWD" \
-  asvs-scanner:latest scan "$PWD" \
+  assurance-scan:latest scan "$PWD" \
   --fr-catalog "$PWD/tapestry-mono.fr-catalog.reviewed.json" \
   --assurance-framework "$PWD/jsp-453.assurance-framework.draft.json" \
   --assurance-instance "$PWD/tapestry-mono.assurance-instance.reviewed.json"
 ```
 
-After rerun, validate the fresh report with `asvs-scanner validate-report <report-dir> --strict`, then inspect Project FRs, Compliance Regime, Industry Framework and Traceability Graph to confirm the gap moved from "missing config" to a real pass, fail, manual review, waiver or missing evidence state.
+After rerun, validate the fresh report with `assurance-scan validate-report <report-dir> --strict`, then inspect Project FRs, Compliance Regime, Industry Framework and Traceability Graph to confirm the gap moved from "missing config" to a real pass, fail, manual review, waiver or missing evidence state.
 
 ## Scanner Coverage
 
@@ -223,12 +224,12 @@ cd /path/to/project
 git switch branch-to-scan
 
 docker run --rm -it \
-  -e ASVS_IMAGE_BUILD_PARALLELISM=2 \
-  -e ASVS_PARALLELISM=4 \
+  -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \
+  -e ASSURANCE_SCAN_PARALLELISM=4 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$(dirname "$PWD"):$(dirname "$PWD")" \
   -w "$PWD" \
-  <dockerhub-user>/asvs-scanner:latest scan "$PWD"
+  <dockerhub-user>/assurance-scan:latest scan "$PWD"
 ```
 
 ### Common Variations
@@ -257,7 +258,7 @@ When an FR catalog is supplied, the scanner treats `FR-*` entries as project-own
 `docker run` uses the local image cache and will not auto-pull newer versions. When you publish or pull a new `latest`, refresh explicitly:
 
 ```bash
-docker pull <dockerhub-user>/asvs-scanner:latest
+docker pull <dockerhub-user>/assurance-scan:latest
 ```
 
 ## Image Scan Workflow
@@ -269,7 +270,7 @@ By default, `scan` looks for Dockerfiles in the safe worktree and builds scan im
 - `apps/*/Dockerfile`
 - `packages/*/Dockerfile`
 
-Images are tagged with commit-stable local names like `repo-service:asvs-v2-1a2b3c4d5e6f`, then passed to Trivy image, Syft image, and Grype image. Later scans of the same commit reuse those images instead of rebuilding them. Set `ASVS_FORCE_IMAGE_BUILD=1` when you deliberately want to rebuild.
+Images are tagged with commit-stable local names like `repo-service:assurance-v1-1a2b3c4d5e6f`, then passed to Trivy image, Syft image, and Grype image. Later scans of the same commit reuse those images instead of rebuilding them. Set `ASSURANCE_SCAN_FORCE_IMAGE_BUILD=1` when you deliberately want to rebuild.
 
 Image scans default Trivy to vulnerability scanning only (`TRIVY_IMAGE_SCANNERS=vuln`) because source secrets are already covered by Gitleaks and image secret scanning can be slow on package-manager caches. Set `TRIVY_IMAGE_SCANNERS=vuln,secret` when you explicitly want Trivy to search images for embedded secrets too.
 
@@ -282,15 +283,15 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$(dirname "$PWD"):$(dirname "$PWD")" \
   -w "$PWD" \
-  <dockerhub-user>/asvs-scanner:latest safe-image-worktree "$PWD"                              # auto branch name
-  <dockerhub-user>/asvs-scanner:latest safe-image-worktree "$PWD" asvs/image-scan-my-check   # specific branch
+  <dockerhub-user>/assurance-scan:latest safe-image-worktree "$PWD"                              # auto branch name
+  <dockerhub-user>/assurance-scan:latest safe-image-worktree "$PWD" assurance/image-scan-my-check   # specific branch
 ```
 
 That prints the new worktree path and branch name. Then `cd` into it, add whatever temporary build files you need, commit, and run the normal `scan` command from there.
 
 ## Scanner Databases
 
-Database setup is automatic. ASVS Scanner keeps scanner databases in persistent Docker named volumes, so they survive normal `docker run --rm` scans.
+Database setup is automatic. Assurance Scan keeps scanner databases in persistent Docker named volumes, so they survive normal `docker run --rm` scans.
 
 | Behavior | Default |
 |---|---|
@@ -305,10 +306,10 @@ Tune the refresh policy with:
 
 | Setting | Effect |
 |---|---|
-| `ASVS_DB_REFRESH_TTL_HOURS=24` | Default daily refresh window |
-| `ASVS_DB_REFRESH_TTL_HOURS=0` | Check/download fresh databases on every scan |
-| `ASVS_AUTO_PREFETCH=0` | Skip automatic database setup entirely |
-| `asvs-scanner prefetch` | Force a refresh immediately |
+| `ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS=24` | Default daily refresh window |
+| `ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS=0` | Check/download fresh databases on every scan |
+| `ASSURANCE_SCAN_AUTO_PREFETCH=0` | Skip automatic database setup entirely |
+| `assurance-scan prefetch` | Force a refresh immediately |
 
 Warm a laptop ahead of time:
 
@@ -317,7 +318,7 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$PWD:$PWD" \
   -w "$PWD" \
-  <dockerhub-user>/asvs-scanner:latest prefetch
+  <dockerhub-user>/assurance-scan:latest prefetch
 ```
 
 Or refresh selected databases:
@@ -327,7 +328,7 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$PWD:$PWD" \
   -w "$PWD" \
-  <dockerhub-user>/asvs-scanner:latest prefetch --only trivy,grype,osv,clamav
+  <dockerhub-user>/assurance-scan:latest prefetch --only trivy,grype,osv,clamav
 ```
 
 ## Ignoring Source Paths
@@ -354,7 +355,7 @@ This applies to Semgrep, Gitleaks, and Trivy config. Dependency scanners still i
 - HTTPS URLs trigger TLS checks; HTTP URLs skip testssl.sh by design.
 - Upload scans need a folder of representative files mounted under the project path or another same-path bind mount.
 - The ASVS score combines automated checks and manual evidence. Use the Manual KPI in the dashboard to track evidence completion during review.
-- Tune parallelism with `ASVS_PARALLELISM` (scanner containers) and `ASVS_IMAGE_BUILD_PARALLELISM` (image builds). Set either to `1` for sequential troubleshooting.
+- Tune parallelism with `ASSURANCE_SCAN_PARALLELISM` (scanner containers) and `ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM` (image builds). Set either to `1` for sequential troubleshooting.
 
 ## Local Configuration
 
@@ -397,10 +398,10 @@ The `publish-image` GitHub Actions workflow (`.github/workflows/publish-image.ym
 
 | Tag | Use when |
 |---|---|
-| `<user>/asvs-scanner:latest` | You want every merged change to main, accepts some churn |
-| `<user>/asvs-scanner:stable` | You want only intentional releases — only advances when you cut a `v*` tag |
-| `<user>/asvs-scanner:<version>` | You want to pin a specific release (e.g. `:1.2.3`) for reproducibility |
-| `<user>/asvs-scanner:<short-sha>` | You want to pin a specific commit, e.g. for incident forensics |
+| `<user>/assurance-scan:latest` | You want every merged change to main, accepts some churn |
+| `<user>/assurance-scan:stable` | You want only intentional releases — only advances when you cut a `v*` tag |
+| `<user>/assurance-scan:<version>` | You want to pin a specific release (e.g. `:1.2.3`) for reproducibility |
+| `<user>/assurance-scan:<short-sha>` | You want to pin a specific commit, e.g. for incident forensics |
 
 To cut a release: `git tag v1.2.3 && git push --tags` — the workflow publishes `:1.2.3` plus advances `:stable`.
 
@@ -427,8 +428,8 @@ Build for both Intel and ARM, tag with `latest` plus a commit-stable sha, push i
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t <dockerhub-user>/asvs-scanner:latest \
-  -t <dockerhub-user>/asvs-scanner:"$(git rev-parse --short=8 HEAD)" \
+  -t <dockerhub-user>/assurance-scan:latest \
+  -t <dockerhub-user>/assurance-scan:"$(git rev-parse --short=8 HEAD)" \
   --push .
 ```
 
@@ -437,17 +438,17 @@ docker buildx build \
 For airgapped machines or skipping the registry entirely:
 
 ```bash
-docker buildx build --platform linux/amd64 -t <dockerhub-user>/asvs-scanner:amd64 --load .
-docker save <dockerhub-user>/asvs-scanner:amd64 -o asvs-scanner-amd64.tar
+docker buildx build --platform linux/amd64 -t <dockerhub-user>/assurance-scan:amd64 --load .
+docker save <dockerhub-user>/assurance-scan:amd64 -o assurance-scan-amd64.tar
 
-docker buildx build --platform linux/arm64 -t <dockerhub-user>/asvs-scanner:arm64 --load .
-docker save <dockerhub-user>/asvs-scanner:arm64 -o asvs-scanner-arm64.tar
+docker buildx build --platform linux/arm64 -t <dockerhub-user>/assurance-scan:arm64 --load .
+docker save <dockerhub-user>/assurance-scan:arm64 -o assurance-scan-arm64.tar
 ```
 
 Colleagues load a tarball with:
 
 ```bash
-docker load -i asvs-scanner-amd64.tar
+docker load -i assurance-scan-amd64.tar
 ```
 
 ### Granting pull access

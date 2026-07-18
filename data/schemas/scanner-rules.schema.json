@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/scanner-rules.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/scanner-rules.schema.json",
   "title": "Scanner Rules Catalog",
   "description": "Optional scanner-native rule metadata. Compliance mappings live only in scanner-compliance-mapping-pack files.",
   "type": "object",

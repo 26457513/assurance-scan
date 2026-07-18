@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "regime": "OWASP-TOP-10",
+  "version": "2021",
+  "title": "OWASP Top 10",
+  "short_title": "OWASP Top 10",
+  "description": "Awareness-oriented application security risk categories. Use as a high-level compliance regime only when the project contract explicitly selects it.",
+  "ruleset_ref": {
+    "ruleset": "OWASP-TOP-10",
+    "version": "2021",
+    "path": "data/rulesets/owasp-top-10/2021.json"
+  },
+  "source": {
+    "url": "https://owasp.org/Top10/",
+    "license": "CC-BY-SA-4.0",
+    "publisher": "OWASP",
+    "retrieved_at": "2026-07-12",
+    "source_file": "data/compliance-regimes/owasp-top-10/2021.json"
+  },
+  "family_axis": {
+    "label": "category",
+    "row_field": "group",
+    "ui_label": "Category"
+  },
+  "families": [
+    {"id": "A01", "title": "Broken Access Control"},
+    {"id": "A02", "title": "Cryptographic Failures"},
+    {"id": "A03", "title": "Injection"},
+    {"id": "A04", "title": "Insecure Design"},
+    {"id": "A05", "title": "Security Misconfiguration"},
+    {"id": "A06", "title": "Vulnerable and Outdated Components"},
+    {"id": "A07", "title": "Identification and Authentication Failures"},
+    {"id": "A08", "title": "Software and Data Integrity Failures"},
+    {"id": "A09", "title": "Security Logging and Monitoring Failures"},
+    {"id": "A10", "title": "Server-Side Request Forgery"}
+  ],
+  "applicability": {
+    "default_scope": "web_application_risk_categories",
+    "notes": [
+      "This metadata does not make OWASP Top 10 an active project obligation by itself.",
+      "A project must load the matching ruleset and reviewed FR/TBT mappings before shortfalls count against this regime."
+    ]
+  },
+  "proof": {
+    "commitment_role": "compliance_regime",
+    "zk_disclosure": "May be disclosed as public metadata with a hash commitment to the selected ruleset snapshot."
+  }
+}

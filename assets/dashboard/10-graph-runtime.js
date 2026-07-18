@@ -203,6 +203,7 @@ function setupGraph() {
     });
   }
   function rulesetOptionLabel(value) {
+    if (!value) return 'All compliance regimes';
     if (value === 'ASVS') return 'ASVS';
     if (value === 'NIST-800-53') return 'NIST 800-53';
     return value;
@@ -351,7 +352,7 @@ function setupGraph() {
       });
     });
   }
-  addOptions(controls.ruleset, uniqueSorted(rowNodes.map(function(n) { return n.ruleset; })), 'All regimes');
+  addOptions(controls.ruleset, uniqueSorted(rowNodes.map(function(n) { return n.ruleset; })), 'All compliance regimes');
   refreshChapterOptions();
   addOptions(controls.scanner, uniqueSorted(data.nodes.filter(function(n) { return n.type === 'scanner_rule' || (n.type === 'evidence' && n.evidence_type === 'scanner_result'); }).map(function(n) { return n.scanner; })), 'All scanners');
   if (controls.entryType) {
@@ -1884,18 +1885,13 @@ function setupGraph() {
     });
   });
 
-  if (controls.ruleset && uniqueSorted(rowNodes.map(function(n) { return n.ruleset; })).indexOf('ASVS') >= 0) {
-    controls.ruleset.value = 'ASVS';
-    refreshChapterOptions();
-  }
-  var chapters = uniqueSorted(rowsForRuleset().map(function(n) { return n.chapter; }));
-  if (controls.chapter && chapters.indexOf('V5') >= 0) controls.chapter.value = 'V5';
   if (controls.status && frNodes.length) controls.status.value = 'failed';
   function contextOptions() {
+    var loadedRulesets = uniqueSorted(rowNodes.map(function(n) { return n.ruleset; })).map(function(value) {
+      return {value: value, label: rulesetOptionLabel(value)};
+    });
     return {
-      rulesets: uniqueSorted(rowNodes.map(function(n) { return n.ruleset; })).map(function(value) {
-        return {value: value, label: rulesetOptionLabel(value)};
-      }),
+      rulesets: [{value: '', label: rulesetOptionLabel('')}].concat(loadedRulesets),
       chapters: controls.chapter ? Array.from(controls.chapter.options).map(function(option) {
         return {value: option.value, label: option.textContent};
       }) : [],
@@ -1948,13 +1944,36 @@ function setupProcessFlow() {
     return;
   }
   var profileControl = document.getElementById('process-profile-control');
-  var profiles = data.profiles && data.profiles.length ? data.profiles : [{id: 'baseline', title: 'Baseline assurance'}];
-  var selectedProfile = data.selected_profile || profiles[0].id;
-  var selectedProcessId = data.selected_process || (data.processes[0] && data.processes[0].id) || '';
+  var frameworkOptionsDataEl = document.getElementById('framework-options-data');
+  var processFlowByFramework = {};
+  if (frameworkOptionsDataEl) {
+    try {
+      (JSON.parse(frameworkOptionsDataEl.textContent || '[]') || []).forEach(function(item) {
+        if (item && item.id && item.process_flow && item.process_flow.processes && item.process_flow.processes.length) {
+          processFlowByFramework[item.id] = item.process_flow;
+        }
+      });
+    } catch (_) {}
+  }
+  var profiles = [];
+  var selectedProfile = '';
+  var selectedProcessId = '';
   var showLinkedFlows = false;
   var detailOpen = false;
   var selectedDetailKey = null;
-  var showProfileControls = profiles.length > 1 || (profiles[0] && profiles[0].id !== 'baseline');
+  var showProfileControls = false;
+  function applyProcessData(nextData, preferredProcessId) {
+    if (nextData && nextData.processes && nextData.processes.length) data = nextData;
+    profiles = data.profiles && data.profiles.length ? data.profiles : [{id: 'baseline', title: 'Baseline assurance'}];
+    selectedProfile = data.selected_profile || profiles[0].id;
+    if (preferredProcessId && (data.processes || []).some(function(process) { return process.id === preferredProcessId; })) {
+      selectedProcessId = preferredProcessId;
+    } else {
+      selectedProcessId = data.selected_process || (data.processes[0] && data.processes[0].id) || '';
+    }
+    showProfileControls = profiles.length > 1 || (profiles[0] && profiles[0].id !== 'baseline');
+  }
+  applyProcessData(data);
   var statusColors = {met: '#35d07f', partial: '#8fcbe8', manual: '#ffd166', blocked: '#ff4d6d'};
   var statusLabels = {met: 'Met', partial: 'Partial', manual: 'Manual review', blocked: 'Blocked'};
   var transitionColors = {primary: '#8fcbe8', success: '#35d07f', warning: '#ffd166', danger: '#ff4d6d', muted: '#6b7f88'};
@@ -2423,12 +2442,22 @@ function setupProcessFlow() {
     closeProcessDetail();
     renderCurrent();
   }
+  function setFramework(frameworkId, preferredProcessId) {
+    var nextData = processFlowByFramework[frameworkId || ''];
+    if (!nextData) return false;
+    applyProcessData(nextData, preferredProcessId || '');
+    closeProcessDetail();
+    renderCurrent();
+    return true;
+  }
   function getProcesses() {
     return (data.processes || []).map(function(process) {
-      return {value: process.id, label: process.title || process.id};
+      var label = process.title || process.id;
+      label = label.replace(/^JSP\s*453\s+/i, '');
+      return {value: process.id, label: label};
     });
   }
-  window.asvsProcessFlow = {renderCurrent: renderCurrent, setProcess: setProcess, getProcesses: getProcesses};
+  window.asvsProcessFlow = {renderCurrent: renderCurrent, setProcess: setProcess, setFramework: setFramework, getProcesses: getProcesses};
   if (canvas.offsetParent) renderCurrent();
 }
 
@@ -2457,22 +2486,74 @@ function setupGlobalContext() {
       var opt = document.createElement('option');
       opt.value = item.value;
       opt.textContent = item.label;
+      if (item.path) opt.dataset.path = item.path;
+      if (item.imagePath) opt.dataset.imagePath = item.imagePath;
+      if (item.frameworkId) opt.dataset.frameworkId = item.frameworkId;
+      if (item.version) opt.dataset.version = item.version;
+      if (item.selected) opt.selected = true;
       select.appendChild(opt);
     });
   }
   function graphOptions() {
     return window.asvsGraph && window.asvsGraph.getContextOptions ? window.asvsGraph.getContextOptions() : {rulesets: [], chapters: [], ruleset: '', chapter: ''};
   }
-  function rulesetTabMap() {
-    var el = document.getElementById('ruleset-tab-map');
-    if (!el) return {};
-    try { return JSON.parse(el.textContent || '{}') || {}; } catch (_) { return {}; }
+  function frameworkOptionsData() {
+    var el = document.getElementById('framework-options-data');
+    if (!el) return [];
+    try { return JSON.parse(el.textContent || '[]') || []; } catch (_) { return []; }
   }
-  function showRulesetPage(value) {
-    var tabId = rulesetTabMap()[value || ''];
-    if (tabId && document.getElementById('tab-' + tabId)) {
-      showPanel(tabId);
+  function currentFrameworkOption() {
+    var opt = frameworkSelect.options[frameworkSelect.selectedIndex];
+    if (!opt) return null;
+    return {
+      value: opt.value || '',
+      label: opt.textContent || '',
+      path: opt.dataset.path || '',
+      imagePath: opt.dataset.imagePath || '',
+      frameworkId: opt.dataset.frameworkId || '',
+      version: opt.dataset.version || ''
+    };
+  }
+  function processOptionsForSelected() {
+    var framework = currentFrameworkOption();
+    var frameworkId = framework ? framework.frameworkId : '';
+    var source = frameworkOptionsData().find(function(item) { return item.id === frameworkId || item.image_path === (framework ? framework.imagePath : ''); });
+    if (source && Array.isArray(source.processes)) {
+      return source.processes.map(function(process) { return {value: process.id, label: process.label || process.id}; });
     }
+    return window.asvsProcessFlow && window.asvsProcessFlow.getProcesses ? window.asvsProcessFlow.getProcesses() : [];
+  }
+  function publishRuntimeContext() {
+    var selectedFramework = frameworkSelect.options[frameworkSelect.selectedIndex];
+    var selectedProcess = processSelect.options[processSelect.selectedIndex];
+    var selectedRuleset = rulesetSelect.options[rulesetSelect.selectedIndex];
+    var selectedChapter = chapterSelect.options[chapterSelect.selectedIndex];
+    window.asvsRuntimeContext = {
+      assurance_framework: {
+        value: frameworkSelect.value || '',
+        label: selectedFramework ? selectedFramework.textContent : '',
+        path: selectedFramework ? (selectedFramework.dataset.path || '') : '',
+        image_path: selectedFramework ? (selectedFramework.dataset.imagePath || '') : '',
+        version: selectedFramework ? (selectedFramework.dataset.version || '') : ''
+      },
+      gated_flow: {
+        value: processSelect.value || '',
+        label: selectedProcess ? selectedProcess.textContent : ''
+      },
+      compliance_regime: {
+        value: rulesetSelect.value || '',
+        label: selectedRuleset ? selectedRuleset.textContent : ''
+      },
+      chapter_family: {
+        value: chapterSelect.value || '',
+        label: selectedChapter ? selectedChapter.textContent : ''
+      }
+    };
+    if (window.asvsFrameworkTabs && window.asvsFrameworkTabs.applyRuntimeContext) {
+      window.asvsFrameworkTabs.applyRuntimeContext(window.asvsRuntimeContext);
+    }
+    window.dispatchEvent(new CustomEvent('asvs-runtime-context-changed', {detail: window.asvsRuntimeContext}));
+    return window.asvsRuntimeContext;
   }
   function syncChapters(preferred) {
     var opts = graphOptions();
@@ -2491,28 +2572,52 @@ function setupGlobalContext() {
     }
     var frameworkId = flowData.assurance_framework || '';
     var frameworkTitle = flowData.title || '';
-    var frameworkLabel = frameworkId && frameworkTitle && frameworkTitle !== frameworkId
-      ? frameworkId + ' - ' + frameworkTitle
-      : frameworkTitle || frameworkId || 'Assurance framework';
-    addOptions(frameworkSelect, [{value: frameworkId || frameworkLabel, label: frameworkLabel}], 'No framework');
-    var processes = window.asvsProcessFlow && window.asvsProcessFlow.getProcesses ? window.asvsProcessFlow.getProcesses() : [];
-    addOptions(processSelect, processes, 'No gated flow');
+    var frameworkLabel = frameworkTitle || frameworkId || 'Assurance framework';
+    var frameworkOptions = frameworkOptionsData().map(function(item) {
+      return {
+        value: item.id || item.label || '',
+        label: item.label || item.title || item.id || 'Assurance framework',
+        path: item.path || '',
+        imagePath: item.image_path || item.path || '',
+        frameworkId: item.id || '',
+        version: item.version || '',
+        selected: Boolean(item.selected) || Boolean(frameworkId && item.id === frameworkId)
+      };
+    });
+    if (!frameworkOptions.length) {
+      frameworkOptions = [{value: frameworkId || frameworkLabel, label: frameworkLabel, frameworkId: frameworkId, selected: true}];
+    }
+    if (!frameworkOptions.some(function(item) { return item.selected; })) frameworkOptions[0].selected = true;
+    addOptions(frameworkSelect, frameworkOptions, 'No framework');
+    addOptions(processSelect, processOptionsForSelected(), 'No gated flow');
     var opts = graphOptions();
     addOptions(rulesetSelect, opts.rulesets, 'No compliance regime');
-    rulesetSelect.value = opts.ruleset || (opts.rulesets[0] && opts.rulesets[0].value) || '';
+    rulesetSelect.value = opts.ruleset || '';
     syncChapters(opts.chapter);
+    publishRuntimeContext();
   }
+  frameworkSelect.addEventListener('change', function() {
+    addOptions(processSelect, processOptionsForSelected(), 'No gated flow');
+    if (window.asvsProcessFlow && window.asvsProcessFlow.setFramework) {
+      window.asvsProcessFlow.setFramework(frameworkSelect.value, processSelect.value);
+    } else if (window.asvsProcessFlow && window.asvsProcessFlow.setProcess) {
+      window.asvsProcessFlow.setProcess(processSelect.value);
+    }
+    publishRuntimeContext();
+  });
   processSelect.addEventListener('change', function() {
     if (window.asvsProcessFlow && window.asvsProcessFlow.setProcess) window.asvsProcessFlow.setProcess(processSelect.value);
+    publishRuntimeContext();
   });
   rulesetSelect.addEventListener('change', function() {
     var opts = window.asvsGraph && window.asvsGraph.setRuleset ? window.asvsGraph.setRuleset(rulesetSelect.value, true) : graphOptions();
     syncChapters(opts.chapter);
-    showRulesetPage(rulesetSelect.value);
+    publishRuntimeContext();
   });
   chapterSelect.addEventListener('change', function() {
     if (window.asvsGraph && window.asvsGraph.setChapter) window.asvsGraph.setChapter(chapterSelect.value, true);
+    publishRuntimeContext();
   });
-  window.asvsGlobalContext = {ready: true, sync: sync};
+  window.asvsGlobalContext = {ready: true, sync: sync, getContext: publishRuntimeContext};
   sync();
 }

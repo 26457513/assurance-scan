@@ -31,6 +31,20 @@ def load_json(p: Path):
     return None
 
 
+def display_current_repo_path(value):
+    if not value:
+        return value
+    legacy_root = Path("/Users/jd/Development/asvs-scanner")
+    repo_root = Path(__file__).resolve().parents[1]
+    try:
+        path = Path(str(value))
+        if path.is_absolute() and path.is_relative_to(legacy_root):
+            return str(repo_root / path.relative_to(legacy_root))
+    except (TypeError, ValueError):
+        pass
+    return value
+
+
 def record_report_artifact(report_dir: Path, artifact: Path) -> None:
     manifest_path = report_dir / "evidence-manifest.json"
     if not manifest_path.exists() or not artifact.exists():
@@ -638,8 +652,8 @@ def render_assurance_prompt(
     md.append("")
     md.append("## Scan Context")
     md.append("")
-    md.append(f"- **Original source repo:** `{original_source_repo}`")
-    md.append(f"- **Safe scan worktree:** `{safe_scan_worktree}`")
+    md.append(f"- **Original source repo:** `{display_current_repo_path(original_source_repo)}`")
+    md.append(f"- **Safe scan worktree:** `{display_current_repo_path(safe_scan_worktree)}`")
     md.append(f"- **Branch:** `{branch}`")
     md.append(f"- **Run ID:** `{run_id}`")
     md.append(f"- **Git commit:** `{git_commit or 'not available'}`")
@@ -819,8 +833,8 @@ def render_config_update_prompt(
     md.append("")
     md.append("## Scan Context")
     md.append("")
-    md.append(f"- **Original source repo:** `{original_source_repo}`")
-    md.append(f"- **Safe scan worktree:** `{safe_scan_worktree}`")
+    md.append(f"- **Original source repo:** `{display_current_repo_path(original_source_repo)}`")
+    md.append(f"- **Safe scan worktree:** `{display_current_repo_path(safe_scan_worktree)}`")
     md.append(f"- **Branch:** `{branch}`")
     md.append(f"- **Run ID:** `{run_id}`")
     md.append(f"- **Git commit:** `{git_commit or 'not available'}`")
@@ -828,10 +842,10 @@ def render_config_update_prompt(
     md.append("")
     md.append("## Config Inputs")
     md.append("")
-    md.append(f"- **FR catalog:** `{fr_catalog_path or 'not supplied'}`")
-    md.append(f"- **Compliance mapping pack:** `{compliance_mapping_pack_path or 'not supplied'}`")
-    md.append(f"- **Assurance framework:** `{assurance_framework_path or 'not supplied'}`")
-    md.append(f"- **Assurance instance:** `{assurance_instance_path or 'not supplied'}`")
+    md.append(f"- **FR catalog:** `{display_current_repo_path(fr_catalog_path) or 'not supplied'}`")
+    md.append(f"- **Compliance mapping pack:** `{display_current_repo_path(compliance_mapping_pack_path) or 'not supplied'}`")
+    md.append(f"- **Assurance framework:** `{display_current_repo_path(assurance_framework_path) or 'not supplied'}`")
+    md.append(f"- **Assurance instance:** `{display_current_repo_path(assurance_instance_path) or 'not supplied'}`")
     md.append("")
     md.append("Read these report artifacts first if present:")
     md.append("")

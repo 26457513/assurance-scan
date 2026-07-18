@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "ruleset": "OWASP-TOP-10",
+  "version": "2021",
+  "title": "OWASP Top 10 2021",
+  "description": "Public OWASP Top 10 category snapshot used as a high-level compliance/risk lens. This is a category-level ruleset, not a substitute for detailed ASVS verification rows.",
+  "source": {
+    "url": "https://owasp.org/Top10/",
+    "license": "CC-BY-SA-4.0",
+    "retrieved_at": "2026-07-12T00:00:00Z",
+    "source_file": "data/rulesets/owasp-top-10/2021.json",
+    "authority": "OWASP",
+    "version_tag": "2021",
+    "raw_artifacts": [
+      {
+        "path": "data/authority-sources/raw/owasp-top-10/2021/owasp-top-10-2021-categories.json",
+        "url": "https://owasp.org/Top10/",
+        "sha256": "sha256:7234dbfc631eccd1639254d3b2e9fdb1dd20c678c214a95b3a7c24d3813bbc15",
+        "bytes": 326,
+        "media_type": "application/json"
+      }
+    ],
+    "transform": {
+      "tool": "scripts/sync-authority-rulesets.py",
+      "version": "2",
+      "command": "sync-authority-rulesets",
+      "output_sha256": "sha256:ed2c1a2152a558401ee5fe933451a1b8784304935be33cbe827769dd554091f7"
+    }
+  },
+  "rows": [
+    {
+      "id": "A01",
+      "title": "Broken Access Control",
+      "description": "Access control weaknesses that allow users to act outside their intended permissions.",
+      "group": "A01",
+      "metadata": {
+        "category": "access-control",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A02",
+      "title": "Cryptographic Failures",
+      "description": "Failures related to protection of data in transit or at rest, including exposure of sensitive data or secrets.",
+      "group": "A02",
+      "metadata": {
+        "category": "cryptography",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A03",
+      "title": "Injection",
+      "description": "Injection weaknesses where untrusted input can alter commands, queries, interpreters, or structured output.",
+      "group": "A03",
+      "metadata": {
+        "category": "injection",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A04",
+      "title": "Insecure Design",
+      "description": "Design-level weaknesses where required security controls, threat modelling, or abuse-case protections are absent.",
+      "group": "A04",
+      "metadata": {
+        "category": "secure-design",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A05",
+      "title": "Security Misconfiguration",
+      "description": "Unsafe or incomplete security configuration across application, platform, headers, services, or dependencies.",
+      "group": "A05",
+      "metadata": {
+        "category": "configuration",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A06",
+      "title": "Vulnerable and Outdated Components",
+      "description": "Known vulnerable, unsupported, or outdated components that increase exploitability or operational risk.",
+      "group": "A06",
+      "metadata": {
+        "category": "dependency-risk",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A07",
+      "title": "Identification and Authentication Failures",
+      "description": "Authentication, session, credential, identity, or account lifecycle weaknesses.",
+      "group": "A07",
+      "metadata": {
+        "category": "identity-authentication",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A08",
+      "title": "Software and Data Integrity Failures",
+      "description": "Integrity weaknesses in software updates, CI/CD, deserialization, supply chain, or trusted data flows.",
+      "group": "A08",
+      "metadata": {
+        "category": "integrity-supply-chain",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A09",
+      "title": "Security Logging and Monitoring Failures",
+      "description": "Insufficient logging, monitoring, alerting, incident visibility, or auditability.",
+      "group": "A09",
+      "metadata": {
+        "category": "logging-monitoring",
+        "granularity": "category"
+      }
+    },
+    {
+      "id": "A10",
+      "title": "Server-Side Request Forgery",
+      "description": "Server-side request forgery weaknesses that allow attacker-controlled server-side requests.",
+      "group": "A10",
+      "metadata": {
+        "category": "ssrf",
+        "granularity": "category"
+      }
+    }
+  ]
+}

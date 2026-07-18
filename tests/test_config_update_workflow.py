@@ -38,11 +38,11 @@ def run_cmd(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 
 def run_cli(*args: str, check: bool = True, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
-    env["ASVS_IMAGE_BUNDLE_DIR"] = str(REPO_ROOT)
+    env["ASSURANCE_SCAN_IMAGE_BUNDLE_DIR"] = str(REPO_ROOT)
     with tempfile.TemporaryDirectory() as tmp:
-        env["ASVS_WORKDIR"] = str(Path(tmp) / "runtime")
+        env["ASSURANCE_SCAN_WORKDIR"] = str(Path(tmp) / "runtime")
         return subprocess.run(
-            [str(REPO_ROOT / "bin" / "asvs-scanner"), *args],
+            [str(REPO_ROOT / "bin" / "assurance-scan"), *args],
             cwd=REPO_ROOT,
             env=env,
             text=True,
@@ -172,6 +172,17 @@ def fixture_scanner_finding() -> dict:
 
 
 class ConfigUpdateWorkflowTests(unittest.TestCase):
+    def test_dashboard_discovers_all_installed_compliance_regimes_by_default(self) -> None:
+        module = load_script_module("generate_dashboard_runtime", REPO_ROOT / "scripts" / "generate_dashboard.py")
+        paths = module.discover_compliance_regime_paths()
+        relative = {str(path.relative_to(REPO_ROOT)) for path in paths}
+        self.assertEqual({
+            "data/compliance-regimes/asvs/v5.0.0.json",
+            "data/compliance-regimes/iso-27001/2022.json",
+            "data/compliance-regimes/nist-800-53/5.2.0.json",
+            "data/compliance-regimes/owasp-top-10/2021.json",
+        }, relative)
+
     def test_junit_tbt_match_builds_observed_strong_evidence(self) -> None:
         spec = importlib.util.spec_from_file_location(
             "generate_evidence_bundle",
@@ -289,7 +300,7 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source_repo = root / "project"
-            report_dir = root / "project-asvs-scan-20260707T000000Z_test" / ".asvs-scanner" / "runtime" / "reports" / "20260707T000000Z_test"
+            report_dir = root / "project-assurance-scan-20260707T000000Z_test" / ".assurance-scan" / "runtime" / "reports" / "20260707T000000Z_test"
             pack_dir = report_dir / "generated-tests" / "VG_TEST_FRAMEWORK"
             test_rel = Path("tests/asvs/integration/TBT-016-ASVS-A.assurance.test.js")
             test_path = source_repo / test_rel
@@ -302,6 +313,14 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
                 "name": "VG_TEST_FRAMEWORK",
                 "mode": "ephemeral",
                 "generated_at": "2026-07-07T00:00:00Z",
+                "test_adapter": {
+                    "language": "javascript",
+                    "framework": "jest",
+                    "container_image": "node:20",
+                    "result_format": "junit",
+                    "command_template": "{runner} {config_flag} --runTestsByPath {test_file} --runInBand --no-cache",
+                    "config_path": "tests/asvs/jest.config.js",
+                },
                 "tests": [{
                     "pack_id": "GENERATED-TBT-016-ASVS-A",
                     "tbt": "TBT-016-ASVS-A",
@@ -342,11 +361,156 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
         self.assertIn('classname="TBT-016-ASVS-A.FR-016.', xml)
         self.assertIn('name="TBT-016-ASVS-A"', xml)
 
+    def test_run_approved_tests_treats_failed_test_as_observed_evidence_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_repo = root / "project"
+            report_dir = root / "project-assurance-scan-20260707T000000Z_test" / ".assurance-scan" / "runtime" / "reports" / "20260707T000000Z_test"
+            pack_dir = report_dir / "generated-tests" / "VG_TEST_FRAMEWORK"
+            test_rel = Path("tests/asvs/integration/TBT-016-ASVS-D.assurance.test.js")
+            test_path = source_repo / test_rel
+            test_path.parent.mkdir(parents=True)
+            test_path.write_text("test('TBT-016-ASVS-D', () => expect(false).toBe(true));\n")
+            pack_dir.mkdir(parents=True)
+            (report_dir / "fr-catalog.snapshot.json").write_text(FR_CATALOG.read_text())
+            (pack_dir / "manifest.json").write_text(json.dumps({
+                "schema_version": 1,
+                "name": "VG_TEST_FRAMEWORK",
+                "mode": "ephemeral",
+                "generated_at": "2026-07-07T00:00:00Z",
+                "test_adapter": {
+                    "language": "javascript",
+                    "framework": "jest",
+                    "container_image": "node:20",
+                    "result_format": "junit",
+                    "command_template": "{runner} {test_file}",
+                },
+                "tests": [{
+                    "pack_id": "GENERATED-TBT-016-ASVS-D",
+                    "tbt": "TBT-016-ASVS-D",
+                    "frs": ["FR-016"],
+                    "title": "Session activity handling for FR-016",
+                    "source": "generated",
+                    "type": "integration",
+                    "runner": "fake jest",
+                    "status": "ready_to_run",
+                    "assessment": "useful_as_is",
+                    "safety": "non_destructive",
+                    "pack_path": str(test_rel),
+                }],
+            }))
+            fake_jest = root / "fake-jest"
+            fake_jest.write_text("#!/bin/sh\necho failing test\nexit 1\n")
+            fake_jest.chmod(0o755)
+            junit_out = pack_dir / "results" / "approved-tbt-junit.xml"
+
+            result = run_cmd(
+                "scripts/run-approved-tests.py",
+                str(report_dir),
+                "--source-repo",
+                str(source_repo),
+                "--tbt",
+                "TBT-016-ASVS-D",
+                "--jest-bin",
+                str(fake_jest),
+                "--execution-mode",
+                "host",
+                "--junit-out",
+                str(junit_out),
+            )
+            strict = run_cmd(
+                "scripts/run-approved-tests.py",
+                str(report_dir),
+                "--source-repo",
+                str(source_repo),
+                "--tbt",
+                "TBT-016-ASVS-D",
+                "--jest-bin",
+                str(fake_jest),
+                "--execution-mode",
+                "host",
+                "--junit-out",
+                str(junit_out),
+                "--fail-on-test-failure",
+                check=False,
+            )
+            xml = junit_out.read_text()
+
+        self.assertEqual(0, result.returncode)
+        self.assertIn("approved tests: passed=0 failed=1 skipped=0", result.stdout)
+        self.assertIn("observed test failures/skips were written to JUnit", result.stdout)
+        self.assertNotEqual(0, strict.returncode)
+        self.assertIn('<failure message="jest exited 1">', xml)
+
+    def test_run_approved_tests_emits_junit_for_pytest_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source_repo = root / "project"
+            report_dir = root / "project-assurance-scan-20260707T000000Z_test" / ".assurance-scan" / "runtime" / "reports" / "20260707T000000Z_test"
+            pack_dir = report_dir / "generated-tests" / "VG_TEST_FRAMEWORK"
+            test_rel = Path("tests/asvs/integration/test_tbt_016_asvs_a.py")
+            test_path = source_repo / test_rel
+            test_path.parent.mkdir(parents=True)
+            test_path.write_text("def test_tbt_016_asvs_a():\n    assert True\n")
+            pack_dir.mkdir(parents=True)
+            (report_dir / "fr-catalog.snapshot.json").write_text(FR_CATALOG.read_text())
+            (pack_dir / "manifest.json").write_text(json.dumps({
+                "schema_version": 1,
+                "name": "VG_TEST_FRAMEWORK",
+                "mode": "ephemeral",
+                "generated_at": "2026-07-07T00:00:00Z",
+                "test_adapter": {
+                    "language": "python",
+                    "framework": "pytest",
+                    "container_image": "python:3.12",
+                    "result_format": "junit",
+                    "command_template": "{runner} {test_file}",
+                },
+                "tests": [{
+                    "pack_id": "GENERATED-TBT-016-ASVS-A",
+                    "tbt": "TBT-016-ASVS-A",
+                    "frs": ["FR-016"],
+                    "title": "Expired JWT rejection for FR-016 implemented assurance test",
+                    "source": "generated",
+                    "type": "integration",
+                    "runner": "fake pytest",
+                    "status": "ready_to_run",
+                    "assessment": "useful_as_is",
+                    "safety": "non_destructive",
+                    "pack_path": str(test_rel),
+                }],
+            }))
+            fake_pytest = root / "fake-pytest"
+            fake_pytest.write_text("#!/bin/sh\nexit 0\n")
+            fake_pytest.chmod(0o755)
+            junit_out = pack_dir / "results" / "approved-tbt-junit.xml"
+
+            result = run_cmd(
+                "scripts/run-approved-tests.py",
+                str(report_dir),
+                "--source-repo",
+                str(source_repo),
+                "--tbt",
+                "TBT-016-ASVS-A",
+                "--pytest-bin",
+                str(fake_pytest),
+                "--execution-mode",
+                "host",
+                "--junit-out",
+                str(junit_out),
+            )
+            xml = junit_out.read_text()
+
+        self.assertIn("approved tests: passed=1 failed=0 skipped=0", result.stdout)
+        self.assertTrue(xml.startswith('<?xml version="1.0" encoding="UTF-8"?>'))
+        self.assertIn('classname="TBT-016-ASVS-A.FR-016.', xml)
+        self.assertIn('name="TBT-016-ASVS-A"', xml)
+
     def test_run_approved_tests_allows_reviewed_existing_asvs_with_explicit_flag(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source_repo = root / "project"
-            report_dir = root / "project-asvs-scan-20260707T000000Z_test" / ".asvs-scanner" / "runtime" / "reports" / "20260707T000000Z_test"
+            report_dir = root / "project-assurance-scan-20260707T000000Z_test" / ".assurance-scan" / "runtime" / "reports" / "20260707T000000Z_test"
             pack_dir = report_dir / "generated-tests" / "VG_TEST_FRAMEWORK"
             test_rel = Path("tests/asvs/integration/TBT-016-ASVS-A.assurance.test.js")
             test_path = source_repo / test_rel
@@ -498,6 +662,55 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
         self.assertIn("OK wrote fr_catalog", result.stdout)
         tbt = next(item for item in reviewed["tbts"] if item["id"] == "TBT-016-ASVS-A")
         self.assertEqual(tbt["metadata"]["config_update_review"]["reviewed_by"], "cli-test-reviewer")
+
+    def test_cli_apply_config_update_defaults_missing_tbt_compliance_to_empty_list(self) -> None:
+        catalog = json.loads(FR_CATALOG.read_text())
+        proposal = json.loads(PROPOSAL.read_text())
+        proposal["fr_catalog_updates"] = [
+                {
+                    "operation": "add_tbt",
+                    "fr_id": catalog["frs"][0]["id"],
+                    "tbt_id": "TBT-UNIT-NO-COMPLIANCE",
+                    "proposed_fields": {
+                        "title": "Project-specific TBT without direct compliance mapping",
+                        "type": "integration",
+                        "lifecycle_status": "planned",
+                        "proves": [catalog["frs"][0]["id"]],
+                        "evidence_policy": {"required": True, "minimum_strength": "strong"},
+                    },
+                    "review_status": "proposed",
+                    "source_basis": [{"type": "source", "ref": "tests/fixture"}],
+                    "rationale": "Project-specific TBT has no known compliance row yet.",
+                    "confidence": "medium",
+                }
+        ]
+        proposal["compliance_mapping_pack_updates"] = []
+        proposal["assurance_framework_or_instance_updates"] = []
+        proposal["manual_evidence_updates"] = []
+        proposal["native_test_mapping_updates"] = []
+        proposal["uncertain_mappings"] = []
+        proposal["review_required"] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            proposal_path = Path(tmp) / "proposal.json"
+            out_path = Path(tmp) / "fr-catalog.reviewed.json"
+            proposal_path.write_text(json.dumps(proposal, indent=2))
+            result = run_cli(
+                "apply-config-update",
+                str(proposal_path),
+                "--select",
+                "fr_catalog_updates:1",
+                "--reviewed-by",
+                "cli-test-reviewer",
+                "--fr-catalog",
+                str(FR_CATALOG),
+                "--fr-catalog-out",
+                str(out_path),
+            )
+            reviewed = json.loads(out_path.read_text())
+
+        self.assertIn("OK wrote fr_catalog", result.stdout)
+        tbt = next(item for item in reviewed["tbts"] if item["id"] == "TBT-UNIT-NO-COMPLIANCE")
+        self.assertEqual(tbt["compliance"], [])
 
     def test_cli_apply_manual_evidence_update_for_tbt(self) -> None:
         proposal = json.loads(PROPOSAL.read_text())
@@ -1103,7 +1316,9 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
             )
             html_text = (report_dir / "dashboard.html").read_text()
 
-        self.assertIn("Project Functional Requirements", html_text)
+        self.assertIn("Project FRs", html_text)
+        self.assertIn("Functional Requirements (FR) have one or more tests", html_text)
+        self.assertNotIn("Declares the assurance scope for this scan", html_text)
         self.assertIn("assurance-state-missing", html_text)
         self.assertIn("unproven", html_text)
 
@@ -1230,6 +1445,8 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
 
         self.assertEqual(1, len(pack.get("tests", [])))
         self.assertEqual("GENERATED-TBT-016-ASVS-A", pack["tests"][0]["pack_id"])
+        self.assertEqual("javascript", pack["test_adapter"]["language"])
+        self.assertEqual("jest", pack["test_adapter"]["framework"])
         self.assertEqual("review_required", pack["tests"][0]["safety"])
         self.assertIn('describe.skip("[TBT-016-ASVS-A]', scaffold_text)
         self.assertIn("generated-tests/VG_TEST_FRAMEWORK/tests/asvs/integration/TBT-016-ASVS-A.assurance.test.js", manifest_files)
@@ -1449,7 +1666,7 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
         self.assertIn("review recommended", result.stdout)
         self.assertIn("Validate this proposal", result.stdout)
         self.assertIn("`fr_catalog_updates:1`", result.stdout)
-        self.assertIn("asvs-scanner apply-config-update proposal.json --select fr_catalog_updates:1", result.stdout)
+        self.assertIn("assurance-scan apply-config-update proposal.json --select fr_catalog_updates:1", result.stdout)
 
     def test_apply_without_selection_lists_entries_and_writes_nothing(self) -> None:
         result = run_cmd("scripts/apply-config-update-proposal.py", str(PROPOSAL))
@@ -1547,6 +1764,95 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
         self.assertEqual(native["frs"], ["FR-016"])
         self.assertEqual(native["mapping_review"]["reviewed_by"], "unit-test-reviewer")
         self.assertEqual(reviewed["summary"]["mapped_native"], 1)
+
+    def test_apply_native_test_mark_not_assurance_relevant_is_reviewed_exclusion(self) -> None:
+        proposal = json.loads(PROPOSAL.read_text())
+        proposal["native_test_mapping_updates"] = [
+            {
+                "operation": "mark_not_assurance_relevant",
+                "native_test": {
+                    "pack_id": "NATIVE-tests-session-test-ts",
+                    "native_path": "tests/session.test.ts",
+                    "pack_path": "imported/tests/session.test.ts",
+                    "test_names": ["session helper smoke"],
+                },
+                "review_status": "proposed",
+                "source_basis": [{"type": "native_test", "ref": "tests/session.test.ts"}],
+                "rationale": "Reviewed native test is useful context but does not prove an FR/TBT assurance target.",
+                "confidence": "high",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            proposal_path = Path(tmp) / "proposal.json"
+            out_path = Path(tmp) / "assurance-test-pack.reviewed.json"
+            proposal_path.write_text(json.dumps(proposal, indent=2))
+            apply_result = run_cmd(
+                "scripts/apply-config-update-proposal.py",
+                str(proposal_path),
+                "--select",
+                "native_test_mapping_updates:1",
+                "--reviewed-by",
+                "unit-test-reviewer",
+                "--assurance-test-pack",
+                str(ASSURANCE_TEST_PACK),
+                "--assurance-test-pack-out",
+                str(out_path),
+            )
+            reviewed = json.loads(out_path.read_text())
+
+        self.assertIn("OK wrote assurance_test_pack", apply_result.stdout)
+        native = next(item for item in reviewed["tests"] if item["pack_id"] == "NATIVE-tests-session-test-ts")
+        self.assertNotIn("tbt", native)
+        self.assertEqual(native["frs"], [])
+        self.assertEqual(native["assessment"], "not_assurance_relevant")
+        self.assertEqual(native["review_disposition"], "reviewed_not_evidence")
+        self.assertEqual(native["mapping_review"]["operation"], "mark_not_assurance_relevant")
+        self.assertEqual(reviewed["summary"]["not_assurance_relevant_native"], 1)
+        self.assertEqual(reviewed["summary"]["unmapped_native"], 0)
+
+    def test_apply_native_test_mark_project_specific_only_is_separate_disposition(self) -> None:
+        proposal = json.loads(PROPOSAL.read_text())
+        proposal["native_test_mapping_updates"] = [
+            {
+                "operation": "mark_project_specific_only",
+                "native_test": {
+                    "pack_id": "NATIVE-tests-session-test-ts",
+                    "native_path": "tests/session.test.ts",
+                    "pack_path": "imported/tests/session.test.ts",
+                },
+                "review_status": "proposed",
+                "source_basis": [{"type": "native_test", "ref": "tests/session.test.ts"}],
+                "rationale": "Reviewed native test may justify bespoke project assurance but is not reusable blueprint scope.",
+                "confidence": "medium",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            proposal_path = Path(tmp) / "proposal.json"
+            out_path = Path(tmp) / "assurance-test-pack.reviewed.json"
+            proposal_path.write_text(json.dumps(proposal, indent=2))
+            apply_result = run_cmd(
+                "scripts/apply-config-update-proposal.py",
+                str(proposal_path),
+                "--select",
+                "native_test_mapping_updates:1",
+                "--reviewed-by",
+                "unit-test-reviewer",
+                "--assurance-test-pack",
+                str(ASSURANCE_TEST_PACK),
+                "--assurance-test-pack-out",
+                str(out_path),
+            )
+            reviewed = json.loads(out_path.read_text())
+
+        self.assertIn("OK wrote assurance_test_pack", apply_result.stdout)
+        native = next(item for item in reviewed["tests"] if item["pack_id"] == "NATIVE-tests-session-test-ts")
+        self.assertNotIn("tbt", native)
+        self.assertEqual(native["frs"], [])
+        self.assertEqual(native["assessment"], "bespoke_project_only")
+        self.assertEqual(native["review_disposition"], "bespoke_project_only")
+        self.assertEqual(native["mapping_review"]["operation"], "mark_project_specific_only")
+        self.assertEqual(reviewed["summary"]["bespoke_project_only_native"], 1)
+        self.assertEqual(reviewed["summary"]["unmapped_native"], 0)
 
     def test_apply_manual_evidence_update_for_criterion_writes_instance_requirement(self) -> None:
         proposal = json.loads(PROPOSAL.read_text())
@@ -2282,10 +2588,10 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
                     "derived_from": {
                         "source_type": "blueprint_fr",
                         "source_id": "security-core",
-                        "source_version": "asvs-5.0.0",
+                        "source_version": "security-core-1.0.0",
                         "source_path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
                         "source_hash": blueprint_hash,
-                        "source_item": "FR-BP-ASVS-SESSION-MANAGEMENT-001",
+                        "source_item": "FR-BP-SEC-SESSION-MANAGEMENT-001",
                         "review_status": "accepted",
                     },
                 }
@@ -2301,10 +2607,10 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
                     "derived_from": {
                         "source_type": "blueprint_tbt",
                         "source_id": "security-core",
-                        "source_version": "asvs-5.0.0",
+                        "source_version": "security-core-1.0.0",
                         "source_path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
                         "source_hash": blueprint_hash,
-                        "source_item": "TBT-BP-ASVS-SESSION-MANAGEMENT-001-A",
+                        "source_item": "TBT-BP-SEC-SESSION-MANAGEMENT-001-A",
                         "review_status": "accepted",
                     },
                     "compliance": [
@@ -2337,14 +2643,14 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
         edges = {(edge["source"], edge["target"], edge["type"]) for edge in graph["edges"]}
 
         self.assertEqual(nodes["planning:blueprint_selection_proposal:1111111111111111"]["type"], "planning_artifact")
-        self.assertEqual(nodes["blueprint:FR-BP-ASVS-SESSION-MANAGEMENT-001"]["type"], "blueprint")
-        self.assertEqual(nodes["blueprint:TBT-BP-ASVS-SESSION-MANAGEMENT-001-A"]["type"], "blueprint")
-        self.assertIn(("blueprint:FR-BP-ASVS-SESSION-MANAGEMENT-001", "fr:FR-016", "derived_from"), edges)
-        self.assertIn(("blueprint:TBT-BP-ASVS-SESSION-MANAGEMENT-001-A", "test:TBT-016-ASVS-A", "derived_from"), edges)
+        self.assertEqual(nodes["blueprint:FR-BP-SEC-SESSION-MANAGEMENT-001"]["type"], "blueprint")
+        self.assertEqual(nodes["blueprint:TBT-BP-SEC-SESSION-MANAGEMENT-001-A"]["type"], "blueprint")
+        self.assertIn(("blueprint:FR-BP-SEC-SESSION-MANAGEMENT-001", "fr:FR-016", "derived_from"), edges)
+        self.assertIn(("blueprint:TBT-BP-SEC-SESSION-MANAGEMENT-001-A", "test:TBT-016-ASVS-A", "derived_from"), edges)
         self.assertIn(
             (
                 "planning:blueprint_selection_proposal:1111111111111111",
-                "blueprint:FR-BP-ASVS-SESSION-MANAGEMENT-001",
+                "blueprint:FR-BP-SEC-SESSION-MANAGEMENT-001",
                 "derived_from",
             ),
             edges,
@@ -2479,10 +2785,10 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
                 {"id": "gate:GATE-001", "type": "gate", "status": "blocked"},
                 {"id": "waiver:WVR-001", "type": "waiver", "status": "approved"},
                 {
-                    "id": "blueprint:FR-BP-ASVS-SESSION-MANAGEMENT-001",
+                    "id": "blueprint:FR-BP-SEC-SESSION-MANAGEMENT-001",
                     "type": "blueprint",
                     "source_type": "blueprint_fr",
-                    "source_version": "asvs-5.0.0",
+                    "source_version": "security-core-1.0.0",
                 },
                 {
                     "id": "planning:blueprint_decision_log:abc123",
@@ -2497,8 +2803,8 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
             "edges": [
                 {"source": "fr:FR-001", "target": "test:TBT-001", "type": "requires"},
                 {"source": "test:TBT-001", "target": "evidence:EVD-001", "type": "evidences"},
-                {"source": "fr:FR-001", "target": "blueprint:FR-BP-ASVS-SESSION-MANAGEMENT-001", "type": "derived_from"},
-                {"source": "blueprint:FR-BP-ASVS-SESSION-MANAGEMENT-001", "target": "planning:blueprint_decision_log:abc123", "type": "derived_from"},
+                {"source": "fr:FR-001", "target": "blueprint:FR-BP-SEC-SESSION-MANAGEMENT-001", "type": "derived_from"},
+                {"source": "blueprint:FR-BP-SEC-SESSION-MANAGEMENT-001", "target": "planning:blueprint_decision_log:abc123", "type": "derived_from"},
             ],
         }
 
@@ -2722,7 +3028,7 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
                 "proposal": "BLUEPRINT-PROPOSAL-demo",
                 "decisions": [
                     {
-                        "candidate": "CANDIDATE-FR-BP-ASVS-SESSION-MANAGEMENT-001",
+                        "candidate": "CANDIDATE-FR-BP-SEC-SESSION-MANAGEMENT-001",
                         "decision": "accepted_as_is",
                         "reviewed_by": "assurance-reviewer",
                         "reason": "Accepted session-management blueprint.",
@@ -2751,18 +3057,24 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
                 report_dir,
                 json.loads((report_dir / "dashboard-payload.json").read_text()),
                 fr_catalog_path=fr_catalog,
+                compliance_regime_paths=[REPO_ROOT / "data" / "compliance-regimes" / "asvs" / "v5.0.0.json"],
                 planning_artifact_paths=[blueprint_decisions],
                 evidence_manifest=json.loads((report_dir / "evidence-manifest.json").read_text()),
             )
             manifest = json.loads((report_dir / "graph-manifest.json").read_text())
 
-        commitment = manifest["accepted_config"]["commitments"][0]
-        self.assertEqual(commitment["role"], "fr_catalog")
+        commitments_by_role = {
+            commitment["role"]: commitment
+            for commitment in manifest["accepted_config"]["commitments"]
+        }
+        commitment = commitments_by_role["fr_catalog"]
         self.assertEqual(commitment["sha256"], expected_fr_hash)
         self.assertTrue(commitment["freeze"]["immutable"])
         self.assertEqual(commitment["review_summary"]["review_status_counts"], {"accepted": 1})
         self.assertEqual(commitment["review_summary"]["reviewers"], ["assurance-reviewer"])
         self.assertEqual(commitment["review_summary"]["signature_refs"], ["SIG-TBT-001"])
+        self.assertEqual(commitments_by_role["compliance_regime"]["regime"], "ASVS")
+        self.assertEqual(commitments_by_role["compliance_regime"]["version"], "v5.0.0")
         self.assertEqual(
             manifest["commitments"]["accepted_config_hash"],
             hashing.canonical_json_sha256(manifest["accepted_config"]),
@@ -2796,11 +3108,14 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
         ])
         with_scanner = dashboard.graph_claim_readiness([
             {"role": "fr_catalog"},
+            {"role": "compliance_regime"},
             {"role": "assurance_framework"},
             {"role": "scanner_compliance_mapping_pack"},
         ])
 
         self.assertNotIn("no_blocking_scanner_evidence", without_scanner["supported"])
+        self.assertNotIn("compliance_row_satisfied", without_scanner["supported"])
+        self.assertIn("compliance_row_satisfied", with_scanner["supported"])
         self.assertIn("no_blocking_scanner_evidence", with_scanner["supported"])
 
     def test_export_assurance_claim_emits_hash_bound_satisfied_tbt_claim(self) -> None:

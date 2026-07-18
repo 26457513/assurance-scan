@@ -1,6 +1,6 @@
 name: publish-image
 
-# Builds the asvs-scanner Docker image for linux/amd64 + linux/arm64.
+# Builds the assurance-scan Docker image for linux/amd64 + linux/arm64.
 #
 # Two jobs:
 #   - validate: runs on PRs. Builds both arches but never pushes. Cache via
@@ -9,10 +9,10 @@ name: publish-image
 #     Pushes to Docker Hub.
 #
 # Tags produced by `publish`:
-#   - <user>/asvs-scanner:<short-sha>   on every publish (always)
-#   - <user>/asvs-scanner:latest        on every push to main
-#   - <user>/asvs-scanner:<version>     on git tag v* (e.g. v1.2.3 -> 1.2.3)
-#   - <user>/asvs-scanner:stable        on git tag v* (only advanced on releases)
+#   - <user>/assurance-scan:<short-sha>   on every publish (always)
+#   - <user>/assurance-scan:latest        on every push to main
+#   - <user>/assurance-scan:<version>     on git tag v* (e.g. v1.2.3 -> 1.2.3)
+#   - <user>/assurance-scan:stable        on git tag v* (only advanced on releases)
 #
 # Use :stable for teams that want to pin and update deliberately.
 # Use :latest for teams that want every main push.
@@ -85,7 +85,7 @@ jobs:
         id: tags
         run: |
           set -eu
-          REPO="${{ secrets.DOCKERHUB_USERNAME }}/asvs-scanner"
+          REPO="${{ secrets.DOCKERHUB_USERNAME }}/assurance-scan"
           TAGS="$REPO:${GITHUB_SHA::8}"
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             TAGS="$TAGS,$REPO:latest"

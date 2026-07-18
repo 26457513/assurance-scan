@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "semgrep-iso-27001-2022",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-12T00:00:00Z",
+    "updated_at": "2026-07-12T00:00:00Z",
+    "generator": "manual-curation",
+    "input_artifacts": [
+      {
+        "kind": "ruleset",
+        "path": "data/rulesets/iso-27001/2022.json",
+        "version": "2022"
+      }
+    ]
+  },
+  "scanner": "semgrep",
+  "scanner_version": "rule-pack-specific",
+  "scanner_rule_source": {
+    "kind": "manual-curation",
+    "ref": "scanner output fields and rule naming conventions",
+    "version": "curated-0.1.0",
+    "retrieved_at": "2026-07-12T00:00:00Z"
+  },
+  "compliance": {
+    "ruleset": "ISO-27001",
+    "version": "2022",
+    "source_ref": "data/rulesets/iso-27001/2022.json"
+  },
+  "mappings": [
+    {
+      "id": "SCM-SEMGREP-ISO-27001-TECHNOLOGICAL-CODE-RISK",
+      "review_status": "accepted",
+      "reviewed_by": "assurance-scan-maintainers",
+      "reviewed_at": "2026-07-12T00:00:00Z",
+      "review_decision": "accepted_as_domain_signal",
+      "review_notes": "Generic scanner-to-regime mapping. It creates a compliance signal, not sufficient FR/TBT evidence by itself.",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "advisory",
+      "assurance_effect": "review_signal",
+      "rule_selectors": [
+        {
+          "type": "glob",
+          "value": "*",
+          "output_field": "ruleId"
+        }
+      ],
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ISO-27001",
+            "row": "A.8"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Scanner evidence must be interpreted with project-specific FR/TBT evidence before compliance is claimed."
+      ],
+      "source_basis": [
+        {
+          "kind": "manual_curation",
+          "ref": "cross-regime security category mapping"
+        }
+      ],
+      "rationale": "Application security static findings are technical-control risk signals under the ISO 27001 technological-control theme.",
+      "confidence": "low"
+    }
+  ]
+}

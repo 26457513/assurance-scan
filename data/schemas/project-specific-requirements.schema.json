@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-specific-requirements.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/project-specific-requirements.schema.json",
   "title": "Project Specific Requirements Draft",
   "description": "Draft helper for bespoke requirements before conversion into config-update proposals.",
   "type": "object",
@@ -24,7 +24,7 @@
         "title": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
         "rationale": {"type": "string", "minLength": 1},
-        "mapping_state": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/compliance_mapping_state"},
+        "mapping_state": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/compliance_mapping_state"},
         "proposed_fr_id": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
         "source": {"type": "string", "enum": ["user", "agent_recommended", "repository_analysis"]}
       }

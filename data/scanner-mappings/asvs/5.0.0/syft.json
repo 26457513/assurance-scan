@@ -30,7 +30,7 @@
     {
       "id": "SCM-SYFT-ASVS-5-SBOM-INVENTORY",
       "review_status": "accepted",
-      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_by": "assurance-scan-maintainers",
       "reviewed_at": "2026-07-08T00:00:00Z",
       "review_decision": "accepted_as_inventory_signal",
       "review_notes": "Applies to syft and syft-image when a CycloneDX SBOM is produced for the project or image.",

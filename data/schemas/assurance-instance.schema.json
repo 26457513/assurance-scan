@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-instance.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/assurance-instance.schema.json",
   "title": "Assurance Instance",
   "description": "Project-specific role assignments, criterion mappings, waivers, compensating controls, approvals and decisions for an assurance framework.",
   "type": "object",
@@ -33,7 +33,7 @@
           "enum": ["fr", "tbt", "evidence", "ruleset_row", "criterion", "gate", "role", "manual_artifact", "approval", "waiver", "compensating_control", "decision"]
         },
         "ref": {"type": "string", "minLength": 1},
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "row": {"type": "string"}
       },
       "allOf": [
@@ -60,7 +60,7 @@
       "properties": {
         "type": {"type": "string", "enum": ["fr", "tbt", "evidence", "ruleset_row", "manual_artifact", "approval", "waiver", "compensating_control", "decision"]},
         "ref": {"type": "string", "minLength": 1},
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "row": {"type": "string"},
         "evidence": {"type": "string"}
       },
@@ -83,7 +83,7 @@
         "gate": {"type": "string", "minLength": 1},
         "role": {"type": "string", "pattern": "^ROLE-[A-Z0-9_.-]+$"},
         "party": {"type": "string"},
-        "approval_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
+        "approval_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
         "approval_ref": {"type": "string"},
         "approved_by": {"type": "string"},
         "approved_at": {"type": "string", "format": "date-time"},
@@ -102,7 +102,7 @@
         "target": {"type": "string", "minLength": 1},
         "target_ref": {"$ref": "#/$defs/instance_target"},
         "reason": {"type": "string", "minLength": 1},
-        "approval_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
+        "approval_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
         "status_effect": {"type": "string", "enum": ["waived"], "default": "waived"},
         "scope": {"type": "string"},
         "expires_at": {"type": "string", "format": "date-time"},
@@ -125,7 +125,7 @@
         "target_ref": {"$ref": "#/$defs/instance_target"},
         "reason": {"type": "string", "minLength": 1},
         "control_description": {"type": "string"},
-        "approval_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
+        "approval_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/approval_status"},
         "status_effect": {"type": "string", "enum": ["compensating_control"], "default": "compensating_control"},
         "scope": {"type": "string"},
         "expires_at": {"type": "string", "format": "date-time"},
@@ -146,7 +146,7 @@
         "id": {"type": "string", "pattern": "^DEC-[A-Za-z0-9_.-]+$"},
         "gate": {"type": "string", "minLength": 1},
         "criterion": {"type": "string"},
-        "readiness_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/readiness_status"},
+        "readiness_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/readiness_status"},
         "outcome": {"type": "string"},
         "decided_by": {"type": "string"},
         "decided_at": {"type": "string", "format": "date-time"},

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/compliance-mapping-pack.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/compliance-mapping-pack.schema.json",
   "title": "Compliance Mapping Pack",
   "description": "Versioned mappings from compliance ruleset rows to project FR/TBT obligations and sufficiency policy.",
   "type": "object",
@@ -9,7 +9,7 @@
   "properties": {
     "schema_version": {"type": "integer", "const": 1},
     "pack": {"$ref": "#/$defs/pack"},
-    "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+    "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
     "ruleset_version": {"type": "string", "minLength": 1},
     "mappings": {
       "type": "array",
@@ -51,7 +51,7 @@
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string", "minLength": 1},
-        "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+        "review_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
         "reviewed_by": {"type": ["string", "null"]},
         "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
         "review_decision": {"type": ["string", "null"]},
@@ -77,7 +77,7 @@
           "items": {"$ref": "#/$defs/source_basis"}
         },
         "rationale": {"type": "string", "minLength": 1},
-        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+        "confidence": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
       }
     },
     "sufficiency": {
@@ -99,8 +99,8 @@
       "required": ["type", "minimum_strength"],
       "additionalProperties": false,
       "properties": {
-        "type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_type"},
-        "minimum_strength": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"}
+        "type": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_type"},
+        "minimum_strength": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"}
       }
     },
     "source_basis": {
@@ -111,8 +111,8 @@
         "kind": {"type": "string", "minLength": 1}
       }
     },
-    "review_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
-    "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"},
-    "evidence_strength": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"}
+    "review_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/review_status"},
+    "confidence": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"},
+    "evidence_strength": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"}
   }
 }

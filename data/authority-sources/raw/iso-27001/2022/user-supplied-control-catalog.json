@@ -1,0 +1,6 @@
+{
+  "source": "ruleset-iso-27001-2022",
+  "mode": "reviewed_snapshot_reference",
+  "note": "Raw authority artifact was not fetched in this run; this marker records the reviewed local snapshot as the current transform input.",
+  "snapshot_sha256": "sha256:99c7f857b4c0e801f03df7a12b5b87926c50ea4059ef49f41a63623d26323cc9"
+}

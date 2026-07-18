@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/assurance-test-pack.schema.json",
-  "title": "ASVS Scanner Assurance Test Pack",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/assurance-test-pack.schema.json",
+  "title": "Assurance Scan Assurance Test Pack",
   "description": "Ephemeral or commit-ready VG_TEST_FRAMEWORK manifest. Maps copied, wrapped, planned, and generated tests to TBT, FRs, ruleset rows, and assurance gates.",
   "type": "object",
   "required": ["schema_version", "name", "mode", "generated_at", "tests"],
@@ -31,6 +31,7 @@
         }
       }
     },
+    "test_adapter": {"$ref": "#/$defs/test_adapter"},
     "tests": {
       "type": "array",
       "items": {"$ref": "#/$defs/test"}
@@ -41,6 +42,24 @@
     }
   },
   "$defs": {
+    "test_adapter": {
+      "type": "object",
+      "required": ["language", "framework", "result_format", "command_template"],
+      "additionalProperties": false,
+      "properties": {
+        "language": {"type": "string", "minLength": 1},
+        "framework": {"type": "string", "minLength": 1},
+        "container_image": {"type": "string"},
+        "result_format": {"type": "string", "enum": ["junit"]},
+        "command_template": {
+          "type": "string",
+          "description": "Shell-like command template. Supported placeholders include {runner}, {config}, {config_flag}, {test_file}, and {source_repo}."
+        },
+        "config_path": {"type": "string"},
+        "runner_path": {"type": "string"},
+        "detection_source": {"type": "string"}
+      }
+    },
     "test": {
       "type": "object",
       "required": ["pack_id", "source", "type", "status", "assessment", "safety"],
@@ -64,7 +83,7 @@
         "status": {"type": "string", "enum": ["copied", "planned", "generated", "ready_to_run", "executed", "deprecated"]},
         "assessment": {
           "type": "string",
-          "enum": ["useful_as_is", "useful_with_wrapper", "candidate_inspiration", "not_assurance_relevant", "needs_design"]
+          "enum": ["useful_as_is", "useful_with_wrapper", "candidate_inspiration", "not_assurance_relevant", "bespoke_project_only", "needs_design"]
         },
         "safety": {"type": "string", "enum": ["non_destructive", "review_required", "destructive_disallowed"]},
         "native_path": {"type": "string"},
@@ -74,6 +93,7 @@
           "items": {"$ref": "#/$defs/ruleset_row_ref"}
         },
         "mapping_review": {"$ref": "#/$defs/mapping_review"},
+        "review_disposition": {"type": "string", "enum": ["needs_mapping_review", "left_unmapped", "reviewed_not_evidence", "bespoke_project_only"]},
         "assurance_gates": {
           "type": "array",
           "items": {"type": "string", "pattern": "^G[A-Za-z0-9_.-]+$"}
@@ -106,7 +126,7 @@
           }
         },
         "rationale": {"type": "string"},
-        "confidence": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
+        "confidence": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/confidence"}
       }
     },
     "generated_specification": {
@@ -136,7 +156,7 @@
       "required": ["ruleset", "row"],
       "additionalProperties": false,
       "properties": {
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "row": {"type": "string", "minLength": 1}
       }
     }

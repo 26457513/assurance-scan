@@ -18,7 +18,9 @@ from graph_vocabulary import (
 
 RULESET_SNAPSHOTS = {
     "ASVS": "rulesets/asvs/5.0.0.json",
+    "ISO-27001": "rulesets/iso-27001/2022.json",
     "NIST-800-53": "rulesets/nist-800-53/5.2.0.json",
+    "OWASP-TOP-10": "rulesets/owasp-top-10/2021.json",
 }
 
 BEHAVIOURAL_TEST_TYPES = {"unit", "integration", "e2e", "load", "test"}
@@ -35,6 +37,13 @@ def _framework_requirements(framework: str) -> list[dict]:
     except Exception:
         return []
     return data.get("rows") or []
+
+
+def _ruleset_row_by_id(ruleset: str, row_id: str) -> dict:
+    for row in _framework_requirements(ruleset):
+        if row.get("id") == row_id:
+            return row
+    return {}
 
 
 def _scope_includes_row(row: dict, scope_entry: dict) -> bool:
@@ -68,7 +77,17 @@ def _scope_includes_row(row: dict, scope_entry: dict) -> bool:
 
 
 def _chapter_for_row(row_id: str) -> str:
-    return row_id.split(".", 1)[0] if "." in row_id else row_id.split("-", 1)[0]
+    value = str(row_id or "")
+    match = re.match(r"^v\d+(?:\.\d+)*-(\d+)\.", value, re.I)
+    if match:
+        return f"V{match.group(1)}"
+    match = re.match(r"^(V\d+)\.", value, re.I)
+    if match:
+        return match.group(1).upper()
+    match = re.match(r"^([A-Z]{2,})(?:[-.].*)?$", value, re.I)
+    if match and not value.lower().startswith("v"):
+        return match.group(1).upper()
+    return value.split(".", 1)[0] if "." in value else value.split("-", 1)[0]
 
 
 def _infer_test_type_for_text(*parts: str) -> str:
@@ -397,7 +416,7 @@ def build_graph_data(
     role_node_by_ref: dict[str, str] = {}
 
     def status_rank(status: str) -> int:
-        return {"failed": 0, "missing": 1, "blocked": 1, "manual_review": 2, "partial": 2, "waived": 2, "compensating_control": 2, "passed": 3, "satisfied": 3, "met": 3}.get(status, 2)
+        return {"failed": 0, "execution_error": 1, "missing": 1, "blocked": 1, "manual_review": 2, "partial": 2, "waived": 2, "compensating_control": 2, "passed": 3, "satisfied": 3, "met": 3}.get(status, 2)
 
     def approved_control_effect(effects: list[dict]) -> dict | None:
         approved = [
@@ -529,6 +548,8 @@ def build_graph_data(
         }
         if "failed" in statuses:
             return "failed"
+        if "execution_error" in statuses:
+            return "execution_error"
         if "passed" in statuses:
             return "passed"
         if "partial" in statuses:
@@ -955,7 +976,7 @@ def build_graph_data(
     def compliance_status_from_tbt_status(status: str) -> str:
         if status == "passed":
             return "satisfied"
-        if status in {"partial", "manual_review", "waived", "compensating_control"}:
+        if status in {"partial", "manual_review", "waived", "compensating_control", "execution_error"}:
             return "partial"
         if status == "failed":
             return "failed"
@@ -1084,6 +1105,39 @@ def build_graph_data(
                 signal["ruleset"] = ruleset
                 signal["row"] = row_ref
                 add_scanner_signal_node(row_id, signal)
+
+    for (ruleset, row_ref), row_signals in sorted(scanner_signals_by_row.items()):
+        row_id = f"{ruleset}:{row_ref}"
+        if row_id in scoped_rows:
+            continue
+        row = _ruleset_row_by_id(ruleset, row_ref)
+        if not row:
+            continue
+        scoped_rows[row_id] = {"ruleset": ruleset, "row": row, "row_ref": row_ref, "source": "scanner_mapping"}
+        add_node(
+            row_id,
+            "compliance",
+            f"{ruleset} {row_ref}",
+            ruleset=ruleset,
+            row=row_ref,
+            chapter=row.get("group") or row.get("chapter") or _chapter_for_row(row_ref),
+            status=(resolved_row_by_id.get(row_id) or {}).get("status", "manual_review"),
+            description=row.get("description", ""),
+            frs=(resolved_row_by_id.get(row_id) or {}).get("fr_refs", []),
+            tbts=(resolved_row_by_id.get(row_id) or {}).get("tbt_refs", []),
+            sufficiency=(resolved_row_by_id.get(row_id) or {}).get("sufficiency", {}),
+            reasons=(resolved_row_by_id.get(row_id) or {}).get("reasons", []),
+            scanner_blockers=(resolved_row_by_id.get(row_id) or {}).get("scanner_blockers", []),
+            traceability_strength="scanner_mapping",
+        )
+        add_resolved_scanner_blockers(
+            row_id,
+            existing_mapping_ids={signal.get("mapping_id", "") for signal in row_signals if signal.get("status") == "failed"},
+        )
+        for signal in row_signals:
+            signal["ruleset"] = ruleset
+            signal["row"] = row_ref
+            add_scanner_signal_node(row_id, signal)
 
     for signal in scanner_domain_signals:
         ruleset = signal.get("ruleset", "")
@@ -1331,7 +1385,7 @@ def build_graph_data(
                     label = f"{fw} {row}"
                     resolved_row = resolved_row_by_id.get(row_id, {})
                     row_status = resolved_row.get("status") or compliance_status_from_tbt_status(status)
-                    chapter = row.split(".", 1)[0] if "." in row else row.split("-", 1)[0]
+                    chapter = _chapter_for_row(row)
                     add_node(
                         row_id,
                         "compliance",

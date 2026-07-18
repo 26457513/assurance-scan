@@ -42,7 +42,7 @@ EXPECTED_HEADERS = {
 
 
 def check_url(url: str, timeout: int = 15) -> dict:
-    req = Request(url, headers={"User-Agent": "asvs-scanner"})
+    req = Request(url, headers={"User-Agent": "assurance-scan"})
     findings = []
     error = None
     status_code = None

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/code-studio-handoff-pack.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/code-studio-handoff-pack.schema.json",
   "title": "Code Studio Handoff Pack",
   "type": "object",
   "required": ["schema_version", "id", "project", "source_contract", "source_contract_hash", "context"],

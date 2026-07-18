@@ -26,7 +26,7 @@ def existing_path(*paths: Path) -> Path | None:
     return None
 
 
-def framework_gate_count(path: Path) -> tuple[int, int]:
+def framework_gate_count(path: Path) -> tuple[int, int, int]:
     data = load_json(path)
     processes = data.get("processes") or []
     gates = sum(len(process.get("gates") or []) for process in processes)
@@ -35,7 +35,8 @@ def framework_gate_count(path: Path) -> tuple[int, int]:
         for process in processes
         for gate in process.get("gates") or []
     )
-    return gates, criteria
+    versioned = 1 if data.get("version") else 0
+    return gates, criteria, versioned
 
 
 def richest_framework_path(*paths: Path) -> Path | None:
@@ -79,7 +80,7 @@ def main() -> int:
     script_dir = Path(__file__).resolve().parent
     runtime_dir = runtime_dir_for(report_dir, script_dir)
     manifest = load_json(report_dir / "evidence-manifest.json")
-    target_dir = manifest.get("target_dir") or manifest.get("source_repo") or str(report_dir.parent)
+    target_dir = manifest.get("source_repo") or manifest.get("target_dir") or str(report_dir.parent)
     run_id = manifest.get("run_id") or report_dir.name
     fr_catalog = existing_path(report_dir / "fr-catalog.snapshot.json")
 
@@ -104,6 +105,7 @@ def main() -> int:
     run_command(evidence_cmd)
 
     fixtures = runtime_dir / "data" / "fixtures" / "target-schemas"
+    reusable_framework = runtime_dir / "data" / "assurance-frameworks" / "jsp-453" / "1.0.0-draft.json"
     dashboard_cmd = [
         sys.executable,
         str(script_dir / "generate_dashboard.py"),
@@ -116,6 +118,7 @@ def main() -> int:
         dashboard_cmd.extend(["--fr-catalog", str(fr_catalog)])
     framework_path = richest_framework_path(
         report_dir / "assurance-framework.snapshot.json",
+        reusable_framework,
         runtime_dir / "jsp-453.assurance-framework.draft.json",
         fixtures / "assurance-framework.example.json",
     )

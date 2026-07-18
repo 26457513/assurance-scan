@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/agent-prompt-plan.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/agent-prompt-plan.schema.json",
   "title": "Agent Prompt Plan",
   "description": "Structured deficiencies, fix recommendations and assurance recommendations for generated agent prompts.",
   "type": "object",
@@ -59,7 +59,7 @@
       "required": ["ruleset", "row"],
       "additionalProperties": false,
       "properties": {
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "row": {"type": "string"}
       }
     }

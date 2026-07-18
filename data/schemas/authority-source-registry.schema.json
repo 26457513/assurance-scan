@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/authority-source-registry.schema.json",
+  "title": "Authority Source Registry",
+  "description": "Typed registry describing where versioned compliance and assurance source artifacts are obtained, transformed and legally handled.",
+  "type": "object",
+  "required": ["schema_version", "sources"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "sources": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/source"}
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["id", "kind", "authority", "artifact", "version", "license", "access", "transform"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "enum": ["ruleset", "assurance_framework", "mapping_source"]},
+        "authority": {"type": "string", "minLength": 1},
+        "artifact": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "license": {"type": "string", "minLength": 1},
+        "access": {"type": "string", "enum": ["public_fetch", "public_curated", "licensed_user_supplied", "internal_curated"]},
+        "url": {"type": "string"},
+        "raw_path": {"type": "string", "minLength": 1},
+        "output_path": {"type": "string", "minLength": 1},
+        "transform": {
+          "type": "object",
+          "required": ["tool", "version"],
+          "additionalProperties": false,
+          "properties": {
+            "tool": {"type": "string", "minLength": 1},
+            "version": {"type": "string", "minLength": 1},
+            "notes": {"type": "string"}
+          }
+        },
+        "legal_notes": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

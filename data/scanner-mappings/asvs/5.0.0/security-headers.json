@@ -35,7 +35,7 @@
     {
       "id": "SCM-SECURITY-HEADERS-ASVS-5-HSTS",
       "review_status": "accepted",
-      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_by": "assurance-scan-maintainers",
       "reviewed_at": "2026-07-08T00:00:00Z",
       "review_decision": "accepted_as_supporting_or_blocking_signal",
       "review_notes": "Header presence is strong evidence for this control, but exact values still require policy checks.",
@@ -77,7 +77,7 @@
     {
       "id": "SCM-SECURITY-HEADERS-ASVS-5-CSP",
       "review_status": "accepted",
-      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_by": "assurance-scan-maintainers",
       "reviewed_at": "2026-07-08T00:00:00Z",
       "review_decision": "accepted_as_supporting_or_blocking_signal",
       "review_notes": "Missing CSP is a blocking signal for CSP rows; passing scan may still need directive review.",
@@ -123,7 +123,7 @@
     {
       "id": "SCM-SECURITY-HEADERS-ASVS-5-NOSNIFF-REFERRER-FRAME",
       "review_status": "accepted",
-      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_by": "assurance-scan-maintainers",
       "reviewed_at": "2026-07-08T00:00:00Z",
       "review_decision": "accepted_as_supporting_or_blocking_signal",
       "review_notes": "Header findings map directly to named ASVS browser-header rows.",

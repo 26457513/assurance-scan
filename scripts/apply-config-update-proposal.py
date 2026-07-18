@@ -202,6 +202,10 @@ def _normalise_fr_fields(fr: dict[str, Any]) -> None:
         }]
 
 
+def _normalise_tbt_fields(tbt: dict[str, Any]) -> None:
+    tbt.setdefault("compliance", [])
+
+
 def _apply_fr_updates(catalog: dict[str, Any], updates: list[dict[str, Any]], *, reviewer: str, reviewed_at: str) -> dict[str, Any]:
     next_catalog = deepcopy(catalog)
     frs = next_catalog.setdefault("frs", [])
@@ -241,6 +245,7 @@ def _apply_fr_updates(catalog: dict[str, Any], updates: list[dict[str, Any]], *,
                 raise ValueError(f"TBT {tbt_id} already exists")
             new_tbt = {"id": tbt_id, **proposed_fields}
             new_tbt.setdefault("proves", [fr_id])
+            _normalise_tbt_fields(new_tbt)
             tbts.append(new_tbt)
             tbt_by_id[tbt_id] = new_tbt
             _stamp_metadata(new_tbt, update, reviewer=reviewer, reviewed_at=reviewed_at)
@@ -249,6 +254,7 @@ def _apply_fr_updates(catalog: dict[str, Any], updates: list[dict[str, Any]], *,
             if not tbt:
                 raise ValueError(f"TBT {tbt_id} not found")
             _merge_fields(tbt, proposed_fields)
+            _normalise_tbt_fields(tbt)
             _stamp_metadata(tbt, update, reviewer=reviewer, reviewed_at=reviewed_at)
         elif operation == "deprecate_tbt":
             tbt = tbt_by_id.get(tbt_id)
@@ -473,11 +479,20 @@ def _apply_native_test_mapping_updates(pack: dict[str, Any], updates: list[dict[
             entry.pop("tbt", None)
             entry["frs"] = []
             entry["assessment"] = "not_assurance_relevant"
+            entry["review_disposition"] = "reviewed_not_evidence"
             entry["safety"] = "non_destructive"
+            entry["rationale"] = update.get("rationale", entry.get("rationale", ""))
+        elif operation == "mark_project_specific_only":
+            entry.pop("tbt", None)
+            entry["frs"] = []
+            entry["assessment"] = "bespoke_project_only"
+            entry["review_disposition"] = "bespoke_project_only"
+            entry["safety"] = "review_required"
             entry["rationale"] = update.get("rationale", entry.get("rationale", ""))
         elif operation == "leave_unmapped":
             entry.pop("tbt", None)
             entry["frs"] = []
+            entry["review_disposition"] = "needs_mapping_review" if update.get("review_status") == "needs_review" else "left_unmapped"
             entry["safety"] = "review_required"
             entry["rationale"] = update.get("rationale", entry.get("rationale", ""))
         elif operation in {"create_tbt_under_existing_fr", "create_new_fr_and_tbt"}:
@@ -491,8 +506,15 @@ def _apply_native_test_mapping_updates(pack: dict[str, Any], updates: list[dict[
     summary = next_pack.setdefault("summary", {})
     tests = next_pack.get("tests") or []
     summary["mapped_native"] = sum(1 for item in tests if item.get("native_path") and item.get("tbt"))
-    summary["unmapped_native"] = sum(1 for item in tests if item.get("native_path") and not item.get("tbt") and item.get("assessment") != "not_assurance_relevant")
+    summary["unmapped_native"] = sum(
+        1
+        for item in tests
+        if item.get("native_path")
+        and not item.get("tbt")
+        and item.get("assessment") not in {"not_assurance_relevant", "bespoke_project_only"}
+    )
     summary["not_assurance_relevant_native"] = sum(1 for item in tests if item.get("native_path") and item.get("assessment") == "not_assurance_relevant")
+    summary["bespoke_project_only_native"] = sum(1 for item in tests if item.get("native_path") and item.get("assessment") == "bespoke_project_only")
     next_pack["updated_at"] = reviewed_at
     return next_pack
 

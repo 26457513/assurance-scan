@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
+import shutil
 import subprocess
 import time
 import xml.etree.ElementTree as ET
@@ -22,8 +24,91 @@ def shell_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
+DEFAULT_TEST_ADAPTER = {
+    "language": "javascript",
+    "framework": "jest",
+    "container_image": "node:20",
+    "result_format": "junit",
+    "command_template": "{runner} {config_flag} --runTestsByPath {test_file} --runInBand --no-cache",
+    "config_path": "tests/asvs/jest.config.js",
+}
+
+
+def normalise_test_adapter(manifest: dict) -> dict:
+    adapter = dict(DEFAULT_TEST_ADAPTER)
+    adapter.update(manifest.get("test_adapter") or {})
+    return adapter
+
+
+def adapter_framework(adapter: dict) -> str:
+    return str(adapter.get("framework") or "").lower()
+
+
+def adapter_container_image(adapter: dict, override: str | None = None) -> str:
+    return override or str(adapter.get("container_image") or DEFAULT_TEST_ADAPTER["container_image"])
+
+
+def adapter_config_path(source_repo: Path, adapter: dict, explicit: Path | None = None) -> Path | None:
+    if explicit:
+        return explicit
+    config_path = str(adapter.get("config_path") or "").strip()
+    if not config_path:
+        return None
+    path = Path(config_path)
+    return path if path.is_absolute() else source_repo / path
+
+
+def find_pytest(source_repo: Path, explicit: str | None = None) -> Path:
+    candidates = [Path(explicit)] if explicit else []
+    candidates.extend([
+        source_repo / ".venv" / "bin" / "pytest",
+        source_repo / "venv" / "bin" / "pytest",
+    ])
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    resolved = shutil.which("pytest")
+    if resolved:
+        return Path(resolved)
+    raise SystemExit("could not find pytest binary; pass --pytest-bin or --runner-bin")
+
+
+def build_adapter_command(
+    source_repo: Path,
+    adapter: dict,
+    rel_path: str,
+    *,
+    explicit_runner: str | None = None,
+    explicit_config: Path | None = None,
+) -> tuple[list[str], Path | None, Path | None]:
+    framework = adapter_framework(adapter)
+    if framework in {"jest", "vitest"}:
+        runner = find_jest(source_repo, explicit_runner or adapter.get("runner_path"))
+        config = adapter_config_path(source_repo, adapter, explicit_config)
+        config_flag = f"--config {shell_quote(str(config))}" if config and config.exists() else ""
+        template = str(adapter.get("command_template") or DEFAULT_TEST_ADAPTER["command_template"])
+    elif framework == "pytest":
+        runner = find_pytest(source_repo, explicit_runner or adapter.get("runner_path"))
+        config = adapter_config_path(source_repo, adapter, explicit_config)
+        config_flag = f"-c {shell_quote(str(config))}" if config and config.exists() else ""
+        template = str(adapter.get("command_template") or "{runner} {config_flag} {test_file}")
+    else:
+        raise SystemExit(
+            f"test adapter framework '{framework or 'unknown'}' is not supported by run-approved-tests yet; "
+            "add an adapter runner implementation before executing these tests"
+        )
+    command_text = template.format(
+        runner=shell_quote(str(runner)),
+        config=shell_quote(str(config)) if config else "",
+        config_flag=config_flag,
+        test_file=shell_quote(rel_path),
+        source_repo=shell_quote(str(source_repo)),
+    )
+    return shlex.split(command_text), runner, config
+
+
 def infer_source_repo(report_dir: Path) -> Path:
-    match = re.match(r"^(.*)/([^/]+)-asvs-scan-[^/]+/\.asvs-scanner/runtime/reports/[^/]+/?$", str(report_dir))
+    match = re.match(r"^(.*)/([^/]+)-assurance-scan-[^/]+/\.assurance-scan/runtime/reports/[^/]+/?$", str(report_dir))
     if not match:
         raise SystemExit("could not infer source repository; pass --source-repo")
     return Path(match.group(1)) / match.group(2)
@@ -122,17 +207,9 @@ def docker_available() -> bool:
     return Path("/var/run/docker.sock").exists()
 
 
-def jest_command(jest_bin: Path, config: Path | None, rel_path: str) -> list[str]:
-    cmd = [str(jest_bin)]
-    if config and config.exists():
-        cmd.extend(["--config", str(config)])
-    cmd.extend(["--runTestsByPath", rel_path, "--runInBand", "--no-cache"])
-    return cmd
-
-
-def docker_jest_command(source_repo: Path, jest_bin: Path, config: Path | None, rel_path: str, image: str) -> list[str]:
+def docker_adapter_command(source_repo: Path, adapter_cmd: list[str], adapter_paths: list[Path | None], image: str) -> list[str]:
     mounts = [container_mount_root(source_repo)]
-    for candidate in (jest_bin, config):
+    for candidate in adapter_paths:
         if candidate:
             root = container_mount_root(candidate)
             if root not in mounts:
@@ -141,7 +218,7 @@ def docker_jest_command(source_repo: Path, jest_bin: Path, config: Path | None, 
     for mount in mounts:
         cmd.extend(["-v", f"{mount}:{mount}"])
     cmd.extend(["-w", str(source_repo), image])
-    cmd.extend(jest_command(jest_bin, config, rel_path))
+    cmd.extend(adapter_cmd)
     return cmd
 
 
@@ -155,12 +232,13 @@ def should_use_docker(mode: str) -> bool:
 
 def run_one(
     source_repo: Path,
-    jest_bin: Path,
-    config: Path | None,
+    adapter: dict,
     item: dict,
     timeout: int,
     execution_mode: str,
-    test_container_image: str,
+    test_container_image: str | None,
+    explicit_runner: str | None = None,
+    explicit_config: Path | None = None,
 ) -> dict:
     rel_path = item.get("pack_path") or item.get("manual_test_path") or ""
     test_path = source_repo / rel_path
@@ -180,7 +258,7 @@ def run_one(
             "output": "",
         }
     text = test_path.read_text(errors="ignore")
-    if re.search(r"\bdescribe\.skip\b|\btest\.skip\b|TODO\(review-required\)|review-required scaffold", text):
+    if re.search(r"\bdescribe\.skip\b|\btest\.skip\b|pytest\.mark\.skip\b|TODO\(review-required\)|review-required scaffold", text):
         return {
             "tbt": tbt,
             "frs": frs,
@@ -192,8 +270,16 @@ def run_one(
             "output": "",
         }
 
+    adapter_cmd, runner_path, config_path = build_adapter_command(
+        source_repo,
+        adapter,
+        rel_path,
+        explicit_runner=explicit_runner,
+        explicit_config=explicit_config,
+    )
     use_docker = should_use_docker(execution_mode)
-    cmd = docker_jest_command(source_repo, jest_bin, config, rel_path, test_container_image) if use_docker else jest_command(jest_bin, config, rel_path)
+    image = adapter_container_image(adapter, test_container_image)
+    cmd = docker_adapter_command(source_repo, adapter_cmd, [runner_path, config_path], image) if use_docker else adapter_cmd
     started = time.monotonic()
     proc = subprocess.run(
         cmd,
@@ -212,7 +298,7 @@ def run_one(
         "scope_slug": scope_slug,
         "status": "passed" if proc.returncode == 0 else "failed",
         "seconds": seconds,
-        "message": "" if proc.returncode == 0 else f"Jest exited {proc.returncode}",
+        "message": "" if proc.returncode == 0 else f"{adapter.get('framework', 'test adapter')} exited {proc.returncode}",
         "output": output,
     }
 
@@ -223,11 +309,18 @@ def main() -> int:
     parser.add_argument("--source-repo", type=Path)
     parser.add_argument("--tbt", action="append", required=True)
     parser.add_argument("--junit-out", type=Path)
-    parser.add_argument("--jest-bin")
-    parser.add_argument("--jest-config", type=Path)
+    parser.add_argument("--runner-bin", help="Override the executable selected by the manifest test_adapter.")
+    parser.add_argument("--jest-bin", help="Deprecated alias for --runner-bin when using the Jest adapter.")
+    parser.add_argument("--pytest-bin", help="Deprecated alias for --runner-bin when using the pytest adapter.")
+    parser.add_argument("--jest-config", type=Path, help="Adapter config override. Kept for compatibility with existing Jest commands.")
     parser.add_argument("--execution-mode", choices=["auto", "host", "docker"], default="auto")
-    parser.add_argument("--test-container-image", default="node:20")
+    parser.add_argument("--test-container-image", default=None, help="Override the manifest test_adapter.container_image.")
     parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument(
+        "--fail-on-test-failure",
+        action="store_true",
+        help="Exit non-zero when executed tests fail or skip. By default, failed/skipped tests are written as observed JUnit evidence and the workflow continues so evidence can be imported.",
+    )
     parser.add_argument(
         "--allow-reviewed-existing-asvs",
         action="store_true",
@@ -240,19 +333,25 @@ def main() -> int:
     manifest_path = report_dir / "generated-tests" / "VG_TEST_FRAMEWORK" / "manifest.json"
     manifest = load_json(manifest_path)
     tests = selected_tests(manifest, args.tbt, allow_reviewed_existing_asvs=args.allow_reviewed_existing_asvs)
-    jest_bin = find_jest(source_repo, args.jest_bin)
-    jest_config = args.jest_config or (source_repo / "tests" / "asvs" / "jest.config.js")
+    adapter = normalise_test_adapter(manifest)
     junit_out = args.junit_out or (report_dir / "generated-tests" / "VG_TEST_FRAMEWORK" / "results" / "approved-tbt-junit.xml")
 
+    framework = adapter_framework(adapter)
+    explicit_runner = args.runner_bin
+    if not explicit_runner and framework in {"jest", "vitest"}:
+        explicit_runner = args.jest_bin
+    if not explicit_runner and framework == "pytest":
+        explicit_runner = args.pytest_bin
     results = [
         run_one(
             source_repo,
-            jest_bin,
-            jest_config,
+            adapter,
             item,
             args.timeout,
             args.execution_mode,
             args.test_container_image,
+            explicit_runner=explicit_runner,
+            explicit_config=args.jest_config,
         )
         for item in tests
     ]
@@ -272,15 +371,17 @@ def main() -> int:
     print("")
     print("Import observed results with:")
     print("docker run --rm -it \\")
-    print("  -e ASVS_IMAGE_BUILD_PARALLELISM=2 \\")
-    print("  -e ASVS_PARALLELISM=4 \\")
+    print("  -e ASSURANCE_SCAN_IMAGE_BUILD_PARALLELISM=2 \\")
+    print("  -e ASSURANCE_SCAN_PARALLELISM=4 \\")
     print("  -v /var/run/docker.sock:/var/run/docker.sock \\")
     print(f"  -v {shell_quote(parent_mount)}:{shell_quote(parent_mount)} \\")
     print(f"  -w {shell_quote(str(source_repo))} \\")
-    print(f"  asvs-scanner:local scan {shell_quote(str(source_repo))} \\")
+    print(f"  assurance-scan:local scan {shell_quote(str(source_repo))} \\")
     print(f"  --fr-catalog {shell_quote(str(catalog))} \\")
     print(f"  --junit-xml {shell_quote(str(junit_out))}")
-    return 1 if failed or skipped else 0
+    if failed or skipped:
+        print("observed test failures/skips were written to JUnit; continuing so evidence can be imported")
+    return 1 if args.fail_on_test_failure and (failed or skipped) else 0
 
 
 if __name__ == "__main__":

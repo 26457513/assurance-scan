@@ -21,6 +21,7 @@ FIXTURE_NAMES = {
     "scanner_rules": "scanner-rules.example.json",
     "scanner_compliance_mapping_pack": "scanner-compliance-mapping-pack.example.json",
     "compliance_mapping_pack": "compliance-mapping-pack.example.json",
+    "blueprint_compliance_mapping_pack": "blueprint-compliance-mapping-pack.example.json",
     "fr_catalog": "fr-catalog.example.json",
     "evidence_bundle": "evidence-bundle.example.json",
     "assurance_framework": "assurance-framework.example.json",
@@ -56,6 +57,8 @@ EXPECTED_SCHEMA_FILES = {
     "assurance-claim.schema.json",
     "assurance-proof-bundle.schema.json",
     "assurance-test-pack.schema.json",
+    "authority-source-registry.schema.json",
+    "compliance-regime.schema.json",
     "dashboard-payload.schema.json",
     "evidence-bundle.schema.json",
     "fr-catalog.schema.json",
@@ -63,6 +66,7 @@ EXPECTED_SCHEMA_FILES = {
     "project-fr-board-state.schema.json",
     "glossary.schema.json",
     "compliance-mapping-pack.schema.json",
+    "blueprint-compliance-mapping-pack.schema.json",
     "config-update-proposal.schema.json",
     "defs.schema.json",
     "ruleset.schema.json",
@@ -145,6 +149,7 @@ def main() -> int:
         "scanner_rules": "scanner_rules",
         "scanner_compliance_mapping_pack": "scanner_compliance_mapping_pack",
         "compliance_mapping_pack": "compliance_mapping_pack",
+        "blueprint_compliance_mapping_pack": "blueprint_compliance_mapping_pack",
         "evidence_bundle": "evidence_bundle",
         "assurance_framework": "assurance_framework",
         "assurance_instance": "assurance_instance",
@@ -200,6 +205,7 @@ def main() -> int:
     scanner_rules = docs["scanner_rules"]
     scanner_compliance_mapping_pack = docs["scanner_compliance_mapping_pack"]
     compliance_mapping_pack = docs["compliance_mapping_pack"]
+    blueprint_compliance_mapping_pack = docs["blueprint_compliance_mapping_pack"]
     fr_catalog = docs["fr_catalog"]
     evidence_bundle = docs["evidence_bundle"]
     assurance_framework = docs["assurance_framework"]
@@ -513,6 +519,7 @@ def main() -> int:
     print(f"  Scanner rules: {len(scanner_rule_ids)}")
     print(f"  Scanner compliance mappings: {len(scanner_compliance_mapping_pack.get('mappings') or [])}")
     print(f"  Compliance mappings: {len(compliance_mapping_pack.get('mappings') or [])}")
+    print(f"  Blueprint compliance mappings: {len(blueprint_compliance_mapping_pack.get('mappings') or [])}")
     print(f"  Gates: {len(gate_set)}")
     print(f"  Criteria: {len(criterion_set)}")
     print(f"  Test-pack entries: {len(assurance_test_pack.get('tests') or [])}")

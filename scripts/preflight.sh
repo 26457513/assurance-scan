@@ -139,8 +139,8 @@ fi
 
 # --- Optional --image ------------------------------------------------------
 IMAGE_CHECKS=()
-if [ -n "${ASVS_IMAGE_NAMES:-}" ]; then
-  IFS=',' read -ra IMAGE_CHECKS <<< "$ASVS_IMAGE_NAMES"
+if [ -n "${ASSURANCE_SCAN_IMAGE_NAMES:-}" ]; then
+  IFS=',' read -ra IMAGE_CHECKS <<< "$ASSURANCE_SCAN_IMAGE_NAMES"
 elif [ -n "${IMAGE_NAME:-}" ]; then
   IMAGE_CHECKS=("$IMAGE_NAME")
 fi

@@ -35,7 +35,7 @@
     {
       "id": "SCM-TRIVY-CONFIG-ASVS-5-CONTAINER-SECRETS",
       "review_status": "accepted",
-      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_by": "assurance-scan-maintainers",
       "reviewed_at": "2026-07-08T00:00:00Z",
       "review_decision": "accepted_as_blocking_signal",
       "review_notes": "Secrets in Docker build args/env are blocking signals for secret management.",
@@ -77,7 +77,7 @@
     {
       "id": "SCM-TRIVY-CONFIG-ASVS-5-RISKY-CONTAINER-COMPONENTS",
       "review_status": "accepted",
-      "reviewed_by": "asvs-scanner-maintainers",
+      "reviewed_by": "assurance-scan-maintainers",
       "reviewed_at": "2026-07-08T00:00:00Z",
       "review_decision": "accepted_as_supporting_or_blocking_signal",
       "review_notes": "Container hardening findings are relevant to dependency and risky-component controls, but are not pure ASVS proof.",

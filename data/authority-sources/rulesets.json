@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "ruleset-asvs-v5.0.0",
+      "kind": "ruleset",
+      "authority": "OWASP",
+      "artifact": "Application Security Verification Standard",
+      "version": "v5.0.0",
+      "license": "CC-BY-SA-4.0",
+      "access": "public_fetch",
+      "url": "https://github.com/OWASP/ASVS/archive/refs/heads/v5.0.0.zip",
+      "raw_path": "data/authority-sources/raw/asvs/v5.0.0/ASVS-v5.0.0.zip",
+      "output_path": "data/rulesets/asvs/5.0.0.json",
+      "transform": {
+        "tool": "scripts/sync-authority-rulesets.py",
+        "version": "2",
+        "notes": "Transforms the generated OWASP ASVS 5.0.0 English flat JSON export embedded in the official tagged archive into canonical ruleset rows."
+      },
+      "legal_notes": [
+        "ASVS is published by OWASP under CC-BY-SA-4.0."
+      ]
+    },
+    {
+      "id": "ruleset-nist-800-53-5.2.0",
+      "kind": "ruleset",
+      "authority": "NIST",
+      "artifact": "SP 800-53 Rev. 5 OSCAL catalog",
+      "version": "5.2.0",
+      "license": "NIST Public (US Government Work, public domain)",
+      "access": "public_fetch",
+      "url": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog-min.json",
+      "raw_path": "data/authority-sources/raw/nist-800-53/5.2.0/NIST_SP-800-53_rev5_catalog-min.json",
+      "output_path": "data/rulesets/nist-800-53/5.2.0.json",
+      "transform": {
+        "tool": "scripts/sync-authority-rulesets.py",
+        "version": "2",
+        "notes": "Transforms NIST OSCAL controls into ruleset rows."
+      },
+      "legal_notes": [
+        "NIST publications are public domain in the United States."
+      ]
+    },
+    {
+      "id": "ruleset-owasp-top-10-2021",
+      "kind": "ruleset",
+      "authority": "OWASP",
+      "artifact": "OWASP Top 10",
+      "version": "2021",
+      "license": "CC-BY-SA-4.0",
+      "access": "public_curated",
+      "url": "https://owasp.org/Top10/",
+      "raw_path": "data/authority-sources/raw/owasp-top-10/2021/owasp-top-10-2021-categories.json",
+      "output_path": "data/rulesets/owasp-top-10/2021.json",
+      "transform": {
+        "tool": "scripts/sync-authority-rulesets.py",
+        "version": "2",
+        "notes": "Maintains category-level rows from public OWASP Top 10 material."
+      },
+      "legal_notes": [
+        "Category-level snapshot only; use ASVS for detailed application verification requirements."
+      ]
+    },
+    {
+      "id": "ruleset-iso-27001-2022",
+      "kind": "ruleset",
+      "authority": "ISO/IEC",
+      "artifact": "ISO/IEC 27001:2022",
+      "version": "2022",
+      "license": "ISO copyrighted standard metadata only",
+      "access": "licensed_user_supplied",
+      "url": "https://www.iso.org/standard/27001",
+      "raw_path": "data/authority-sources/raw/iso-27001/2022/user-supplied-control-catalog.json",
+      "output_path": "data/rulesets/iso-27001/2022.json",
+      "transform": {
+        "tool": "scripts/sync-authority-rulesets.py",
+        "version": "2",
+        "notes": "Default repo snapshot is public-safe theme-level only. Licensed detailed controls must be supplied by the user."
+      },
+      "legal_notes": [
+        "Do not commit licensed ISO control text unless the repository/license policy permits it."
+      ]
+    }
+  ]
+}

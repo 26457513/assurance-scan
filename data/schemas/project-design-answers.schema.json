@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/project-design-answers.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/project-design-answers.schema.json",
   "title": "Project Design Answers",
   "type": "object",
   "required": ["schema_version", "id", "status", "project", "questionnaire", "answers"],

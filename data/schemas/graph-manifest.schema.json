@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/graph-manifest.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/graph-manifest.schema.json",
   "title": "Graph Proof Manifest",
   "description": "Binds a generated runtime graph to source config, evidence artifacts, hashes, tool versions and supported assurance claim types.",
   "type": "object",
@@ -217,6 +217,7 @@
       "type": "string",
       "enum": [
         "fr_catalog",
+        "compliance_regime",
         "compliance_mapping_pack",
         "scanner_compliance_mapping_pack",
         "assurance_framework",

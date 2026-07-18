@@ -737,7 +737,7 @@ def render_framework_tab(
     from collections import defaultdict
     by_group: dict[str, list] = defaultdict(list)
     for row, state, culprits, claiming, in_scope, _resolved in row_states:
-        group = row.get("chapter") or row.get("family") or "?"
+        group = row.get("chapter") or row.get("group") or row.get("family") or "?"
         by_group[group].append((row, state, culprits, claiming, in_scope, _resolved))
 
     rows_html: list[str] = []
@@ -986,7 +986,7 @@ def _render_framework_row(framework: str, row: dict, state: str,
     section = html.escape(row.get("section") or row.get("family") or "")
     level_raw = row.get("level")
     level = f'L{html.escape(str(level_raw).upper().lstrip("L"))}' if level_raw is not None else "—"
-    group_key = html.escape(row.get("chapter") or row.get("family") or row.get("section") or "?")
+    group_key = html.escape(row.get("chapter") or row.get("group") or row.get("family") or row.get("section") or "?")
     title = html.escape(row.get("title") or "")
     desc_raw = row.get("description", "")
     # Strip NIST parameter placeholders for display

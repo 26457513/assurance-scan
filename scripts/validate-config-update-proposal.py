@@ -78,11 +78,27 @@ def _cross_validate(
 ) -> list[str]:
     errors: list[str] = []
 
+    proposed_fr_ids = {
+        update.get("fr_id")
+        for update in proposal.get("fr_catalog_updates") or []
+        if update.get("operation") == "add_fr" and update.get("fr_id")
+    }
+    proposed_tbt_ids = {
+        update.get("tbt_id")
+        for update in proposal.get("fr_catalog_updates") or []
+        if update.get("operation") == "add_tbt" and update.get("tbt_id")
+    }
+
     for update in proposal.get("fr_catalog_updates") or []:
         operation = update.get("operation")
         fr_id = update.get("fr_id")
         tbt_id = update.get("tbt_id")
-        if fr_ids and operation in {"update_fr", "deprecate_fr", "add_tbt", "update_tbt", "deprecate_tbt"} and fr_id not in fr_ids:
+        if (
+            fr_ids
+            and operation in {"update_fr", "deprecate_fr", "add_tbt", "update_tbt", "deprecate_tbt"}
+            and fr_id not in fr_ids
+            and fr_id not in proposed_fr_ids
+        ):
             errors.append(f"fr_catalog_updates: {operation} references unknown FR {fr_id}")
         if tbt_ids and operation in {"update_tbt", "deprecate_tbt"} and tbt_id not in tbt_ids:
             errors.append(f"fr_catalog_updates: {operation} references unknown TBT {tbt_id}")
@@ -132,16 +148,6 @@ def _cross_validate(
                     if key not in ruleset_rows:
                         errors.append(f"{section}: proposed requirement references unknown ruleset row {key[0]} {key[1]}")
 
-    proposed_fr_ids = {
-        update.get("fr_id")
-        for update in proposal.get("fr_catalog_updates") or []
-        if update.get("operation") == "add_fr" and update.get("fr_id")
-    }
-    proposed_tbt_ids = {
-        update.get("tbt_id")
-        for update in proposal.get("fr_catalog_updates") or []
-        if update.get("operation") == "add_tbt" and update.get("tbt_id")
-    }
     for update in proposal.get("native_test_mapping_updates") or []:
         operation = update.get("operation")
         target = update.get("target") or {}

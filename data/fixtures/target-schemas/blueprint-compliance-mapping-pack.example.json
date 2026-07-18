@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "security-core-blueprint-to-asvs-5.0.0",
+    "pack_version": "1.0.0",
+    "created_at": "2026-07-13T00:00:00Z",
+    "updated_at": "2026-07-13T00:00:00Z",
+    "generator": "manual-curation-from-security-core-blueprint",
+    "source_hash": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46",
+    "input_artifacts": [
+      {
+        "kind": "fr_catalog_blueprint",
+        "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+        "version": "security-core-1.0.0",
+        "hash": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+      }
+    ]
+  },
+  "blueprint": {
+    "catalog": "security-core",
+    "version": "security-core-1.0.0",
+    "source_ref": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+    "source_hash": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+  },
+  "compliance": {
+    "ruleset": "ASVS",
+    "version": "5.0.0",
+    "source_ref": "data/rulesets/asvs/5.0.0.json"
+  },
+  "mappings": [
+    {
+      "id": "BCM-ASVS-5-FR-SESSION-MANAGEMENT-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-SESSION-MANAGEMENT-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.1.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.2.4"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.3.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-7.4.1"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-SESSION-MANAGEMENT-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    },
+    {
+      "id": "BCM-ASVS-5-FR-OUTPUT-ENCODING-001",
+      "review_status": "accepted",
+      "reviewed_by": "security-core-blueprint-maintainers",
+      "reviewed_at": "2026-07-13T00:00:00Z",
+      "review_decision": "accepted",
+      "review_notes": "Initial ASVS 5.0.0 mapping extracted from reviewed security-core blueprint catalog.",
+      "mapping_level": "compliance_row",
+      "relationship": "satisfies",
+      "traceability_strength": "direct",
+      "blueprint_refs": {
+        "fr_refs": [
+          "FR-BP-SEC-OUTPUT-ENCODING-001"
+        ],
+        "tbt_refs": []
+      },
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.1.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.2"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-1.2.3"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Mapping declares assurance intent only; project evidence is required after blueprint adoption."
+      ],
+      "source_basis": [
+        {
+          "kind": "blueprint_catalog",
+          "path": "data/blueprints/security-core/asvs-5.0.0/fr-catalog.blueprint.json",
+          "sha256": "sha256:6f833fadb47dc48433935e104dc13344699c6191a266b444530dab56c927dd46"
+        },
+        {
+          "kind": "authority_ruleset",
+          "ruleset": "ASVS",
+          "version": "5.0.0"
+        }
+      ],
+      "rationale": "Blueprint FR FR-BP-SEC-OUTPUT-ENCODING-001 expresses assurance obligations that satisfy the listed ASVS 5.0.0 rows when adopted and evidenced in a project.",
+      "confidence": "high"
+    }
+  ]
+}

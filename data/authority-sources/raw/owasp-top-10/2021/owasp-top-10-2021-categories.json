@@ -1,0 +1,6 @@
+{
+  "source": "ruleset-owasp-top-10-2021",
+  "mode": "reviewed_snapshot_reference",
+  "note": "Raw authority artifact was not fetched in this run; this marker records the reviewed local snapshot as the current transform input.",
+  "snapshot_sha256": "sha256:d1aebc320da29b04167ec54fffa2b864bf6561825de9f29090ed0ff634d0e063"
+}

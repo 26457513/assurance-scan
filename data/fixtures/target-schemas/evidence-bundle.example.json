@@ -146,7 +146,7 @@
         }
       ],
       "provenance": {
-        "collector": "asvs-scanner",
+        "collector": "assurance-scan",
         "collected_at": "2026-07-06T00:00:00Z",
         "tool": "semgrep",
         "tool_version": "1.0",
@@ -159,7 +159,7 @@
             "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
           }
         ],
-        "normalizer": "asvs-scanner.semgrep-sarif"
+        "normalizer": "assurance-scan.semgrep-sarif"
       },
       "metadata": {
         "scanner_result": "no_findings",

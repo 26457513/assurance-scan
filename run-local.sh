@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# run-local.sh — ASVS Scanner local entrypoint.
+# run-local.sh — Assurance Scan local entrypoint.
 #
 # Usage:
-#   ./run-local.sh <target-dir> [--image <name>]... [--url <url>]... [--uploads <dir>]... [--fr-catalog <json>] [--compliance-mapping-pack <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--assurance-framework <json>] [--assurance-instance <json>]
+#   ./run-local.sh <target-dir> [--image <name>]... [--url <url>]... [--uploads <dir>]... [--fr-catalog <json>] [--compliance-mapping-pack <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--assurance-framework <json>] [--assurance-instance <json>] [--carry-forward-report <report-dir>] [--carry-forward-report <report-dir>]
 #
 # Examples:
 #   ./run-local.sh /path/to/project
@@ -38,17 +38,17 @@ fi
 
 DIVIDER="────────────────────────────────────────────────────────────"
 SECTION_NO=0
-RUN_START_EPOCH="${ASVS_RUN_START_EPOCH:-$(date +%s)}"
-ASVS_PARALLELISM="${ASVS_PARALLELISM:-4}"
-ASVS_DB_REFRESH_TTL_HOURS="${ASVS_DB_REFRESH_TTL_HOURS:-24}"
+RUN_START_EPOCH="${ASSURANCE_SCAN_RUN_START_EPOCH:-$(date +%s)}"
+ASSURANCE_SCAN_PARALLELISM="${ASSURANCE_SCAN_PARALLELISM:-4}"
+ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS="${ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS:-24}"
 TIMING_LABELS=()
 TIMING_SECONDS=()
 
 banner() {
   printf '\n%s\n' "${C_CYAN}${C_BOLD}╭────────────────────────────────────────────╮${C_RESET}"
-  printf '%s\n' "${C_CYAN}${C_BOLD}│              ASVS Scanner                  │${C_RESET}"
+  printf '%s\n' "${C_CYAN}${C_BOLD}│              Assurance Scan                │${C_RESET}"
   printf '%s\n' "${C_CYAN}${C_BOLD}╰────────────────────────────────────────────╯${C_RESET}"
-  printf '%s\n\n' "${C_DIM}Application Security Verification Standard security scanner${C_RESET}"
+  printf '%s\n\n' "${C_DIM}Config-driven assurance scanner${C_RESET}"
 }
 
 section() {
@@ -67,8 +67,8 @@ status_line() {
 ok() { status_line "$1" "ready" "$C_GREEN"; }
 done_line() { status_line "$1" "done" "$C_GREEN"; }
 current_line() { status_line "$1" "current" "$C_GREEN"; }
-warn_line() { status_line "$1" "$2" "$C_YELLOW"; }
-fail_line() { status_line "$1" "$2" "$C_RED"; }
+warn_line() { status_line "${1:-warning}" "${2:-warning}" "$C_YELLOW"; }
+fail_line() { status_line "${1:-error}" "${2:-failed}" "$C_RED"; }
 
 json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
@@ -142,7 +142,7 @@ print_file_table() {
   printf '  %-18s %s\n' "Run summary" "$REPORT_DIR/scanner-run-summary.txt"
   printf '  %-18s %s\n' "Detailed log" "$REPORT_DIR/run.log"
   printf '  %-18s %s\n' "Timings" "$REPORT_DIR/timings.json"
-  printf '  %-18s %s\n' "Validate" "asvs-scanner validate-report \"$REPORT_DIR\" --strict"
+  printf '  %-18s %s\n' "Validate" "assurance-scan validate-report \"$REPORT_DIR\" --strict"
 }
 
 cache_stamp_name() {
@@ -153,8 +153,8 @@ cache_stamp_read() {
   local label stamp volume helper
   label="$(cache_stamp_name "$1")"
   stamp="${label}.stamp"
-  volume="${ASVS_META_VOLUME:-${COMPOSE_PROJECT_NAME:-asvs-scanner}_db-meta}"
-  helper="${ASVS_META_HELPER_IMAGE:-asvs-scanner:latest}"
+  volume="${ASSURANCE_SCAN_META_VOLUME:-${COMPOSE_PROJECT_NAME:-assurance-scan}_db-meta}"
+  helper="${ASSURANCE_SCAN_META_HELPER_IMAGE:-assurance-scan:latest}"
   docker volume create "$volume" >/dev/null 2>&1 || return 1
   docker run --rm --entrypoint sh -v "$volume:/meta" "$helper" -c "cat /meta/$stamp 2>/dev/null || true" 2>/dev/null || true
 }
@@ -163,7 +163,7 @@ prefetch_needs_refresh() {
   local label="$1"
   local stamp now stamp_age max_age
 
-  if [ "${ASVS_DB_REFRESH_TTL_HOURS}" = "0" ]; then
+  if [ "${ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS}" = "0" ]; then
     return 0
   fi
 
@@ -173,7 +173,7 @@ prefetch_needs_refresh() {
 
   now="$(date +%s)"
   stamp_age=$(( now - stamp ))
-  max_age=$(( ASVS_DB_REFRESH_TTL_HOURS * 3600 ))
+  max_age=$(( ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS * 3600 ))
   [ "$stamp_age" -ge "$max_age" ]
 }
 
@@ -181,8 +181,8 @@ mark_prefetch_refreshed() {
   local label stamp volume helper now
   label="$(cache_stamp_name "$1")"
   stamp="${label}.stamp"
-  volume="${ASVS_META_VOLUME:-${COMPOSE_PROJECT_NAME:-asvs-scanner}_db-meta}"
-  helper="${ASVS_META_HELPER_IMAGE:-asvs-scanner:latest}"
+  volume="${ASSURANCE_SCAN_META_VOLUME:-${COMPOSE_PROJECT_NAME:-assurance-scan}_db-meta}"
+  helper="${ASSURANCE_SCAN_META_HELPER_IMAGE:-assurance-scan:latest}"
   now="$(date +%s)"
   docker volume create "$volume" >/dev/null 2>&1 || return 0
   docker run --rm --entrypoint sh -v "$volume:/meta" "$helper" -c "mkdir -p /meta && printf '%s\n' '$now' > /meta/$stamp" >/dev/null 2>&1 || true
@@ -226,9 +226,9 @@ run_prefetch_services() {
 
   for svc in "${services[@]}"; do
     label="${svc#prefetch-}"
-    if [ "${ASVS_PREFETCH_FORCE:-0}" != "1" ] && ! prefetch_needs_refresh "$label"; then
+    if [ "${ASSURANCE_SCAN_PREFETCH_FORCE:-0}" != "1" ] && ! prefetch_needs_refresh "$label"; then
       current_line "$label"
-      [ -z "$log_file" ] || echo "==> $svc skipped; refreshed within ${ASVS_DB_REFRESH_TTL_HOURS}h TTL" >> "$log_file"
+      [ -z "$log_file" ] || echo "==> $svc skipped; refreshed within ${ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS}h TTL" >> "$log_file"
       continue
     fi
     [ -z "$log_file" ] || echo "==> $svc" >> "$log_file"
@@ -251,7 +251,7 @@ run_prefetch_services() {
 usage() {
   cat <<USAGE
 Usage:
-  ./run-local.sh <target-dir> [--image <name>]... [--url <url>]... [--uploads <dir>]... [--fr-catalog <json>] [--scanner-compliance-mapping-pack <json-or-dir>]...
+  ./run-local.sh <target-dir> [--image <name>]... [--url <url>]... [--uploads <dir>]... [--fr-catalog <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--carry-forward-report <report-dir>]
   ./run-local.sh prefetch                          # one-time DB pre-download
   ./run-local.sh prefetch --only trivy,osv         # prefetch specific DBs only
   ./run-local.sh --help
@@ -268,12 +268,12 @@ Scans automatically seed scanner database volumes before running. Use prefetch
 when you want to warm a laptop ahead of time or refresh DBs explicitly
 (osv-scanner publishes daily, Trivy/Grype/ClamAV on their own cadences).
 
-Scanners run concurrently by default with ASVS_PARALLELISM=4. Use
-ASVS_PARALLELISM=1 for sequential troubleshooting, or raise it on machines with
+Scanners run concurrently by default with ASSURANCE_SCAN_PARALLELISM=4. Use
+ASSURANCE_SCAN_PARALLELISM=1 for sequential troubleshooting, or raise it on machines with
 more CPU/RAM.
 
-Scanner databases refresh at most once every ASVS_DB_REFRESH_TTL_HOURS hours
-(default: 24). Set ASVS_DB_REFRESH_TTL_HOURS=0 to refresh every scan.
+Scanner databases refresh at most once every ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS hours
+(default: 24). Set ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS=0 to refresh every scan.
 
 Output (per scan):
   reports/<timestamp>/executive-summary.md
@@ -316,14 +316,14 @@ if [ "$1" = "prefetch" ]; then
   export TARGET_DIR="${TARGET_DIR:-/tmp}"
   export SCAN_SOURCE_DIR="${SCAN_SOURCE_DIR:-/tmp}"
   export RUN_ID="${RUN_ID:-prefetch}"
-  export ASVS_PREFETCH_FORCE=1
+  export ASSURANCE_SCAN_PREFETCH_FORCE=1
   COMPOSE_BIN="${COMPOSE_BIN:-docker compose}"
   PREFETCH_SERVICES=(prefetch-trivy prefetch-grype prefetch-osv prefetch-clamav)
   mapfile -t PREFETCH_SERVICES < <(prefetch_services_for_allowlist "$PREFETCH_ONLY" "${PREFETCH_SERVICES[@]}")
   run_prefetch_services "" "${PREFETCH_SERVICES[@]}"
   echo ""
   echo "Prefetch complete. Databases cached in named volumes:"
-  docker volume ls --filter "name=asvs-scanner" --format "{{.Name}}"
+  docker volume ls --filter "name=assurance-scan" --format "{{.Name}}"
   exit 0
 fi
 
@@ -351,6 +351,8 @@ while [ $# -gt 0 ]; do
       ASSURANCE_INSTANCE="${2:-}"; shift 2 ;;
     --junit-xml)
       JUNIT_XML="${2:-}"; shift 2 ;;
+    --carry-forward-report)
+      CARRY_FORWARD_REPORT="${2:-}"; shift 2 ;;
     *)
       echo "ERROR: unknown argument: $1" >&2
       usage
@@ -370,12 +372,12 @@ IMAGE_NAME="${IMAGE_NAMES[0]:-}"
 TARGET_URL="${TARGET_URLS[0]:-}"
 UPLOADS_DIR="${UPLOADS_DIRS[0]:-}"
 SCAN_SOURCE_DIR="${SCAN_SOURCE_DIR:-$TARGET_DIR}"
-ASVS_IMAGE_NAMES="$(IFS=,; printf '%s' "${IMAGE_NAMES[*]}")"
+ASSURANCE_SCAN_IMAGE_NAMES="$(IFS=,; printf '%s' "${IMAGE_NAMES[*]}")"
 
 # ---------------------------------------------------------------------------
 # Resolve config (CLI > env > scanner-config.yaml > defaults)
 # ---------------------------------------------------------------------------
-export TARGET_DIR SCAN_SOURCE_DIR IMAGE_NAME ASVS_IMAGE_NAMES TARGET_URL UPLOADS_DIR
+export TARGET_DIR SCAN_SOURCE_DIR IMAGE_NAME ASSURANCE_SCAN_IMAGE_NAMES TARGET_URL UPLOADS_DIR
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/scripts/load-config.sh"
 
@@ -391,7 +393,7 @@ mkdir -p "$REPORT_DIR/reports" "$REPORT_DIR/sbom" "$REPORT_DIR/hashes" "$REPORT_
 
 export SCRIPT_DIR REPORT_DIR RUN_ID
 
-if [ "${ASVS_BANNER_SHOWN:-0}" != "1" ]; then
+if [ "${ASSURANCE_SCAN_BANNER_SHOWN:-0}" != "1" ]; then
   banner
 fi
 printf '%s\n' "${C_BOLD}Run ID:${C_RESET} $RUN_ID"
@@ -419,8 +421,8 @@ fi
   printf 'Reports: %s\n\n' "$REPORT_DIR"
 } > "$REPORT_DIR/run.log"
 
-if [ "${ASVS_IMAGE_BUILD_SECONDS:-0}" -gt 0 ] 2>/dev/null; then
-  record_timing "image builds" "$ASVS_IMAGE_BUILD_SECONDS"
+if [ "${ASSURANCE_SCAN_IMAGE_BUILD_SECONDS:-0}" -gt 0 ] 2>/dev/null; then
+  record_timing "image builds" "$ASSURANCE_SCAN_IMAGE_BUILD_SECONDS"
 fi
 
 # ---------------------------------------------------------------------------
@@ -552,7 +554,7 @@ else
   printf '{"scanners": []}\n' > "$REPORT_DIR/scanner-health.json"
 fi
 
-if [ "${ASVS_AUTO_PREFETCH:-1}" != "0" ]; then
+if [ "${ASSURANCE_SCAN_AUTO_PREFETCH:-1}" != "0" ]; then
   AUTO_PREFETCH_SERVICES=(prefetch-trivy prefetch-grype prefetch-osv)
   if [ ${#UPLOADS_DIRS[@]} -gt 0 ]; then
     AUTO_PREFETCH_SERVICES+=(prefetch-clamav)
@@ -561,14 +563,14 @@ if [ "${ASVS_AUTO_PREFETCH:-1}" != "0" ]; then
 else
   section "Scanner database setup"
   warn_line "database prefetch" "skipped"
-  echo "== Setup: scanner database prefetch skipped by ASVS_AUTO_PREFETCH=0 ==" >> "$REPORT_DIR/run.log"
+  echo "== Setup: scanner database prefetch skipped by ASSURANCE_SCAN_AUTO_PREFETCH=0 ==" >> "$REPORT_DIR/run.log"
 fi
 
-if ! [[ "$ASVS_PARALLELISM" =~ ^[0-9]+$ ]] || [ "$ASVS_PARALLELISM" -lt 1 ]; then
-  ASVS_PARALLELISM=1
+if ! [[ "$ASSURANCE_SCAN_PARALLELISM" =~ ^[0-9]+$ ]] || [ "$ASSURANCE_SCAN_PARALLELISM" -lt 1 ]; then
+  ASSURANCE_SCAN_PARALLELISM=1
 fi
 
-section "Scanner run (${#SERVICES_TO_RUN[@]} services, parallelism $ASVS_PARALLELISM)"
+section "Scanner run (${#SERVICES_TO_RUN[@]} services, parallelism $ASSURANCE_SCAN_PARALLELISM)"
 echo "== Scanner run: ${#SERVICES_TO_RUN[@]} services ==" >> "$REPORT_DIR/run.log"
 
 # Quiet parallel pull to speed up first run, then reuse local images within the DB TTL window.
@@ -583,7 +585,7 @@ if prefetch_needs_refresh "scanner-images"; then
   fi
 else
   current_line "scanner images"
-  echo "==> Scanner image pull skipped; refreshed within ${ASVS_DB_REFRESH_TTL_HOURS}h TTL" >> "$REPORT_DIR/run.log"
+  echo "==> Scanner image pull skipped; refreshed within ${ASSURANCE_SCAN_DB_REFRESH_TTL_HOURS}h TTL" >> "$REPORT_DIR/run.log"
 fi
 
 # Run each scanner. Tool-aware health classification happens in the bundle
@@ -713,7 +715,7 @@ for spec in "${SERVICES_TO_RUN[@]}"; do
   JOB_LABELS+=("$job_label")
   JOB_KEYS+=("$exit_key")
 
-  while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$ASVS_PARALLELISM" ]; do
+  while [ "$(jobs -pr | wc -l | tr -d ' ')" -ge "$ASSURANCE_SCAN_PARALLELISM" ]; do
     wait -n 2>/dev/null || true
   done
   status_line "$job_label" "started" "$C_DIM"
@@ -776,8 +778,8 @@ else
   warn_line "test discovery failed; continuing without native test inventory"
 fi
 
-if [ -n "${JUNIT_XML:-${ASVS_JUNIT_XML:-}}" ]; then
-  JUNIT_PATH="${JUNIT_XML:-${ASVS_JUNIT_XML}}"
+if [ -n "${JUNIT_XML:-${ASSURANCE_SCAN_JUNIT_XML:-}}" ]; then
+  JUNIT_PATH="${JUNIT_XML:-${ASSURANCE_SCAN_JUNIT_XML}}"
   if [ -f "$JUNIT_PATH" ]; then
     cp "$JUNIT_PATH" "$REPORT_DIR/reports/junit.xml"
     echo "Copied JUnit XML into reports/junit.xml" >> "$REPORT_DIR/run.log"
@@ -791,10 +793,31 @@ ASSURANCE_PACK_ARGS=(
   --report-dir "$REPORT_DIR"
   --test-inventory "$REPORT_DIR/reports/test-inventory.json"
 )
-if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
-  PACK_CATALOG_PATH="${FR_CATALOG:-${ASVS_FR_CATALOG}}"
+if [ -n "${FR_CATALOG:-${ASSURANCE_SCAN_FR_CATALOG:-}}" ]; then
+  PACK_CATALOG_PATH="${FR_CATALOG:-${ASSURANCE_SCAN_FR_CATALOG}}"
   if [ -f "$PACK_CATALOG_PATH" ]; then
     ASSURANCE_PACK_ARGS+=(--fr-catalog "$PACK_CATALOG_PATH")
+  fi
+fi
+if [ -n "${CARRY_FORWARD_REPORT:-${ASSURANCE_SCAN_CARRY_FORWARD_REPORT:-}}" ]; then
+  CARRY_FORWARD_REPORT_PATH="${CARRY_FORWARD_REPORT:-${ASSURANCE_SCAN_CARRY_FORWARD_REPORT}}"
+  if [ -d "$CARRY_FORWARD_REPORT_PATH" ]; then
+    PREVIOUS_PACK_MANIFEST="$CARRY_FORWARD_REPORT_PATH/generated-tests/VG_TEST_FRAMEWORK/manifest.json"
+    if [ -f "$PREVIOUS_PACK_MANIFEST" ]; then
+      ASSURANCE_PACK_ARGS+=(--previous-test-pack "$PREVIOUS_PACK_MANIFEST")
+      echo "Carrying forward assurance test pack: $PREVIOUS_PACK_MANIFEST" >> "$REPORT_DIR/run.log"
+    else
+      echo "WARN: carry-forward test pack manifest not found at $PREVIOUS_PACK_MANIFEST" >> "$REPORT_DIR/run.log"
+    fi
+    PREVIOUS_BOARD_STATE="$CARRY_FORWARD_REPORT_PATH/project-fr-board-state.json"
+    if [ -f "$PREVIOUS_BOARD_STATE" ]; then
+      cp "$PREVIOUS_BOARD_STATE" "$REPORT_DIR/project-fr-board-state.json"
+      echo "Carrying forward Project FR board state: $PREVIOUS_BOARD_STATE" >> "$REPORT_DIR/run.log"
+    else
+      echo "WARN: carry-forward board state not found at $PREVIOUS_BOARD_STATE" >> "$REPORT_DIR/run.log"
+    fi
+  else
+    echo "WARN: carry-forward report not found at $CARRY_FORWARD_REPORT_PATH" >> "$REPORT_DIR/run.log"
   fi
 fi
 if python3 "$SCRIPT_DIR/scripts/generate-assurance-test-pack.py" "${ASSURANCE_PACK_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1; then
@@ -825,8 +848,8 @@ done
 for uploads in "${UPLOADS_DIRS[@]}"; do
   [ -n "$uploads" ] && BUNDLE_ARGS+=(--uploads-dir "$uploads")
 done
-if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
-  BUNDLE_CATALOG_PATH="${FR_CATALOG:-${ASVS_FR_CATALOG}}"
+if [ -n "${FR_CATALOG:-${ASSURANCE_SCAN_FR_CATALOG:-}}" ]; then
+  BUNDLE_CATALOG_PATH="${FR_CATALOG:-${ASSURANCE_SCAN_FR_CATALOG}}"
   if [ -f "$BUNDLE_CATALOG_PATH" ]; then
     BUNDLE_ARGS+=(--fr-catalog "$BUNDLE_CATALOG_PATH")
   fi
@@ -852,28 +875,28 @@ PROMPT_ARGS=(
 if [ -n "$GIT_COMMIT" ]; then
   PROMPT_ARGS+=(--git-commit "$GIT_COMMIT")
 fi
-if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
-  PROMPT_CATALOG_PATH="${FR_CATALOG:-${ASVS_FR_CATALOG}}"
+if [ -n "${FR_CATALOG:-${ASSURANCE_SCAN_FR_CATALOG:-}}" ]; then
+  PROMPT_CATALOG_PATH="${FR_CATALOG:-${ASSURANCE_SCAN_FR_CATALOG}}"
   if [ -f "$PROMPT_CATALOG_PATH" ]; then
     PROMPT_ARGS+=(--fr-catalog "$PROMPT_CATALOG_PATH")
   fi
 fi
-if [ -n "${COMPLIANCE_MAPPING_PACK:-${ASVS_COMPLIANCE_MAPPING_PACK:-}}" ]; then
-  COMPLIANCE_MAPPING_PACK_PATH="${COMPLIANCE_MAPPING_PACK:-${ASVS_COMPLIANCE_MAPPING_PACK}}"
+if [ -n "${COMPLIANCE_MAPPING_PACK:-${ASSURANCE_SCAN_COMPLIANCE_MAPPING_PACK:-}}" ]; then
+  COMPLIANCE_MAPPING_PACK_PATH="${COMPLIANCE_MAPPING_PACK:-${ASSURANCE_SCAN_COMPLIANCE_MAPPING_PACK}}"
   if [ -f "$COMPLIANCE_MAPPING_PACK_PATH" ]; then
     PROMPT_ARGS+=(--compliance-mapping-pack "$COMPLIANCE_MAPPING_PACK_PATH")
   else
     echo "WARN: Compliance mapping pack not found at $COMPLIANCE_MAPPING_PACK_PATH — skipping" >> "$REPORT_DIR/run.log"
   fi
 fi
-if [ -n "${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK:-}}" ]; then
-  PROMPT_FRAMEWORK_PATH="${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK}}"
+if [ -n "${ASSURANCE_FRAMEWORK:-${ASSURANCE_SCAN_ASSURANCE_FRAMEWORK:-}}" ]; then
+  PROMPT_FRAMEWORK_PATH="${ASSURANCE_FRAMEWORK:-${ASSURANCE_SCAN_ASSURANCE_FRAMEWORK}}"
   if [ -f "$PROMPT_FRAMEWORK_PATH" ]; then
     PROMPT_ARGS+=(--assurance-framework "$PROMPT_FRAMEWORK_PATH")
   fi
 fi
-if [ -n "${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE:-}}" ]; then
-  PROMPT_INSTANCE_PATH="${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE}}"
+if [ -n "${ASSURANCE_INSTANCE:-${ASSURANCE_SCAN_ASSURANCE_INSTANCE:-}}" ]; then
+  PROMPT_INSTANCE_PATH="${ASSURANCE_INSTANCE:-${ASSURANCE_SCAN_ASSURANCE_INSTANCE}}"
   if [ -f "$PROMPT_INSTANCE_PATH" ]; then
     PROMPT_ARGS+=(--assurance-instance "$PROMPT_INSTANCE_PATH")
   fi
@@ -885,8 +908,8 @@ done_line "agent prompt"
 echo "==> Generating dashboard" >> "$REPORT_DIR/run.log"
 step_started_at="$(date +%s)"
 DASHBOARD_ARGS=(--report-dir "$REPORT_DIR")
-if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
-  CATALOG_PATH="${FR_CATALOG:-${ASVS_FR_CATALOG}}"
+if [ -n "${FR_CATALOG:-${ASSURANCE_SCAN_FR_CATALOG:-}}" ]; then
+  CATALOG_PATH="${FR_CATALOG:-${ASSURANCE_SCAN_FR_CATALOG}}"
   if [ -f "$CATALOG_PATH" ]; then
     DASHBOARD_ARGS+=(--fr-catalog "$CATALOG_PATH")
     echo "Using FR catalog: $CATALOG_PATH" >> "$REPORT_DIR/run.log"
@@ -896,8 +919,8 @@ if [ -n "${FR_CATALOG:-${ASVS_FR_CATALOG:-}}" ]; then
     echo "WARN: FR catalog not found at $CATALOG_PATH — skipping" >> "$REPORT_DIR/run.log"
   fi
 fi
-if [ -n "${COMPLIANCE_MAPPING_PACK:-${ASVS_COMPLIANCE_MAPPING_PACK:-}}" ]; then
-  COMPLIANCE_MAPPING_PACK_PATH="${COMPLIANCE_MAPPING_PACK:-${ASVS_COMPLIANCE_MAPPING_PACK}}"
+if [ -n "${COMPLIANCE_MAPPING_PACK:-${ASSURANCE_SCAN_COMPLIANCE_MAPPING_PACK:-}}" ]; then
+  COMPLIANCE_MAPPING_PACK_PATH="${COMPLIANCE_MAPPING_PACK:-${ASSURANCE_SCAN_COMPLIANCE_MAPPING_PACK}}"
   if [ -f "$COMPLIANCE_MAPPING_PACK_PATH" ]; then
     DASHBOARD_ARGS+=(--compliance-mapping-pack "$COMPLIANCE_MAPPING_PACK_PATH")
     echo "Using compliance mapping pack: $COMPLIANCE_MAPPING_PACK_PATH" >> "$REPORT_DIR/run.log"
@@ -920,16 +943,16 @@ for SCANNER_COMPLIANCE_MAPPING_PACK_PATH in "${SCANNER_COMPLIANCE_MAPPING_PACKS[
     echo "WARN: Scanner compliance mapping pack not found at $SCANNER_COMPLIANCE_MAPPING_PACK_PATH — skipping" >> "$REPORT_DIR/run.log"
   fi
 done
-if [ ${#SCANNER_COMPLIANCE_MAPPING_PACKS[@]} -eq 0 ] && [ -n "${ASVS_SCANNER_COMPLIANCE_MAPPING_PACK:-}" ]; then
-  if [ -e "$ASVS_SCANNER_COMPLIANCE_MAPPING_PACK" ]; then
-    DASHBOARD_ARGS+=(--scanner-compliance-mapping-pack "$ASVS_SCANNER_COMPLIANCE_MAPPING_PACK")
-    echo "Using scanner compliance mapping pack: $ASVS_SCANNER_COMPLIANCE_MAPPING_PACK" >> "$REPORT_DIR/run.log"
+if [ ${#SCANNER_COMPLIANCE_MAPPING_PACKS[@]} -eq 0 ] && [ -n "${ASSURANCE_SCAN_SCANNER_COMPLIANCE_MAPPING_PACK:-}" ]; then
+  if [ -e "$ASSURANCE_SCAN_SCANNER_COMPLIANCE_MAPPING_PACK" ]; then
+    DASHBOARD_ARGS+=(--scanner-compliance-mapping-pack "$ASSURANCE_SCAN_SCANNER_COMPLIANCE_MAPPING_PACK")
+    echo "Using scanner compliance mapping pack: $ASSURANCE_SCAN_SCANNER_COMPLIANCE_MAPPING_PACK" >> "$REPORT_DIR/run.log"
   else
-    echo "WARN: Scanner compliance mapping pack not found at $ASVS_SCANNER_COMPLIANCE_MAPPING_PACK — skipping" >> "$REPORT_DIR/run.log"
+    echo "WARN: Scanner compliance mapping pack not found at $ASSURANCE_SCAN_SCANNER_COMPLIANCE_MAPPING_PACK — skipping" >> "$REPORT_DIR/run.log"
   fi
 fi
-if [ -n "${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK:-}}" ]; then
-  ASSURANCE_FRAMEWORK_PATH="${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK}}"
+if [ -n "${ASSURANCE_FRAMEWORK:-${ASSURANCE_SCAN_ASSURANCE_FRAMEWORK:-}}" ]; then
+  ASSURANCE_FRAMEWORK_PATH="${ASSURANCE_FRAMEWORK:-${ASSURANCE_SCAN_ASSURANCE_FRAMEWORK}}"
   if [ -f "$ASSURANCE_FRAMEWORK_PATH" ]; then
     DASHBOARD_ARGS+=(--assurance-framework "$ASSURANCE_FRAMEWORK_PATH")
     echo "Using assurance framework: $ASSURANCE_FRAMEWORK_PATH" >> "$REPORT_DIR/run.log"
@@ -938,8 +961,8 @@ if [ -n "${ASSURANCE_FRAMEWORK:-${ASVS_ASSURANCE_FRAMEWORK:-}}" ]; then
     echo "WARN: Assurance framework not found at $ASSURANCE_FRAMEWORK_PATH — skipping" >> "$REPORT_DIR/run.log"
   fi
 fi
-if [ -n "${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE:-}}" ]; then
-  ASSURANCE_INSTANCE_PATH="${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE}}"
+if [ -n "${ASSURANCE_INSTANCE:-${ASSURANCE_SCAN_ASSURANCE_INSTANCE:-}}" ]; then
+  ASSURANCE_INSTANCE_PATH="${ASSURANCE_INSTANCE:-${ASSURANCE_SCAN_ASSURANCE_INSTANCE}}"
   if [ -f "$ASSURANCE_INSTANCE_PATH" ]; then
     DASHBOARD_ARGS+=(--assurance-instance "$ASSURANCE_INSTANCE_PATH")
     echo "Using assurance instance: $ASSURANCE_INSTANCE_PATH" >> "$REPORT_DIR/run.log"
@@ -948,8 +971,8 @@ if [ -n "${ASSURANCE_INSTANCE:-${ASVS_ASSURANCE_INSTANCE:-}}" ]; then
     echo "WARN: Assurance instance not found at $ASSURANCE_INSTANCE_PATH — skipping" >> "$REPORT_DIR/run.log"
   fi
 fi
-if [ -n "${JUNIT_XML:-${ASVS_JUNIT_XML:-}}" ]; then
-  JUNIT_PATH="${JUNIT_XML:-${ASVS_JUNIT_XML}}"
+if [ -n "${JUNIT_XML:-${ASSURANCE_SCAN_JUNIT_XML:-}}" ]; then
+  JUNIT_PATH="${JUNIT_XML:-${ASSURANCE_SCAN_JUNIT_XML}}"
   if [ -f "$JUNIT_PATH" ]; then
     DASHBOARD_ARGS+=(--junit-xml "$JUNIT_PATH")
     echo "Using JUnit XML: $JUNIT_PATH" >> "$REPORT_DIR/run.log"

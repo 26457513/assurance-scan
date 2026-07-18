@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/evidence-bundle.schema.json",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/evidence-bundle.schema.json",
   "title": "Evidence Bundle",
   "description": "Observed or reviewed evidence produced by TBTs, with hash-addressable provenance for verification.",
   "type": "object",
@@ -22,11 +22,11 @@
       "additionalProperties": false,
       "properties": {
         "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$"},
-        "type": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_type"},
-        "result_status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_result"},
+        "type": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_type"},
+        "result_status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_result"},
         "produced_by": {"type": "string", "pattern": "^TBT-[A-Za-z0-9_.-]+$"},
         "observed": {"type": "boolean", "default": true},
-        "evidence_strength": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"},
+        "evidence_strength": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_strength"},
         "fr_refs": {
           "type": "array",
           "items": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
@@ -92,7 +92,7 @@
       "required": ["ruleset", "row"],
       "additionalProperties": false,
       "properties": {
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "row": {"type": "string", "minLength": 1}
       }
     },
@@ -174,7 +174,7 @@
         },
         "name": {"type": "string", "minLength": 1},
         "target": {"type": "string", "minLength": 1},
-        "status": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_result"},
+        "status": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/evidence_result"},
         "description": {"type": "string", "minLength": 1}
       }
     },
@@ -185,7 +185,7 @@
       "properties": {
         "mapping_id": {"type": "string", "minLength": 1},
         "mapping_pack": {"type": "string", "minLength": 1},
-        "ruleset": {"$ref": "https://github.com/jondowson/asvs-scanner/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
+        "ruleset": {"$ref": "https://github.com/jondowson/assurance-scan/raw/pivot/data/schemas/defs.schema.json#/$defs/ruleset_id"},
         "row": {"type": "string"},
         "domain": {"type": "string"},
         "selector": {"type": "string"}

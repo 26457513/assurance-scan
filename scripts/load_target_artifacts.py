@@ -22,9 +22,12 @@ SCHEMA_DIR = REPO_ROOT / "data" / "schemas"
 
 SCHEMA_BY_KIND = {
     "ruleset": "ruleset.schema.json",
+    "authority_source_registry": "authority-source-registry.schema.json",
+    "compliance_regime": "compliance-regime.schema.json",
     "scanner_rules": "scanner-rules.schema.json",
     "scanner_compliance_mapping_pack": "scanner-compliance-mapping-pack.schema.json",
     "compliance_mapping_pack": "compliance-mapping-pack.schema.json",
+    "blueprint_compliance_mapping_pack": "blueprint-compliance-mapping-pack.schema.json",
     "evidence_bundle": "evidence-bundle.schema.json",
     "assurance_framework": "assurance-framework.schema.json",
     "assurance_instance": "assurance-instance.schema.json",
@@ -111,6 +114,10 @@ def load_ruleset(path: Path, *, strict: bool = False) -> TargetArtifact:
     return load_target_artifact(path, "ruleset", strict=strict)
 
 
+def load_authority_source_registry(path: Path, *, strict: bool = False) -> TargetArtifact:
+    return load_target_artifact(path, "authority_source_registry", strict=strict)
+
+
 def load_scanner_rules(path: Path, *, strict: bool = False) -> TargetArtifact:
     return load_target_artifact(path, "scanner_rules", strict=strict)
 
@@ -121,6 +128,10 @@ def load_scanner_compliance_mapping_pack(path: Path, *, strict: bool = False) ->
 
 def load_compliance_mapping_pack(path: Path, *, strict: bool = False) -> TargetArtifact:
     return load_target_artifact(path, "compliance_mapping_pack", strict=strict)
+
+
+def load_blueprint_compliance_mapping_pack(path: Path, *, strict: bool = False) -> TargetArtifact:
+    return load_target_artifact(path, "blueprint_compliance_mapping_pack", strict=strict)
 
 
 def load_evidence_bundle(path: Path, *, strict: bool = False) -> TargetArtifact:
@@ -211,12 +222,15 @@ def _validate_schema(raw: dict[str, Any], kind: str) -> list[str]:
 
 def _required_target_shape(raw: dict[str, Any], kind: str) -> list[str]:
     required_by_kind = {
-        "ruleset": ["schema_version", "ruleset", "version", "title", "rows"],
+        "ruleset": ["schema_version", "ruleset", "version", "title", "source", "rows"],
+        "authority_source_registry": ["schema_version", "sources"],
+        "compliance_regime": ["schema_version", "regime", "version", "title", "ruleset_ref", "source", "families"],
         "scanner_rules": ["schema_version", "scanner", "rules"],
         "scanner_compliance_mapping_pack": ["schema_version", "pack", "scanner", "compliance", "mappings"],
         "compliance_mapping_pack": ["schema_version", "pack", "ruleset", "ruleset_version", "mappings"],
+        "blueprint_compliance_mapping_pack": ["schema_version", "pack", "blueprint", "compliance", "mappings"],
         "evidence_bundle": ["schema_version", "project", "evidence"],
-        "assurance_framework": ["schema_version", "assurance_framework", "title", "roles", "processes"],
+        "assurance_framework": ["schema_version", "assurance_framework", "version", "title", "roles", "processes"],
         "assurance_instance": ["schema_version", "project", "assurance_framework"],
         "assurance_claim": ["schema_version", "mode", "claim_type", "target", "claim_result", "graph_manifest", "public_inputs", "evaluation"],
         "assurance_proof_bundle": ["schema_version", "mode", "bundle_type", "claim", "claim_hash", "public_commitments", "evidence_commitments", "openings"],
@@ -293,6 +307,22 @@ def _semantic_checks(raw: dict[str, Any], kind: str) -> list[str]:
     errors = _check_content_hash(raw, kind)
     if kind == "ruleset":
         errors.extend(_check_unique(raw.get("rows") or [], "ruleset row"))
+        source = raw.get("source") or {}
+        raw_artifacts = source.get("raw_artifacts") or []
+        transform = source.get("transform") or {}
+        if not raw_artifacts:
+            errors.append(f"Ruleset {raw.get('ruleset')} {raw.get('version')}: source.raw_artifacts is required")
+        if not transform:
+            errors.append(f"Ruleset {raw.get('ruleset')} {raw.get('version')}: source.transform is required")
+        return errors
+    if kind == "authority_source_registry":
+        entries = raw.get("sources") or []
+        seen: set[str] = set()
+        for entry in entries:
+            entry_id = entry.get("id")
+            if entry_id in seen:
+                errors.append(f"Authority source duplicate id {entry_id}")
+            seen.add(entry_id)
         return errors
     if kind == "scanner_rules":
         errors.extend(_check_unique(raw.get("rules") or [], "scanner rule"))
@@ -316,6 +346,21 @@ def _semantic_checks(raw: dict[str, Any], kind: str) -> list[str]:
         for mapping in raw.get("mappings") or []:
             if mapping.get("review_status") == "accepted" and not mapping.get("reviewed_by"):
                 errors.append(f"Compliance mapping {mapping.get('id')}: accepted mappings require reviewed_by")
+        return errors
+    if kind == "blueprint_compliance_mapping_pack":
+        errors.extend(_check_unique(raw.get("mappings") or [], "blueprint compliance mapping"))
+        for mapping in raw.get("mappings") or []:
+            if mapping.get("review_status") == "accepted" and not mapping.get("reviewed_by"):
+                errors.append(f"Blueprint compliance mapping {mapping.get('id')}: accepted mappings require reviewed_by")
+            refs = mapping.get("blueprint_refs") or {}
+            if not refs.get("fr_refs") and not refs.get("tbt_refs"):
+                errors.append(f"Blueprint compliance mapping {mapping.get('id')}: at least one blueprint FR or TBT ref is required")
+            targets = mapping.get("targets") or {}
+            level = mapping.get("mapping_level")
+            if level == "compliance_row" and not targets.get("compliance_rows"):
+                errors.append(f"Blueprint compliance mapping {mapping.get('id')}: compliance_row mappings require compliance_rows")
+            if level == "compliance_domain" and not targets.get("compliance_domains"):
+                errors.append(f"Blueprint compliance mapping {mapping.get('id')}: compliance_domain mappings require compliance_domains")
         return errors
     if kind == "evidence_bundle":
         errors.extend(_check_unique(raw.get("evidence") or [], "evidence"))
@@ -637,6 +682,8 @@ def _summarise(artifact: TargetArtifact) -> str:
     raw = artifact.raw
     if artifact.kind == "ruleset":
         return f"{raw.get('ruleset')} {raw.get('version')}: {len(raw.get('rows') or [])} rows"
+    if artifact.kind == "compliance_regime":
+        return f"{raw.get('regime')} {raw.get('version')}: {len(raw.get('families') or [])} families"
     if artifact.kind == "scanner_rules":
         return f"{raw.get('scanner')}: {len(raw.get('rules') or [])} scanner rules"
     if artifact.kind == "scanner_compliance_mapping_pack":
@@ -647,6 +694,14 @@ def _summarise(artifact: TargetArtifact) -> str:
         )
     if artifact.kind == "compliance_mapping_pack":
         return f"{raw.get('ruleset')} {raw.get('ruleset_version')}: {len(raw.get('mappings') or [])} compliance mappings"
+    if artifact.kind == "blueprint_compliance_mapping_pack":
+        blueprint = raw.get("blueprint") or {}
+        compliance = raw.get("compliance") or {}
+        return (
+            f"{blueprint.get('catalog')} {blueprint.get('version')} -> "
+            f"{compliance.get('ruleset')} {compliance.get('version')}: "
+            f"{len(raw.get('mappings') or [])} blueprint compliance mappings"
+        )
     if artifact.kind == "evidence_bundle":
         return f"{raw.get('project')}: {len(raw.get('evidence') or [])} evidence records"
     if artifact.kind == "assurance_framework":
@@ -656,7 +711,8 @@ def _summarise(artifact: TargetArtifact) -> str:
             for process in raw.get("processes") or []
             for gate in process.get("gates") or []
         )
-        return f"{raw.get('assurance_framework')}: {len(raw.get('roles') or [])} roles, {gates} gates, {criteria} criteria"
+        version = raw.get("version") or "unversioned"
+        return f"{raw.get('assurance_framework')} {version}: {len(raw.get('roles') or [])} roles, {gates} gates, {criteria} criteria"
     if artifact.kind == "assurance_instance":
         return (
             f"{raw.get('project')} / {raw.get('assurance_framework')}: "

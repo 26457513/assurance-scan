@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# ASVS Scanner — Compose
+# Assurance Scan — Compose
 #
 # Two profiles:
 #   - default: scan services (use via `./run-local.sh <target>`)

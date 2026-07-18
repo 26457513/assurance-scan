@@ -75,16 +75,16 @@ def build_config_update_from_blueprint_decisions(
     generated_at: str | None = None,
 ) -> dict[str, Any]:
     catalogs = [load_fr_catalog(path).raw for path in blueprint_paths]
-    source_refs_by_path = {
-        str(path): {
+    source_refs_by_path = {}
+    for path, catalog in zip(blueprint_paths, catalogs):
+        profile = catalog.get("blueprint_profile") or {}
+        source_refs_by_path[str(path)] = {
             "path": str(path),
             "kind": "fr_catalog_blueprint",
-            "version": path.parent.name,
+            "version": str(profile.get("version") or path.parent.name),
             "sha256": file_sha256(path, prefixed=True),
             "used_for": "Blueprint FR/TBT source for project config proposal",
         }
-        for path in blueprint_paths
-    }
     source_refs_by_id: dict[str, dict[str, Any]] = {
         source.get("id", ""): source
         for source in proposal.get("source_blueprints") or []

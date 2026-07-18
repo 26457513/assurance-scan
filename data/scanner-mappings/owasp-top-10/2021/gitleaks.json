@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "gitleaks-owasp-top-10-2021",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-12T00:00:00Z",
+    "updated_at": "2026-07-12T00:00:00Z",
+    "generator": "manual-curation",
+    "input_artifacts": [
+      {
+        "kind": "ruleset",
+        "path": "data/rulesets/owasp-top-10/2021.json",
+        "version": "2021"
+      }
+    ]
+  },
+  "scanner": "gitleaks",
+  "scanner_version": "rule-pack-specific",
+  "scanner_rule_source": {
+    "kind": "manual-curation",
+    "ref": "scanner output fields and rule naming conventions",
+    "version": "curated-0.1.0",
+    "retrieved_at": "2026-07-12T00:00:00Z"
+  },
+  "compliance": {
+    "ruleset": "OWASP-TOP-10",
+    "version": "2021",
+    "source_ref": "data/rulesets/owasp-top-10/2021.json"
+  },
+  "mappings": [
+    {
+      "id": "SCM-GITLEAKS-OWASP-2021-SECRETS",
+      "review_status": "accepted",
+      "reviewed_by": "assurance-scan-maintainers",
+      "reviewed_at": "2026-07-12T00:00:00Z",
+      "review_decision": "accepted_as_domain_signal",
+      "review_notes": "Generic scanner-to-regime mapping. It creates a compliance signal, not sufficient FR/TBT evidence by itself.",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "blocking_if_finding",
+      "rule_selectors": [
+        {
+          "type": "glob",
+          "value": "*secret*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*token*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*key*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*password*",
+          "output_field": "RuleID"
+        }
+      ],
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "OWASP-TOP-10",
+            "row": "A02"
+          },
+          {
+            "ruleset": "OWASP-TOP-10",
+            "row": "A07"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Scanner evidence must be interpreted with project-specific FR/TBT evidence before compliance is claimed."
+      ],
+      "source_basis": [
+        {
+          "kind": "manual_curation",
+          "ref": "cross-regime security category mapping"
+        }
+      ],
+      "rationale": "Committed secrets undermine cryptographic and authentication controls.",
+      "confidence": "medium"
+    }
+  ]
+}
