@@ -1,0 +1,27 @@
+{
+  "nodes": [
+    {
+      "id": "evidence:scanner:semgrep:python.lang.security.audit.eval-with-expression",
+      "type": "scanner_result",
+      "scanner": "semgrep",
+      "rule_id": "python.lang.security.audit.eval-with-expression",
+      "ref": "MAP-ASVS-V5.3.4",
+      "ruleset": "ASVS",
+      "row": "V5.3.4",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct"
+    },
+    {
+      "id": "evidence:scanner:trivy-config:DS026",
+      "type": "scanner_result",
+      "scanner": "trivy-config",
+      "rule_id": "DS026",
+      "ref": "MAP-NIST-AC-6",
+      "ruleset": "NIST-800-53",
+      "row": "AC-6",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct"
+    }
+  ],
+  "edges": []
+}

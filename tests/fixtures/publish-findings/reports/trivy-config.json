@@ -1,0 +1,36 @@
+{
+  "Results": [
+    {
+      "Target": "Dockerfile",
+      "Class": "config",
+      "Misconfigurations": [
+        {
+          "ID": "DS026",
+          "AVDID": "AVD-DS-0001",
+          "Title": "Image user should not be 'root'",
+          "Description": "Running containers as root is a security risk.",
+          "Severity": "HIGH",
+          "Message": "Specify USER directive",
+          "CauseMetadata": {"StartLine": 1, "EndLine": 1},
+          "Resolution": "Add `USER nonroot` after the last install step."
+        }
+      ]
+    },
+    {
+      "Target": "k8s/deploy.yaml",
+      "Class": "config",
+      "Misconfigurations": [
+        {
+          "ID": "KSV011",
+          "AVDID": "AVD-KSV-0011",
+          "Title": "Container runs as privileged",
+          "Description": "Privileged containers can escape isolation.",
+          "Severity": "CRITICAL",
+          "Message": "Do not set privileged: true",
+          "CauseMetadata": {"StartLine": 22, "EndLine": 22},
+          "Resolution": "Drop privileged: true or use a fine-grained capabilities list."
+        }
+      ]
+    }
+  ]
+}

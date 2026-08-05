@@ -72,7 +72,7 @@ usage() {
 Assurance Scan
 
 Usage:
-  assurance-scan scan <host-project-dir> [--image <name>]... [--url <url>]... [--uploads <host-dir>]... [--fr-catalog <json>] [--compliance-mapping-pack <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--assurance-framework <json>] [--assurance-instance <json>] [--carry-forward-report <report-dir>] [--no-auto-build-images]
+  assurance-scan scan <host-project-dir> [--image <name>]... [--url <url>]... [--uploads <host-dir>]... [--fr-catalog <json>] [--compliance-mapping-pack <json>] [--scanner-compliance-mapping-pack <json-or-dir>]... [--assurance-framework <json>] [--assurance-instance <json>] [--carry-forward-report <report-dir>] [--no-auto-build-images] [--publish-findings [<dir>]] [--no-agent-skill] [--gitignore-mode <auto|prompt|skip>]
   assurance-scan validate-report <report-dir> [--strict]
   assurance-scan validate-scanner-compliance-mappings [path-or-dir]...
   assurance-scan validate-blueprint-compliance-coverage --blueprint <fr-catalog.json> --mapping-pack <json>...
@@ -113,6 +113,14 @@ Useful scan flags:
   --assurance-instance <json>     Project mappings, role assignments and decisions
   --junit-xml <file>              Existing test execution evidence to import
   --carry-forward-report <dir>    Preserve report-local generated tests and Project FR board state from a previous report
+  --publish-findings [<dir>]      Publish findings.json into the user's repo (default:
+                                  <repo>/.assurance-scan/reports/<RUN_ID>/). Also accepts
+                                  an absolute path. Env: ASSURANCE_SCAN_PUBLISH_FINDINGS=1
+                                  or =<abs-path>. Auto-installs /fix-assurance-findings
+                                  skill and appends to .gitignore on first run.
+  --no-agent-skill                Skip auto-install of the agent skill when publishing
+  --gitignore-mode <auto|prompt|skip>
+                                  How to update the user's .gitignore (default: auto)
 
 Config proposal workflow:
   validate-scanner-compliance-mappings
@@ -631,6 +639,10 @@ Mount it at the same absolute path, for example:
     rewritten_args=()
     explicit_image_count=0
     auto_build_images_enabled=1
+    publish_findings_enabled=0
+    publish_findings_dir_override=""
+    no_agent_skill=0
+    gitignore_mode="auto"
     while [ "$#" -gt 0 ]; do
       case "$1" in
         --image)
@@ -697,12 +709,43 @@ Mount it at the same absolute path, for example:
           auto_build_images_enabled=0
           shift
           ;;
+        --publish-findings)
+          publish_findings_enabled=1
+          # Optional value: consume next arg if it doesn't look like a flag
+          if [ "${2:-}" != "" ] && [[ "$2" != --* ]]; then
+            publish_findings_dir_override="$(to_abs_path "$2")"
+            shift 2
+          else
+            shift
+          fi
+          ;;
+        --no-agent-skill)
+          no_agent_skill=1
+          shift
+          ;;
+        --gitignore-mode)
+          [ "${2:-}" != "" ] || die "--gitignore-mode requires a value (auto|prompt|skip)"
+          case "$2" in
+            auto|prompt|skip) gitignore_mode="$2" ;;
+            *) die "--gitignore-mode must be auto, prompt, or skip (got: $2)" ;;
+          esac
+          shift 2
+          ;;
         *)
           rewritten_args+=("$1")
           shift
           ;;
       esac
     done
+
+    # Env var fallbacks for --publish-findings (1 enables with default dir;
+    # an absolute path overrides the dir). CLI flag takes precedence.
+    if [ "$publish_findings_enabled" -eq 0 ] && [ "${ASSURANCE_SCAN_PUBLISH_FINDINGS:-}" != "" ]; then
+      case "$ASSURANCE_SCAN_PUBLISH_FINDINGS" in
+        1|true|TRUE|yes) publish_findings_enabled=1 ;;
+        /*) publish_findings_enabled=1; publish_findings_dir_override="$ASSURANCE_SCAN_PUBLISH_FINDINGS" ;;
+      esac
+    fi
 
     create_safe_worktree "$target_dir" "scan" ""
     wrapper_section "Scan context"
@@ -738,6 +781,32 @@ Mount it at the same absolute path, for example:
     export ASSURANCE_SCAN_SOURCE_REPO="$SAFE_REPO_ROOT"
     export ASSURANCE_SCAN_IMAGE_CACHE_KEY="$SAFE_COMMIT"
     export ASSURANCE_SCAN_BANNER_SHOWN=1
+
+    if [ "$publish_findings_enabled" -eq 1 ]; then
+      if [ -n "$publish_findings_dir_override" ]; then
+        publish_findings_dir="$publish_findings_dir_override"
+      else
+        publish_findings_dir="$SAFE_REPO_ROOT/.assurance-scan/reports/$RUN_ID"
+      fi
+      export ASSURANCE_SCAN_PUBLISH_FINDINGS=1
+      export ASSURANCE_SCAN_PUBLISH_FINDINGS_DIR="$publish_findings_dir"
+      export ASSURANCE_SCAN_GITIGNORE_MODE="$gitignore_mode"
+      if [ "$no_agent_skill" -eq 1 ]; then
+        export ASSURANCE_SCAN_NO_AGENT_SKILL=1
+      fi
+      wrapper_section "Publish findings"
+      wrapper_ok "mode" "enabled"
+      wrapper_ok "publish dir" "$publish_findings_dir"
+      wrapper_info "gitignore mode" "$gitignore_mode"
+      if [ "$no_agent_skill" -eq 1 ]; then
+        wrapper_info "agent skill" "skip install"
+      else
+        wrapper_info "agent skill" "auto-install on first run"
+      fi
+    else
+      export ASSURANCE_SCAN_PUBLISH_FINDINGS=0
+    fi
+
     runtime_dir="$(ensure_runtime)"
     exec "$runtime_dir/run-local.sh" "$SAFE_WORKTREE_DIR" "${rewritten_args[@]}"
     ;;

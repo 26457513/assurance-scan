@@ -286,6 +286,56 @@ def parse_scannerignore_patterns(scannerignore: Path) -> list[str]:
     return patterns
 
 
+def remap_snapshot_path(
+    snapshot_rel: str | None,
+    *,
+    snapshot_root: str | Path,
+    source_repo: str | Path,
+) -> str | None:
+    """Convert a scanner-reported (snapshot-relative) path into a user-repo-relative path.
+
+    Scanners run against `$SAFE_WORKTREE_DIR/.assurance-scan/source-snapshot/` and emit
+    paths relative to that root. The user's actual repo lives at `$SAFE_REPO_ROOT` and
+    has the same layout (the snapshot is a tar copy — see bin/assurance-scan create_source_snapshot),
+    so the relative path is identical in both trees.
+
+    Returns the POSIX-style user-repo-relative path, or None if there is no location.
+    Raises ValueError on traversal attempts that escape the snapshot root.
+    """
+    if snapshot_rel is None:
+        return None
+    rel = str(snapshot_rel).strip()
+    if not rel:
+        return None
+    rel = rel.replace("\\", "/")
+    # Strip a single leading "./" but NOT "../" (which must be rejected below).
+    while rel.startswith("./"):
+        rel = rel[2:]
+
+    snapshot_root_path = Path(snapshot_root).resolve()
+    source_repo_path = Path(source_repo).resolve()
+
+    candidate = (snapshot_root_path / rel).resolve()
+    try:
+        candidate.relative_to(snapshot_root_path)
+    except ValueError as exc:
+        raise ValueError(
+            f"finding path escapes snapshot root: {snapshot_rel!r}"
+        ) from exc
+
+    if source_repo_path in candidate.parents or candidate == source_repo_path:
+        return candidate.relative_to(source_repo_path).as_posix()
+
+    possible = (source_repo_path / rel).resolve()
+    try:
+        possible.relative_to(source_repo_path)
+        return possible.relative_to(source_repo_path).as_posix()
+    except ValueError as exc:
+        raise ValueError(
+            f"finding path does not resolve under source repo: {snapshot_rel!r}"
+        ) from exc
+
+
 # ===========================================================================
 # Charts
 # ===========================================================================

@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "project": "test-fixture",
+  "run_id": "20260805T120000Z_abc12345",
+  "git": {
+    "branch": "main",
+    "commit": "abc1234567890",
+    "safe_scan_branch": "assurance/scan-abc123"
+  },
+  "evidence": []
+}

@@ -1,0 +1,24 @@
+[
+  {
+    "RuleID": "aws-access-token",
+    "Severity": "HIGH",
+    "File": "config/prod.yaml",
+    "StartLine": 12,
+    "EndLine": 12,
+    "Secret": "AKIAEXAMPLE12345678EXAMPLE",
+    "Match": "aws_key: AKIAEXAMPLE12345678EXAMPLE",
+    "Description": "AWS access token detected",
+    "Fingerprint": "gitleaks-aws-1"
+  },
+  {
+    "RuleID": "github-pat",
+    "Severity": "CRITICAL",
+    "File": "scripts/deploy.sh",
+    "StartLine": 3,
+    "EndLine": 3,
+    "Secret": "ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCD",
+    "Match": "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCD",
+    "Description": "GitHub personal access token",
+    "Fingerprint": "gitleaks-gh-1"
+  }
+]

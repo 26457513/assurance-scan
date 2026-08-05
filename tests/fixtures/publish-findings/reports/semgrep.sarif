@@ -1,0 +1,55 @@
+{
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "semgrep",
+          "rules": [
+            {
+              "id": "python.lang.security.audit.eval-with-expression",
+              "shortDescription": {"text": "Detected the use of eval(variable)"},
+              "fullDescription": {"text": "eval(...) on variable input allows arbitrary code execution. Replace with a fixed dispatcher or the Function constructor."},
+              "defaultConfiguration": {"level": "warning"},
+              "helpUri": "https://sg.run/eval"
+            },
+            {
+              "id": "python.lang.security.audit.dangerous-subprocess-use",
+              "shortDescription": {"text": "Dangerous subprocess use with shell=True"},
+              "fullDescription": {"text": "Pass shell arguments as a list instead."},
+              "defaultConfiguration": {"level": "error"},
+              "helpUri": "https://sg.run/subprocess"
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "python.lang.security.audit.eval-with-expression",
+          "level": "warning",
+          "message": {"text": "eval with variable"},
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {"uri": "src/auth/login.py"},
+                "region": {"startLine": 42, "endLine": 42, "snippet": {"text": "    return eval(request.args['x'])"}}
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "python.lang.security.audit.dangerous-subprocess-use",
+          "level": "error",
+          "message": {"text": "subprocess with shell=True"},
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {"uri": "src/util/run.py"},
+                "region": {"startLine": 17, "endLine": 18, "snippet": {"text": "    subprocess.check_call(cmd, shell=True)"}}
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

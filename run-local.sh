@@ -996,6 +996,33 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Phase 6 — Publish findings into user's repo (opt-in)
+# ---------------------------------------------------------------------------
+if [ "${ASSURANCE_SCAN_PUBLISH_FINDINGS:-0}" = "1" ] && [ -n "${ASSURANCE_SCAN_PUBLISH_FINDINGS_DIR:-}" ]; then
+  echo "" >> "$REPORT_DIR/run.log"
+  echo "==> Publishing findings into user repo" >> "$REPORT_DIR/run.log"
+  step_started_at="$(date +%s)"
+  PUBLISH_ARGS=(
+    --report-dir "$REPORT_DIR"
+    --publish-dir "$ASSURANCE_SCAN_PUBLISH_FINDINGS_DIR"
+    --source-repo "${ASSURANCE_SCAN_SOURCE_REPO:-$TARGET_DIR}"
+    --snapshot-root "$SCAN_SOURCE_DIR"
+    --gitignore-mode "${ASSURANCE_SCAN_GITIGNORE_MODE:-auto}"
+  )
+  if [ "${ASSURANCE_SCAN_NO_AGENT_SKILL:-0}" = "1" ]; then
+    PUBLISH_ARGS+=(--no-agent-skill)
+  fi
+  if python3 "$SCRIPT_DIR/scripts/publish_findings.py" "${PUBLISH_ARGS[@]}" >> "$REPORT_DIR/run.log" 2>&1; then
+    record_timing "publish findings" "$(( $(date +%s) - step_started_at ))"
+    done_line "publish findings"
+    tail -n 1 "$REPORT_DIR/run.log" | sed 's/^publish-findings:/  publish  /' || true
+  else
+    record_timing "publish findings" "$(( $(date +%s) - step_started_at ))"
+    warn_line "publish findings failed (scan report still in $REPORT_DIR)"
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Final
 # ---------------------------------------------------------------------------
 RUN_TOTAL_SECONDS=$(( $(date +%s) - RUN_START_EPOCH ))
