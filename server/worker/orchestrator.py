@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.catalogue import load_catalogue
 from server.db.repositories.catalogue_snapshots import CatalogueSnapshotRepository
+from server.db.repositories.compliance_mappings import ComplianceMappingRepository
 from server.db.repositories.findings import FindingRepository
 from server.db.repositories.frs import FrRepository
 from server.db.repositories.runs import RunRepository
@@ -31,6 +32,7 @@ from server.db.repositories.scanner_artifacts import ScannerArtifactRepository
 from server.db.repositories.scanner_runs import ScannerRunRepository
 from server.evidence import evaluate_tests_and_compute_states
 from server.events import helpers as events
+from server.mapping import load_mapping
 from server.project_tests import discover as discover_tests, run_suite
 from server.state.matcher import TestCaseRecord
 from server.worker.parsers import parser_for
@@ -64,6 +66,7 @@ class ScanOrchestrator:
         self.findings = FindingRepository(session)
         self.snapshots = CatalogueSnapshotRepository(session)
         self.frs_repo = FrRepository(session)
+        self.mappings_repo = ComplianceMappingRepository(session)
 
     async def execute(
         self,
@@ -91,6 +94,29 @@ class ScanOrchestrator:
                 if run is not None:
                     run.catalogue_snapshot_id = snapshot.id
                 await self.session.flush()
+
+            # Load the compliance mapping (separate artifact) if supplied.
+            # Default: fr-compliance-mapping.json next to the catalogue.
+            mapping_path = options.get("compliance_mapping_path")
+            if not mapping_path and catalogue_path:
+                candidate = Path(catalogue_path).parent / "fr-compliance-mapping.json"
+                if candidate.exists():
+                    mapping_path = str(candidate)
+            if mapping_path and Path(mapping_path).exists():
+                try:
+                    mapping = load_mapping(Path(mapping_path), project_path)
+                    await self.mappings_repo.upsert(
+                        project_path=project_path,
+                        content_hash=mapping.content_hash,
+                        mapping_doc=mapping.doc,
+                    )
+                    log.info(
+                        "loaded compliance mapping: %d entries (hash=%s)",
+                        len(mapping.mappings),
+                        mapping.content_hash[:16],
+                    )
+                except Exception as exc:
+                    log.warning("could not load compliance mapping: %s", exc)
 
             await self.runs.mark_running(run_id)
             await self.session.commit()

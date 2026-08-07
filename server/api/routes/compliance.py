@@ -1,13 +1,18 @@
-"""Compliance view per framework.
+"""Compliance view (v3 + mapping artifact).
 
-Aggregates FR states by their `satisfies` compliance tags. Returns a
-matrix of compliance-row → state for a given framework (or all), using
-the latest run for the project.
+The mapping artifact (`fr-compliance-mapping.json`) connects project FRs
+to compliance framework rows. The compliance view:
+
+  /api/compliance                        → list frameworks the mapping covers
+  /api/compliance/{framework}            → matrix of rows with derived state
+
+Each row's state is the worst state across its `satisfied_by` FRs in
+the latest run for the project. Rationale + confidence from the mapping
+are surfaced so the user can review agent proposals.
 """
 from __future__ import annotations
 
 import json
-import re
 from collections import defaultdict
 from typing import Any
 
@@ -16,50 +21,51 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.api.deps import SessionDep
-from server.db.models import Fr, FrState, Run
+from server.db.models import ComplianceMapping, FrState, Run
 
 
 router = APIRouter(tags=["compliance"])
 
 
-# Parse "ASVS:v5.0.0-5.1.1" -> ("ASVS", "v5.0.0-5.1.1")
-_FRAMEWORK_RE = re.compile(r"^([A-Za-z0-9-]+):(.+)$")
-
-
-def _split_tag(tag: str) -> tuple[str, str] | None:
-    m = _FRAMEWORK_RE.match(tag)
-    if not m:
-        return None
-    return m.group(1), m.group(2)
+# Severity ladder (worst first). Used to derive a row's "worst" state
+# from the set of FR states that satisfy it.
+_SEVERITY_ORDER: tuple[str, ...] = (
+    "failed",
+    "pending",
+    "untested",
+    "blocked",
+    "waived",
+    "passed",
+)
 
 
 @router.get("/compliance")
 async def list_frameworks(
+    project_path: str | None = Query(default=None),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
-    """List the frameworks that appear in any project's FRs, with counts."""
-    rows = (await session.execute(
-        select(Fr.project_path, Fr.satisfies_json, Fr.fr_id)
-    )).all()
+    """List compliance frameworks that appear in any project's mapping."""
+    stmt = select(ComplianceMapping)
+    if project_path:
+        stmt = stmt.where(ComplianceMapping.project_path == project_path)
+    rows = (await session.execute(stmt.order_by(
+        ComplianceMapping.loaded_at.desc()
+    ))).scalars().all()
 
     framework_counts: dict[str, dict[str, int]] = defaultdict(lambda: {"rows": 0, "frs": 0})
-    for project_path, satisfies_json, _fr_id in rows:
-        satisfies = json.loads(satisfies_json or "[]")
-        seen = set()
-        for tag in satisfies:
-            split = _split_tag(tag)
-            if split is None:
+    for mapping_row in rows:
+        doc = json.loads(mapping_row.mapping_doc_json)
+        for entry in doc.get("mappings", []):
+            ruleset = entry.get("ruleset", "")
+            if not ruleset:
                 continue
-            fw, row = split
-            if row not in seen:
-                framework_counts[fw]["rows"] += 1
-                seen.add(row)
-            framework_counts[fw]["frs"] += 1
+            framework_counts[ruleset]["rows"] += 1
+            framework_counts[ruleset]["frs"] += len(entry.get("satisfied_by", []))
 
     return {
         "frameworks": [
-            {"id": fw, "rows": counts["rows"], "frs": counts["frs"]}
-            for fw, counts in sorted(framework_counts.items())
+            {"id": fw, "rows": c["rows"], "frs": c["frs"]}
+            for fw, c in sorted(framework_counts.items())
         ]
     }
 
@@ -67,121 +73,88 @@ async def list_frameworks(
 @router.get("/compliance/{framework}")
 async def compliance_matrix(
     framework: str,
-    project_path: str | None = Query(default=None, description="Filter to one project."),
+    project_path: str | None = Query(default=None),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Return compliance-row → state matrix for one framework.
 
-    Each row: { row_id, fr_ids, state, projects }.
-    State is the worst (most-attention-needed) across FRs that satisfy it.
+    For each row in the mapping:
+      - satisfied_by: list of FR IDs from the mapping
+      - state: worst state across those FRs in the latest run
+      - rationale: from the mapping (agent's reasoning)
+      - confidence: agent's self-assessment
     """
-    # Collect all FRs that satisfy at least one row in this framework.
-    fr_rows = (await session.execute(
-        select(Fr).order_by(Fr.id.desc())
-    )).scalars().all()
+    mapping_stmt = select(ComplianceMapping)
+    if project_path:
+        mapping_stmt = mapping_stmt.where(ComplianceMapping.project_path == project_path)
+    mapping_stmt = mapping_stmt.order_by(ComplianceMapping.loaded_at.desc()).limit(1)
+    mapping_row = (await session.execute(mapping_stmt)).scalars().first()
 
-    # Index by (project, fr_id) -> satisfies rows in this framework
-    fr_index: dict[tuple[str, str], list[str]] = {}
-    for fr in fr_rows:
-        if project_path and fr.project_path != project_path:
-            continue
-        satisfies = json.loads(fr.satisfies_json or "[]")
-        rows_for_fw = []
-        for tag in satisfies:
-            split = _split_tag(tag)
-            if split is None:
-                continue
-            fw, row = split
-            if fw == framework:
-                rows_for_fw.append(row)
-        if rows_for_fw:
-            fr_index[(fr.project_path, fr.fr_id)] = rows_for_fw
-
-    if not fr_index:
+    if mapping_row is None:
         raise HTTPException(
             status_code=404,
-            detail=f"no FRs satisfy framework '{framework}'"
-            + (f" in project '{project_path}'" if project_path else ""),
+            detail="no compliance mapping loaded — run a scan with fr-compliance-mapping.json present",
         )
 
-    # Look up latest run per project.
-    latest_runs: dict[str, str] = {}
-    for (proj, _fr) in fr_index:
-        if proj in latest_runs:
-            continue
-        run_row = (await session.execute(
-            select(Run)
-            .where(Run.project_path == proj)
-            .order_by(Run.started_at.desc())
-            .limit(1)
-        )).scalars().first()
-        if run_row:
-            latest_runs[proj] = run_row.run_id
-
-    # Get latest state for each FR.
-    state_rows = (await session.execute(
-        select(FrState).where(
-            FrState.run_id.in_(list(latest_runs.values()))
+    mapping_doc = json.loads(mapping_row.mapping_doc_json)
+    entries = [
+        m for m in mapping_doc.get("mappings", [])
+        if m.get("ruleset") == framework
+    ]
+    if not entries:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no mapping entries for framework '{framework}'",
         )
-    )).scalars().all()
-    state_by_proj_fr: dict[tuple[str, str], str] = {}
-    for s in state_rows:
-        state_by_proj_fr[(s.project_path, s.fr_id)] = s.state
 
-    # Build matrix.
-    matrix: dict[str, dict[str, Any]] = {}
-    for (proj, fr_id), rows in fr_index.items():
-        state = state_by_proj_fr.get((proj, fr_id), "untested")
-        for row_id in rows:
-            entry = matrix.setdefault(row_id, {
-                "row_id": row_id,
-                "fr_ids": [],
-                "states": [],
-                "projects": [],
-                "worst_state": "untested",
-            })
-            entry["fr_ids"].append(fr_id)
-            entry["states"].append(state)
-            entry["projects"].append(proj)
+    # Latest run for the project (for state lookups).
+    run_stmt = select(Run).where(Run.project_path == mapping_row.project_path)
+    run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(1)
+    run = (await session.execute(run_stmt)).scalars().first()
 
-    # Compute worst state per row.
-    for row_id, entry in matrix.items():
-        entry["worst_state"] = _worst_state(entry["states"])
+    # Build FR-state index for the latest run.
+    state_by_fr: dict[str, str] = {}
+    if run:
+        state_rows = (await session.execute(
+            select(FrState).where(FrState.run_id == run.run_id)
+        )).scalars().all()
+        state_by_fr = {s.fr_id: s.state for s in state_rows}
 
-    # Sort by row_id (best-effort natural sort)
-    sorted_rows = sorted(matrix.values(), key=lambda e: e["row_id"])
+    matrix: list[dict[str, Any]] = []
+    for entry in entries:
+        fr_ids = entry.get("satisfied_by", [])
+        fr_states = [state_by_fr.get(fid, "untested") for fid in fr_ids]
+        worst = _worst_state(fr_states)
+        matrix.append({
+            "row_id": entry["row"],
+            "version": entry.get("version"),
+            "fr_ids": fr_ids,
+            "fr_states": dict(zip(fr_ids, fr_states)),
+            "worst_state": worst,
+            "rationale": entry.get("rationale", ""),
+            "confidence": entry.get("confidence", "medium"),
+        })
 
-    summary = {
-        fw: 0 for fw in ["passed", "failed", "manual-review", "blocked", "waived",
-                          "has-evidence", "to-be-tested", "untested"]
-    }
-    for entry in sorted_rows:
+    matrix.sort(key=lambda e: e["row_id"])
+
+    summary: dict[str, int] = defaultdict(int)
+    for entry in matrix:
         summary[entry["worst_state"]] += 1
 
     return {
         "framework": framework,
-        "row_count": len(sorted_rows),
-        "summary": summary,
-        "rows": sorted_rows,
+        "project_path": mapping_row.project_path,
+        "mapping_loaded_at": mapping_row.loaded_at.isoformat(),
+        "mapping_hash": mapping_row.content_hash,
+        "run_id": run.run_id if run else None,
+        "row_count": len(matrix),
+        "summary": dict(summary),
+        "rows": matrix,
     }
 
 
-# Severity ladder (worst first). Used to pick the most-attention state
-# across multiple FRs that satisfy one compliance row.
-_SEVERITY_ORDER: tuple[str, ...] = (
-    "failed",
-    "manual-review",
-    "blocked",
-    "to-be-tested",
-    "untested",
-    "has-evidence",
-    "waived",
-    "passed",
-)
-
-
 def _worst_state(states: list[str]) -> str:
-    """Return the most-attention state across the input list."""
+    """Pick the most-attention state across a list."""
     if not states:
         return "untested"
     for sev in _SEVERITY_ORDER:

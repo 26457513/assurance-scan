@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/main/data/schemas/fr-compliance-mapping.schema.json",
+  "title": "FR → Compliance Mapping",
+  "description": "Agent-authored artifact connecting project FRs to compliance framework rows. Lives alongside the FR catalogue as a separate file (default: fr-compliance-mapping.json). Each entry maps one compliance row to one or more FR IDs, with rationale + confidence for human review.",
+  "type": "object",
+  "required": ["schema_version", "project", "mappings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "project": {"type": "string", "minLength": 1},
+    "catalogue_path": {
+      "type": "string",
+      "description": "Path to the FR catalogue this mapping is for. Relative to the project root."
+    },
+    "generated_at": {"type": "string", "format": "date-time"},
+    "generated_by": {
+      "type": "string",
+      "description": "Who/what authored this mapping (e.g. 'agent:claude-4.7', 'human:alice')."
+    },
+    "mappings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/mapping"}
+    }
+  },
+  "$defs": {
+    "mapping": {
+      "type": "object",
+      "required": ["ruleset", "row", "satisfied_by", "rationale", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleset": {"type": "string", "minLength": 1},
+        "version": {"type": "string"},
+        "row": {"type": "string", "minLength": 1},
+        "satisfied_by": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
+          "description": "FR IDs whose capabilities address this compliance row."
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why the agent believes the cited FRs address this row. Shown in the UI for human review."
+        },
+        "confidence": {
+          "enum": ["high", "medium", "low"],
+          "description": "Agent's self-assessment. 'low' or 'medium' flag rows the user should review carefully."
+        }
+      }
+    }
+  }
+}

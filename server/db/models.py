@@ -346,6 +346,32 @@ class AgentAction(Base):
     __table_args__ = (Index("ix_agent_actions_run", "run_id"),)
 
 
+# ---------------------------------------------------------------------------
+# Compliance mapping group
+# ---------------------------------------------------------------------------
+
+
+class ComplianceMapping(Base):
+    """Latest-loaded compliance mapping for a project.
+
+    The mapping is a separate JSON artifact (fr-compliance-mapping.json)
+    connecting project FRs to compliance framework rows. Loaded fresh on
+    each scan if the file changes; one row per project (latest only).
+    """
+
+    __tablename__ = "compliance_mappings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    mapping_doc_json: Mapped[str] = mapped_column(Text, nullable=False)
+    loaded_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("ix_compliance_mappings_project", "project_path"),
+    )
+
+
 __all__ = [
     "Base",
     "CatalogueSnapshot",
@@ -360,4 +386,5 @@ __all__ = [
     "FrState",
     "Waiver",
     "AgentAction",
+    "ComplianceMapping",
 ]
