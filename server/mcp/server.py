@@ -23,7 +23,7 @@ from typing import Any
 from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
 
-from server.catalogue import load_catalogue, load_mapping_pack
+from server.catalogue import load_catalogue
 from server.config import Settings
 from server.db.connection import get_sessionmaker
 from server.db.repositories.agent_actions import AgentActionRepository
@@ -80,18 +80,15 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     @mcp.tool()
     async def load_fr_catalog(
         fr_catalog_path: str,
-        mapping_pack_path: str | None = None,
     ) -> dict[str, Any]:
-        """Validate the FR catalogue (and optional mapping pack). Returns the
-        catalogue's project, version, fr_count, and content hash.
+        """Validate the FR catalogue. Returns the catalogue's project,
+        version, fr_count, and content hash.
 
         Relative paths are resolved against the server's project root (the
         project folder the server was started against).
         """
         project_path = str(deps.settings.project_root)
         catalogue = load_catalogue(_resolve(fr_catalog_path, project_path), project_path)
-        if mapping_pack_path:
-            load_mapping_pack(_resolve(mapping_pack_path, project_path))
         return {
             "project": catalogue.doc.get("project"),
             "catalogue_version": catalogue.doc.get("catalogue_version"),
@@ -103,7 +100,6 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     @mcp.tool()
     async def start_scan(
         fr_catalog_path: str | None = None,
-        mapping_pack_path: str | None = None,
         images: list[str] | None = None,
         urls: list[str] | None = None,
         uploads: list[str] | None = None,
@@ -123,8 +119,6 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             else Path(project_path) / "fr-catalog.json"
         )
         options: dict[str, Any] = {"fr_catalog_path": str(resolved_catalogue)}
-        if mapping_pack_path:
-            options["mapping_pack_path"] = str(_resolve(mapping_pack_path, project_path))
         if images:
             options["images"] = images
         if urls:

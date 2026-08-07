@@ -1,79 +1,206 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "project": "assurance-scan",
-  "catalogue_version": "2026-08-07T10:00:00Z",
+  "catalogue_version": "2026-08-07T00:00:00Z",
   "frs": [
     {
-      "id": "FR-NO-HARDCODED-SECRETS",
-      "title": "No hardcoded secrets in source",
-      "description": "Source files must not contain hardcoded credentials (AWS keys, GitHub PATs, JWTs, private keys).",
+      "id": "FR-CATALOGUE-LOAD",
+      "title": "Load and validate an FR catalogue from JSON",
+      "description": "Given a path to a v3 catalogue JSON file, the system reads it, validates against the schema, snapshots it immutably into the DB, and makes its FRs available for state computation.",
+      "category": "core",
+      "implemented_by": [
+        {"kind": "file", "ref": "server/catalogue/loader.py"},
+        {"kind": "file", "ref": "server/db/repositories/catalogue_snapshots.py"}
+      ],
+      "tests": [
+        {
+          "id": "loader-validation",
+          "type": "unit-test",
+          "name_pattern": "tests.phase1.test_catalogue::*",
+          "description": "Loader accepts valid v3 catalogues and rejects malformed ones."
+        }
+      ]
+    },
+    {
+      "id": "FR-STATE-COMPUTE",
+      "title": "Compute FR state from test results",
+      "description": "After tests run, the system computes a state per FR (untested | pending | passed | failed | waived | blocked) using the precedence ladder.",
+      "category": "core",
+      "implemented_by": [
+        {"kind": "file", "ref": "server/state/resolver.py"},
+        {"kind": "file", "ref": "server/evidence/state_compute.py"}
+      ],
+      "tests": [
+        {
+          "id": "state-machine",
+          "type": "unit-test",
+          "name_pattern": "tests.phase1.test_state::*",
+          "description": "8-state precedence ladder exercised across all transitions."
+        }
+      ]
+    },
+    {
+      "id": "FR-EVIDENCE-MATCH",
+      "title": "Match evidence records to test specs",
+      "description": "The system matches collected evidence (scanner findings, test case results) against the tests declared on each FR, producing pass/fail per test.",
+      "category": "core",
+      "implemented_by": [{"kind": "file", "ref": "server/state/matcher.py"}],
+      "tests": [
+        {
+          "id": "matcher-suite",
+          "type": "unit-test",
+          "name_pattern": "tests.phase1.test_matcher::*",
+          "description": "Matcher handles each spec type correctly."
+        }
+      ]
+    },
+    {
+      "id": "FR-SCAN-EXEC",
+      "title": "Execute configured scanners against a codebase",
+      "description": "When a scan is requested, the system spawns each configured scanner as a sibling container via the host docker socket, captures stdout/stderr, parses findings, and stores raw artifacts + normalized findings in SQLite.",
+      "category": "scan",
+      "implemented_by": [
+        {"kind": "file", "ref": "server/worker/orchestrator.py"},
+        {"kind": "file", "ref": "server/worker/runner.py"},
+        {"kind": "file", "ref": "server/worker/scanners.py"}
+      ],
+      "tests": [
+        {
+          "id": "parsers",
+          "type": "unit-test",
+          "name_pattern": "tests.phase1.test_parsers::*",
+          "description": "Per-scanner parsers correctly normalize SARIF/JSON output."
+        }
+      ]
+    },
+    {
+      "id": "FR-FINDINGS-PERSIST",
+      "title": "Persist scanner findings and raw artifacts in SQLite",
+      "description": "All scanner output (normalized findings, raw gzip-compressed artifacts) is stored durably in SQLite. Project repo is never written to.",
+      "category": "persistence",
+      "implemented_by": [
+        {"kind": "file", "ref": "server/db/repositories/findings.py"},
+        {"kind": "file", "ref": "server/db/repositories/scanner_artifacts.py"}
+      ],
+      "tests": []
+    },
+    {
+      "id": "FR-TEST-DISCOVER",
+      "title": "Discover and run project test suites",
+      "description": "The system discovers tests (via assurance-tests.json or convention) and runs each in a sibling container, parsing JUnit XML output into per-testcase results.",
+      "category": "scan",
+      "implemented_by": [
+        {"kind": "file", "ref": "server/project_tests.py"},
+        {"kind": "file", "ref": "server/worker/parsers/junit.py"}
+      ],
+      "tests": []
+    },
+    {
+      "id": "FR-REST-API",
+      "title": "Expose findings, scans, FRs, compliance, and trends via REST",
+      "description": "REST API under /api/* serves the frontend and external scripts.",
+      "category": "api",
+      "implemented_by": [{"kind": "glob", "ref": "server/api/routes/*.py"}],
+      "tests": []
+    },
+    {
+      "id": "FR-MCP-SERVER",
+      "title": "Expose tools via MCP Streamable HTTP",
+      "description": "The system serves an MCP endpoint at /mcp exposing 11 tools for agents (Claude Code, Cursor) to drive scans, fetch findings, manage waivers, and request workflows.",
+      "category": "api",
+      "implemented_by": [
+        {"kind": "file", "ref": "server/mcp/server.py"},
+        {"kind": "file", "ref": "server/mcp/__init__.py"}
+      ],
+      "tests": []
+    },
+    {
+      "id": "FR-UI-RENDER",
+      "title": "Serve a SvelteKit UI for browsing scans, FRs, and compliance",
+      "description": "Built SvelteKit app served at /, with pages for scan list, scan detail, FR list, FR detail, compliance matrix, and trends.",
+      "category": "ui",
+      "implemented_by": [{"kind": "glob", "ref": "frontend/src/routes/**/*.svelte"}],
+      "tests": []
+    },
+    {
+      "id": "FR-SSE-STREAM",
+      "title": "Stream live scan events via Server-Sent Events",
+      "description": "GET /api/scans/{run_id}/stream emits scan_started, scanner_started, scanner_completed, scan_completed events with Last-Event-ID resume support.",
+      "category": "api",
+      "implemented_by": [
+        {"kind": "file", "ref": "server/events/__init__.py"},
+        {"kind": "file", "ref": "server/api/routes/stream.py"}
+      ],
+      "tests": []
+    },
+    {
+      "id": "FR-WORKFLOWS",
+      "title": "Serve templated agent prompts via MCP",
+      "description": "list_workflows and get_workflow MCP tools expose ready-made agent prompts so users don't paste prompts.",
+      "category": "api",
+      "implemented_by": [
+        {"kind": "file", "ref": "server/workflows/__init__.py"},
+        {"kind": "glob", "ref": "data/workflows/*.json"}
+      ],
+      "tests": []
+    },
+    {
+      "id": "FR-COMPLIANCE-AGGREGATE",
+      "title": "Aggregate FR states by compliance framework",
+      "description": "GET /api/compliance and /api/compliance/{framework} return traffic-light matrices per compliance framework, with each row's state derived from the worst state of FRs satisfying it.",
+      "category": "api",
+      "implemented_by": [{"kind": "file", "ref": "server/api/routes/compliance.py"}],
+      "tests": []
+    },
+    {
+      "id": "FR-WAIVERS-MANAGE",
+      "title": "Create, list, and revoke FR waivers",
+      "description": "Standing waivers override an FR's state to 'waived' on subsequent scans. Exposed via REST and the add_waiver/revoke_waiver MCP tools.",
+      "category": "api",
+      "implemented_by": [{"kind": "file", "ref": "server/db/repositories/waivers.py"}],
+      "tests": []
+    },
+    {
+      "id": "FR-SOURCE-HYGIENE",
+      "title": "Project source code is free of HIGH-severity known security issues",
+      "description": "Semgrep and gitleaks scan the source tree. Findings at HIGH or CRITICAL severity fail this FR.",
+      "category": "security",
       "implemented_by": [{"kind": "glob", "ref": "**/*.py"}],
-      "required_evidence": {
-        "none_of": [
-          {"type": "scanner-result", "source_kind": "gitleaks", "rule_id": "aws-access-key"},
-          {"type": "scanner-result", "source_kind": "gitleaks", "rule_id": "github-pat"},
-          {"type": "scanner-result", "source_kind": "gitleaks", "rule_id": "jwt"},
-          {"type": "scanner-result", "source_kind": "gitleaks", "rule_id": "private-key"}
-        ]
-      },
-      "satisfies": ["ASVS:v5.0.0-2.10.4"]
+      "tests": [
+        {
+          "id": "semgrep-no-high",
+          "type": "scanner-clean-by-severity",
+          "scanner": "semgrep",
+          "severity_floor": "HIGH",
+          "description": "Semgrep must produce no HIGH or CRITICAL findings."
+        },
+        {
+          "id": "gitleaks-no-high",
+          "type": "scanner-clean-by-severity",
+          "scanner": "gitleaks",
+          "severity_floor": "HIGH",
+          "description": "Gitleaks must produce no HIGH or CRITICAL findings."
+        }
+      ],
+      "satisfies": [
+        {"ruleset": "ASVS", "row": "v5.0.0-2.10.4"}
+      ]
     },
     {
-      "id": "FR-NO-EVAL",
-      "title": "No use of eval() in source",
-      "description": "Python source must not call eval() — code injection risk.",
-      "implemented_by": [{"kind": "glob", "ref": "**/*.py"}],
-      "required_evidence": {
-        "none_of": [
-          {"type": "scanner-result", "source_kind": "semgrep", "rule_id": "python.lang.security.audit.eval-detected.eval-detected"}
-        ]
-      },
-      "satisfies": ["ASVS:v5.0.0-5.3.4"]
-    },
-    {
-      "id": "FR-DOCKERFILE-CLEAN",
-      "title": "Dockerfile must not install build-only dependencies in the runtime stage",
-      "description": "gcc, musl-dev, and python3-dev are only needed at wheel-build time. The runtime stage should not ship compilers.",
-      "implemented_by": [{"kind": "file", "ref": "Dockerfile"}],
-      "required_evidence": {
-        "none_of": [
-          {"type": "scanner-result", "source_kind": "trivy-config", "rule_id": "DS002"}
-        ]
-      },
-      "satisfies": [],
-      "depends_on": []
-    },
-    {
-      "id": "FR-PHASE1-TESTS-PASS",
-      "title": "Phase 1 test suite passes",
-      "description": "All Phase 1 tests in tests/phase1/ (catalogue, state, matcher, parsers) must pass — proves the core domain logic is intact.",
-      "implemented_by": [{"kind": "glob", "ref": "tests/phase1/**/*.py"}],
-      "required_evidence": {
-        "all_of": [
-          {
-            "type": "unit-test",
-            "name_pattern": "tests.phase1.test_catalogue::*",
-            "expected_result": "pass"
-          },
-          {
-            "type": "unit-test",
-            "name_pattern": "tests.phase1.test_state::*",
-            "expected_result": "pass"
-          },
-          {
-            "type": "unit-test",
-            "name_pattern": "tests.phase1.test_matcher::*",
-            "expected_result": "pass"
-          },
-          {
-            "type": "unit-test",
-            "name_pattern": "tests.phase1.test_parsers::*",
-            "expected_result": "pass"
-          }
-        ]
-      },
-      "satisfies": []
+      "id": "FR-CONTAINER-HYGIENE",
+      "title": "Project Dockerfiles follow container security best practices",
+      "description": "trivy-config scans all Dockerfiles. No DS-* (Dockerfile Security) findings.",
+      "category": "security",
+      "implemented_by": [{"kind": "glob", "ref": "**/Dockerfile"}],
+      "tests": [
+        {
+          "id": "trivy-no-ds",
+          "type": "scanner-clean-by-rule",
+          "scanner": "trivy-config",
+          "rule_pattern": "DS-.*",
+          "description": "Trivy config must produce no DS-* findings."
+        }
+      ]
     }
-  ],
-  "na_rows": []
+  ]
 }

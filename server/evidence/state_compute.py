@@ -1,9 +1,12 @@
-"""Compute and cache FR states for a run.
+"""v3 state computation: evaluate each test on each FR.
 
-Reads: catalogue snapshot for the run, evidence for the run, waivers for
-the project, depends_on relationships. Writes: fr_state rows (cached).
-Transitive dep states are resolved via topological order; cycles would
-have been rejected at catalogue-load time.
+Replaces the v2 model of (collect evidence + synthesize negative evidence +
+match against required_evidence). The v3 model is:
+  - For each FR in the catalogue
+  - For each test on that FR
+  - Evaluate the test using its type-specific evaluator
+  - Store the TestResult
+  - Compute FR state from the set of TestResults + waivers + deps
 """
 from __future__ import annotations
 
@@ -11,41 +14,47 @@ import json
 import logging
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.catalogue.loader import LoadedCatalogue
-from server.db.repositories.evidence import EvidenceRepository
+from server.db.models import Finding
 from server.db.repositories.fr_state import FrStateRepository
 from server.db.repositories.frs import FrRepository
+from server.db.repositories.test_results import TestResultRepository
 from server.db.repositories.waivers import WaiverRepository
-from server.state.matcher import EvidenceRecord
-from server.state.resolver import compute_fr_state
+from server.state.matcher import (
+    FindingRecord,
+    TestCaseRecord,
+    evaluate_test,
+)
+from server.state.resolver import evaluate_fr
 
 
 log = logging.getLogger(__name__)
 
 
-async def compute_states_for_run(
+async def evaluate_tests_and_compute_states(
     session: AsyncSession,
     run_id: str,
     project_path: str,
     catalogue: LoadedCatalogue,
+    test_cases: list[TestCaseRecord],
 ) -> dict[str, str]:
-    """Compute the state of every FR in the catalogue snapshot for this run.
+    """Top-level entrypoint called by the orchestrator after scans complete.
 
-    Returns a dict mapping fr_id -> state for transitive-depend resolution
-    by callers.
+    Returns a dict {fr_id: state} for dependency resolution by callers.
     """
     frs_repo = FrRepository(session)
-    evidence_repo = EvidenceRepository(session)
     state_repo = FrStateRepository(session)
     waivers_repo = WaiverRepository(session)
+    test_results_repo = TestResultRepository(session)
 
     # Clear any previously-computed state for this run (idempotent recompute).
     await state_repo.delete_for_run(run_id)
 
-    snapshot_id = catalogue.content_hash
-    fr_rows = await frs_repo.list_for_snapshot(_snapshot_id_for(catalogue))
+    snapshot_id = _snapshot_id_for(catalogue)
+    fr_rows = await frs_repo.list_for_snapshot(snapshot_id)
     if not fr_rows:
         log.warning(
             "no FRs in catalogue snapshot %s; did the snapshot get loaded?",
@@ -53,30 +62,40 @@ async def compute_states_for_run(
         )
         return {}
 
-    # Pre-fetch evidence and waivers, keyed by fr_id for fast lookup.
-    all_evidence = await evidence_repo.list_for_run(run_id)
-    evidence_by_fr: dict[str, list[EvidenceRecord]] = {}
-    for ev in all_evidence:
-        rec = EvidenceRecord(
-            type=ev.type,
-            source=json.loads(ev.source_json or "{}"),
-            result=ev.result,
+    # Pre-fetch findings (full list for the run, converted to records once).
+    finding_rows = (await session.execute(
+        select(Finding).where(Finding.run_id == run_id)
+    )).scalars().all()
+    finding_records: list[FindingRecord] = [
+        FindingRecord(
+            scanner_kind=f.scanner_kind,
+            rule_id=f.rule_id,
+            severity=f.severity,
+            file_path=f.file_path,
         )
-        evidence_by_fr.setdefault(ev.fr_id, []).append(rec)
+        for f in finding_rows
+    ]
 
+    # Pre-fetch waivers.
     all_waivers = await waivers_repo.list_for_project(project_path)
     waiver_frs: set[str] = {w.fr_id for w in all_waivers}
 
-    # Topological-ish order: compute leaf FRs first, then dependents.
-    # Since cycles are rejected at load time, two passes suffice.
-    states_by_id: dict[str, str] = {fr.fr_id: "untested" for fr in fr_rows}
+    # Parse FR JSON columns once.
     fr_dicts_by_id: dict[str, dict[str, Any]] = {
-        fr.fr_id: _fr_row_to_dict(fr) for fr in fr_rows
+        fr.fr_id: {
+            "id": fr.fr_id,
+            "tests": json.loads(fr.required_evidence_json or "[]")  # see note below
+                if False else
+                _load_tests_from_catalogue(catalogue, fr.fr_id),
+            "depends_on": json.loads(fr.depends_on_json or "[]"),
+        }
+        for fr in fr_rows
     }
 
-    # Pass 1: compute FRs with no depends_on (leaves).
-    # Pass 2: compute FRs that depend on already-computed FRs.
-    # Repeat until stable.
+    # Evaluate tests per FR.
+    states_by_id: dict[str, str] = {fr.fr_id: "untested" for fr in fr_rows}
+
+    # Topological-ish: leaf FRs first.
     pending = list(fr_rows)
     progress = True
     while pending and progress:
@@ -84,15 +103,36 @@ async def compute_states_for_run(
         next_pending = []
         for fr in pending:
             deps = json.loads(fr.depends_on_json or "[]")
-            if all(d in states_by_id and states_by_id[d] != "untested" or d not in fr_dicts_by_id for d in deps):
-                # All deps computed (or external — treat as passed).
-                dep_states = {
-                    d: states_by_id.get(d, "passed")
-                    for d in deps
-                }
-                state = compute_fr_state(
-                    fr=fr_dicts_by_id[fr.fr_id],
-                    evidence_records=evidence_by_fr.get(fr.fr_id, []),
+            if all(d in states_by_id or d not in fr_dicts_by_id for d in deps):
+                fr_dict = fr_dicts_by_id[fr.fr_id]
+                tests = fr_dict["tests"]
+
+                # Evaluate each test on this FR.
+                evaluations: dict[str, object] = {}
+                for test in tests:
+                    test_id = test.get("id", "")
+                    if not test_id:
+                        continue
+                    evaluation = evaluate_test(
+                        spec=test,
+                        findings=finding_records,
+                        test_cases=test_cases,
+                    )
+                    evaluations[test_id] = evaluation
+                    await test_results_repo.upsert(
+                        run_id=run_id,
+                        project_path=project_path,
+                        fr_id=fr.fr_id,
+                        test_id=test_id,
+                        test_type=test.get("type", "unknown"),
+                        result=evaluation.result,
+                        detail=evaluation.detail,
+                    )
+
+                dep_states = {d: states_by_id.get(d, "passed") for d in deps}
+                state = evaluate_fr(
+                    fr=fr_dict,
+                    test_evaluations=evaluations,
                     waivers_present=fr.fr_id in waiver_frs,
                     dep_states=dep_states,
                 )
@@ -109,8 +149,7 @@ async def compute_states_for_run(
                 next_pending.append(fr)
         pending = next_pending
 
-    # Any remaining pending FRs have dep cycles that slipped past load-time
-    # validation. Mark them blocked as a safety net.
+    # Cycle safety net.
     for fr in pending:
         await state_repo.upsert(
             project_path=project_path,
@@ -121,16 +160,11 @@ async def compute_states_for_run(
         )
         states_by_id[fr.fr_id] = "blocked"
 
-    log.info(
-        "computed %d FR states for run %s",
-        len(states_by_id),
-        run_id,
-    )
+    log.info("computed %d FR states for run %s", len(states_by_id), run_id)
     return states_by_id
 
 
 def _snapshot_id_for(catalogue: LoadedCatalogue) -> str:
-    """Reconstruct the snapshot id used by CatalogueSnapshotRepository."""
     import hashlib
     digest = hashlib.sha1(
         f"{catalogue.project_path}|{catalogue.content_hash}".encode()
@@ -138,14 +172,16 @@ def _snapshot_id_for(catalogue: LoadedCatalogue) -> str:
     return f"snap_{digest}"
 
 
-def _fr_row_to_dict(row) -> dict[str, Any]:
-    """Convert a Fr ORM row into the dict shape compute_fr_state expects."""
-    return {
-        "id": row.fr_id,
-        "title": row.title,
-        "description": row.description,
-        "implemented_by": json.loads(row.implemented_by_json or "[]"),
-        "required_evidence": json.loads(row.required_evidence_json or "{}"),
-        "satisfies": json.loads(row.satisfies_json or "[]"),
-        "depends_on": json.loads(row.depends_on_json or "[]"),
-    }
+def _load_tests_from_catalogue(
+    catalogue: LoadedCatalogue,
+    fr_id: str,
+) -> list[dict[str, Any]]:
+    """Pull the tests array for an FR from the in-memory catalogue doc.
+
+    The DB doesn't store tests separately — only the catalogue snapshot
+    does. Looking them up by FR id is O(FRs) per scan, which is fine.
+    """
+    for fr in catalogue.doc.get("frs", []):
+        if fr.get("id") == fr_id:
+            return fr.get("tests", []) or []
+    return []

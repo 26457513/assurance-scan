@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/main/data/schemas/fr-catalog.v3.schema.json",
+  "title": "Functional Requirements Catalogue v3",
+  "description": "Project-owned capabilities. Each FR describes what the project does and carries one or more tests that prove it. Compliance requirements (ASVS, PCI, etc.) attach via `satisfies` and live in a separate compliance pack.",
+  "type": "object",
+  "required": ["schema_version", "project", "frs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 3},
+    "project": {"type": "string", "minLength": 1},
+    "catalogue_version": {"type": "string"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "frs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/fr"}
+    }
+  },
+  "$defs": {
+    "fr": {
+      "type": "object",
+      "required": ["id", "title", "description", "tests"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^FR-[A-Za-z0-9_.-]+$",
+          "description": "Stable FR identifier. Immutable across catalogue versions."
+        },
+        "title": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "category": {"type": "string"},
+        "lifecycle_status": {
+          "enum": ["in_scope", "planned", "deprecated"],
+          "default": "in_scope"
+        },
+        "implemented_by": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/code_ref"}
+        },
+        "tests": {
+          "type": "array",
+          "minItems": 0,
+          "items": {"$ref": "#/$defs/test"}
+        },
+        "satisfies": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/compliance_ref"},
+          "description": "Compliance requirements this FR helps satisfy. State of the compliance row is derived from the worst state of all FRs that satisfy it."
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"}
+        }
+      }
+    },
+    "code_ref": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["file", "glob", "symbol"]},
+        "ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "compliance_ref": {
+      "type": "object",
+      "required": ["ruleset", "row"],
+      "additionalProperties": false,
+      "properties": {
+        "ruleset": {"type": "string", "minLength": 1},
+        "row": {"type": "string", "minLength": 1}
+      }
+    },
+    "test": {
+      "type": "object",
+      "required": ["id", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable per-FR test identifier. Must be unique within the FR."
+        },
+        "type": {
+          "enum": [
+            "unit-test",
+            "integration-test",
+            "e2e-test",
+            "scanner-clean",
+            "scanner-clean-by-rule",
+            "scanner-clean-by-severity",
+            "scanner-finds",
+            "manual-attestation",
+            "imported"
+          ]
+        },
+        "description": {"type": "string"},
+        "name_pattern": {
+          "type": "string",
+          "description": "For test types: fnmatch glob against fully-qualified test name."
+        },
+        "scanner": {
+          "type": "string",
+          "description": "For scanner types: which scanner to evaluate (semgrep, gitleaks, trivy-fs, etc.)."
+        },
+        "severity_floor": {
+          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"],
+          "description": "For scanner-clean-by-severity: findings at or above this severity cause failure."
+        },
+        "rule_pattern": {
+          "type": "string",
+          "description": "For scanner-clean-by-rule: regex pattern matched against finding rule_id."
+        },
+        "format": {
+          "type": "string",
+          "description": "For imported: 'junit-xml' | 'sarif' | 'xunit'."
+        },
+        "expected_result": {
+          "enum": ["pass", "fail", "info", "manual"],
+          "default": "pass"
+        }
+      }
+    }
+  }
+}

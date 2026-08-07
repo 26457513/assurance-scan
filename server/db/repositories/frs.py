@@ -45,6 +45,8 @@ class FrRepository(BaseRepository[Fr]):
                     fr_id=fr["id"],
                     title=fr["title"],
                     description=fr["description"],
+                    category=fr.get("category"),
+                    lifecycle_status=fr.get("lifecycle_status"),
                     implemented_by_json=json.dumps(fr.get("implemented_by", [])),
                     required_evidence_json=json.dumps(fr.get("required_evidence", {})),
                     satisfies_json=json.dumps(fr.get("satisfies", [])),

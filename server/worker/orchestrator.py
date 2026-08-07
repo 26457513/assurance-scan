@@ -1,13 +1,13 @@
-"""Scan orchestrator.
+"""Scan orchestrator (v3).
 
 Drives one scan end-to-end:
-  1. Resolve catalogue + mapping pack (auto-migrate v1 → v2 if needed)
+  1. Resolve catalogue (v3 — no mapping pack, no migration)
   2. Snapshot the catalogue
   3. Persist FRs
-  4. Spawn each scanner, capture output, insert raw artifact + findings
-  5. Map findings → evidence rows via the mapping pack
-  6. Compute FR states using the 8-state resolver
-  7. Publish findings.json + evidence bundle to the run row
+  4. Spawn each scanner, capture output, store raw artifact + findings
+  5. Run project tests (capture JUnit XML)
+  6. Evaluate tests per FR + compute FR states
+  7. Publish findings.json
 
 Scanner failures are recorded but don't fail the run.
 """
@@ -22,23 +22,19 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.catalogue import load_catalogue, load_mapping_pack
+from server.catalogue import load_catalogue
 from server.db.repositories.catalogue_snapshots import CatalogueSnapshotRepository
-from server.db.repositories.evidence import EvidenceRepository
 from server.db.repositories.findings import FindingRepository
 from server.db.repositories.frs import FrRepository
 from server.db.repositories.runs import RunRepository
 from server.db.repositories.scanner_artifacts import ScannerArtifactRepository
 from server.db.repositories.scanner_runs import ScannerRunRepository
-from server.evidence import (
-    collect_evidence_from_findings,
-    compute_states_for_run,
-    synthesize_negative_evidence,
-)
+from server.evidence import evaluate_tests_and_compute_states
 from server.events import helpers as events
-from server.project_tests import TestSuite, discover as discover_tests, run_suite
+from server.project_tests import discover as discover_tests, run_suite
+from server.state.matcher import TestCaseRecord
 from server.worker.parsers import parser_for
-from server.worker.parsers.junit import parse as parse_junit, to_evidence_records
+from server.worker.parsers.junit import parse as parse_junit
 from server.worker.runner import DockerRunner
 from server.worker.scanners import CODE_SCANNERS, ScannerConfig
 
@@ -68,7 +64,6 @@ class ScanOrchestrator:
         self.findings = FindingRepository(session)
         self.snapshots = CatalogueSnapshotRepository(session)
         self.frs_repo = FrRepository(session)
-        self.evidence = EvidenceRepository(session)
 
     async def execute(
         self,
@@ -78,37 +73,25 @@ class ScanOrchestrator:
     ) -> None:
         """Top-level scan lifecycle."""
         try:
-            # 1. Resolve catalogue + mapping pack (re-read fresh each scan)
             catalogue = None
-            mapping_pack = None
             catalogue_path = options.get("fr_catalog_path")
             if catalogue_path:
                 catalogue = load_catalogue(Path(catalogue_path), project_path)
-                mapping_pack_path = options.get("mapping_pack_path")
-                if mapping_pack_path:
-                    mapping_pack = load_mapping_pack(Path(mapping_pack_path))
-                else:
-                    mapping_pack = load_mapping_pack(None)
-
-                # 2. Snapshot the catalogue (idempotent on content hash)
                 snapshot = await self.snapshots.store(
                     project_path=project_path,
                     catalogue=catalogue.doc,
                     catalogue_version=catalogue.doc.get("catalogue_version"),
                 )
-                # 3. Persist FRs for this snapshot
                 await self.frs_repo.bulk_insert_for_snapshot(
                     catalogue_snapshot_id=snapshot.id,
                     project_path=project_path,
                     frs=catalogue.doc.get("frs", []),
                 )
-                # Link the snapshot to the run
                 run = await self.runs.get(run_id)
                 if run is not None:
                     run.catalogue_snapshot_id = snapshot.id
                 await self.session.flush()
 
-            # 4. Mark running and run scanners
             await self.runs.mark_running(run_id)
             await self.session.commit()
 
@@ -123,43 +106,20 @@ class ScanOrchestrator:
                 status = await self._run_scanner(scanner, run_id, project_path)
                 scanner_status[scanner.kind] = status
 
-            # 5. Map findings → evidence
-            if mapping_pack is not None:
-                await collect_evidence_from_findings(
-                    session=self.session,
-                    run_id=run_id,
-                    project_path=project_path,
-                    mapping_pack=mapping_pack,
-                )
-
-            # 5b. Run project tests (after scanners, before state computation)
-            await self._run_project_tests(
+            test_cases = await self._run_project_tests(
                 run_id=run_id,
                 project_path=project_path,
-                mapping_pack=mapping_pack,
             )
 
-            # 5c. Synthesize negative evidence for none_of specs whose
-            # scanners ran clean (zero matching findings). This lets FRs
-            # with only none_of requirements transition out of to-be-tested.
             if catalogue is not None:
-                await synthesize_negative_evidence(
+                await evaluate_tests_and_compute_states(
                     session=self.session,
                     run_id=run_id,
                     project_path=project_path,
                     catalogue=catalogue,
+                    test_cases=test_cases,
                 )
 
-            # 6. Compute FR states
-            if catalogue is not None:
-                await compute_states_for_run(
-                    session=self.session,
-                    run_id=run_id,
-                    project_path=project_path,
-                    catalogue=catalogue,
-                )
-
-            # 7. Publish findings + evidence bundle
             findings_json = await self._publish_findings(
                 run_id, project_path, scanner_status, options
             )
@@ -182,7 +142,6 @@ class ScanOrchestrator:
         run_id: str,
         project_path: str,
     ) -> str:
-        """Run one scanner end-to-end. Returns 'completed' | 'failed'."""
         events.publish_scanner_started(run_id, scanner.kind)
         scanner_run = await self.scanner_runs.create(run_id, scanner.kind)
         await self.scanner_runs.mark_running(scanner_run.id)
@@ -201,9 +160,7 @@ class ScanOrchestrator:
                 err = f"exit={result.returncode} stderr={result.stderr.decode('utf-8', 'replace')[:500]}"
                 await self.scanner_runs.mark_failed(scanner_run.id, err)
                 await self.session.commit()
-                events.publish_scanner_completed(
-                    run_id, scanner.kind, "failed", 0, err
-                )
+                events.publish_scanner_completed(run_id, scanner.kind, "failed", 0, err)
                 return "failed"
 
             parsed = parser_for(scanner).parse(raw)
@@ -216,28 +173,18 @@ class ScanOrchestrator:
         except Exception as exc:
             await self.scanner_runs.mark_failed(scanner_run.id, str(exc))
             await self.session.commit()
-            events.publish_scanner_completed(
-                run_id, scanner.kind, "failed", 0, str(exc)
-            )
+            events.publish_scanner_completed(run_id, scanner.kind, "failed", 0, str(exc))
             return "failed"
 
     async def _run_project_tests(
         self,
         run_id: str,
         project_path: str,
-        mapping_pack,
-    ) -> None:
-        """Discover and run project test suites; insert evidence rows.
-
-        Test runs are recorded via the same scanner_runs/scanner_artifacts
-        tables, using a synthetic scanner_kind of 'project-tests' so the UI
-        groups them clearly. Per-test-case results become evidence rows
-        for any FR the mapping pack associates them with.
-        """
+    ) -> list[TestCaseRecord]:
         from pathlib import Path
         suites = discover_tests(Path(project_path))
         if not suites:
-            return
+            return []
 
         events.publish_scanner_started(run_id, "project-tests")
         scanner_run = await self.scanner_runs.create(run_id, "project-tests")
@@ -245,15 +192,13 @@ class ScanOrchestrator:
         await self.session.commit()
 
         try:
-            all_evidence: list[dict] = []
-            mapping_index = self._test_mapping_index(mapping_pack)
+            all_cases: list[TestCaseRecord] = []
             combined_xml_parts: list[bytes] = []
             suite_failures = 0
 
             for suite in suites:
                 result = await run_suite(suite, project_path=project_path)
                 if not result.ok and result.returncode not in (0, 5):
-                    # pytest returns 5 for "no tests collected"; that's fine.
                     suite_failures += 1
                     log.warning(
                         "test suite %s exited %d: %s",
@@ -263,11 +208,12 @@ class ScanOrchestrator:
                 if result.junit_xml:
                     combined_xml_parts.append(result.junit_xml)
                     cases = parse_junit(result.junit_xml, suite_id=suite.id)
-                    all_evidence.extend(
-                        to_evidence_records(cases, run_id, project_path, mapping_index)
-                    )
+                    for c in cases:
+                        all_cases.append(TestCaseRecord(
+                            qualified_name=c.qualified_name,
+                            result=c.result,
+                        ))
 
-            # Store the combined JUnit XML as one artifact.
             if combined_xml_parts:
                 combined = b"<testsuites>" + b"".join(combined_xml_parts) + b"</testsuites>"
                 await self.scanner_artifacts.store(
@@ -276,44 +222,20 @@ class ScanOrchestrator:
                     content=combined,
                 )
 
-            if all_evidence:
-                await self.evidence.bulk_insert(all_evidence)
-
             status = "completed" if suite_failures == 0 else "failed"
             if status == "failed":
-                await self.scanner_runs.mark_failed(
-                    scanner_run.id,
-                    f"{suite_failures} suite(s) failed",
-                )
+                await self.scanner_runs.mark_failed(scanner_run.id, f"{suite_failures} suite(s) failed")
             else:
                 await self.scanner_runs.mark_completed(scanner_run.id)
             await self.session.commit()
-            events.publish_scanner_completed(
-                run_id, "project-tests", status, len(all_evidence)
-            )
+            events.publish_scanner_completed(run_id, "project-tests", status, len(all_cases))
+            return all_cases
 
         except Exception as exc:
             await self.scanner_runs.mark_failed(scanner_run.id, str(exc))
             await self.session.commit()
-            events.publish_scanner_completed(
-                run_id, "project-tests", "failed", 0, str(exc)
-            )
-
-    @staticmethod
-    def _test_mapping_index(mapping_pack) -> dict[str, str]:
-        """Flatten the mapping pack into {name_pattern: fr_id} for tests."""
-        if mapping_pack is None:
-            return {}
-        out: dict[str, str] = {}
-        for entry in mapping_pack.mappings:
-            src = entry.get("source", {})
-            # Test mappings use kind=pytest / jest / etc. and a name_pattern.
-            if src.get("kind") in {"pytest", "jest", "go-test", "test"}:
-                pattern = src.get("name_pattern")
-                fr_id = entry.get("fr_id")
-                if pattern and fr_id:
-                    out[pattern] = fr_id
-        return out
+            events.publish_scanner_completed(run_id, "project-tests", "failed", 0, str(exc))
+            return []
 
     async def _insert_findings(self, parsed, run_id: str) -> None:
         rows = [

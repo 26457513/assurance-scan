@@ -64,6 +64,8 @@ class Fr(Base):
     fr_id: Mapped[str] = mapped_column(String(64), nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lifecycle_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     implemented_by_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     required_evidence_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     satisfies_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
@@ -207,12 +209,50 @@ class Finding(Base):
 
 
 # ---------------------------------------------------------------------------
-# Evidence group
+# Test results group (v3 — replaces the v2 evidence table)
+# ---------------------------------------------------------------------------
+
+
+class TestResult(Base):
+    """One test evaluation against collected data, for one FR in one run.
+
+    A 'test' here is an entry in an FR's `tests` array. The orchestrator
+    evaluates each test against the run's scanner findings and JUnit
+    results, then stores the outcome here.
+    """
+
+    __tablename__ = "test_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("runs.run_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    fr_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    test_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    test_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    result: Mapped[str] = mapped_column(String(16), nullable=False)   # pass | fail | pending
+    detail_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    evaluated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "fr_id", "test_id", name="uq_test_results_run_fr_test"),
+        Index("ix_test_results_run", "run_id"),
+        Index("ix_test_results_run_fr", "run_id", "fr_id"),
+        Index("ix_test_results_project_fr", "project_path", "fr_id"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Legacy evidence table (deprecated, kept for migration reference)
 # ---------------------------------------------------------------------------
 
 
 class Evidence(Base):
-    """Typed artifact supporting an FR. Has type, source, result, hash."""
+    """Deprecated: v2 evidence table. Retained for historical data only;
+    new code uses TestResult instead."""
 
     __tablename__ = "evidence"
 
@@ -315,7 +355,8 @@ __all__ = [
     "ScannerRun",
     "ScannerArtifact",
     "Finding",
-    "Evidence",
+    "TestResult",
+    "Evidence",  # deprecated v2 table
     "FrState",
     "Waiver",
     "AgentAction",

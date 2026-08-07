@@ -1,23 +1,30 @@
-"""FR state resolution.
+"""v3 state machine.
+
+Each FR has a list of `tests`. After a scan, each test is evaluated to
+pass / fail / pending. The FR's state is computed from the test results
+plus standing waivers and FR dependencies.
 
 Public surface:
-  - `compute_fr_state(fr, evidence, waivers, dep_states)` -> StateResult
-  - `FR_STATES` tuple of valid states
-  - `GAP_STATES` states the gap analysis considers "needs work"
+  - `evaluate_fr(fr, test_results, waivers_present, dep_states)` -> StateResult
+  - `evaluate_test(spec, findings, test_case_results)` -> TestEvaluation
+  - `FR_STATES`, `GAP_STATES`
 """
-from server.state.matcher import matches_spec, ConflictError
+from server.state.matcher import (
+    TestEvaluation,
+    evaluate_test,
+)
 from server.state.resolver import (
     FR_STATES,
     GAP_STATES,
     StateResult,
-    compute_fr_state,
+    evaluate_fr,
 )
 
 __all__ = [
     "FR_STATES",
     "GAP_STATES",
     "StateResult",
-    "compute_fr_state",
-    "matches_spec",
-    "ConflictError",
+    "TestEvaluation",
+    "evaluate_fr",
+    "evaluate_test",
 ]
