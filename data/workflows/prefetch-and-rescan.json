@@ -1,0 +1,6 @@
+{
+  "name": "prefetch-and-rescan",
+  "description": "Run scanner DB prefetch (Trivy, Grype, osv-scanner) then re-scan. Use when scanners are failing on missing databases.",
+  "parameters": [],
+  "prompt": "Some scanners (trivy-fs, grype, osv-scanner) require pre-populated vulnerability databases. Prefetch them, then re-scan.\n\nSteps:\n1. Run `docker exec assurance-scan assurance-scan prefetch` to seed the scanner DBs into named volumes. This takes a few minutes.\n2. After prefetch completes, call `start_scan` via the assurance-scan MCP server with `fr_catalog_path=\"./fr-catalog.json\"`.\n3. Poll `get_scan_status` until completed.\n4. Report which scanners now succeed that previously failed.\n\nNote: prefetch only needs to run once per cache volume. Subsequent scans reuse the cached DBs (auto-refresh every 24h)."
+}

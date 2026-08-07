@@ -85,6 +85,9 @@ COPY alembic.ini /opt/assurance-scan/
 # JSON Schemas used at runtime by the catalogue loader
 COPY data/schemas/ /opt/assurance-scan/data/schemas/
 
+# Workflow prompt definitions served via MCP
+COPY data/workflows/ /opt/assurance-scan/data/workflows/
+
 # Entrypoint
 RUN chmod +x /opt/assurance-scan/server/entrypoint.sh \
     && ln -s /opt/assurance-scan/server/entrypoint.sh /usr/local/bin/assurance-scan

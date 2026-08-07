@@ -30,7 +30,11 @@ from server.db.repositories.frs import FrRepository
 from server.db.repositories.runs import RunRepository
 from server.db.repositories.scanner_artifacts import ScannerArtifactRepository
 from server.db.repositories.scanner_runs import ScannerRunRepository
-from server.evidence import collect_evidence_from_findings, compute_states_for_run
+from server.evidence import (
+    collect_evidence_from_findings,
+    compute_states_for_run,
+    synthesize_negative_evidence,
+)
 from server.events import helpers as events
 from server.project_tests import TestSuite, discover as discover_tests, run_suite
 from server.worker.parsers import parser_for
@@ -134,6 +138,17 @@ class ScanOrchestrator:
                 project_path=project_path,
                 mapping_pack=mapping_pack,
             )
+
+            # 5c. Synthesize negative evidence for none_of specs whose
+            # scanners ran clean (zero matching findings). This lets FRs
+            # with only none_of requirements transition out of to-be-tested.
+            if catalogue is not None:
+                await synthesize_negative_evidence(
+                    session=self.session,
+                    run_id=run_id,
+                    project_path=project_path,
+                    catalogue=catalogue,
+                )
 
             # 6. Compute FR states
             if catalogue is not None:

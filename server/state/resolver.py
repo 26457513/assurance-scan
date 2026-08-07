@@ -155,11 +155,17 @@ def _none_of_violated(
     none_of: list[dict[str, Any]],
     evidence_records: list[EvidenceRecord],
 ) -> bool:
-    """True if any evidence matches a `none_of` spec (negative evidence)."""
+    """True if any FAIL evidence matches a `none_of` spec.
+
+    Synthesized pass evidence (scanner ran clean) also matches the spec,
+    so we have to look at `result` to distinguish "scanner found the bad
+    thing" from "scanner ran without findings".
+    """
     from server.state.matcher import matches_spec
     for spec in none_of:
-        if any(matches_spec(spec, e) for e in evidence_records):
-            return True
+        for e in evidence_records:
+            if matches_spec(spec, e) and e.result == "fail":
+                return True
     return False
 
 

@@ -299,6 +299,31 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             await session.commit()
             return {"waiver_id": waiver_id, "revoked": True}
 
+    @mcp.tool()
+    async def list_workflows() -> dict[str, Any]:
+        """List available agent workflows.
+
+        Each workflow is a templated prompt that walks through one common
+        task (e.g. "scan and propose fixes", "close a gap via a unit test").
+        Use `get_workflow` to fetch the rendered prompt for a specific name.
+        """
+        from server.workflows import list_workflows as _list
+        return {"workflows": _list()}
+
+    @mcp.tool()
+    async def get_workflow(
+        name: str,
+        parameters: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Fetch a workflow prompt, with `parameters` substituted into {{name}} placeholders.
+
+        If the agent already knows the parameter values from conversation
+        context, pass them. Missing parameters stay as placeholders in the
+        returned prompt.
+        """
+        from server.workflows import get_workflow as _get
+        return _get(name, parameters)
+
     return mcp
 
 

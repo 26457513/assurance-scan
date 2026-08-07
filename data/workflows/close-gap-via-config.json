@@ -1,0 +1,8 @@
+{
+  "name": "close-gap-via-config",
+  "description": "Fix a config or code issue so a scanner stops reporting a finding. Use when a scanner finding is violating a none_of spec on an FR.",
+  "parameters": [
+    {"name": "fr_id", "description": "The FR ID whose gap should be closed"}
+  ],
+  "prompt": "Use the `assurance-scan` MCP server. Goal: fix the source/config so scanner findings stop violating FR {{fr_id}}'s `none_of` specs.\n\nSteps:\n1. Call `load_fr_catalog` with `fr_catalog_path=\"./fr-catalog.json\"` and inspect FR {{fr_id}}'s `none_of` block — it lists the scanner rule IDs that must NOT fire.\n2. Call `get_findings` on the latest run and filter to those rule IDs. Each finding has a `file_path` and `line_start`.\n3. Read each affected file at the cited line and understand why the scanner flagged it.\n4. Propose the smallest possible change to each file that resolves the finding (e.g. add USER directive, replace eval() with ast.literal_eval, move secret to env var).\n5. Show me the proposed changes as a table. Don't apply without my approval.\n6. After approval, apply the changes, then call `start_scan`. The FR should transition to `passed` once the scanner no longer fires."
+}
