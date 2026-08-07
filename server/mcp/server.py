@@ -318,6 +318,70 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         from server.workflows import get_workflow as _get
         return _get(name, parameters)
 
+    @mcp.tool()
+    async def bootstrap() -> dict[str, Any]:
+        """Check project state and return step-by-step guidance.
+
+        Call this FIRST in any new session. It inspects the project folder
+        for an FR catalogue and compliance mapping, checks the DB for recent
+        scans, and returns a `next_steps` list the agent can follow.
+
+        The server stays deterministic — it doesn't draft catalogues or
+        mappings. It tells the agent what to do next so the user doesn't
+        have to remember the exact workflow names.
+        """
+        from pathlib import Path
+        from sqlalchemy import select as sa_select
+        from server.db.models import Run
+
+        project_root = Path(str(deps.settings.project_root))
+        catalogue_path = project_root / "fr-catalog.json"
+        mapping_path = project_root / "fr-compliance-mapping.json"
+
+        catalogue_exists = catalogue_path.exists()
+        mapping_exists = mapping_path.exists()
+
+        # Check for latest run
+        latest_run_id: str | None = None
+        latest_run_status: str | None = None
+        async with get_sessionmaker()() as session:
+            run_row = (await session.execute(
+                sa_select(Run).order_by(Run.started_at.desc()).limit(1)
+            )).scalars().first()
+            if run_row:
+                latest_run_id = run_row.run_id
+                latest_run_status = run_row.status
+
+        # Build step-by-step guidance
+        steps: list[str] = []
+        recommended_workflow: str
+
+        if not catalogue_exists:
+            steps.append("Create ./fr-catalog.json — read the codebase, identify the project's functional capabilities, and draft a v3 catalogue. Show the user before writing.")
+            recommended_workflow = "setup-project"
+        else:
+            steps.append("Call load_fr_catalog with fr_catalog_path=\"./fr-catalog.json\" to validate the catalogue.")
+            steps.append("Call start_scan to run an initial scan (~90 seconds).")
+            if not mapping_exists:
+                steps.append("After the scan completes, draft a compliance mapping: read data/compliance-packs/asvs-5.0.0.json, match ASVS rows to FRs, write ./fr-compliance-mapping.json with rationale + confidence. Show the user before writing.")
+                steps.append("Call start_scan again to load the mapping.")
+                recommended_workflow = "setup-project"
+            else:
+                steps.append("Call get_findings and get_gap_analysis to see the current state.")
+                recommended_workflow = "scan-and-propose-fixes"
+
+        return {
+            "project_root": str(project_root),
+            "catalogue_exists": catalogue_exists,
+            "catalogue_path": str(catalogue_path),
+            "mapping_exists": mapping_exists,
+            "mapping_path": str(mapping_path),
+            "latest_run_id": latest_run_id,
+            "latest_run_status": latest_run_status,
+            "recommended_workflow": recommended_workflow,
+            "next_steps": steps,
+        }
+
     return mcp
 
 
