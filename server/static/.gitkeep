@@ -1,0 +1,2 @@
+# Built SvelteKit assets land here at image-build time (Dockerfile stage 1).
+# In local dev, leave this empty — SvelteKit runs separately on port 5173.

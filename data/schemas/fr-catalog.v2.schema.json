@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/main/data/schemas/fr-catalog.v2.schema.json",
+  "title": "Functional Requirements Catalogue v2",
+  "description": "Project-owned FRs, each with required evidence specs and compliance links. TBTs are gone; FRs carry a state instead.",
+  "type": "object",
+  "required": ["schema_version", "project", "frs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 2},
+    "project": {"type": "string", "minLength": 1},
+    "catalogue_version": {"type": "string", "format": "date-time"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "scope": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "levels": {"type": "array", "items": {"type": "string"}},
+          "baselines": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "frs": {
+      "type": "array",
+      "minItems": 0,
+      "items": {"$ref": "#/$defs/fr"}
+    },
+    "na_rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["row_id", "reason"],
+        "properties": {
+          "row_id": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "fr": {
+      "type": "object",
+      "required": ["id", "title", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(FR|TBT)-[A-Za-z0-9_.-]+$",
+          "description": "FR IDs are immutable across catalogue versions. TBT-* is allowed for promoted orphans from v1 migration."
+        },
+        "title": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "implemented_by": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/code_ref"}
+        },
+        "required_evidence": {"$ref": "#/$defs/required_evidence"},
+        "satisfies": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "description": "Compliance row references, e.g. 'ASVS:v5.0.0-5.1.1'."
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^(FR|TBT)-[A-Za-z0-9_.-]+$"}
+        }
+      }
+    },
+    "code_ref": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["file", "glob", "symbol"]},
+        "ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "required_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "all_of": {"type": "array", "items": {"$ref": "#/$defs/spec"}},
+        "any_of": {"type": "array", "items": {"$ref": "#/$defs/spec"}},
+        "none_of": {"type": "array", "items": {"$ref": "#/$defs/spec"}}
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "scanner-result",
+            "unit-test",
+            "integration-test",
+            "e2e-test",
+            "manual-attestation",
+            "imported",
+            "generated",
+            "proof-bundle"
+          ]
+        },
+        "source_kind": {
+          "type": "string",
+          "description": "For scanner-result: 'semgrep' | 'trivy-fs' | 'grype' | etc."
+        },
+        "rule_id": {"type": "string"},
+        "name_pattern": {
+          "type": "string",
+          "description": "For test types: fnmatch glob against fully-qualified test name."
+        },
+        "format": {
+          "type": "string",
+          "description": "For imported: 'junit-xml' | 'sarif' | 'xunit'."
+        },
+        "expected_result": {"enum": ["pass", "fail", "info", "manual"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jondowson/assurance-scan/raw/main/data/schemas/evidence-mapping-pack.v2.schema.json",
+  "title": "Evidence Mapping Pack v2",
+  "description": "Maps scanner rule IDs and test names to FR IDs. Optional in v2 — preferred path is required_evidence on the FR itself.",
+  "type": "object",
+  "required": ["schema_version", "mappings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "integer", "const": 2},
+    "mappings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/mapping"}
+    }
+  },
+  "$defs": {
+    "mapping": {
+      "type": "object",
+      "required": ["source", "fr_id"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": {"type": "string", "minLength": 1},
+            "rule_id": {"type": "string"},
+            "name_pattern": {"type": "string"},
+            "format": {"type": "string"}
+          }
+        },
+        "fr_id": {
+          "type": "string",
+          "pattern": "^(FR|TBT)-[A-Za-z0-9_.-]+$"
+        }
+      }
+    }
+  }
+}
