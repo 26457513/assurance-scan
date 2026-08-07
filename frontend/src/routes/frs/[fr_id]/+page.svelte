@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { api } from '$lib/api';
-  import type { FrDetailResponse, FrHistoryResponse } from '$lib/types';
+  import type { FrDetailResponse, FrHistoryResponse, TestSpecWithResult } from '$lib/types';
 
   let detail: FrDetailResponse | null = null;
   let history: FrHistoryResponse | null = null;
@@ -31,30 +31,37 @@
 
   function stateColor(state: string): string {
     return {
-      passed: 'text-green-700',
-      failed: 'text-red-700',
-      'manual-review': 'text-amber-700',
-      'has-evidence': 'text-blue-700',
-      'to-be-tested': 'text-gray-700',
-      untested: 'text-gray-500',
-      waived: 'text-purple-700',
-      blocked: 'text-orange-700'
-    }[state] ?? 'text-gray-700';
+      passed: 'bg-green-100 text-green-800',
+      failed: 'bg-red-100 text-red-800',
+      'manual-review': 'bg-amber-100 text-amber-800',
+      blocked: 'bg-orange-100 text-orange-800',
+      waived: 'bg-purple-100 text-purple-800',
+      pending: 'bg-yellow-50 text-yellow-800',
+      untested: 'bg-gray-50 text-gray-600'
+    }[state] ?? 'bg-gray-100 text-gray-700';
   }
 
-  function specLabel(spec: { type: string; source_kind?: string; rule_id?: string; name_pattern?: string }): string {
-    const bits = [spec.type];
-    if (spec.source_kind) bits.push(spec.source_kind);
-    if (spec.rule_id) bits.push(spec.rule_id);
-    if (spec.name_pattern) bits.push(spec.name_pattern);
+  function resultColor(result: string): string {
+    return {
+      pass: 'text-green-700',
+      fail: 'text-red-700',
+      pending: 'text-yellow-700'
+    }[result] ?? 'text-gray-700';
+  }
+
+  function resultIcon(result: string): string {
+    return { pass: '✓', fail: '✗', pending: '⏳' }[result] ?? '?';
+  }
+
+  function testTypeLabel(test: TestSpecWithResult): string {
+    const bits = [test.type];
+    if (test.scanner) bits.push(test.scanner);
+    if (test.severity_floor) bits.push(`≥ ${test.severity_floor}`);
+    if (test.rule_pattern) bits.push(`/${test.rule_pattern}/`);
+    if (test.name_pattern) bits.push(test.name_pattern);
+    if (test.format) bits.push(test.format);
     return bits.join(' · ');
   }
-
-  $: evidenceBySpec = (detail?.evidence ?? []).reduce<Record<string, typeof detail.evidence>>((acc, e) => {
-    const key = `${e.type}|${(e.source as Record<string, string>).kind ?? ''}|${(e.source as Record<string, string>).rule_id ?? ''}`;
-    (acc[key] ??= []).push(e);
-    return acc;
-  }, {});
 </script>
 
 {#if loading}
@@ -63,13 +70,16 @@
   <p class="text-red-700">{error}</p>
 {:else if detail}
   <header class="mb-6">
-    <a href="/" class="text-sm text-blue-700 hover:underline">← All scans</a>
+    <a href="/frs" class="text-sm text-blue-700 hover:underline">← All FRs</a>
     <h1 class="text-2xl font-semibold mt-2">{detail.title}</h1>
     <p class="text-sm font-mono text-gray-600 mt-1">{detail.fr_id}</p>
     <div class="mt-3 flex items-center gap-3 text-sm">
       <span class="px-2 py-1 bg-gray-100 rounded font-semibold {stateColor(detail.state)}">
         {detail.state}
       </span>
+      {#if detail.category}
+        <span class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">{detail.category}</span>
+      {/if}
       <span class="text-gray-600">run <span class="font-mono">{detail.run_id}</span></span>
     </div>
     {#if detail.description}
@@ -79,40 +89,41 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
     <section>
-      <h2 class="text-sm font-semibold uppercase text-gray-600 mb-3">Required Evidence</h2>
-      {#if !detail.required_evidence.all_of?.length && !detail.required_evidence.any_of?.length && !detail.required_evidence.none_of?.length}
-        <p class="text-gray-500 text-sm">No required_evidence defined.</p>
+      <h2 class="text-sm font-semibold uppercase text-gray-600 mb-3">
+        Tests ({detail.tests.length})
+      </h2>
+      {#if detail.tests.length === 0}
+        <p class="text-gray-500 text-sm bg-gray-50 border border-gray-200 rounded p-3">
+          No tests defined. This FR is <strong>untested</strong> — add at least one test
+          (e.g. a unit-test, scanner-clean, or manual-attestation) to the catalogue.
+        </p>
       {:else}
-        {#if detail.required_evidence.all_of?.length}
-          <h3 class="text-xs uppercase text-gray-500 mt-3 mb-1">All of</h3>
-          <ul class="space-y-1 text-sm">
-            {#each detail.required_evidence.all_of as spec (specLabel(spec))}
-              <li class="font-mono text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1">
-                {specLabel(spec)}
-              </li>
-            {/each}
-          </ul>
-        {/if}
-        {#if detail.required_evidence.any_of?.length}
-          <h3 class="text-xs uppercase text-gray-500 mt-3 mb-1">Any of</h3>
-          <ul class="space-y-1 text-sm">
-            {#each detail.required_evidence.any_of as spec (specLabel(spec))}
-              <li class="font-mono text-xs bg-gray-50 border border-gray-200 rounded px-2 py-1">
-                {specLabel(spec)}
-              </li>
-            {/each}
-          </ul>
-        {/if}
-        {#if detail.required_evidence.none_of?.length}
-          <h3 class="text-xs uppercase text-gray-500 mt-3 mb-1">None of</h3>
-          <ul class="space-y-1 text-sm">
-            {#each detail.required_evidence.none_of as spec (specLabel(spec))}
-              <li class="font-mono text-xs bg-red-50 border border-red-200 rounded px-2 py-1">
-                {specLabel(spec)}
-              </li>
-            {/each}
-          </ul>
-        {/if}
+        <ul class="space-y-2">
+          {#each detail.tests as test (test.id)}
+            <li class="border border-gray-200 rounded p-3 bg-white text-sm">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="font-mono text-xs text-gray-700">{test.id}</div>
+                  <div class="font-mono text-xs text-gray-500 mt-0.5 break-all">
+                    {testTypeLabel(test)}
+                  </div>
+                  {#if test.description}
+                    <p class="text-xs text-gray-600 mt-1">{test.description}</p>
+                  {/if}
+                </div>
+                <span class="font-semibold text-sm whitespace-nowrap {resultColor(test.result)}">
+                  {resultIcon(test.result)} {test.result}
+                </span>
+              </div>
+              {#if Object.keys(test.detail).length > 0}
+                <details class="mt-2">
+                  <summary class="text-xs text-gray-500 cursor-pointer">detail</summary>
+                  <pre class="text-xs bg-gray-50 p-2 rounded mt-1 overflow-x-auto">{JSON.stringify(test.detail, null, 2)}</pre>
+                </details>
+              {/if}
+            </li>
+          {/each}
+        </ul>
       {/if}
 
       {#if detail.implemented_by.length}
@@ -128,7 +139,10 @@
         <h3 class="text-xs uppercase text-gray-500 mt-5 mb-1">Satisfies</h3>
         <div class="flex flex-wrap gap-1">
           {#each detail.satisfies as s}
-            <span class="text-xs px-2 py-0.5 bg-blue-50 border border-blue-200 rounded">{s}</span>
+            <a
+              href={`/compliance/${s.ruleset}`}
+              class="text-xs px-2 py-0.5 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 font-mono"
+            >{s.ruleset}:{s.row}</a>
           {/each}
         </div>
       {/if}
@@ -137,63 +151,50 @@
         <h3 class="text-xs uppercase text-gray-500 mt-5 mb-1">Depends on</h3>
         <div class="flex flex-wrap gap-1">
           {#each detail.depends_on as d}
-            <a href={`/frs/${d}`}
-               class="text-xs px-2 py-0.5 bg-gray-100 border border-gray-200 rounded hover:bg-gray-200 font-mono">
-              {d}
-            </a>
+            <a
+              href={`/frs/${d}`}
+              class="text-xs px-2 py-0.5 bg-gray-100 border border-gray-200 rounded hover:bg-gray-200 font-mono"
+            >{d}</a>
           {/each}
         </div>
       {/if}
     </section>
 
     <section>
-      <h2 class="text-sm font-semibold uppercase text-gray-600 mb-3">Collected Evidence</h2>
-      {#if detail.evidence.length === 0}
-        <p class="text-gray-500 text-sm">No evidence collected in this run.</p>
+      <h2 class="text-sm font-semibold uppercase text-gray-600 mb-3">Computation Reason</h2>
+      {#if Object.keys(detail.reason).length > 0}
+        <pre class="text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-x-auto">{JSON.stringify(detail.reason, null, 2)}</pre>
       {:else}
-        <ul class="space-y-2">
-          {#each detail.evidence as e (e.id)}
-            <li class="border border-gray-200 rounded p-3 bg-white text-sm">
-              <div class="flex items-center gap-2">
-                <span class="font-mono text-xs px-1.5 py-0.5 bg-gray-100 rounded">{e.type}</span>
-                <span class="text-xs {(e.result === 'pass') ? 'text-green-700' : 'text-red-700'}">{e.result}</span>
-              </div>
-              {#if e.notes}
-                <p class="text-xs text-gray-700 mt-2">{e.notes}</p>
-              {/if}
-              <p class="text-xs text-gray-500 mt-1">collected {e.collected_at ? new Date(e.collected_at).toLocaleString() : '—'}</p>
-            </li>
-          {/each}
-        </ul>
+        <p class="text-gray-500 text-sm">No reason recorded.</p>
+      {/if}
+
+      {#if history && history.history.length > 1}
+        <h2 class="text-sm font-semibold uppercase text-gray-600 mt-8 mb-3">State Across Runs</h2>
+        <table class="w-full text-sm bg-white border border-gray-200">
+          <thead class="bg-gray-100 text-xs uppercase text-gray-600">
+            <tr>
+              <th class="text-left px-3 py-2">Run</th>
+              <th class="text-left px-3 py-2">State</th>
+              <th class="text-left px-3 py-2">Computed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each history.history as h (h.run_id)}
+              <tr class="border-t border-gray-200">
+                <td class="px-3 py-2 font-mono text-xs">
+                  <a href={`/scans/${h.run_id}`} class="text-blue-700 hover:underline">{h.run_id}</a>
+                </td>
+                <td class="px-3 py-2 {stateColor(h.state)} font-semibold">
+                  <span class="px-2 py-0.5 rounded text-xs">{h.state}</span>
+                </td>
+                <td class="px-3 py-2 text-xs text-gray-600">
+                  {h.computed_at ? new Date(h.computed_at).toLocaleString() : '—'}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       {/if}
     </section>
   </div>
-
-  {#if history && history.history.length > 1}
-    <section class="mt-10">
-      <h2 class="text-sm font-semibold uppercase text-gray-600 mb-3">State Across Runs</h2>
-      <table class="w-full text-sm bg-white border border-gray-200">
-        <thead class="bg-gray-100 text-xs uppercase text-gray-600">
-          <tr>
-            <th class="text-left px-3 py-2">Run</th>
-            <th class="text-left px-3 py-2">State</th>
-            <th class="text-left px-3 py-2">Computed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each history.history as h (h.run_id)}
-            <tr class="border-t border-gray-200">
-              <td class="px-3 py-2 font-mono text-xs">
-                <a href={`/scans/${h.run_id}`} class="text-blue-700 hover:underline">{h.run_id}</a>
-              </td>
-              <td class="px-3 py-2 {stateColor(h.state)} font-semibold">{h.state}</td>
-              <td class="px-3 py-2 text-xs text-gray-600">
-                {h.computed_at ? new Date(h.computed_at).toLocaleString() : '—'}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </section>
-  {/if}
 {/if}

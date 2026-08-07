@@ -71,43 +71,54 @@ export interface CodeRef {
   ref: string;
 }
 
-export interface EvidenceSpec {
-  type: string;
-  source_kind?: string;
-  rule_id?: string;
+export interface ComplianceRef {
+  ruleset: string;
+  row: string;
+}
+
+export type TestType =
+  | 'unit-test'
+  | 'integration-test'
+  | 'e2e-test'
+  | 'scanner-clean'
+  | 'scanner-clean-by-rule'
+  | 'scanner-clean-by-severity'
+  | 'scanner-finds'
+  | 'manual-attestation'
+  | 'imported';
+
+export type TestResult = 'pass' | 'fail' | 'pending';
+
+export interface TestSpec {
+  id: string;
+  type: TestType;
+  description?: string;
   name_pattern?: string;
+  scanner?: string;
+  severity_floor?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
+  rule_pattern?: string;
   format?: string;
   expected_result?: 'pass' | 'fail' | 'info' | 'manual';
 }
 
-export interface RequiredEvidence {
-  all_of?: EvidenceSpec[];
-  any_of?: EvidenceSpec[];
-  none_of?: EvidenceSpec[];
-}
-
-export interface EvidenceRow {
-  id: number;
-  type: string;
-  source: Record<string, unknown>;
-  result: string;
-  collected_at: string | null;
-  notes: string | null;
+export interface TestSpecWithResult extends TestSpec {
+  result: TestResult;
+  detail: Record<string, unknown>;
 }
 
 export interface FrDetailResponse {
   fr_id: string;
   title: string;
   description: string;
+  category: string;
   implemented_by: CodeRef[];
-  required_evidence: RequiredEvidence;
-  satisfies: string[];
+  tests: TestSpecWithResult[];
+  satisfies: ComplianceRef[];
   depends_on: string[];
   project_path: string;
   run_id: string;
   state: string;
   reason: Record<string, unknown>;
-  evidence: EvidenceRow[];
 }
 
 export interface FrHistoryEntry {
@@ -177,22 +188,22 @@ export interface TrendsResponse {
 }
 
 // ---------------------------------------------------------------------------
-// FRs list
+// FRs list (v3)
 // ---------------------------------------------------------------------------
 
 export interface FrListEntry {
   fr_id: string;
   title: string;
+  category: string;
   state: string;
   is_gap: boolean;
-  required_evidence_counts: {
-    all_of: number;
-    any_of: number;
-    none_of: number;
-    total: number;
+  test_count: number;
+  test_results: {
+    pass: number;
+    fail: number;
+    pending: number;
   };
-  evidence_count: number;
-  satisfies: string[];
+  satisfies: ComplianceRef[];
   depends_on: string[];
 }
 
@@ -200,8 +211,11 @@ export interface FrListSummary {
   total: number;
   passed: number;
   failed: number;
-  gaps: number;
+  pending: number;
+  untested: number;
   waived: number;
+  blocked: number;
+  gaps: number;
 }
 
 export interface FrListResponse {
