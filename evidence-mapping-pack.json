@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "mappings": [
+    {
+      "source": {"kind": "pytest", "name_pattern": "tests.phase1.test_catalogue::*"},
+      "fr_id": "FR-PHASE1-TESTS-PASS"
+    },
+    {
+      "source": {"kind": "pytest", "name_pattern": "tests.phase1.test_state::*"},
+      "fr_id": "FR-PHASE1-TESTS-PASS"
+    },
+    {
+      "source": {"kind": "pytest", "name_pattern": "tests.phase1.test_matcher::*"},
+      "fr_id": "FR-PHASE1-TESTS-PASS"
+    },
+    {
+      "source": {"kind": "pytest", "name_pattern": "tests.phase1.test_parsers::*"},
+      "fr_id": "FR-PHASE1-TESTS-PASS"
+    }
+  ]
+}

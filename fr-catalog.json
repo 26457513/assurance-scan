@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "project": "assurance-scan",
-  "catalogue_version": "2026-08-07T00:00:00Z",
+  "catalogue_version": "2026-08-07T10:00:00Z",
   "frs": [
     {
       "id": "FR-NO-HARDCODED-SECRETS",
@@ -42,6 +42,37 @@
       },
       "satisfies": [],
       "depends_on": []
+    },
+    {
+      "id": "FR-PHASE1-TESTS-PASS",
+      "title": "Phase 1 test suite passes",
+      "description": "All Phase 1 tests in tests/phase1/ (catalogue, state, matcher, parsers) must pass — proves the core domain logic is intact.",
+      "implemented_by": [{"kind": "glob", "ref": "tests/phase1/**/*.py"}],
+      "required_evidence": {
+        "all_of": [
+          {
+            "type": "unit-test",
+            "name_pattern": "tests.phase1.test_catalogue::*",
+            "expected_result": "pass"
+          },
+          {
+            "type": "unit-test",
+            "name_pattern": "tests.phase1.test_state::*",
+            "expected_result": "pass"
+          },
+          {
+            "type": "unit-test",
+            "name_pattern": "tests.phase1.test_matcher::*",
+            "expected_result": "pass"
+          },
+          {
+            "type": "unit-test",
+            "name_pattern": "tests.phase1.test_parsers::*",
+            "expected_result": "pass"
+          }
+        ]
+      },
+      "satisfies": []
     }
   ],
   "na_rows": []

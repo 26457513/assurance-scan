@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from server.api.routes import compliance, findings, frs, health, scans, stream, trends
+from server.api.routes import compliance, findings, frs, frs_list, health, scans, stream, trends
 from server.config import Settings, load_settings
 from server.db.connection import dispose_engine
 from server.mcp import build_mcp_server, mount_mcp_on_app
@@ -84,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(scans.router, prefix="/api")
     app.include_router(findings.router, prefix="/api")
     app.include_router(frs.router, prefix="/api")
+    app.include_router(frs_list.router, prefix="/api")
     app.include_router(stream.router, prefix="/api")
     app.include_router(compliance.router, prefix="/api")
     app.include_router(trends.router, prefix="/api")

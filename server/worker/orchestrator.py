@@ -32,7 +32,9 @@ from server.db.repositories.scanner_artifacts import ScannerArtifactRepository
 from server.db.repositories.scanner_runs import ScannerRunRepository
 from server.evidence import collect_evidence_from_findings, compute_states_for_run
 from server.events import helpers as events
+from server.project_tests import TestSuite, discover as discover_tests, run_suite
 from server.worker.parsers import parser_for
+from server.worker.parsers.junit import parse as parse_junit, to_evidence_records
 from server.worker.runner import DockerRunner
 from server.worker.scanners import CODE_SCANNERS, ScannerConfig
 
@@ -126,6 +128,13 @@ class ScanOrchestrator:
                     mapping_pack=mapping_pack,
                 )
 
+            # 5b. Run project tests (after scanners, before state computation)
+            await self._run_project_tests(
+                run_id=run_id,
+                project_path=project_path,
+                mapping_pack=mapping_pack,
+            )
+
             # 6. Compute FR states
             if catalogue is not None:
                 await compute_states_for_run(
@@ -196,6 +205,100 @@ class ScanOrchestrator:
                 run_id, scanner.kind, "failed", 0, str(exc)
             )
             return "failed"
+
+    async def _run_project_tests(
+        self,
+        run_id: str,
+        project_path: str,
+        mapping_pack,
+    ) -> None:
+        """Discover and run project test suites; insert evidence rows.
+
+        Test runs are recorded via the same scanner_runs/scanner_artifacts
+        tables, using a synthetic scanner_kind of 'project-tests' so the UI
+        groups them clearly. Per-test-case results become evidence rows
+        for any FR the mapping pack associates them with.
+        """
+        from pathlib import Path
+        suites = discover_tests(Path(project_path))
+        if not suites:
+            return
+
+        events.publish_scanner_started(run_id, "project-tests")
+        scanner_run = await self.scanner_runs.create(run_id, "project-tests")
+        await self.scanner_runs.mark_running(scanner_run.id)
+        await self.session.commit()
+
+        try:
+            all_evidence: list[dict] = []
+            mapping_index = self._test_mapping_index(mapping_pack)
+            combined_xml_parts: list[bytes] = []
+            suite_failures = 0
+
+            for suite in suites:
+                result = await run_suite(suite, project_path=project_path)
+                if not result.ok and result.returncode not in (0, 5):
+                    # pytest returns 5 for "no tests collected"; that's fine.
+                    suite_failures += 1
+                    log.warning(
+                        "test suite %s exited %d: %s",
+                        suite.id, result.returncode,
+                        result.stderr.decode("utf-8", "replace")[:200],
+                    )
+                if result.junit_xml:
+                    combined_xml_parts.append(result.junit_xml)
+                    cases = parse_junit(result.junit_xml, suite_id=suite.id)
+                    all_evidence.extend(
+                        to_evidence_records(cases, run_id, project_path, mapping_index)
+                    )
+
+            # Store the combined JUnit XML as one artifact.
+            if combined_xml_parts:
+                combined = b"<testsuites>" + b"".join(combined_xml_parts) + b"</testsuites>"
+                await self.scanner_artifacts.store(
+                    scanner_run_id=scanner_run.id,
+                    kind="junit-xml",
+                    content=combined,
+                )
+
+            if all_evidence:
+                await self.evidence.bulk_insert(all_evidence)
+
+            status = "completed" if suite_failures == 0 else "failed"
+            if status == "failed":
+                await self.scanner_runs.mark_failed(
+                    scanner_run.id,
+                    f"{suite_failures} suite(s) failed",
+                )
+            else:
+                await self.scanner_runs.mark_completed(scanner_run.id)
+            await self.session.commit()
+            events.publish_scanner_completed(
+                run_id, "project-tests", status, len(all_evidence)
+            )
+
+        except Exception as exc:
+            await self.scanner_runs.mark_failed(scanner_run.id, str(exc))
+            await self.session.commit()
+            events.publish_scanner_completed(
+                run_id, "project-tests", "failed", 0, str(exc)
+            )
+
+    @staticmethod
+    def _test_mapping_index(mapping_pack) -> dict[str, str]:
+        """Flatten the mapping pack into {name_pattern: fr_id} for tests."""
+        if mapping_pack is None:
+            return {}
+        out: dict[str, str] = {}
+        for entry in mapping_pack.mappings:
+            src = entry.get("source", {})
+            # Test mappings use kind=pytest / jest / etc. and a name_pattern.
+            if src.get("kind") in {"pytest", "jest", "go-test", "test"}:
+                pattern = src.get("name_pattern")
+                fr_id = entry.get("fr_id")
+                if pattern and fr_id:
+                    out[pattern] = fr_id
+        return out
 
     async def _insert_findings(self, parsed, run_id: str) -> None:
         rows = [

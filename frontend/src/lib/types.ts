@@ -175,3 +175,44 @@ export interface TrendsResponse {
   runs: TrendEntry[];
   delta: TrendDelta | null;
 }
+
+// ---------------------------------------------------------------------------
+// FRs list
+// ---------------------------------------------------------------------------
+
+export interface FrListEntry {
+  fr_id: string;
+  title: string;
+  state: string;
+  is_gap: boolean;
+  required_evidence_counts: {
+    all_of: number;
+    any_of: number;
+    none_of: number;
+    total: number;
+  };
+  evidence_count: number;
+  satisfies: string[];
+  depends_on: string[];
+}
+
+export interface FrListSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  gaps: number;
+  waived: number;
+}
+
+export interface FrListResponse {
+  catalogue: {
+    project: string;
+    catalogue_version: string | null;
+    fr_count: number;
+    snapshot_id: string;
+    created_at: string;
+  } | null;
+  run_id: string | null;
+  summary: FrListSummary;
+  frs: FrListEntry[];
+}

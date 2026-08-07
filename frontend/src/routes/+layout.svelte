@@ -4,6 +4,7 @@
 
   const navItems = [
     { href: '/', label: 'Scans' },
+    { href: '/frs', label: 'FRs' },
     { href: '/trends', label: 'Trends' },
     { href: '/compliance', label: 'Compliance' }
   ];

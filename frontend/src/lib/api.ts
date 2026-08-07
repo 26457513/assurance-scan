@@ -4,6 +4,7 @@ import type {
   FindingsListResponse,
   FrDetailResponse,
   FrHistoryResponse,
+  FrListResponse,
   HealthResponse,
   ScanResponse,
   ScanStatus,
@@ -66,5 +67,10 @@ export const api = {
     if (projectPath) params.set('project_path', projectPath);
     params.set('limit', String(limit));
     return getJson<TrendsResponse>(`/api/trends?${params.toString()}`);
+  },
+
+  listFRs: (projectPath?: string) => {
+    const qs = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : '';
+    return getJson<FrListResponse>(`/api/frs${qs}`);
   }
 };
