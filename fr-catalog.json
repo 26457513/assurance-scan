@@ -181,9 +181,6 @@
           "severity_floor": "HIGH",
           "description": "Gitleaks must produce no HIGH or CRITICAL findings."
         }
-      ],
-      "satisfies": [
-        {"ruleset": "ASVS", "row": "v5.0.0-2.10.4"}
       ]
     },
     {

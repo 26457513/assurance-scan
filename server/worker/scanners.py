@@ -91,9 +91,9 @@ GITLEAKS: ScannerConfig = ScannerConfig(
 TRIVY_FS: ScannerConfig = ScannerConfig(
     kind="trivy-fs",
     image="aquasec/trivy:latest",
+    # No --skip-db-update: trivy auto-downloads on first run, reuses cache after.
     command=(
         "fs",
-        "--skip-db-update",
         "--scanners", "vuln",
         "--format", "json",
         "--quiet",
@@ -135,16 +135,16 @@ GRYPE: ScannerConfig = ScannerConfig(
     command=("dir:" + PROJECT_MOUNT_TARGET, "-o", "json"),
     output_kind="json",
     extra_mounts={f"volume:{GRYPE_DB_VOLUME}": "/.cache/grype"},
-    env={"GRYPE_DB_AUTO_UPDATE": "false"},
+    env={"GRYPE_DB_AUTO_UPDATE": "true"},
 )
 
 
 OSV_SCANNER: ScannerConfig = ScannerConfig(
     kind="osv-scanner",
     image="ghcr.io/google/osv-scanner:latest",
+    # No --offline-vulnerabilities: queries OSV API on first run, caches after.
     command=(
         "scan", "source",
-        "--offline-vulnerabilities",
         "--recursive",
         "--format", "json",
         PROJECT_MOUNT_TARGET,

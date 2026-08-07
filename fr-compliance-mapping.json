@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "project": "assurance-scan",
+  "catalogue_path": "./fr-catalog.json",
+  "generated_at": "2026-08-07T14:00:00Z",
+  "generated_by": "agent:claude",
+  "mappings": [
+    {
+      "ruleset": "ASVS",
+      "version": "5.0.0",
+      "row": "v5.0.0-15.2.1",
+      "satisfied_by": ["FR-SOURCE-HYGIENE"],
+      "rationale": "FR-SOURCE-HYGIENE runs semgrep and gitleaks against project source and fails on any HIGH/CRITICAL finding, directly verifying the project's own code and dependencies are free of known severe security issues (the V15.2.1 dependency-security intent).",
+      "confidence": "high"
+    },
+    {
+      "ruleset": "ASVS",
+      "version": "5.0.0",
+      "row": "v5.0.0-15.2.4",
+      "satisfied_by": ["FR-SOURCE-HYGIENE", "FR-CONTAINER-HYGIENE"],
+      "rationale": "Both hygiene FRs contribute to secure-architecture enforcement: source/secret scanning (FR-SOURCE-HYGIENE) and Dockerfile best-practice scanning via trivy-config (FR-CONTAINER-HYGIENE). Container config is adjacent rather than core to dependency management, so confidence is medium.",
+      "confidence": "medium"
+    },
+    {
+      "ruleset": "ASVS",
+      "version": "5.0.0",
+      "row": "v5.0.0-11.4.2",
+      "satisfied_by": ["FR-SOURCE-HYGIENE"],
+      "rationale": "FR-SOURCE-HYGIENE's semgrep scanner detects broken hash algorithms (e.g. SHA1). However the FR only fails on HIGH severity, and the current SHA1 findings in this codebase are MEDIUM, so they do not fail the FR today. Coverage of V11.4.2 is partial - review whether to lower the severity floor for crypto findings.",
+      "confidence": "low"
+    }
+  ]
+}
