@@ -107,6 +107,9 @@ async def compliance_matrix(
             detail=f"no mapping entries for framework '{framework}'",
         )
 
+    # Load the compliance pack to enrich rows with titles + descriptions.
+    pack_data = _load_compliance_pack(framework, entries)
+
     # Latest run for the project (for state lookups).
     run_stmt = select(Run).where(Run.project_path == mapping_row.project_path)
     run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(1)
@@ -125,8 +128,14 @@ async def compliance_matrix(
         fr_ids = entry.get("satisfied_by", [])
         fr_states = [state_by_fr.get(fid, "untested") for fid in fr_ids]
         worst = _worst_state(fr_states)
+        row_id = entry["row"]
+        pack_info = pack_data.get(row_id, {})
         matrix.append({
-            "row_id": entry["row"],
+            "row_id": row_id,
+            "title": pack_info.get("title", row_id),
+            "description": pack_info.get("description", ""),
+            "section": pack_info.get("section", ""),
+            "level": pack_info.get("level", ""),
             "version": entry.get("version"),
             "fr_ids": fr_ids,
             "fr_states": dict(zip(fr_ids, fr_states)),
@@ -161,3 +170,52 @@ def _worst_state(states: list[str]) -> str:
         if sev in states:
             return sev
     return "untested"
+
+
+_PACK_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def _load_compliance_pack(
+    framework: str,
+    entries: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Load the compliance pack JSON and return {row_id: {title, description, ...}}.
+
+    Looks for the pack at data/compliance-packs/<framework>-<version>.json.
+    Caches per framework to avoid re-reading on every request.
+    """
+    # Determine version from the entries (all should be same version).
+    version = None
+    for e in entries:
+        if e.get("version"):
+            version = e["version"]
+            break
+
+    cache_key = f"{framework}:{version or 'any'}"
+    if cache_key in _PACK_CACHE:
+        return _PACK_CACHE[cache_key]
+
+    from pathlib import Path
+    pack_dir = (
+        Path(__file__).resolve().parents[3]
+        / "data" / "compliance-packs"
+    )
+    # Try versioned filename first, then unversioned.
+    candidates = []
+    if version:
+        candidates.append(pack_dir / f"{framework.lower()}-{version}.json")
+    candidates.append(pack_dir / f"{framework.lower()}.json")
+
+    rows_by_id: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                pack = json.loads(candidate.read_text(encoding="utf-8"))
+                for row in pack.get("rows", []):
+                    rows_by_id[row["row"]] = row
+                break
+            except (OSError, json.JSONDecodeError):
+                pass
+
+    _PACK_CACHE[cache_key] = rows_by_id
+    return rows_by_id
