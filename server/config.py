@@ -39,7 +39,9 @@ class Settings:
     # Sync URL for Alembic (uses sqlite3 driver, not aiosqlite).
     db_url_sync: str
 
-    # Project root. Set by the container's `-v $PWD:$PWD -w $PWD` invocation.
+    # Project root. Set explicitly via ASSURANCE_SCAN_PROJECT_ROOT so the
+    # entrypoint can `cd /opt/assurance-scan` (for Python imports) without
+    # losing track of where the user's project lives.
     project_root: Path
 
     # Where the host docker socket lives.
@@ -59,7 +61,10 @@ class Settings:
 def load_settings() -> Settings:
     """Build a Settings instance from the current environment."""
     db_path = _env_path("ASSURANCE_SCAN_DB_PATH", Path("/data/db.sqlite"))
-    project_root = _env_path("PWD", Path.cwd())
+    project_root = _env_path(
+        "ASSURANCE_SCAN_PROJECT_ROOT",
+        _env_path("PWD", Path.cwd()),
+    )
     return Settings(
         db_path=db_path,
         db_url=f"sqlite+aiosqlite:///{db_path.as_posix()}",

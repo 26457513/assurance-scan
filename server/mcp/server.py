@@ -38,24 +38,42 @@ from server.worker.queue import ScanQueue
 log = logging.getLogger(__name__)
 
 
+def _resolve(path_str: str, base: str) -> Path:
+    """Resolve a path against `base` (the project root) if relative.
+
+    Agents often pass `./fr-catalog.json` because that's what they see in
+    their shell. The server's process cwd usually matches (thanks to the
+    `-w "$PWD"` docker run trick), but resolving explicitly avoids any
+    ambiguity.
+    """
+    p = Path(path_str)
+    if not p.is_absolute():
+        p = Path(base) / p
+    return p
+
+
 @dataclass
 class McpDeps:
-    """Explicit injection of app-level objects into MCP tool handlers.
+    """Holds the FastAPI app; properties look up state live at tool-call time.
 
-    Avoids reaching into FastAPI's request context (which doesn't reliably
-    exist inside MCP handlers).
+    Capturing settings/queue at construction time would freeze them before
+    the lifespan runs (queue is created in the lifespan, not at app build).
     """
-    settings: Settings
-    scan_queue: ScanQueue | None
+    app: FastAPI
+
+    @property
+    def settings(self) -> Settings:
+        return self.app.state.settings
+
+    @property
+    def scan_queue(self) -> ScanQueue | None:
+        return getattr(self.app.state, "scan_queue", None)
 
 
 def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     """Construct the FastMCP server with all 9 tools registered."""
     if deps is None:
-        deps = McpDeps(
-            settings=app.state.settings,
-            scan_queue=getattr(app.state, "scan_queue", None),
-        )
+        deps = McpDeps(app=app)
 
     mcp = FastMCP("assurance-scan")
 
@@ -65,11 +83,15 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         mapping_pack_path: str | None = None,
     ) -> dict[str, Any]:
         """Validate the FR catalogue (and optional mapping pack). Returns the
-        catalogue's project, version, fr_count, and content hash."""
+        catalogue's project, version, fr_count, and content hash.
+
+        Relative paths are resolved against the server's project root (the
+        project folder the server was started against).
+        """
         project_path = str(deps.settings.project_root)
-        catalogue = load_catalogue(Path(fr_catalog_path), project_path)
+        catalogue = load_catalogue(_resolve(fr_catalog_path, project_path), project_path)
         if mapping_pack_path:
-            load_mapping_pack(Path(mapping_pack_path))
+            load_mapping_pack(_resolve(mapping_pack_path, project_path))
         return {
             "project": catalogue.doc.get("project"),
             "catalogue_version": catalogue.doc.get("catalogue_version"),
@@ -86,15 +108,23 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         urls: list[str] | None = None,
         uploads: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Start a scan. Returns run_id immediately; scan runs async."""
+        """Start a scan. Returns run_id immediately; scan runs async.
+
+        Defaults `fr_catalog_path` to `<project_root>/fr-catalog.json`.
+        Relative paths are resolved against the project root.
+        """
         if deps.scan_queue is None:
             return {"error": "queue_not_initialized"}
 
         project_path = str(deps.settings.project_root)
-        resolved_catalogue = fr_catalog_path or str(Path(project_path) / "fr-catalog.json")
-        options: dict[str, Any] = {"fr_catalog_path": resolved_catalogue}
+        resolved_catalogue = (
+            _resolve(fr_catalog_path, project_path)
+            if fr_catalog_path
+            else Path(project_path) / "fr-catalog.json"
+        )
+        options: dict[str, Any] = {"fr_catalog_path": str(resolved_catalogue)}
         if mapping_pack_path:
-            options["mapping_pack_path"] = mapping_pack_path
+            options["mapping_pack_path"] = str(_resolve(mapping_pack_path, project_path))
         if images:
             options["images"] = images
         if urls:

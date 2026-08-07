@@ -15,10 +15,20 @@ APP_DIR=/opt/assurance-scan
 ALEMBIC="${VENV}/bin/alembic"
 UVICORN="${VENV}/bin/uvicorn"
 
+# Capture the project root from `docker run -w "$PWD"` BEFORE we cd into
+# APP_DIR. The server reads ASSURANCE_SCAN_PROJECT_ROOT to know where the
+# user's project lives (for catalogue resolution, scanner bind-mounts).
+# We cd into APP_DIR so Python imports `server.main` from the image copy
+# (which has the built frontend in server/static), not from the host's
+# bind-mounted source tree (which doesn't).
+export ASSURANCE_SCAN_PROJECT_ROOT="${ASSURANCE_SCAN_PROJECT_ROOT:-$(pwd)}"
+
 cd "${APP_DIR}"
 
 case "${1:-serve}" in
   serve)
+    echo "[entrypoint] project root: ${ASSURANCE_SCAN_PROJECT_ROOT}"
+    echo "[entrypoint] app dir: $(pwd)"
     echo "[entrypoint] running migrations"
     "${ALEMBIC}" -c "${APP_DIR}/alembic.ini" upgrade head
     echo "[entrypoint] starting uvicorn"

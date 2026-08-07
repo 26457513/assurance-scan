@@ -21,7 +21,23 @@ class FrRepository(BaseRepository[Fr]):
         project_path: str,
         frs: Sequence[dict[str, Any]],
     ) -> int:
+        """Idempotent: skips FRs that already exist for this snapshot.
+
+        Reloading the same catalogue (same content hash → same snapshot id)
+        must not duplicate rows. The unique constraint on
+        (catalogue_snapshot_id, fr_id) would otherwise raise.
+        """
+        existing_ids_stmt = select(Fr.fr_id).where(
+            Fr.catalogue_snapshot_id == catalogue_snapshot_id
+        )
+        existing_ids = {
+            row[0] for row in (await self.session.execute(existing_ids_stmt)).all()
+        }
+
+        inserted = 0
         for fr in frs:
+            if fr["id"] in existing_ids:
+                continue
             self.session.add(
                 Fr(
                     catalogue_snapshot_id=catalogue_snapshot_id,
@@ -35,8 +51,11 @@ class FrRepository(BaseRepository[Fr]):
                     depends_on_json=json.dumps(fr.get("depends_on", [])),
                 )
             )
-        await self._flush()
-        return len(frs)
+            inserted += 1
+
+        if inserted:
+            await self._flush()
+        return inserted
 
     async def list_for_snapshot(self, catalogue_snapshot_id: str) -> Sequence[Fr]:
         result = await self.session.execute(

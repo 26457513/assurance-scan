@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "project": "assurance-scan",
+  "catalogue_version": "2026-08-07T00:00:00Z",
+  "frs": [
+    {
+      "id": "FR-NO-HARDCODED-SECRETS",
+      "title": "No hardcoded secrets in source",
+      "description": "Source files must not contain hardcoded credentials (AWS keys, GitHub PATs, JWTs, private keys).",
+      "implemented_by": [{"kind": "glob", "ref": "**/*.py"}],
+      "required_evidence": {
+        "none_of": [
+          {"type": "scanner-result", "source_kind": "gitleaks", "rule_id": "aws-access-key"},
+          {"type": "scanner-result", "source_kind": "gitleaks", "rule_id": "github-pat"},
+          {"type": "scanner-result", "source_kind": "gitleaks", "rule_id": "jwt"},
+          {"type": "scanner-result", "source_kind": "gitleaks", "rule_id": "private-key"}
+        ]
+      },
+      "satisfies": ["ASVS:v5.0.0-2.10.4"]
+    },
+    {
+      "id": "FR-NO-EVAL",
+      "title": "No use of eval() in source",
+      "description": "Python source must not call eval() — code injection risk.",
+      "implemented_by": [{"kind": "glob", "ref": "**/*.py"}],
+      "required_evidence": {
+        "none_of": [
+          {"type": "scanner-result", "source_kind": "semgrep", "rule_id": "python.lang.security.audit.eval-detected.eval-detected"}
+        ]
+      },
+      "satisfies": ["ASVS:v5.0.0-5.3.4"]
+    },
+    {
+      "id": "FR-DOCKERFILE-CLEAN",
+      "title": "Dockerfile must not install build-only dependencies in the runtime stage",
+      "description": "gcc, musl-dev, and python3-dev are only needed at wheel-build time. The runtime stage should not ship compilers.",
+      "implemented_by": [{"kind": "file", "ref": "Dockerfile"}],
+      "required_evidence": {
+        "none_of": [
+          {"type": "scanner-result", "source_kind": "trivy-config", "rule_id": "DS002"}
+        ]
+      },
+      "satisfies": [],
+      "depends_on": []
+    }
+  ],
+  "na_rows": []
+}
