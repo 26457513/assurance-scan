@@ -70,6 +70,42 @@ class McpDeps:
         return getattr(self.app.state, "scan_queue", None)
 
 
+async def _discover_dashboard_url() -> str:
+    """Discover the host-side dashboard URL by checking docker port mapping.
+
+    Tries `docker port <container> 8000` to find the published port.
+    Falls back to http://localhost:8000/frs if discovery fails.
+    """
+    import asyncio
+    import os
+
+    container_id = os.environ.get("HOSTNAME", "")
+    if not container_id:
+        return "http://localhost:8000/frs"
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "port", container_id, "8000",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        if proc.returncode == 0 and stdout:
+            line = stdout.decode().strip().split("\n")[0].strip()
+            # Parse "0.0.0.0:8742" or "127.0.0.1:8742" or "[::]:8742"
+            parts = line.rsplit(":", 1)
+            if len(parts) == 2:
+                host = parts[0].strip("[]")
+                port = parts[1]
+                if host in ("0.0.0.0", "::"):
+                    host = "localhost"
+                return f"http://{host}:{port}/frs"
+    except (asyncio.TimeoutError, Exception):
+        pass
+
+    return "http://localhost:8000/frs"
+
+
 def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     """Construct the FastMCP server with all 9 tools registered."""
     if deps is None:
@@ -324,7 +360,8 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
 
         Call this FIRST in any new session. It inspects the project folder
         for an FR catalogue and compliance mapping, checks the DB for recent
-        scans, and returns a `next_steps` list the agent can follow.
+        scans, discovers the dashboard URL, and returns a `next_steps` list
+        the agent can follow.
 
         The server stays deterministic — it doesn't draft catalogues or
         mappings. It tells the agent what to do next so the user doesn't
@@ -352,6 +389,9 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
                 latest_run_id = run_row.run_id
                 latest_run_status = run_row.status
 
+        # Discover the dashboard URL by checking docker port mapping.
+        dashboard_url = await _discover_dashboard_url()
+
         # Build step-by-step guidance
         steps: list[str] = []
         recommended_workflow: str
@@ -361,7 +401,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             recommended_workflow = "setup-project"
         else:
             steps.append("Call load_fr_catalog with fr_catalog_path=\"./fr-catalog.json\" to validate the catalogue.")
-            steps.append("Call start_scan to run an initial scan (~90 seconds).")
+            steps.append("Call start_scan to run an initial scan (~90 seconds; first run may take ~3-5 minutes for scanner DB downloads).")
             if not mapping_exists:
                 steps.append("After the scan completes, draft a compliance mapping: read data/compliance-packs/asvs-5.0.0.json, match ASVS rows to FRs, write ./fr-compliance-mapping.json with rationale + confidence. Show the user before writing.")
                 steps.append("Call start_scan again to load the mapping.")
@@ -372,6 +412,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
 
         return {
             "project_root": str(project_root),
+            "dashboard_url": dashboard_url,
             "catalogue_exists": catalogue_exists,
             "catalogue_path": str(catalogue_path),
             "mapping_exists": mapping_exists,
