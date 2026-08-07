@@ -88,6 +88,9 @@ COPY data/schemas/ /opt/assurance-scan/data/schemas/
 # Workflow prompt definitions served via MCP
 COPY data/workflows/ /opt/assurance-scan/data/workflows/
 
+# Compliance packs (framework row data — agent reads these to draft mappings)
+COPY data/compliance-packs/ /opt/assurance-scan/data/compliance-packs/
+
 # Entrypoint
 RUN chmod +x /opt/assurance-scan/server/entrypoint.sh \
     && ln -s /opt/assurance-scan/server/entrypoint.sh /usr/local/bin/assurance-scan
