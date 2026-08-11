@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.api.deps import SessionDep
-from server.db.models import CatalogueSnapshot, Fr, FrState, Run, TestResult
+from server.db.models import CatalogueSnapshot, ComplianceMapping, Fr, FrState, Run, TestResult, Waiver
 
 
 router = APIRouter(tags=["frs"])
@@ -67,17 +67,55 @@ async def list_frs(
         for tr in tr_rows:
             test_results_by_fr.setdefault(tr.fr_id, Counter())[tr.result] += 1
 
+    # Active waivers — surfaced so the UI can show *why* an FR is waived,
+    # not just that it is.
+    import datetime as _dt
+    waiver_rows = (await session.execute(
+        select(Waiver).where(Waiver.project_path == snapshot.project_path)
+    )).scalars().all()
+    now = _dt.datetime.now(_dt.timezone.utc)
+    waiver_by_fr: dict[str, Waiver] = {}
+    for w in waiver_rows:
+        if w.expires_at is not None and w.expires_at <= now:
+            continue
+        # Most recent waiver wins if multiple exist for the same FR.
+        waiver_by_fr[w.fr_id] = w
+
+    # Derive satisfies from the compliance mapping (reverse lookup).
+    satisfies_by_fr: dict[str, list[dict]] = {}
+    mapping_stmt = (
+        select(ComplianceMapping)
+        .where(ComplianceMapping.project_path == snapshot.project_path)
+        .order_by(ComplianceMapping.loaded_at.desc())
+        .limit(1)
+    )
+    mapping_row = (await session.execute(mapping_stmt)).scalars().first()
+    if mapping_row:
+        mapping_doc = json.loads(mapping_row.mapping_doc_json)
+        for entry in mapping_doc.get("mappings", []):
+            if not entry.get("appropriate", True):
+                continue
+            for fr_id in entry.get("satisfied_by", []):
+                satisfies_by_fr.setdefault(fr_id, []).append({
+                    "ruleset": entry.get("ruleset", ""),
+                    "row": entry.get("row", ""),
+                })
+
     GAP_STATES = {"untested", "pending", "failed", "blocked"}
 
     entries = []
     for fr in fr_rows:
         state = state_by_fr.get(fr.fr_id, "untested")
         result_counts = test_results_by_fr.get(fr.fr_id, Counter())
+        waiver = waiver_by_fr.get(fr.fr_id) if state == "waived" else None
         entries.append({
             "fr_id": fr.fr_id,
             "title": fr.title,
             "category": fr.category or "",
             "state": state,
+            "waiver_reason": waiver.reason if waiver else None,
+            "waived_by": waiver.waived_by if waiver else None,
+            "waiver_expires_at": waiver.expires_at.isoformat() if waiver and waiver.expires_at else None,
             "is_gap": state in GAP_STATES,
             "test_count": fr_tests_count.get(fr.fr_id, 0),
             "test_results": {
@@ -85,13 +123,14 @@ async def list_frs(
                 "fail": result_counts.get("fail", 0),
                 "pending": result_counts.get("pending", 0),
             },
-            "satisfies": json.loads(fr.satisfies_json or "[]"),
+            "satisfies": satisfies_by_fr.get(fr.fr_id, []),
             "depends_on": json.loads(fr.depends_on_json or "[]"),
         })
 
     summary = {
         "total": len(entries),
         "passed": sum(1 for e in entries if e["state"] == "passed"),
+        "accepted": sum(1 for e in entries if e["state"] == "accepted"),
         "failed": sum(1 for e in entries if e["state"] == "failed"),
         "pending": sum(1 for e in entries if e["state"] == "pending"),
         "untested": sum(1 for e in entries if e["state"] == "untested"),

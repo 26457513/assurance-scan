@@ -7,8 +7,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // Forward API calls to the FastAPI backend during dev.
-      '/api': 'http://127.0.0.1:8000',
-      '/health': 'http://127.0.0.1:8000'
+      '/api': 'http://127.0.0.1:8742',
+      '/health': 'http://127.0.0.1:8742'
     }
   }
 });

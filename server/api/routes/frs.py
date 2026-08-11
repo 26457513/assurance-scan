@@ -8,10 +8,39 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.api.deps import SessionDep
-from server.db.models import Fr, FrState, Run, TestResult
+from server.db.models import CatalogueSnapshot, ComplianceMapping, Fr, FrState, Run, TestResult, Waiver
 
 
 router = APIRouter(tags=["frs"])
+
+
+async def _derive_satisfies(session: AsyncSession, project_path: str, fr_id: str) -> list[dict]:
+    """Derive compliance-row references for an FR from the mapping table.
+
+    The mapping file owns ASVS↔FR relationships now; the catalogue no longer
+    carries `satisfies`. This reverse-lookup reads the latest ComplianceMapping
+    and collects all appropriate rows that reference this FR.
+    """
+    mapping_stmt = (
+        select(ComplianceMapping)
+        .where(ComplianceMapping.project_path == project_path)
+        .order_by(ComplianceMapping.loaded_at.desc())
+        .limit(1)
+    )
+    mapping_row = (await session.execute(mapping_stmt)).scalars().first()
+    if mapping_row is None:
+        return []
+    mapping_doc = json.loads(mapping_row.mapping_doc_json)
+    result = []
+    for entry in mapping_doc.get("mappings", []):
+        if not entry.get("appropriate", True):
+            continue
+        if fr_id in entry.get("satisfied_by", []):
+            result.append({
+                "ruleset": entry.get("ruleset", ""),
+                "row": entry.get("row", ""),
+            })
+    return result
 
 
 @router.get("/frs/{fr_id}")
@@ -68,6 +97,21 @@ async def get_fr_detail(
     )
     state_row = (await session.execute(state_stmt)).scalars().first()
 
+    # Active waiver (if state is waived) — surface the human-readable reason.
+    import datetime as _dt
+    waiver_row = None
+    if state_row and state_row.state == "waived":
+        now = _dt.datetime.now(_dt.timezone.utc)
+        waiver_rows = (await session.execute(
+            select(Waiver)
+            .where(Waiver.project_path == fr.project_path, Waiver.fr_id == fr_id)
+            .order_by(Waiver.waived_at.desc())
+        )).scalars().all()
+        for w in waiver_rows:
+            if w.expires_at is None or w.expires_at > now:
+                waiver_row = w
+                break
+
     return {
         "fr_id": fr.fr_id,
         "title": fr.title,
@@ -82,12 +126,15 @@ async def get_fr_detail(
             }
             for test in tests_for_fr
         ],
-        "satisfies": json.loads(fr.satisfies_json or "[]"),
+        "satisfies": await _derive_satisfies(session, fr.project_path, fr.fr_id),
         "depends_on": json.loads(fr.depends_on_json or "[]"),
         "project_path": fr.project_path,
         "run_id": run_id,
         "state": state_row.state if state_row else "untested",
         "reason": json.loads(state_row.reason_json) if state_row else {},
+        "waiver_reason": waiver_row.reason if waiver_row else None,
+        "waived_by": waiver_row.waived_by if waiver_row else None,
+        "waiver_expires_at": waiver_row.expires_at.isoformat() if waiver_row and waiver_row.expires_at else None,
     }
 
 

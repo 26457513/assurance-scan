@@ -26,22 +26,34 @@
   "$defs": {
     "mapping": {
       "type": "object",
-      "required": ["ruleset", "row", "satisfied_by", "rationale", "confidence"],
+      "required": ["ruleset", "row", "appropriate", "satisfied_by", "rationale", "confidence"],
       "additionalProperties": false,
       "properties": {
         "ruleset": {"type": "string", "minLength": 1},
         "version": {"type": "string"},
         "row": {"type": "string", "minLength": 1},
+        "appropriate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether this compliance row applies to the project. When false, the row shows as 'N/A' in the compliance matrix with the rationale explaining why."
+        },
         "satisfied_by": {
           "type": "array",
-          "minItems": 1,
           "items": {"type": "string", "pattern": "^FR-[A-Za-z0-9_.-]+$"},
-          "description": "FR IDs whose capabilities address this compliance row."
+          "description": "FR IDs whose capabilities address this compliance row. Empty when appropriate is false."
+        },
+        "test_refs": {
+          "type": "object",
+          "description": "Optional: per-FR test IDs that are relevant to this specific compliance row. Keys are FR IDs, values are arrays of test IDs. When absent, all tests on the referenced FRs are assumed relevant.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
         },
         "rationale": {
           "type": "string",
           "minLength": 1,
-          "description": "Why the agent believes the cited FRs address this row. Shown in the UI for human review."
+          "description": "Why the mapping is (or isn't) appropriate. For appropriate rows: why the cited FRs address this row. For inappropriate rows: why it doesn't apply. Shown in the UI for human review."
         },
         "confidence": {
           "enum": ["high", "medium", "low"],

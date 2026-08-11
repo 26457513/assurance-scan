@@ -1,22 +1,67 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { api } from '$lib/api';
-  import type { ScanStatus, FindingsListResponse } from '$lib/types';
+  import { selectScan } from '$lib/stores/selectedScan';
+  import ScanResultsView from '$lib/components/ScanResultsView.svelte';
+  import CatalogueView from '$lib/components/CatalogueView.svelte';
+  import ComplianceView from '$lib/components/ComplianceView.svelte';
+  import FixView from '$lib/components/FixView.svelte';
+  import EvidenceTreeView from '$lib/components/EvidenceTreeView.svelte';
+  import ConfigView from '$lib/components/ConfigView.svelte';
+  import type { ScanStatus, ScanSummary } from '$lib/types';
 
-  let scan: ScanStatus | null = null;
-  let findings: FindingsListResponse | null = null;
+  const runId = $page.params.run_id ?? '';
+
+  let scan: ScanSummary | null = null;
   let loading = true;
   let error: string | null = null;
-  let severityFilter: string | null = null;
-  let es: EventSource | null = null;
 
-  const runId = $page.params.run_id;
+  const tabs = [
+    { id: 'config', label: 'Config' },
+    { id: 'results', label: 'Results' },
+    { id: 'evidence', label: 'Evidence' },
+    { id: 'fix', label: 'Fix' }
+  ] as const;
 
-  async function refresh() {
+  type TabId = (typeof tabs)[number]['id'];
+
+  const RESULTS_SUB_TABS = [
+    { id: 'scan', label: 'Scan' },
+    { id: 'frs', label: 'FRs' },
+    { id: 'compliance', label: 'Compliance' }
+  ] as const;
+
+  type ResultsSubId = (typeof RESULTS_SUB_TABS)[number]['id'];
+
+  let activeTab: TabId = 'results';
+  let resultsSub: ResultsSubId = 'scan';
+
+  $: {
+    const raw = $page.url.searchParams.get('tab');
+    activeTab = tabs.some((t) => t.id === raw) ? (raw as TabId) : 'results';
+    const rawSub = $page.url.searchParams.get('sub');
+    resultsSub = RESULTS_SUB_TABS.some((t) => t.id === rawSub) ? (rawSub as ResultsSubId) : 'scan';
+  }
+
+  async function loadScan() {
     try {
-      scan = await api.getScan(runId);
-      findings = await api.listFindings(runId, severityFilter ?? undefined);
+      const status: ScanStatus = await api.getScan(runId);
+      scan = {
+        run_id: status.run_id,
+        project_path: status.project_path,
+        status: status.status,
+        started_at: status.started_at,
+        completed_at: status.completed_at,
+        finding_count: 0
+      };
+      selectScan(scan);
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('run_id') !== runId) {
+        url.searchParams.set('run_id', runId);
+        goto(`${url.pathname}?${url.searchParams.toString()}`, { replaceState: true, noScroll: true });
+      }
       error = null;
     } catch (e) {
       error = String(e);
@@ -25,153 +70,101 @@
     }
   }
 
-  function connectSSE() {
-    es = new EventSource(`/api/scans/${runId}/stream`);
-    es.addEventListener('scanner_started', (e) => {
-      const payload = JSON.parse((e as MessageEvent).data);
-      if (scan) {
-        const existing = scan.scanner_status.find((s) => s.kind === payload.scanner);
-        if (existing) existing.status = 'running';
-        scan = scan; // trigger reactivity
-      }
-    });
-    es.addEventListener('scanner_completed', (e) => {
-      const payload = JSON.parse((e as MessageEvent).data);
-      if (scan) {
-        const existing = scan.scanner_status.find((s) => s.kind === payload.scanner);
-        if (existing) {
-          existing.status = payload.status;
-          existing.error_message = payload.error_message ?? null;
-        }
-        scan = scan;
-      }
-      refresh(); // findings list updates as scanners complete
-    });
-    es.addEventListener('scan_completed', () => {
-      es?.close();
-      es = null;
-      refresh();
-    });
-    es.onerror = () => {
-      // Fall back to polling if SSE fails.
-      es?.close();
-      es = null;
-      setTimeout(refresh, 5000);
-    };
-  }
-
   onMount(() => {
-    refresh().then(() => {
-      if (scan && (scan.status === 'running' || scan.status === 'queued')) {
-        connectSSE();
-      }
-    });
+    loadScan();
   });
 
-  onDestroy(() => {
-    es?.close();
-  });
-
-  $: if (severityFilter) refresh();
-
-  function fmtDate(s: string | null): string {
-    return s ? new Date(s).toLocaleString() : '—';
+  function switchTab(id: TabId) {
+    const url = new URL(window.location.href);
+    if (id === 'results') {
+      url.searchParams.delete('tab');
+    } else {
+      url.searchParams.set('tab', id);
+    }
+    const qs = url.searchParams.toString();
+    goto(`${url.pathname}${qs ? `?${qs}` : ''}`, { noScroll: true });
   }
 
-  function severityClass(s: string): string {
-    return `text-severity-${s ?? 'UNKNOWN'}`;
+  function switchResultsSub(id: ResultsSubId) {
+    resultsSub = id;
+    const url = new URL(window.location.href);
+    if (id === 'scan') {
+      url.searchParams.delete('sub');
+    } else {
+      url.searchParams.set('sub', id);
+    }
+    const qs = url.searchParams.toString();
+    goto(`${url.pathname}${qs ? `?${qs}` : ''}`, { noScroll: true });
   }
 </script>
 
-{#if loading}
-  <p class="text-gray-500">Loading…</p>
-{:else if error}
-  <p class="text-red-700">{error}</p>
-{:else if scan}
-  <header class="mb-6">
-    <a href="/" class="text-sm text-blue-700 hover:underline">← All scans</a>
-    <h1 class="text-2xl font-semibold mt-2 font-mono text-base">{scan.run_id}</h1>
-    <p class="text-sm text-gray-600 mt-1">
-      <span class="font-mono">{scan.project_path}</span>
-      · <span class="font-semibold">{scan.status}</span>
-      {#if scan.started_at}· started {fmtDate(scan.started_at)}{/if}
-      {#if scan.completed_at}· completed {fmtDate(scan.completed_at)}{/if}
-    </p>
-  </header>
+<div class="border-b border-line-hairline">
+  <div class="px-6 pt-3 flex items-center gap-0.5 overflow-x-auto">
+    {#each tabs as t (t.id)}
+      <button
+        type="button"
+        on:click={() => switchTab(t.id)}
+        class="relative px-3.5 py-2.5 text-[11px] font-mono uppercase tracking-[0.12em] transition-colors whitespace-nowrap"
+        class:text-accent={activeTab === t.id}
+        class:text-ink-muted={activeTab !== t.id}
+        class:hover:text-ink-secondary={activeTab !== t.id}
+      >
+        {t.label}
+        {#if activeTab === t.id}
+          <span class="absolute left-0 right-0 -bottom-px h-[2px] bg-accent"></span>
+        {/if}
+      </button>
+    {/each}
+  </div>
+</div>
 
-  <section class="mb-8">
-    <h2 class="text-sm font-semibold uppercase text-gray-600 mb-2">Scanners</h2>
-    <div class="flex flex-wrap gap-2">
-      {#each scan.scanner_status as s (s.kind)}
-        <div class="px-3 py-1.5 border border-gray-200 rounded text-sm bg-white">
-          <span class="font-mono">{s.kind}</span>
-          <span class="text-gray-500 ml-2">·</span>
-          <span
-            class="ml-1 {s.status === 'completed'
-              ? 'text-green-700'
-              : s.status === 'failed'
-                ? 'text-red-700'
-                : s.status === 'running'
-                  ? 'text-blue-700'
-                  : 'text-gray-600'}"
-          >
-            {s.status}
-            {#if s.status === 'running'}<span class="animate-pulse">▌</span>{/if}
-          </span>
-          {#if s.error_message}
-            <span class="block text-xs text-red-700 mt-1">{s.error_message}</span>
-          {/if}
-        </div>
-      {:else}
-        <p class="text-gray-500 text-sm">No scanners yet — scan may be initializing.</p>
-      {/each}
-    </div>
-  </section>
-
-  {#if findings}
-    <section>
-      <header class="flex items-center justify-between mb-3">
-        <h2 class="text-sm font-semibold uppercase text-gray-600">
-          Findings ({findings.total})
-        </h2>
-        <div class="flex gap-1 text-xs">
-          <button
-            class="px-2 py-1 border rounded {severityFilter === null ? 'bg-gray-900 text-white' : 'bg-white'}"
-            on:click={() => (severityFilter = null)}>All</button>
-          {#each ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as sev}
-            <button
-              class="px-2 py-1 border rounded {severityFilter === sev ? 'bg-gray-900 text-white' : 'bg-white'}"
-              on:click={() => (severityFilter = sev)}>{sev}</button>
-          {/each}
-        </div>
-      </header>
-
-      {#if findings.findings.length === 0}
-        <p class="text-gray-500">No findings match this filter.</p>
-      {:else}
-        <table class="w-full text-sm bg-white border border-gray-200">
-          <thead class="bg-gray-100 text-xs uppercase text-gray-600">
-            <tr>
-              <th class="text-left px-3 py-2 w-24">Severity</th>
-              <th class="text-left px-3 py-2 w-28">Scanner</th>
-              <th class="text-left px-3 py-2">File:Line</th>
-              <th class="text-left px-3 py-2">Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each findings.findings as f (f.id)}
-              <tr class="border-t border-gray-200">
-                <td class="px-3 py-2 font-semibold {severityClass(f.severity)}">{f.severity}</td>
-                <td class="px-3 py-2 font-mono text-xs">{f.scanner_kind}</td>
-                <td class="px-3 py-2 font-mono text-xs">
-                  {#if f.file_path}{f.file_path}:{f.line_start ?? '?'}{/if}
-                </td>
-                <td class="px-3 py-2">{f.message}</td>
-              </tr>
+<div>
+  {#if loading}
+    <div class="p-6 text-[12px] text-ink-muted font-mono">Loading…</div>
+  {:else if error}
+    <div class="p-6 text-[12px] text-state-failed font-mono">{error}</div>
+  {:else if scan}
+    {#key scan.run_id + activeTab + (activeTab === 'results' ? resultsSub : '')}
+      {#if activeTab === 'config'}
+        <ConfigView {scan} />
+      {:else if activeTab === 'results'}
+        <div>
+          <div class="border-b border-line-hairline px-6 pt-2 pb-0 flex items-center gap-0.5">
+            {#each RESULTS_SUB_TABS as st (st.id)}
+              <button
+                type="button"
+                on:click={() => switchResultsSub(st.id)}
+                class="relative px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.12em] transition-colors whitespace-nowrap"
+                class:text-accent={resultsSub === st.id}
+                class:text-ink-muted={resultsSub !== st.id}
+                class:hover:text-ink-secondary={resultsSub !== st.id}
+              >
+                {st.label}
+                {#if resultsSub === st.id}
+                  <span class="absolute left-0 right-0 -bottom-px h-[1px] bg-accent"></span>
+                {/if}
+              </button>
             {/each}
-          </tbody>
-        </table>
+          </div>
+          <div class="p-6">
+            {#if resultsSub === 'scan'}
+              <ScanResultsView {scan} />
+            {:else if resultsSub === 'frs'}
+              <CatalogueView {scan} />
+            {:else if resultsSub === 'compliance'}
+              <ComplianceView {scan} />
+            {/if}
+          </div>
+        </div>
+      {:else if activeTab === 'evidence'}
+        <div class="p-6">
+          <EvidenceTreeView {scan} />
+        </div>
+      {:else if activeTab === 'fix'}
+        <div class="p-6">
+          <FixView {scan} />
+        </div>
       {/if}
-    </section>
+    {/key}
   {/if}
-{/if}
+</div>

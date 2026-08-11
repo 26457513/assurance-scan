@@ -1,0 +1,110 @@
+<script lang="ts">
+  import SeverityBadge from './SeverityBadge.svelte';
+  import type { FindingResponse } from '$lib/types';
+
+  export let findings: FindingResponse[] = [];
+  export let total = 0;
+  export let bySeverity: Record<string, number> = {};
+
+  let activeSeverity: string | null = null;
+  let expandedId: number | null = null;
+
+  $: severities = Object.keys(bySeverity).filter((s) => bySeverity[s] > 0);
+  $: filtered = activeSeverity ? findings.filter((f) => f.severity === activeSeverity) : findings;
+
+  function toggle(id: number) {
+    expandedId = expandedId === id ? null : id;
+  }
+
+  function scanLevel(scanner: string): 'code' | 'image' {
+    if (['syft', 'grype', 'trivy-fs'].includes(scanner)) return 'image';
+    return 'code';
+  }
+
+  const COLS = 'grid-cols-[80px_120px_44px_minmax(0,1fr)_minmax(140px,220px)_24px]';
+</script>
+
+<div>
+  {#if severities.length > 0}
+    <div class="flex items-center gap-1.5 mb-3 flex-wrap">
+      <button
+        type="button"
+        on:click={() => (activeSeverity = null)}
+        class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors"
+        class:border-line-strong={activeSeverity === null}
+        class:text-ink-primary={activeSeverity === null}
+        class:border-line-hairline={activeSeverity !== null}
+        class:text-ink-muted={activeSeverity !== null}
+      >All ({total})</button>
+      {#each severities as sev (sev)}
+        <button
+          type="button"
+          on:click={() => (activeSeverity = activeSeverity === sev ? null : sev)}
+          class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors"
+          class:border-line-strong={activeSeverity === sev}
+          class:border-line-hairline={activeSeverity !== sev}
+        >
+          <SeverityBadge severity={sev} count={bySeverity[sev]} />
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
+    <div class="grid {COLS} gap-3 px-3 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+      <div>Sev</div>
+      <div>Scanner</div>
+      <div>Lvl</div>
+      <div>Message</div>
+      <div>Location</div>
+      <div></div>
+    </div>
+
+    {#each filtered as f (f.id)}
+      <div class="border-b border-line-hairline last:border-0">
+        <button
+          type="button"
+          on:click={() => toggle(f.id)}
+          class="w-full text-left grid {COLS} gap-3 px-3 py-2 hover:bg-surface-elevated transition-colors items-center"
+        >
+          <div><SeverityBadge severity={f.severity} /></div>
+          <div class="font-mono text-[11px] text-ink-secondary truncate">{f.scanner_kind}</div>
+          <div class="font-mono text-[10px] text-ink-muted">{scanLevel(f.scanner_kind)}</div>
+          <div class="text-[12px] text-ink-primary truncate" title={f.message}>{f.message}</div>
+          <div class="font-mono text-[11px] text-ink-muted truncate" title={f.file_path ?? ''}>
+            {#if f.file_path}{f.file_path}{#if f.line_start}:{f.line_start}{/if}{:else}—{/if}
+          </div>
+          <div class="text-ink-muted flex items-center justify-center">
+            <svg class="h-3 w-3 transition-transform duration-150 {expandedId === f.id ? 'rotate-180' : ''}" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 4.5l3 3 3-3" stroke-linecap="round" />
+            </svg>
+          </div>
+        </button>
+        {#if expandedId === f.id}
+          <div class="px-3 py-4 bg-surface-inset border-t border-line-hairline">
+            <dl class="grid grid-cols-[100px_minmax(0,1fr)] gap-x-4 gap-y-2.5">
+              {#if f.rule_id}
+                <dt class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted pt-[3px]">rule</dt>
+                <dd class="font-mono text-[11px] text-ink-secondary break-all">{f.rule_id}</dd>
+              {/if}
+              {#if f.theme}
+                <dt class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted pt-[3px]">theme</dt>
+                <dd class="text-[12px] text-ink-primary break-words">{f.theme}</dd>
+              {/if}
+              {#if f.fix_strategy}
+                <dt class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted pt-[3px]">fix strategy</dt>
+                <dd class="font-mono text-[11px] text-ink-secondary">{f.fix_strategy}</dd>
+              {/if}
+              {#if f.compliance_tags.length > 0}
+                <dt class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted pt-[3px]">tags</dt>
+                <dd class="text-[11px] text-ink-secondary break-words leading-[1.6]">{f.compliance_tags.join('  ·  ')}</dd>
+              {/if}
+            </dl>
+          </div>
+        {/if}
+      </div>
+    {:else}
+      <div class="px-3 py-8 text-center text-[12px] text-ink-muted font-mono">no findings</div>
+    {/each}
+  </div>
+</div>

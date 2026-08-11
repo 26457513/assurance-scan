@@ -75,27 +75,6 @@ def test_v3_accepts_empty_tests_array(tmp_path: Path) -> None:
     assert loaded.doc["frs"][0]["tests"] == []
 
 
-def test_v3_supports_compliance_satisfies(tmp_path: Path) -> None:
-    catalogue = {
-        "schema_version": 3,
-        "project": "p",
-        "frs": [
-            {
-                "id": "FR-X",
-                "title": "T",
-                "description": "D",
-                "tests": [],
-                "satisfies": [{"ruleset": "ASVS", "row": "v5.0.0-1.1.1"}],
-            }
-        ],
-    }
-    path = tmp_path / "fr-catalog.json"
-    path.write_text(json.dumps(catalogue))
-
-    loaded = load_catalogue(path, project_path=str(tmp_path))
-    assert loaded.doc["frs"][0]["satisfies"][0]["row"] == "v5.0.0-1.1.1"
-
-
 def test_v3_supports_depends_on(tmp_path: Path) -> None:
     catalogue = {
         "schema_version": 3,

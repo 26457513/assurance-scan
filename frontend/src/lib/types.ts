@@ -99,6 +99,13 @@ export interface TestSpec {
   rule_pattern?: string;
   format?: string;
   expected_result?: 'pass' | 'fail' | 'info' | 'manual';
+  display?: {
+    input?: Record<string, unknown>;
+    output?: Record<string, unknown>;
+    input_example?: unknown;
+    output_example?: unknown;
+    side_effect?: string[];
+  };
 }
 
 export interface TestSpecWithResult extends TestSpec {
@@ -119,6 +126,9 @@ export interface FrDetailResponse {
   run_id: string;
   state: string;
   reason: Record<string, unknown>;
+  waiver_reason?: string | null;
+  waived_by?: string | null;
+  waiver_expires_at?: string | null;
 }
 
 export interface FrHistoryEntry {
@@ -150,17 +160,37 @@ export interface ComplianceListResponse {
 
 export interface ComplianceRow {
   row_id: string;
+  title: string;
+  description: string;
+  section: string;
+  level: string;
+  version?: string;
+  appropriate: boolean;
   fr_ids: string[];
-  states: string[];
-  projects: string[];
+  fr_states: Record<string, string>;
   worst_state: string;
+  rationale: string;
+  confidence: string;
 }
 
 export interface ComplianceMatrixResponse {
   framework: string;
+  project_path: string;
+  mapping_loaded_at: string;
+  mapping_hash: string;
+  run_id: string | null;
   row_count: number;
   summary: Record<string, number>;
   rows: ComplianceRow[];
+}
+
+export type GapBucket = 'untested' | 'failed' | 'pending';
+
+export interface GapFrClassification {
+  frId: string;
+  title: string;
+  bucket: GapBucket;
+  ruleIds?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -188,6 +218,45 @@ export interface TrendsResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Test source
+// ---------------------------------------------------------------------------
+
+export interface TestSourceResponse {
+  path: string;
+  language: string;
+  content: string;
+  line_count: number;
+}
+
+// ---------------------------------------------------------------------------
+// Config viewer
+// ---------------------------------------------------------------------------
+
+export interface ConfigResponse {
+  catalogue: Record<string, unknown> | null;
+  mapping: Record<string, unknown> | null;
+  compliance_packs: Record<string, Record<string, unknown>>;
+}
+
+// ---------------------------------------------------------------------------
+// Finding acceptance (triage board)
+// ---------------------------------------------------------------------------
+
+export interface FindingAcceptance {
+  id: number;
+  scanner_kind: string;
+  rule_id: string;
+  risk_level: string;
+  rationale: string;
+  fix_assessment: string | null;
+  invalidation_conditions: string | null;
+  accepted_by: string;
+  accepted_at: string;
+  expires_at: string | null;
+  active: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // FRs list (v3)
 // ---------------------------------------------------------------------------
 
@@ -205,11 +274,15 @@ export interface FrListEntry {
   };
   satisfies: ComplianceRef[];
   depends_on: string[];
+  waiver_reason?: string | null;
+  waived_by?: string | null;
+  waiver_expires_at?: string | null;
 }
 
 export interface FrListSummary {
   total: number;
   passed: number;
+  accepted: number;
   failed: number;
   pending: number;
   untested: number;

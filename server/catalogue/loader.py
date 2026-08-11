@@ -61,6 +61,23 @@ def load_catalogue(path: Path, project_path: str) -> LoadedCatalogue:
     )
 
 
+def load_catalogue_from_dict(doc: dict[str, Any], project_path: str) -> LoadedCatalogue:
+    """Validate a v3 catalogue from an in-memory dict (no file needed)."""
+    if doc.get("schema_version") != 3:
+        raise ValueError(
+            f"catalogue has schema_version={doc.get('schema_version')!r}; "
+            f"v3 requires schema_version=3"
+        )
+    _validate(doc, FR_CATALOG_V3_SCHEMA_PATH)
+    return LoadedCatalogue(
+        doc=doc,
+        path=Path("(inline)"),
+        project_path=project_path,
+        content_hash=_sha256_json(doc),
+        generated_at=dt.datetime.now(dt.timezone.utc),
+    )
+
+
 def _validate(doc: dict[str, Any], schema_path: Path) -> None:
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     jsonschema.validate(instance=doc, schema=schema)

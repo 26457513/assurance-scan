@@ -175,14 +175,15 @@ class ScanOrchestrator:
 
         try:
             result = await self.runner.run(scanner)
-            raw = result.stdout if result.ok else _stderr_payload(result)
+            ok = result.returncode in scanner.success_exit_codes
+            raw = result.stdout if ok else _stderr_payload(result)
             await self.scanner_artifacts.store(
                 scanner_run_id=scanner_run.id,
-                kind=scanner.output_kind if result.ok else "text",
+                kind=scanner.output_kind if ok else "text",
                 content=raw,
             )
 
-            if not result.ok:
+            if not ok:
                 err = f"exit={result.returncode} stderr={result.stderr.decode('utf-8', 'replace')[:500]}"
                 await self.scanner_runs.mark_failed(scanner_run.id, err)
                 await self.session.commit()

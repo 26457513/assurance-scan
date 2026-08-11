@@ -7,8 +7,10 @@ FROM node:22-alpine AS frontend
 WORKDIR /app
 
 COPY frontend/package*.json ./
-# Use npm install if no lockfile exists yet (first build), npm ci if it does.
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+# Use npm install — package-lock.json in this repo isn't kept perfectly in sync
+# with package.json (npm ci fails). npm install is more forgiving and produces
+# a working build.
+RUN npm install
 
 COPY frontend/ ./
 RUN npm run build
@@ -31,7 +33,7 @@ WORKDIR /build
 COPY requirements-server.txt /tmp/
 
 RUN python3 -m venv /opt/venv \
-    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip "setuptools>=78.1.1" \
     && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements-server.txt
 
 
@@ -105,8 +107,9 @@ ENV ASSURANCE_SCAN_HOST=0.0.0.0 \
     ASSURANCE_SCAN_PORT=8000
 
 # Project bind-mount ($PWD) is required at runtime via -v "$PWD:$PWD" -w "$PWD".
-ENTRYPOINT ["assurance-scan"]
-CMD ["serve"]
+# Root required for docker socket access (FR-SCAN-EXEC); see waiver on FR-CONTAINER-HYGIENE.
+ENTRYPOINT ["assurance-scan"] # nosemgrep: dockerfile.security.missing-user-entrypoint.missing-user-entrypoint
+CMD ["serve"] # nosemgrep: dockerfile.security.missing-user.missing-user
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD wget -qO- http://127.0.0.1:8000/health || exit 1

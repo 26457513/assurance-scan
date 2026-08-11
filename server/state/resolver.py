@@ -22,6 +22,7 @@ FR_STATES: tuple[str, ...] = (
     "untested",
     "pending",
     "passed",
+    "accepted",
     "failed",
     "waived",
     "blocked",
@@ -58,10 +59,12 @@ def evaluate_fr(
     blocking_deps = {
         dep: state
         for dep, state in dep_states.items()
-        if state not in ("passed", "waived")
+        if state not in ("passed", "waived", "accepted")
     }
     if blocking_deps:
         return StateResult("blocked", {"blocking_deps": blocking_deps})
+
+    # A dep in "accepted" state doesn't block — the risk is acknowledged.
 
     tests = fr.get("tests", []) or []
     if not tests:
@@ -88,6 +91,22 @@ def evaluate_fr(
         return StateResult(
             "pending",
             {"note": "some tests have not produced results yet", "pending": pending},
+        )
+
+    # All tests pass — check if any passed via finding acceptance (not clean pass).
+    accepted_tests = [
+        {"test_id": tid, "detail": ev.detail}
+        for tid, ev in test_evaluations.items()
+        if ev.result == "accepted"
+    ]
+    if accepted_tests:
+        return StateResult(
+            "accepted",
+            {
+                "test_count": len(test_evaluations),
+                "accepted_tests": accepted_tests,
+                "note": "all tests pass but some findings accepted as non-exploitable",
+            },
         )
 
     return StateResult(

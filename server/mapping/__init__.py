@@ -62,6 +62,18 @@ def load_mapping(path: Path, project_path: str) -> LoadedMapping:
     )
 
 
+def load_mapping_from_dict(doc: dict[str, Any], project_path: str) -> LoadedMapping:
+    """Validate a mapping from an in-memory dict (no file needed)."""
+    _validate(doc)
+    return LoadedMapping(
+        doc=doc,
+        path=Path("(inline)"),
+        project_path=project_path,
+        content_hash=_sha256_json(doc),
+        loaded_at=dt.datetime.now(dt.timezone.utc),
+    )
+
+
 def _validate(doc: dict[str, Any]) -> None:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.validate(instance=doc, schema=schema)
@@ -72,4 +84,4 @@ def _sha256_json(doc: dict[str, Any]) -> str:
     return f"sha256:{hashlib.sha256(body).hexdigest()}"
 
 
-__all__ = ["LoadedMapping", "load_mapping"]
+__all__ = ["LoadedMapping", "load_mapping", "load_mapping_from_dict"]

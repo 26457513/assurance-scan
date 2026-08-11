@@ -30,6 +30,8 @@ def parser_for(scanner: ScannerConfig) -> FindingParser:
         return trivy.TrivyJsonParser(scanner_kind="trivy-fs", mode="vuln")
     if scanner.kind == "trivy-config":
         return trivy.TrivyJsonParser(scanner_kind="trivy-config", mode="config")
+    if scanner.kind == "trivy-image":
+        return trivy.TrivyJsonParser(scanner_kind="trivy-image", mode="vuln")
     if scanner.kind == "syft":
         return syft.SyftSbomParser()
     if scanner.kind == "grype":

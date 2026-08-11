@@ -83,11 +83,14 @@ jobs:
 
       - name: Derive image tags
         id: tags
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          GITHUB_REF_NAME: ${{ github.ref }}
         run: |
           set -eu
-          REPO="${{ secrets.DOCKERHUB_USERNAME }}/assurance-scan"
+          REPO="$DOCKERHUB_USERNAME/assurance-scan"
           TAGS="$REPO:${GITHUB_SHA::8}"
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          if [ "$GITHUB_REF_NAME" = "refs/heads/main" ]; then
             TAGS="$TAGS,$REPO:latest"
           fi
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then

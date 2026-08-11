@@ -1,0 +1,128 @@
+<script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
+  import { api } from '$lib/api';
+  import ComplianceRow from './ComplianceRow.svelte';
+  import SummaryStrip from './SummaryStrip.svelte';
+  import type {
+    ComplianceListResponse,
+    ComplianceMatrixResponse,
+    ComplianceFrameworkSummary,
+    FrListResponse,
+    ScanSummary
+  } from '$lib/types';
+
+  export let scan: ScanSummary;
+  export let initialFramework: string | null = null;
+
+  let frameworks: ComplianceFrameworkSummary[] = [];
+  let matrix: ComplianceMatrixResponse | null = null;
+  let frList: FrListResponse | null = null;
+  let loading = true;
+  let error: string | null = null;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let selectedFramework: string | null = initialFramework;
+
+  async function loadFrameworks() {
+    const data: ComplianceListResponse = await api.listComplianceFrameworks();
+    frameworks = data.frameworks;
+    if (!selectedFramework && frameworks.length) {
+      selectedFramework = frameworks[0].id;
+    }
+  }
+
+  async function loadMatrix() {
+    if (!selectedFramework) return;
+    loading = true;
+    try {
+      matrix = await api.getComplianceMatrix(selectedFramework);
+      error = null;
+    } catch (e) {
+      error = String(e);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function loadFrList() {
+    try {
+      frList = await api.listFRs(scan.project_path);
+    } catch (e) {
+      /* silent */
+    }
+  }
+
+  onMount(async () => {
+    try {
+      await loadFrameworks();
+      await Promise.all([loadMatrix(), loadFrList()]);
+    } catch (e) {
+      error = String(e);
+    } finally {
+      loading = false;
+    }
+    pollTimer = setInterval(() => {
+      loadMatrix();
+      loadFrList();
+    }, 15000);
+  });
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  function pickFramework(id: string) {
+    selectedFramework = id;
+    loadMatrix();
+  }
+</script>
+
+{#if frameworks.length === 0 && !loading}
+  <div class="py-16 text-center">
+    <div class="text-[13px] text-ink-primary mb-2">No compliance frameworks mapped</div>
+    <div class="text-[12px] text-ink-muted font-mono">Run the <span class="text-ink-secondary">propose-compliance-mapping</span> workflow to create a mapping.</div>
+  </div>
+{:else if loading && !matrix}
+  <div class="text-[12px] text-ink-muted font-mono">Loading…</div>
+{:else if error}
+  <div class="text-[12px] text-state-failed font-mono">{error}</div>
+{:else}
+  <div class="flex items-center gap-1.5 mb-5">
+    {#each frameworks as fw (fw.id)}
+      <button
+        type="button"
+        on:click={() => pickFramework(fw.id)}
+        class="font-mono text-[11px] px-2.5 py-1 rounded-sm border transition-colors"
+        class:border-line-strong={selectedFramework === fw.id}
+        class:text-ink-primary={selectedFramework === fw.id}
+        class:bg-surface-elevated={selectedFramework === fw.id}
+        class:border-line-hairline={selectedFramework !== fw.id}
+        class:text-ink-muted={selectedFramework !== fw.id}
+      >
+        {fw.id}
+        <span class="text-ink-muted ml-1.5 tabular-nums">{fw.rows}</span>
+      </button>
+    {/each}
+  </div>
+
+  {#if matrix}
+    <div class="mb-5 flex items-center gap-4 flex-wrap">
+      <SummaryStrip summary={matrix.summary} />
+      <span class="font-mono text-[11px] text-ink-muted">· {matrix.row_count} rows mapped</span>
+    </div>
+
+    <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
+      <div class="sticky top-0 z-20 bg-surface-inset grid grid-cols-[120px_70px_minmax(0,1fr)_50px_60px_80px_auto_24px] gap-3 px-4 py-2 border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+        <div>Row</div>
+        <div>Section</div>
+        <div>Title</div>
+        <div>Lvl</div>
+        <div class="text-right">FRs</div>
+        <div>Conf</div>
+        <div class="text-right">State</div>
+        <div></div>
+      </div>
+      {#each matrix.rows as row (row.row_id)}
+        <ComplianceRow row={row} />
+      {/each}
+    </div>
+  {/if}
+{/if}

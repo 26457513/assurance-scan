@@ -10,6 +10,7 @@ match against required_evidence). The v3 model is:
 """
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import logging
 from typing import Any
@@ -18,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.catalogue.loader import LoadedCatalogue
-from server.db.models import Finding
+from server.db.models import Finding, FindingAcceptance, ScannerRun
 from server.db.repositories.fr_state import FrStateRepository
 from server.db.repositories.frs import FrRepository
 from server.db.repositories.test_results import TestResultRepository
@@ -26,6 +27,7 @@ from server.db.repositories.waivers import WaiverRepository
 from server.state.matcher import (
     FindingRecord,
     TestCaseRecord,
+    TestEvaluation,
     evaluate_test,
 )
 from server.state.resolver import evaluate_fr
@@ -80,6 +82,47 @@ async def evaluate_tests_and_compute_states(
     all_waivers = await waivers_repo.list_for_project(project_path)
     waiver_frs: set[str] = {w.fr_id for w in all_waivers}
 
+    # Pre-fetch finding acceptances (per-finding risk triage).
+    now = _dt.datetime.now(_dt.timezone.utc)
+    acceptance_rows = (await session.execute(
+        select(FindingAcceptance).where(FindingAcceptance.project_path == project_path)
+    )).scalars().all()
+    accepted_keys: set[tuple[str, str]] = set()
+    for acc in acceptance_rows:
+        if acc.expires_at is None or acc.expires_at > now:
+            accepted_keys.add((acc.scanner_kind, acc.rule_id))
+
+    # Partition findings: separate accepted from actionable.
+    # Matching uses prefix comparison because osv-scanner rule_ids include CVE
+    # aliases in parentheses (e.g. "GHSA-xxx (CVE-yyy, PYSEC-zzz)") while
+    # acceptance records may store just the primary GHSA ID.
+    filtered_records: list[FindingRecord] = []
+    accepted_by_scanner: dict[str, int] = {}
+    for f in finding_records:
+        f_scanner = f.scanner_kind
+        f_rule = f.rule_id or ""
+        is_accepted = (f_scanner, f_rule) in accepted_keys
+        if not is_accepted and f_rule:
+            # Fuzzy: check if any accepted (scanner, rule_id) is a prefix of the
+            # finding's rule_id (handles the "(CVE-..." suffix from osv-scanner).
+            for acc_scanner, acc_rule in accepted_keys:
+                if acc_scanner == f_scanner and f_rule.startswith(acc_rule):
+                    is_accepted = True
+                    break
+        if is_accepted:
+            accepted_by_scanner[f_scanner] = accepted_by_scanner.get(f_scanner, 0) + 1
+        else:
+            filtered_records.append(f)
+
+    # Load scanner run statuses — needed to distinguish "scanner ran and found
+    # nothing" (pass) from "scanner didn't run" (pending).
+    scanner_run_rows = (await session.execute(
+        select(ScannerRun).where(ScannerRun.run_id == run_id)
+    )).scalars().all()
+    scanners_that_ran: set[str] = {
+        sr.scanner_kind for sr in scanner_run_rows if sr.status == "completed"
+    }
+
     # Parse FR JSON columns once.
     fr_dicts_by_id: dict[str, dict[str, Any]] = {
         fr.fr_id: {
@@ -107,26 +150,68 @@ async def evaluate_tests_and_compute_states(
                 fr_dict = fr_dicts_by_id[fr.fr_id]
                 tests = fr_dict["tests"]
 
-                # Evaluate each test on this FR.
-                evaluations: dict[str, object] = {}
+                # Evaluate each test on this FR (with accepted findings filtered out).
+                evaluations: dict[str, TestEvaluation] = {}
                 for test in tests:
                     test_id = test.get("id", "")
                     if not test_id:
                         continue
                     evaluation = evaluate_test(
                         spec=test,
-                        findings=finding_records,
+                        findings=filtered_records,
                         test_cases=test_cases,
                     )
                     evaluations[test_id] = evaluation
+
+                # Post-process: scanner-clean tests where the scanner ran but
+                # produced zero findings → pass (not pending). The matcher
+                # returns "pending" when no findings exist because it can't
+                # tell whether the scanner ran. We know from scanner_status.
+                for test in tests:
+                    test_id = test.get("id", "")
+                    if test_id not in evaluations:
+                        continue
+                    ev = evaluations[test_id]
+                    if ev.result == "pending":
+                        scanner = test.get("scanner", "")
+                        note = ev.detail.get("note", "")
+                        if scanner in scanners_that_ran and "produced no findings" in note:
+                            evaluations[test_id] = TestEvaluation(
+                                result="pass",
+                                detail={"scanner": scanner, "total_findings": 0,
+                                        "note": "scanner ran with zero matching findings"},
+                            )
+
+                # Post-process: scanner-clean tests that passed but had accepted
+                # findings → mark as "accepted" (distinct from clean "pass").
+                for test in tests:
+                    test_id = test.get("id", "")
+                    if test_id not in evaluations:
+                        continue
+                    ev = evaluations[test_id]
+                    if ev.result == "pass" and test.get("type", "").startswith("scanner-clean"):
+                        scanner = test.get("scanner", "")
+                        accepted_n = accepted_by_scanner.get(scanner, 0)
+                        if accepted_n > 0:
+                            evaluations[test_id] = TestEvaluation(
+                                result="accepted",
+                                detail={**ev.detail, "accepted_count": accepted_n}
+                            )
+
+                # Store all test results (after post-processing).
+                for test in tests:
+                    test_id = test.get("id", "")
+                    if test_id not in evaluations:
+                        continue
+                    ev = evaluations[test_id]
                     await test_results_repo.upsert(
                         run_id=run_id,
                         project_path=project_path,
                         fr_id=fr.fr_id,
                         test_id=test_id,
                         test_type=test.get("type", "unknown"),
-                        result=evaluation.result,
-                        detail=evaluation.detail,
+                        result=ev.result,
+                        detail=ev.detail,
                     )
 
                 dep_states = {d: states_by_id.get(d, "passed") for d in deps}

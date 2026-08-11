@@ -1,19 +1,22 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { api } from '$lib/api';
+  import { selectedScanRunId } from '$lib/stores/selectedScan';
+  import StatePill from '$lib/components/StatePill.svelte';
   import type { FrDetailResponse, FrHistoryResponse, TestSpecWithResult } from '$lib/types';
 
   let detail: FrDetailResponse | null = null;
   let history: FrHistoryResponse | null = null;
   let loading = true;
   let error: string | null = null;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  const frId = $page.params.fr_id;
+  const frId = $page.params.fr_id ?? '';
 
   async function refresh() {
     try {
-      detail = await api.getFr(frId);
+      detail = await api.getFr(frId, $selectedScanRunId ?? undefined);
       history = await api.getFrHistory(frId);
       error = null;
     } catch (e) {
@@ -25,36 +28,25 @@
 
   onMount(() => {
     refresh();
-    const interval = setInterval(refresh, 10000);
-    return () => clearInterval(interval);
+    pollTimer = setInterval(refresh, 10000);
+  });
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
   });
 
-  function stateColor(state: string): string {
-    return {
-      passed: 'bg-green-100 text-green-800',
-      failed: 'bg-red-100 text-red-800',
-      'manual-review': 'bg-amber-100 text-amber-800',
-      blocked: 'bg-orange-100 text-orange-800',
-      waived: 'bg-purple-100 text-purple-800',
-      pending: 'bg-yellow-50 text-yellow-800',
-      untested: 'bg-gray-50 text-gray-600'
-    }[state] ?? 'bg-gray-100 text-gray-700';
-  }
+  // Refetch when scan changes
+  $: if ($selectedScanRunId) refresh();
 
   function resultColor(result: string): string {
-    return {
-      pass: 'text-green-700',
-      fail: 'text-red-700',
-      pending: 'text-yellow-700'
-    }[result] ?? 'text-gray-700';
-  }
-
-  function resultIcon(result: string): string {
-    return { pass: '✓', fail: '✗', pending: '⏳' }[result] ?? '?';
+    return result === 'pass'
+      ? 'var(--state-passed)'
+      : result === 'fail'
+        ? 'var(--state-failed)'
+        : 'var(--state-pending)';
   }
 
   function testTypeLabel(test: TestSpecWithResult): string {
-    const bits = [test.type];
+    const bits: string[] = [test.type];
     if (test.scanner) bits.push(test.scanner);
     if (test.severity_floor) bits.push(`≥ ${test.severity_floor}`);
     if (test.rule_pattern) bits.push(`/${test.rule_pattern}/`);
@@ -65,136 +57,138 @@
 </script>
 
 {#if loading}
-  <p class="text-gray-500">Loading…</p>
+  <div class="p-6 text-[12px] text-ink-muted font-mono">Loading…</div>
 {:else if error}
-  <p class="text-red-700">{error}</p>
+  <div class="p-6 text-[12px] text-state-failed font-mono">{error}</div>
 {:else if detail}
-  <header class="mb-6">
-    <a href="/frs" class="text-sm text-blue-700 hover:underline">← All FRs</a>
-    <h1 class="text-2xl font-semibold mt-2">{detail.title}</h1>
-    <p class="text-sm font-mono text-gray-600 mt-1">{detail.fr_id}</p>
-    <div class="mt-3 flex items-center gap-3 text-sm">
-      <span class="px-2 py-1 bg-gray-100 rounded font-semibold {stateColor(detail.state)}">
-        {detail.state}
-      </span>
-      {#if detail.category}
-        <span class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">{detail.category}</span>
+  <div class="p-6 max-w-4xl">
+    <div class="mb-6">
+      <a href="/frs" class="text-[11px] font-mono text-ink-muted hover:text-accent transition-colors">← Catalogue</a>
+      <h1 class="text-[20px] font-medium tracking-tight text-ink-primary mt-3">{detail.title}</h1>
+      <div class="font-mono text-[12px] text-ink-secondary mt-1">{detail.fr_id}</div>
+      <div class="flex items-center gap-3 mt-4">
+        <StatePill state={detail.state} />
+        {#if detail.category}
+          <span class="font-mono text-[11px] px-2 py-0.5 rounded-sm border border-line-hairline text-ink-secondary">{detail.category}</span>
+        {/if}
+        <span class="font-mono text-[11px] text-ink-muted">run <span class="text-ink-secondary">{detail.run_id}</span></span>
+      </div>
+      {#if detail.description}
+        <p class="mt-4 text-[13px] text-ink-secondary leading-relaxed">{detail.description}</p>
       {/if}
-      <span class="text-gray-600">run <span class="font-mono">{detail.run_id}</span></span>
     </div>
-    {#if detail.description}
-      <p class="mt-3 text-gray-700">{detail.description}</p>
-    {/if}
-  </header>
 
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-    <section>
-      <h2 class="text-sm font-semibold uppercase text-gray-600 mb-3">
-        Tests ({detail.tests.length})
-      </h2>
+    <section class="mb-8">
+      <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-3">Tests · {detail.tests.length}</div>
       {#if detail.tests.length === 0}
-        <p class="text-gray-500 text-sm bg-gray-50 border border-gray-200 rounded p-3">
-          No tests defined. This FR is <strong>untested</strong> — add at least one test
-          (e.g. a unit-test, scanner-clean, or manual-attestation) to the catalogue.
-        </p>
+        <div class="border border-line-hairline rounded-sm p-4 bg-surface-inset">
+          <div class="text-[12px] text-ink-primary mb-1">No tests defined.</div>
+          <div class="text-[12px] text-ink-muted">This FR is <span class="text-ink-secondary">untested</span> — add at least one test (unit-test, scanner-clean, manual-attestation) to the catalogue.</div>
+        </div>
       {:else}
-        <ul class="space-y-2">
+        <div class="space-y-1.5">
           {#each detail.tests as test (test.id)}
-            <li class="border border-gray-200 rounded p-3 bg-white text-sm">
+            <div class="border border-line-hairline rounded-sm p-3 bg-surface-panel">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0 flex-1">
-                  <div class="font-mono text-xs text-gray-700">{test.id}</div>
-                  <div class="font-mono text-xs text-gray-500 mt-0.5 break-all">
-                    {testTypeLabel(test)}
-                  </div>
+                  <div class="font-mono text-[11px] text-ink-secondary">{test.id}</div>
+                  <div class="font-mono text-[11px] text-ink-muted mt-0.5 break-all">{testTypeLabel(test)}</div>
                   {#if test.description}
-                    <p class="text-xs text-gray-600 mt-1">{test.description}</p>
+                    <div class="text-[12px] text-ink-secondary mt-1">{test.description}</div>
                   {/if}
                 </div>
-                <span class="font-semibold text-sm whitespace-nowrap {resultColor(test.result)}">
-                  {resultIcon(test.result)} {test.result}
+                <span class="font-mono text-[12px] whitespace-nowrap" style="color: {resultColor(test.result)}">
+                  {test.result}
                 </span>
               </div>
               {#if Object.keys(test.detail).length > 0}
                 <details class="mt-2">
-                  <summary class="text-xs text-gray-500 cursor-pointer">detail</summary>
-                  <pre class="text-xs bg-gray-50 p-2 rounded mt-1 overflow-x-auto">{JSON.stringify(test.detail, null, 2)}</pre>
+                  <summary class="text-[11px] text-ink-muted cursor-pointer font-mono">detail</summary>
+                  <pre class="text-[11px] font-mono text-ink-secondary bg-surface-inset p-2 rounded-sm mt-1 overflow-x-auto">{JSON.stringify(test.detail, null, 2)}</pre>
                 </details>
               {/if}
-            </li>
-          {/each}
-        </ul>
-      {/if}
-
-      {#if detail.implemented_by.length}
-        <h3 class="text-xs uppercase text-gray-500 mt-5 mb-1">Implemented by</h3>
-        <ul class="text-xs font-mono space-y-1">
-          {#each detail.implemented_by as ref}
-            <li>{ref.kind}: <span class="text-blue-700">{ref.ref}</span></li>
-          {/each}
-        </ul>
-      {/if}
-
-      {#if detail.satisfies.length}
-        <h3 class="text-xs uppercase text-gray-500 mt-5 mb-1">Satisfies</h3>
-        <div class="flex flex-wrap gap-1">
-          {#each detail.satisfies as s}
-            <a
-              href={`/compliance/${s.ruleset}`}
-              class="text-xs px-2 py-0.5 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 font-mono"
-            >{s.ruleset}:{s.row}</a>
+            </div>
           {/each}
         </div>
       {/if}
+    </section>
 
-      {#if detail.depends_on.length}
-        <h3 class="text-xs uppercase text-gray-500 mt-5 mb-1">Depends on</h3>
+    {#if detail.implemented_by.length}
+      <section class="mb-6">
+        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2">Implemented by</div>
+        <div class="font-mono text-[11px] text-ink-secondary space-y-0.5">
+          {#each detail.implemented_by as ref}
+            <div>{ref.kind}: <span class="text-accent">{ref.ref}</span></div>
+          {/each}
+        </div>
+      </section>
+    {/if}
+
+    {#if detail.satisfies.length}
+      <section class="mb-6">
+        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2">Satisfies</div>
+        <div class="flex flex-wrap gap-1">
+          {#each detail.satisfies as s}
+            <a
+              href={`/compliance?framework=${encodeURIComponent(s.ruleset)}`}
+              class="font-mono text-[11px] px-2 py-0.5 rounded-sm border border-line-hairline text-ink-secondary hover:text-accent hover:border-line-strong transition-colors"
+            >{s.ruleset}:{s.row}</a>
+          {/each}
+        </div>
+      </section>
+    {/if}
+
+    {#if detail.depends_on.length}
+      <section class="mb-6">
+        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2">Depends on</div>
         <div class="flex flex-wrap gap-1">
           {#each detail.depends_on as d}
             <a
               href={`/frs/${d}`}
-              class="text-xs px-2 py-0.5 bg-gray-100 border border-gray-200 rounded hover:bg-gray-200 font-mono"
+              class="font-mono text-[11px] px-2 py-0.5 rounded-sm border border-line-hairline text-ink-secondary hover:text-accent hover:border-line-strong transition-colors"
             >{d}</a>
           {/each}
         </div>
-      {/if}
-    </section>
+      </section>
+    {/if}
 
-    <section>
-      <h2 class="text-sm font-semibold uppercase text-gray-600 mb-3">Computation Reason</h2>
-      {#if Object.keys(detail.reason).length > 0}
-        <pre class="text-xs bg-gray-50 border border-gray-200 rounded p-3 overflow-x-auto">{JSON.stringify(detail.reason, null, 2)}</pre>
-      {:else}
-        <p class="text-gray-500 text-sm">No reason recorded.</p>
-      {/if}
+    {#if Object.keys(detail.reason).length > 0}
+      <section class="mb-6">
+        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2">Computation reason</div>
+        <pre class="text-[11px] font-mono text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm p-3 overflow-x-auto">{JSON.stringify(detail.reason, null, 2)}</pre>
+      </section>
+    {/if}
 
-      {#if history && history.history.length > 1}
-        <h2 class="text-sm font-semibold uppercase text-gray-600 mt-8 mb-3">State Across Runs</h2>
-        <table class="w-full text-sm bg-white border border-gray-200">
-          <thead class="bg-gray-100 text-xs uppercase text-gray-600">
-            <tr>
-              <th class="text-left px-3 py-2">Run</th>
-              <th class="text-left px-3 py-2">State</th>
-              <th class="text-left px-3 py-2">Computed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each history.history as h (h.run_id)}
-              <tr class="border-t border-gray-200">
-                <td class="px-3 py-2 font-mono text-xs">
-                  <a href={`/scans/${h.run_id}`} class="text-blue-700 hover:underline">{h.run_id}</a>
-                </td>
-                <td class="px-3 py-2 {stateColor(h.state)} font-semibold">
-                  <span class="px-2 py-0.5 rounded text-xs">{h.state}</span>
-                </td>
-                <td class="px-3 py-2 text-xs text-gray-600">
-                  {h.computed_at ? new Date(h.computed_at).toLocaleString() : '—'}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      {/if}
-    </section>
+    {#if detail.waiver_reason}
+      <section class="mb-6">
+        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2">Waiver rationale</div>
+        <div class="border-l-2 pl-4 py-2" style="border-color: var(--state-waived);">
+          <div class="text-[13px] text-ink-primary leading-relaxed">{detail.waiver_reason}</div>
+          <div class="flex items-center gap-3 mt-3 font-mono text-[11px] text-ink-muted">
+            <span>waived by <span class="text-ink-secondary">{detail.waived_by ?? '—'}</span></span>
+            {#if detail.waiver_expires_at}
+              <span>· expires {new Date(detail.waiver_expires_at).toLocaleDateString()}</span>
+            {:else}
+              <span>· standing (no expiry)</span>
+            {/if}
+          </div>
+        </div>
+      </section>
+    {/if}
+
+    {#if history && history.history.length > 1}
+      <section>
+        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2">State across runs</div>
+        <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
+          {#each history.history as h (h.run_id)}
+            <div class="grid grid-cols-[minmax(0,200px)_auto_1fr] gap-3 px-3 py-2 border-b border-line-hairline last:border-0 items-center">
+              <a href={`/scans/${h.run_id}`} class="font-mono text-[11px] text-ink-secondary hover:text-accent truncate">{h.run_id}</a>
+              <StatePill state={h.state} size="sm" />
+              <span class="font-mono text-[11px] text-ink-muted text-right">{h.computed_at ? new Date(h.computed_at).toLocaleString() : '—'}</span>
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
   </div>
 {/if}

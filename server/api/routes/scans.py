@@ -18,6 +18,7 @@ from server.api.schemas.scan import (
 )
 from server.db.repositories.findings import FindingRepository
 from server.db.repositories.runs import RunRepository
+from server.db.models import Run
 from server.db.repositories.scanner_runs import ScannerRunRepository
 from server.worker.queue import ScanQueue
 
@@ -113,3 +114,33 @@ async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatu
         options=json.loads(run.options_json or "{}"),
         error_message=run.error_message,
     )
+
+
+@router.delete("/{run_id}")
+async def delete_scan(run_id: str, session: AsyncSession = SessionDep) -> dict:
+    """Delete a scan and all its related data (findings, artifacts, test
+    results, FR states). Cascade deletes handle the child rows."""
+    run = await session.get(Run, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
+    await session.delete(run)
+    await session.commit()
+    return {"status": "deleted", "run_id": run_id}
+
+
+@router.delete("")
+async def delete_all_scans(
+    project_path: str | None = Query(default=None),
+    session: AsyncSession = SessionDep,
+) -> dict:
+    """Delete all scans, optionally filtered by project_path."""
+    from sqlalchemy import select as sa_select
+    stmt = sa_select(Run)
+    if project_path:
+        stmt = stmt.where(Run.project_path == project_path)
+    rows = (await session.execute(stmt)).scalars().all()
+    count = len(rows)
+    for run in rows:
+        await session.delete(run)
+    await session.commit()
+    return {"status": "deleted", "count": count}

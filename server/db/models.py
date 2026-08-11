@@ -325,6 +325,31 @@ class Waiver(Base):
     )
 
 
+class FindingAcceptance(Base):
+    """Per-finding risk acceptance. Persists across scans — when the same
+    (scanner_kind, rule_id) appears in a future scan, the matcher filters
+    it out so the finding doesn't fail the FR test. Unlike waivers (per-FR),
+    acceptances are per-finding and carry a risk assessment + rationale."""
+
+    __tablename__ = "finding_acceptances"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    scanner_kind: Mapped[str] = mapped_column(String(64), nullable=False)
+    rule_id: Mapped[str] = mapped_column(String(256), nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(32), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    fix_assessment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    invalidation_conditions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    accepted_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    accepted_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_finding_acceptances_lookup", "project_path", "scanner_kind", "rule_id"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Audit group
 # ---------------------------------------------------------------------------

@@ -183,6 +183,7 @@ async def run_suite(suite: TestSuite, project_path: str) -> TestRunResult:
     argv: list[str] = [
         "docker", "run",
         "--name", container_name,
+        "--label", "com.docker.compose.project=assurance-scan",
         "-v", f"{project_path}:/src:ro",
         "--tmpfs", "/tmp",
         "-w", suite.working_dir,

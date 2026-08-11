@@ -25,7 +25,7 @@ import os
 import re
 import subprocess
 import sys
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 from pathlib import Path
 
 from artifact_hashing import file_sha256, write_hash_sidecar

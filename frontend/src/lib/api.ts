@@ -1,6 +1,8 @@
 import type {
   ComplianceListResponse,
   ComplianceMatrixResponse,
+  ConfigResponse,
+  FindingAcceptance,
   FindingsListResponse,
   FrDetailResponse,
   FrHistoryResponse,
@@ -9,6 +11,7 @@ import type {
   ScanResponse,
   ScanStatus,
   ScanSummary,
+  TestSourceResponse,
   TrendsResponse
 } from './types';
 
@@ -24,9 +27,24 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => getJson<HealthResponse>('/health'),
 
-  listScans: () => getJson<ScanSummary[]>('/api/scans'),
+  listScans: (limit?: number) => {
+    const qs = limit ? `?limit=${limit}` : '';
+    return getJson<ScanSummary[]>(`/api/scans${qs}`);
+  },
+
+  listScansForSelector: () => getJson<ScanSummary[]>('/api/scans?limit=15'),
+
+  getTrendsForScanList: () => getJson<TrendsResponse>('/api/trends?limit=30'),
 
   getScan: (runId: string) => getJson<ScanStatus>(`/api/scans/${runId}`),
+
+  deleteScan: (runId: string) =>
+    getJson<{ status: string; run_id: string }>(`/api/scans/${runId}`, { method: 'DELETE' }),
+
+  deleteAllScans: (projectPath?: string) => {
+    const qs = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : '';
+    return getJson<{ status: string; count: number }>(`/api/scans${qs}`, { method: 'DELETE' });
+  },
 
   startScan: (projectPath?: string, options?: Record<string, unknown>) =>
     getJson<ScanResponse>('/api/scans', {
@@ -72,5 +90,41 @@ export const api = {
   listFRs: (projectPath?: string) => {
     const qs = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : '';
     return getJson<FrListResponse>(`/api/frs${qs}`);
+  },
+
+  getTestSource: (namePattern: string, projectPath: string) => {
+    const params = new URLSearchParams({
+      name_pattern: namePattern,
+      project_path: projectPath
+    });
+    return getJson<TestSourceResponse>(`/api/test-source?${params.toString()}`);
+  },
+
+  getConfig: (projectPath: string) => {
+    const params = new URLSearchParams({ project_path: projectPath });
+    return getJson<ConfigResponse>(`/api/config?${params.toString()}`);
+  },
+
+  acceptFinding: (params: {
+    project_path: string;
+    scanner_kind: string;
+    rule_id: string;
+    risk_level: string;
+    rationale: string;
+    fix_assessment?: string | null;
+    invalidation_conditions?: string | null;
+    accepted_by?: string;
+  }) => getJson<{ status: string }>('/api/findings/accept', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(params)
+  }),
+
+  unacceptFinding: (id: number) =>
+    getJson<{ status: string }>(`/api/findings/accept/${id}`, { method: 'DELETE' }),
+
+  listAcceptedFindings: (projectPath: string) => {
+    const params = new URLSearchParams({ project_path: projectPath });
+    return getJson<{ acceptances: FindingAcceptance[] }>(`/api/findings/accepted?${params.toString()}`);
   }
 };

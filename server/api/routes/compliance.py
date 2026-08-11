@@ -34,6 +34,7 @@ _SEVERITY_ORDER: tuple[str, ...] = (
     "pending",
     "untested",
     "blocked",
+    "accepted",
     "waived",
     "passed",
 )
@@ -125,11 +126,17 @@ async def compliance_matrix(
 
     matrix: list[dict[str, Any]] = []
     for entry in entries:
-        fr_ids = entry.get("satisfied_by", [])
-        fr_states = [state_by_fr.get(fid, "untested") for fid in fr_ids]
-        worst = _worst_state(fr_states)
+        appropriate = entry.get("appropriate", True)
         row_id = entry["row"]
         pack_info = pack_data.get(row_id, {})
+        fr_ids = entry.get("satisfied_by", [])
+        if not appropriate:
+            worst = "n/a"
+            fr_states = {}
+        else:
+            fr_states = [state_by_fr.get(fid, "untested") for fid in fr_ids]
+            worst = _worst_state(fr_states)
+            fr_states = dict(zip(fr_ids, fr_states))
         matrix.append({
             "row_id": row_id,
             "title": pack_info.get("title", row_id),
@@ -137,8 +144,9 @@ async def compliance_matrix(
             "section": pack_info.get("section", ""),
             "level": pack_info.get("level", ""),
             "version": entry.get("version"),
+            "appropriate": appropriate,
             "fr_ids": fr_ids,
-            "fr_states": dict(zip(fr_ids, fr_states)),
+            "fr_states": fr_states,
             "worst_state": worst,
             "rationale": entry.get("rationale", ""),
             "confidence": entry.get("confidence", "medium"),

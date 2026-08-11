@@ -49,6 +49,7 @@ class DockerRunner:
         """Build the docker run argv for one scanner."""
         argv: list[str] = [
             "docker", "run", "--rm",
+            "--label", "com.docker.compose.project=assurance-scan",
             "-v", f"{self.project_path}:{PROJECT_MOUNT_TARGET}:ro",
             "-w", scanner.working_dir,
         ]

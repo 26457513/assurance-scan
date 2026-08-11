@@ -69,6 +69,11 @@ class SemgrepSarifParser(FindingParser):
             rules_by_id = self._index_rules(run)
             results = run.get("results", []) or []
             for index, result in enumerate(results):
+                # Honour SARIF suppressions — semgrep emits a `suppressions` array
+                # on results muted by `# nosemgrep` annotations. Skip them so
+                # inline ignores are reflected in the findings count and FR state.
+                if result.get("suppressions"):
+                    continue
                 parsed = self._parse_result(result, rules_by_id, index)
                 if parsed is not None:
                     findings.append(parsed)

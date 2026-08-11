@@ -23,7 +23,8 @@ from typing import Any
 from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
 
-from server.catalogue import load_catalogue
+from server.catalogue.loader import load_catalogue, load_catalogue_from_dict
+from server.mapping import load_mapping_from_dict
 from server.config import Settings
 from server.db.connection import get_sessionmaker
 from server.db.repositories.agent_actions import AgentActionRepository
@@ -131,6 +132,94 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             "fr_count": len(catalogue.doc.get("frs", [])),
             "content_hash": catalogue.content_hash,
             "path": str(catalogue.path),
+        }
+
+    @mcp.tool()
+    async def save_catalogue(
+        catalogue_json: str,
+        project_path: str,
+    ) -> dict[str, Any]:
+        """Validate and store an FR catalogue in the DB. No file write needed.
+
+        Pass the catalogue as a JSON string. The server validates it against
+        the v3 schema, computes a content hash, and stores it as a snapshot.
+        Subsequent scans for this project_path will use the stored snapshot.
+        """
+        import json as _json
+        from server.db.connection import get_sessionmaker
+        from server.db.repositories.catalogue_snapshots import CatalogueSnapshotRepository
+        from server.db.repositories.frs import FrRepository
+
+        try:
+            doc = _json.loads(catalogue_json)
+        except _json.JSONDecodeError as exc:
+            return {"error": "invalid_json", "detail": str(exc)}
+
+        try:
+            catalogue = load_catalogue_from_dict(doc, project_path)
+        except Exception as exc:
+            return {"error": "validation_failed", "detail": str(exc)}
+
+        sessionmaker = get_sessionmaker(deps.settings)
+        async with sessionmaker() as session:
+            snap_repo = CatalogueSnapshotRepository(session)
+            fr_repo = FrRepository(session)
+            snapshot = await snap_repo.store(
+                project_path=project_path,
+                catalogue=catalogue.doc,
+                catalogue_version=catalogue.doc.get("catalogue_version"),
+            )
+            await fr_repo.replace_for_snapshot(snapshot.id, project_path, catalogue.doc.get("frs", []))
+            await session.commit()
+
+        return {
+            "status": "saved",
+            "project": catalogue.doc.get("project"),
+            "catalogue_version": catalogue.doc.get("catalogue_version"),
+            "fr_count": len(catalogue.doc.get("frs", [])),
+            "content_hash": catalogue.content_hash,
+        }
+
+    @mcp.tool()
+    async def save_mapping(
+        mapping_json: str,
+        project_path: str,
+    ) -> dict[str, Any]:
+        """Validate and store a compliance mapping in the DB. No file write needed.
+
+        Pass the mapping as a JSON string. The server validates it against
+        the mapping schema and stores it. Subsequent scans for this
+        project_path will use the stored mapping.
+        """
+        import json as _json
+        from server.db.connection import get_sessionmaker
+        from server.db.repositories.compliance_mappings import ComplianceMappingRepository
+
+        try:
+            doc = _json.loads(mapping_json)
+        except _json.JSONDecodeError as exc:
+            return {"error": "invalid_json", "detail": str(exc)}
+
+        try:
+            mapping = load_mapping_from_dict(doc, project_path)
+        except Exception as exc:
+            return {"error": "validation_failed", "detail": str(exc)}
+
+        sessionmaker = get_sessionmaker(deps.settings)
+        async with sessionmaker() as session:
+            repo = ComplianceMappingRepository(session)
+            await repo.upsert(
+                project_path=project_path,
+                content_hash=mapping.content_hash,
+                mapping_doc=mapping.doc,
+            )
+            await session.commit()
+
+        return {
+            "status": "saved",
+            "project_path": project_path,
+            "content_hash": mapping.content_hash,
+            "mapping_count": len(mapping.doc.get("mappings", [])),
         }
 
     @mcp.tool()

@@ -10,7 +10,8 @@ name: <classname>::<name>.
 from __future__ import annotations
 
 import logging
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,7 +38,9 @@ def parse(junit_xml: bytes, suite_id: str) -> list[TestCaseResult]:
         return []
     try:
         root = ET.fromstring(junit_xml)
-    except ET.ParseError as exc:
+    except (ET.ParseError, DefusedXmlException) as exc:
+        # ParseError: malformed XML. DefusedXmlException: XXE / entity-bomb
+        # attempt blocked by defusedxml — must not crash the parser.
         log.warning("invalid JUnit XML from suite %s: %s", suite_id, exc)
         return []
 

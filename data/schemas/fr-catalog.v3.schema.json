@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/jondowson/assurance-scan/raw/main/data/schemas/fr-catalog.v3.schema.json",
   "title": "Functional Requirements Catalogue v3",
-  "description": "Project-owned capabilities. Each FR describes what the project does and carries one or more tests that prove it. Compliance requirements (ASVS, PCI, etc.) attach via `satisfies` and live in a separate compliance pack.",
+  "description": "Project-owned capabilities. Each FR describes what the project does and carries one or more tests that prove it. Compliance requirements (ASVS, PCI, etc.) are mapped via a separate compliance-mapping file — not stored on the FR.",
   "type": "object",
   "required": ["schema_version", "project", "frs"],
   "additionalProperties": false,
@@ -42,11 +42,6 @@
           "type": "array",
           "minItems": 0,
           "items": {"$ref": "#/$defs/test"}
-        },
-        "satisfies": {
-          "type": "array",
-          "items": {"$ref": "#/$defs/compliance_ref"},
-          "description": "Compliance requirements this FR helps satisfy. State of the compliance row is derived from the worst state of all FRs that satisfy it."
         },
         "depends_on": {
           "type": "array",
@@ -119,6 +114,22 @@
         "expected_result": {
           "enum": ["pass", "fail", "info", "manual"],
           "default": "pass"
+        },
+        "display": {
+          "type": "object",
+          "description": "Optional display metadata for the evidence view. Not consumed by the matcher. Keys: input, output (prose summaries as key-value objects); input_example, output_example (representative JSON payloads); side_effect (array of strings like 'db-write', 'docker', 'none').",
+          "additionalProperties": true,
+          "properties": {
+            "input": {"type": "object", "additionalProperties": true},
+            "output": {"type": "object", "additionalProperties": true},
+            "input_example": {},
+            "output_example": {},
+            "side_effect": {
+              "type": "array",
+              "items": {"type": "string"},
+              "uniqueItems": true
+            }
+          }
         }
       }
     }
