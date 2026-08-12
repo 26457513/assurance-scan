@@ -68,13 +68,13 @@ class SemgrepSarifParser(FindingParser):
         for run in runs:
             rules_by_id = self._index_rules(run)
             results = run.get("results", []) or []
-            for index, result in enumerate(results):
+            for result in results:
                 # Honour SARIF suppressions — semgrep emits a `suppressions` array
                 # on results muted by `# nosemgrep` annotations. Skip them so
                 # inline ignores are reflected in the findings count and FR state.
                 if result.get("suppressions"):
                     continue
-                parsed = self._parse_result(result, rules_by_id, index)
+                parsed = self._parse_result(result, rules_by_id)
                 if parsed is not None:
                     findings.append(parsed)
         return findings
@@ -90,7 +90,6 @@ class SemgrepSarifParser(FindingParser):
         self,
         result: dict[str, Any],
         rules_by_id: dict[str, dict[str, Any]],
-        index: int,
     ) -> ParsedFinding | None:
         rule_id = result.get("ruleId")
         rule = rules_by_id.get(rule_id, {})
@@ -128,7 +127,6 @@ class SemgrepSarifParser(FindingParser):
             message=message,
             theme=properties.get("tags", [None])[0] if properties.get("tags") else None,
             compliance_tags=tuple(properties.get("tags", [])),
-            raw_index=index,
         )
 
 

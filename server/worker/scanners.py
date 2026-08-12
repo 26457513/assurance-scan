@@ -198,11 +198,3 @@ CODE_SCANNERS: tuple[ScannerConfig, ...] = (
     GRYPE,
     OSV_SCANNER,
 )
-
-
-def get_scanner(kind: str) -> ScannerConfig:
-    """Look up a scanner config by kind. Raises KeyError if unknown."""
-    for scanner in CODE_SCANNERS:
-        if scanner.kind == kind:
-            return scanner
-    raise KeyError(f"unknown scanner kind: {kind}")

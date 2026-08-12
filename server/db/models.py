@@ -198,7 +198,6 @@ class Finding(Base):
     theme: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fix_strategy: Mapped[str | None] = mapped_column(String(32), nullable=True)
     compliance_tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
-    raw_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (

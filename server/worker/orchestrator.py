@@ -316,7 +316,6 @@ class ScanOrchestrator:
                 "theme": p.theme,
                 "fix_strategy": p.fix_strategy,
                 "compliance_tags": list(p.compliance_tags),
-                "raw_index": p.raw_index,
             }
             for p in parsed
         ]

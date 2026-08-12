@@ -33,13 +33,13 @@ class GrypeJsonParser(FindingParser):
         matches = doc.get("matches") or []
         findings: list[ParsedFinding] = []
 
-        for index, m in enumerate(matches):
-            parsed = self._parse_match(m, index)
+        for m in matches:
+            parsed = self._parse_match(m)
             if parsed is not None:
                 findings.append(parsed)
         return findings
 
-    def _parse_match(self, m: dict[str, Any], index: int) -> ParsedFinding | None:
+    def _parse_match(self, m: dict[str, Any]) -> ParsedFinding | None:
         vuln = m.get("vulnerability", {}) or {}
         artifact = m.get("artifact", {}) or {}
 
@@ -69,7 +69,6 @@ class GrypeJsonParser(FindingParser):
             theme="dependency",
             fix_strategy="dependency-update" if fixed_versions else "config-only",
             compliance_tags=(),
-            raw_index=index,
         )
 
 

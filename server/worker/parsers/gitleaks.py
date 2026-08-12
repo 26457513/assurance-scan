@@ -38,13 +38,13 @@ class GitleaksJsonParser(FindingParser):
             return []
 
         findings: list[ParsedFinding] = []
-        for index, item in enumerate(doc):
-            parsed = self._parse_item(item, index)
+        for item in doc:
+            parsed = self._parse_item(item)
             if parsed is not None:
                 findings.append(parsed)
         return findings
 
-    def _parse_item(self, item: dict[str, Any], index: int) -> ParsedFinding | None:
+    def _parse_item(self, item: dict[str, Any]) -> ParsedFinding | None:
         rule_id = item.get("RuleID") or item.get("rule", {}).get("id")
         if not rule_id:
             return None
@@ -72,7 +72,6 @@ class GitleaksJsonParser(FindingParser):
             theme="secrets",
             fix_strategy="single-file",
             compliance_tags=(),
-            raw_index=index,
         )
 
 

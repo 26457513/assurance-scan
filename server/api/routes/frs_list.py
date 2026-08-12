@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.api.deps import SessionDep
+from server.state.resolver import GAP_STATES
 from server.db.models import CatalogueSnapshot, ComplianceMapping, Fr, FrState, Run, TestResult, Waiver
 
 
@@ -100,8 +101,6 @@ async def list_frs(
                     "ruleset": entry.get("ruleset", ""),
                     "row": entry.get("row", ""),
                 })
-
-    GAP_STATES = {"untested", "pending", "failed", "blocked"}
 
     entries = []
     for fr in fr_rows:

@@ -24,19 +24,6 @@ SEVERITY_RANK: dict[str, int] = {
 }
 
 
-TEST_TYPES = {
-    "unit-test",
-    "integration-test",
-    "e2e-test",
-    "scanner-clean",
-    "scanner-clean-by-rule",
-    "scanner-clean-by-severity",
-    "scanner-finds",
-    "manual-attestation",
-    "imported",
-}
-
-
 @dataclass(frozen=True)
 class FindingRecord:
     """Minimal finding shape needed for scanner-test evaluation."""

@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import Generic, Type, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from server.db.models import Base
 
@@ -28,6 +27,3 @@ class BaseRepository(Generic[ModelT]):
     async def _flush(self) -> None:
         """Flush pending changes without committing. Caller owns the commit."""
         await self.session.flush()
-
-    async def get_by_id(self, primary_key) -> ModelT | None:
-        return await self.session.get(self.model, primary_key)

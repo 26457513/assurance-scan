@@ -40,26 +40,23 @@ class TrivyJsonParser(FindingParser):
 
         results = doc.get("Results") or []
         findings: list[ParsedFinding] = []
-        index = 0
 
         for result in results:
             target = result.get("Target")
             if self.mode == "vuln":
                 for vuln in result.get("Vulnerabilities") or []:
-                    parsed = self._parse_vuln(vuln, target, index)
+                    parsed = self._parse_vuln(vuln, target)
                     if parsed is not None:
                         findings.append(parsed)
-                        index += 1
             else:  # config / misconfigurations
                 for misconf in result.get("Misconfigurations") or []:
-                    parsed = self._parse_misconf(misconf, target, index)
+                    parsed = self._parse_misconf(misconf, target)
                     if parsed is not None:
                         findings.append(parsed)
-                        index += 1
 
         return findings
 
-    def _parse_vuln(self, v: dict[str, Any], target: str | None, index: int) -> ParsedFinding | None:
+    def _parse_vuln(self, v: dict[str, Any], target: str | None) -> ParsedFinding | None:
         vid = v.get("VulnerabilityID")
         if not vid:
             return None
@@ -84,10 +81,9 @@ class TrivyJsonParser(FindingParser):
             theme="dependency",
             fix_strategy="dependency-update" if fixed else "config-only",
             compliance_tags=tuple(v.get("CweIDs") or []),
-            raw_index=index,
         )
 
-    def _parse_misconf(self, m: dict[str, Any], target: str | None, index: int) -> ParsedFinding | None:
+    def _parse_misconf(self, m: dict[str, Any], target: str | None) -> ParsedFinding | None:
         mid = m.get("ID")
         if not mid:
             return None
@@ -109,7 +105,6 @@ class TrivyJsonParser(FindingParser):
             theme="misconfiguration",
             fix_strategy="config-only",
             compliance_tags=(),
-            raw_index=index,
         )
 
 

@@ -19,7 +19,6 @@ class ParsedFinding:
     theme: str | None = None
     fix_strategy: str | None = None
     compliance_tags: tuple[str, ...] = ()
-    raw_index: int | None = None
 
 
 class FindingParser(ABC):

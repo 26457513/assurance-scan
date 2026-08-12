@@ -8,7 +8,6 @@ the FR catalogue as a separate artifact so the catalogue stays pure
 from __future__ import annotations
 
 import datetime as dt
-import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -16,6 +15,8 @@ from pathlib import Path
 from typing import Any
 
 import jsonschema
+
+from server.catalogue.loader import _sha256_json
 
 
 log = logging.getLogger(__name__)
@@ -42,9 +43,6 @@ class LoadedMapping:
     @property
     def mappings(self) -> list[dict[str, Any]]:
         return self.doc.get("mappings", [])
-
-    def mappings_for_ruleset(self, ruleset: str) -> list[dict[str, Any]]:
-        return [m for m in self.mappings if m.get("ruleset") == ruleset]
 
 
 def load_mapping(path: Path, project_path: str) -> LoadedMapping:
@@ -77,11 +75,6 @@ def load_mapping_from_dict(doc: dict[str, Any], project_path: str) -> LoadedMapp
 def _validate(doc: dict[str, Any]) -> None:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
     jsonschema.validate(instance=doc, schema=schema)
-
-
-def _sha256_json(doc: dict[str, Any]) -> str:
-    body = json.dumps(doc, sort_keys=True).encode()
-    return f"sha256:{hashlib.sha256(body).hexdigest()}"
 
 
 __all__ = ["LoadedMapping", "load_mapping", "load_mapping_from_dict"]

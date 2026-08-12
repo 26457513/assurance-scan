@@ -63,7 +63,6 @@ class OsvScannerJsonParser(FindingParser):
 
         results = doc.get("results") or []
         findings: list[ParsedFinding] = []
-        index = 0
 
         for result in results:
             source = result.get("source", {}).get("path") or result.get("source", {}).get("location")
@@ -100,9 +99,7 @@ class OsvScannerJsonParser(FindingParser):
                         theme="dependency",
                         fix_strategy="dependency-update" if fixed_versions else "config-only",
                         compliance_tags=(),
-                        raw_index=index,
                     ))
-                    index += 1
 
         return findings
 
