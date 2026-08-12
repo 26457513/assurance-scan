@@ -229,6 +229,22 @@ export interface TestSourceResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Folder browser
+// ---------------------------------------------------------------------------
+
+export interface FolderEntry {
+  name: string;
+  path: string;
+}
+
+export interface FoldersResponse {
+  path: string;
+  root: string;
+  can_go_up: boolean;
+  folders: FolderEntry[];
+}
+
+// ---------------------------------------------------------------------------
 // Config viewer
 // ---------------------------------------------------------------------------
 

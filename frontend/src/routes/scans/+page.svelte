@@ -5,6 +5,7 @@
   import { selectedScan, selectScan } from '$lib/stores/selectedScan';
   import { pushToast } from '$lib/stores/toasts';
   import StatePill from '$lib/components/StatePill.svelte';
+  import FolderPicker from '$lib/components/FolderPicker.svelte';
   import { severityMeta } from '$lib/state';
   import type { ScanSummary, TrendsResponse } from '$lib/types';
 
@@ -16,6 +17,7 @@
   let scanning = false;
   let newScanModalOpen = false;
   let newScanPath = '';
+  let showFolderPicker = false;
 
   $: recentPaths = [...new Set(scans.map((s) => s.project_path))].slice(0, 5);
 
@@ -83,7 +85,13 @@
 
   function openNewScanModal() {
     newScanPath = $selectedScan?.project_path || recentPaths[0] || '';
+    showFolderPicker = false;
     newScanModalOpen = true;
+  }
+
+  function onFolderSelect(e: CustomEvent<string>) {
+    newScanPath = e.detail;
+    showFolderPicker = false;
   }
 
   async function handleNewScan() {
@@ -120,6 +128,14 @@
     }
     selected = new Set();
     deleteModalOpen = false;
+    await refresh();
+
+    // Clear the selected scan if it was among the deleted.
+    if ($selectedScan && ids.includes($selectedScan.run_id)) {
+      selectScan(null);
+      goto('/scans', { noScroll: true });
+    }
+
     if (ok > 0) pushToast('success', `Deleted ${ok} scan${ok === 1 ? '' : 's'}`);
     if (fail > 0) pushToast('error', `${fail} delete${fail === 1 ? '' : 's'} failed`);
     await refresh();
@@ -290,13 +306,26 @@
 {#if newScanModalOpen}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
     <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (newScanModalOpen = false)} aria-label="Close"></button>
-    <div role="dialog" aria-modal="true" class="relative w-full max-w-md bg-surface-panel border border-line-strong rounded-md p-6" style="box-shadow: 0 24px 64px rgba(0,0,0,0.5);">
+    <div role="dialog" aria-modal="true" class="relative w-full {showFolderPicker ? 'max-w-xl' : 'max-w-md'} bg-surface-panel border border-line-strong rounded-md p-6 transition-all duration-200" style="box-shadow: 0 24px 64px rgba(0,0,0,0.5);">
       <div class="text-[14px] text-ink-primary mb-1">New scan</div>
       <div class="text-[12px] text-ink-secondary leading-relaxed mb-4">
-        Enter the absolute path of the project to scan. The folder must contain (or will get) an <code class="font-mono text-ink-primary">fr-catalog.json</code>.
+        Enter the absolute path of the project to scan, or browse to it. The folder must contain (or will get) an <code class="font-mono text-ink-primary">fr-catalog.json</code>.
       </div>
 
-      <label class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted block mb-1.5">Project path</label>
+      <div class="flex items-baseline justify-between mb-1.5">
+        <label class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted">Project path</label>
+        <button
+          type="button"
+          on:click={() => (showFolderPicker = !showFolderPicker)}
+          class="font-mono text-[10px] uppercase tracking-[0.08em] flex items-center gap-1 transition-colors"
+          class:text-accent={showFolderPicker}
+        >
+          <svg viewBox="0 0 12 12" class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path d="M1.5 3.5C1.5 3 1.7 2.8 2 2.8h2.5l1 1H10c.3 0 .5.2.5.5v5.4c0 .3-.2.5-.5.5H2c-.3 0-.5-.2-.5-.5V3.5z" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          {showFolderPicker ? 'Hide browser' : 'Browse…'}
+        </button>
+      </div>
       <input
         type="text"
         bind:value={newScanPath}
@@ -306,7 +335,13 @@
         spellcheck="false"
       />
 
-      {#if recentPaths.length > 0}
+      {#if showFolderPicker}
+        <FolderPicker
+          initialPath={newScanPath || null}
+          on:select={onFolderSelect}
+          on:cancel={() => (showFolderPicker = false)}
+        />
+      {:else if recentPaths.length > 0}
         <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1.5">Recent</div>
         <div class="flex flex-col gap-1 mb-4">
           {#each recentPaths as path}
@@ -319,7 +354,7 @@
         </div>
       {/if}
 
-      <div class="flex items-center justify-end gap-2 mt-3">
+      <div class="flex items-center justify-end gap-2 mt-4">
         <button type="button" on:click={() => (newScanModalOpen = false)}
           class="font-mono text-[11px] uppercase tracking-[0.08em] px-3 py-1.5 rounded-sm border border-line-hairline text-ink-secondary hover:bg-surface-elevated transition-colors">
           Cancel

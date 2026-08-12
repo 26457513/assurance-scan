@@ -3,6 +3,7 @@
   import { api } from '$lib/api';
   import ComplianceRow from './ComplianceRow.svelte';
   import SummaryStrip from './SummaryStrip.svelte';
+  import CopyButton from './CopyButton.svelte';
   import type {
     ComplianceListResponse,
     ComplianceMatrixResponse,
@@ -76,9 +77,24 @@
 </script>
 
 {#if frameworks.length === 0 && !loading}
-  <div class="py-16 text-center">
-    <div class="text-[13px] text-ink-primary mb-2">No compliance frameworks mapped</div>
-    <div class="text-[12px] text-ink-muted font-mono">Run the <span class="text-ink-secondary">propose-compliance-mapping</span> workflow to create a mapping.</div>
+  <div class="py-12 text-center">
+    <div class="text-[15px] text-ink-primary mb-2">No compliance mapping loaded</div>
+    <div class="text-[12px] text-ink-secondary mb-5 max-w-md mx-auto leading-relaxed">
+      Map your FRs to ASVS rules — every row gets assessed as applicable or N/A,
+      with rationale and test references.
+    </div>
+    <div class="border border-line-hairline rounded-sm bg-surface-inset p-3 max-w-lg mx-auto text-left mb-3">
+      <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1.5">Paste into Claude Code</div>
+      <div class="font-mono text-[11px] text-ink-secondary leading-[1.6] break-words">
+        Run the propose-compliance-mapping workflow from the assurance-scan MCP server.
+      </div>
+    </div>
+    <div class="flex items-center justify-center gap-2">
+      <CopyButton text="Run the propose-compliance-mapping workflow from the assurance-scan MCP server." label="Copy prompt" />
+    </div>
+    <div class="mt-3 text-[11px] text-ink-muted font-mono">
+      Requires an FR catalogue first — <a href="#" class="text-accent hover:underline">generate one on the FRs tab</a>
+    </div>
   </div>
 {:else if loading && !matrix}
   <div class="text-[12px] text-ink-muted font-mono">Loading…</div>

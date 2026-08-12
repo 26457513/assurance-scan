@@ -133,14 +133,43 @@ async def delete_all_scans(
     project_path: str | None = Query(default=None),
     session: AsyncSession = SessionDep,
 ) -> dict:
-    """Delete all scans, optionally filtered by project_path."""
+    """Delete all scans + project-level data (catalogue, FRs, mapping, acceptances, waivers).
+
+    When project_path is given, also cleans up CatalogueSnapshot, Fr,
+    ComplianceMapping, FindingAcceptance, and Waiver rows for that project —
+    so a "delete all" truly resets the project to a blank state.
+    """
     from sqlalchemy import select as sa_select
+    from server.db.models import (
+        CatalogueSnapshot, ComplianceMapping, FindingAcceptance, Fr, Waiver,
+    )
+
     stmt = sa_select(Run)
     if project_path:
         stmt = stmt.where(Run.project_path == project_path)
     rows = (await session.execute(stmt)).scalars().all()
-    count = len(rows)
+    scan_count = len(rows)
     for run in rows:
         await session.delete(run)
+
+    # Clean up project-level data when a specific project is targeted.
+    cleaned = {}
+    if project_path:
+        for model, label in [
+            (CatalogueSnapshot, "catalogue_snapshots"),
+            (Fr, "frs"),
+            (ComplianceMapping, "compliance_mappings"),
+            (FindingAcceptance, "finding_acceptances"),
+            (Waiver, "waivers"),
+        ]:
+            result = await session.execute(
+                sa_select(model).where(model.project_path == project_path)
+            )
+            model_rows = result.scalars().all()
+            for row in model_rows:
+                await session.delete(row)
+            if model_rows:
+                cleaned[label] = len(model_rows)
+
     await session.commit()
-    return {"status": "deleted", "count": count}
+    return {"status": "deleted", "scans": scan_count, "cleaned_up": cleaned}

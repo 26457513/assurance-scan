@@ -78,7 +78,9 @@ class ScanOrchestrator:
         try:
             catalogue = None
             catalogue_path = options.get("fr_catalog_path")
-            if catalogue_path:
+
+            # Try reading catalogue from file first.
+            if catalogue_path and Path(catalogue_path).exists():
                 catalogue = load_catalogue(Path(catalogue_path), project_path)
                 snapshot = await self.snapshots.store(
                     project_path=project_path,
@@ -95,14 +97,50 @@ class ScanOrchestrator:
                     run.catalogue_snapshot_id = snapshot.id
                 await self.session.flush()
 
-            # Load the compliance mapping (separate artifact) if supplied.
-            # Default: fr-compliance-mapping.json next to the catalogue.
+            # If no file was found, check DB for a previously-saved snapshot
+            # (via save_catalogue MCP tool). Use the latest snapshot for this
+            # project_path.
+            if catalogue is None:
+                from server.db.models import CatalogueSnapshot
+                from sqlalchemy import select as sa_select
+                snap_row = (await self.session.execute(
+                    sa_select(CatalogueSnapshot)
+                    .where(CatalogueSnapshot.project_path == project_path)
+                    .order_by(CatalogueSnapshot.created_at.desc())
+                    .limit(1)
+                )).scalars().first()
+                if snap_row:
+                    import json as _json
+                    catalogue_doc = _json.loads(snap_row.snapshot_json)
+                    catalogue = LoadedCatalogue(
+                        doc=catalogue_doc,
+                        path=Path("(db-snapshot)"),
+                        project_path=project_path,
+                        content_hash=snap_row.content_hash,
+                        generated_at=snap_row.created_at,
+                    )
+                    run = await self.runs.get(run_id)
+                    if run is not None:
+                        run.catalogue_snapshot_id = snap_row.id
+                    await self.session.flush()
+                    log.info(
+                        "loaded catalogue from DB snapshot %s (project=%s, %d FRs)",
+                        snap_row.id, project_path, len(catalogue_doc.get("frs", [])),
+                    )
+
+            # Load the compliance mapping.
+            # Check DB first (saved via save_mapping MCP tool).
+            mapping_row = await self.mappings_repo.get_for_project(project_path)
             mapping_path = options.get("compliance_mapping_path")
             if not mapping_path and catalogue_path:
                 candidate = Path(catalogue_path).parent / "fr-compliance-mapping.json"
                 if candidate.exists():
                     mapping_path = str(candidate)
-            if mapping_path and Path(mapping_path).exists():
+
+            if mapping_row is not None:
+                # Use DB-stored mapping.
+                pass  # already in the DB — orchestrator will find it later
+            elif mapping_path and Path(mapping_path).exists():
                 try:
                     mapping = load_mapping(Path(mapping_path), project_path)
                     await self.mappings_repo.upsert(

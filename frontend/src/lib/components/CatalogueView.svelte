@@ -3,6 +3,7 @@
   import { api } from '$lib/api';
   import FrRow from './FrRow.svelte';
   import SummaryStrip from './SummaryStrip.svelte';
+  import CopyButton from './CopyButton.svelte';
   import type { FrListResponse, ScanSummary } from '$lib/types';
 
   export let scan: ScanSummary;
@@ -63,9 +64,21 @@
 {:else if !data}
   <div class="text-[12px] text-ink-muted font-mono">No data.</div>
 {:else if !data.catalogue}
-  <div class="py-16 text-center">
-    <div class="text-[13px] text-ink-primary mb-2">No FR catalogue loaded</div>
-    <div class="text-[12px] text-ink-muted font-mono">Run a scan with <span class="text-ink-secondary">fr_catalog_path</span> set.</div>
+  <div class="py-12 text-center">
+    <div class="text-[15px] text-ink-primary mb-2">No FR catalogue loaded</div>
+    <div class="text-[12px] text-ink-secondary mb-5 max-w-md mx-auto leading-relaxed">
+      Generate one from your codebase — the agent reads your source, identifies capabilities,
+      and drafts FRs with test specs + scanner coverage.
+    </div>
+    <div class="border border-line-hairline rounded-sm bg-surface-inset p-3 max-w-lg mx-auto text-left mb-3">
+      <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1.5">Paste into Claude Code</div>
+      <div class="font-mono text-[11px] text-ink-secondary leading-[1.6] break-words">
+        Run the generate-fr-catalogue workflow from the assurance-scan MCP server. Use project_path="{scan.project_path}".
+      </div>
+    </div>
+    <div class="flex items-center justify-center gap-2">
+      <CopyButton text={`Run the generate-fr-catalogue workflow from the assurance-scan MCP server. Use project_path="${scan.project_path}".`} label="Copy prompt" />
+    </div>
   </div>
 {:else}
   <div class="mb-5">

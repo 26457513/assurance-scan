@@ -20,3 +20,7 @@ proposal*.md
 __pycache__/
 *.pyc
 data/authority-sources/raw/
+
+# Config files now stored in DB — don't commit local copies
+fr-catalog.json
+fr-compliance-mapping.json

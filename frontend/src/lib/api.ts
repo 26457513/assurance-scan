@@ -53,6 +53,11 @@ export const api = {
       body: JSON.stringify({ project_path: projectPath, options: options ?? {} })
     }),
 
+  listFolders: (path?: string) => {
+    const qs = path ? `?path=${encodeURIComponent(path)}` : '';
+    return getJson<FoldersResponse>(`/api/folders${qs}`);
+  },
+
   listFindings: (runId: string, severity?: string) => {
     const qs = severity ? `?severity=${encodeURIComponent(severity)}` : '';
     return getJson<FindingsListResponse>(`/api/scans/${runId}/findings${qs}`);

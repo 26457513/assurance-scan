@@ -169,7 +169,9 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
                 catalogue=catalogue.doc,
                 catalogue_version=catalogue.doc.get("catalogue_version"),
             )
-            await fr_repo.replace_for_snapshot(snapshot.id, project_path, catalogue.doc.get("frs", []))
+            await fr_repo.bulk_insert_for_snapshot(
+                snapshot.id, project_path, catalogue.doc.get("frs", []),
+            )
             await session.commit()
 
         return {
@@ -224,6 +226,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
 
     @mcp.tool()
     async def start_scan(
+        project_path: str | None = None,
         fr_catalog_path: str | None = None,
         images: list[str] | None = None,
         urls: list[str] | None = None,
@@ -231,18 +234,19 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     ) -> dict[str, Any]:
         """Start a scan. Returns run_id immediately; scan runs async.
 
-        Defaults `fr_catalog_path` to `<project_root>/fr-catalog.json`.
-        Relative paths are resolved against the project root.
+        `project_path` defaults to the server's project root. Pass an absolute
+        path to scan a different project. If the catalogue was saved via
+        `save_catalogue`, the server uses the DB snapshot — no file needed.
+        If not, it reads `fr-catalog.json` from the project path.
         """
         if deps.scan_queue is None:
             return {"error": "queue_not_initialized"}
 
-        project_path = str(deps.settings.project_root)
-        resolved_catalogue = (
-            _resolve(fr_catalog_path, project_path)
-            if fr_catalog_path
-            else Path(project_path) / "fr-catalog.json"
-        )
+        resolved_project = project_path or str(deps.settings.project_root)
+        if fr_catalog_path:
+            resolved_catalogue = _resolve(fr_catalog_path, resolved_project)
+        else:
+            resolved_catalogue = Path(resolved_project) / "fr-catalog.json"
         options: dict[str, Any] = {"fr_catalog_path": str(resolved_catalogue)}
         if images:
             options["images"] = images
@@ -252,7 +256,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             options["uploads"] = uploads
 
         async with get_sessionmaker()() as session:
-            run_id = deps.scan_queue.enqueue(project_path=project_path, options=options)
+            run_id = deps.scan_queue.enqueue(project_path=resolved_project, options=options)
             runs = RunRepository(session)
             await runs.create(
                 run_id=run_id,
@@ -444,13 +448,17 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         return _get(name, parameters)
 
     @mcp.tool()
-    async def bootstrap() -> dict[str, Any]:
+    async def bootstrap(project_path: str | None = None) -> dict[str, Any]:
         """Check project state and return step-by-step guidance.
 
-        Call this FIRST in any new session. It inspects the project folder
-        for an FR catalogue and compliance mapping, checks the DB for recent
-        scans, discovers the dashboard URL, and returns a `next_steps` list
-        the agent can follow.
+        Call this FIRST in any new session. Pass `project_path` (absolute)
+        to inspect a project other than the server's own folder — every
+        project under ~/Development is scannable.
+
+        Checks the DB (for catalogues/mappings stored via save_catalogue /
+        save_mapping), the filesystem (for legacy ./fr-catalog.json files),
+        recent runs for this project, and the dashboard URL. Returns a
+        `next_steps` list the agent can follow.
 
         The server stays deterministic — it doesn't draft catalogues or
         mappings. It tells the agent what to do next so the user doesn't
@@ -458,27 +466,60 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         """
         from pathlib import Path
         from sqlalchemy import select as sa_select
-        from server.db.models import Run
+        from server.db.models import (
+            CatalogueSnapshot, ComplianceMapping, Run,
+        )
 
-        project_root = Path(str(deps.settings.project_root))
+        resolved_project = project_path or str(deps.settings.project_root)
+        project_root = Path(resolved_project).resolve()
         catalogue_path = project_root / "fr-catalog.json"
         mapping_path = project_root / "fr-compliance-mapping.json"
 
-        catalogue_exists = catalogue_path.exists()
-        mapping_exists = mapping_path.exists()
+        # Check DB first (artefacts saved via MCP), then filesystem (legacy).
+        catalogue_in_db = False
+        mapping_in_db = False
+        catalogue_version: str | None = None
+        catalogue_fr_count: int | None = None
+        mapping_count: int | None = None
 
-        # Check for latest run
-        latest_run_id: str | None = None
-        latest_run_status: str | None = None
         async with get_sessionmaker()() as session:
-            run_row = (await session.execute(
-                sa_select(Run).order_by(Run.started_at.desc()).limit(1)
+            snap_row = (await session.execute(
+                sa_select(CatalogueSnapshot)
+                .where(CatalogueSnapshot.project_path == resolved_project)
+                .order_by(CatalogueSnapshot.created_at.desc())
+                .limit(1)
             )).scalars().first()
-            if run_row:
-                latest_run_id = run_row.run_id
-                latest_run_status = run_row.status
+            if snap_row:
+                catalogue_in_db = True
+                _doc = json.loads(snap_row.snapshot_json)
+                catalogue_version = _doc.get("catalogue_version")
+                catalogue_fr_count = len(_doc.get("frs", []))
 
-        # Discover the dashboard URL by checking docker port mapping.
+            map_row = (await session.execute(
+                sa_select(ComplianceMapping)
+                .where(ComplianceMapping.project_path == resolved_project)
+                .order_by(ComplianceMapping.loaded_at.desc())
+                .limit(1)
+            )).scalars().first()
+            if map_row:
+                mapping_in_db = True
+                _mdoc = json.loads(map_row.mapping_doc_json or "{}")
+                mapping_count = len(_mdoc.get("mappings", []))
+
+            run_row = (await session.execute(
+                sa_select(Run)
+                .where(Run.project_path == resolved_project)
+                .order_by(Run.started_at.desc())
+                .limit(1)
+            )).scalars().first()
+            latest_run_id = run_row.run_id if run_row else None
+            latest_run_status = run_row.status if run_row else None
+
+        catalogue_on_disk = catalogue_path.exists()
+        mapping_on_disk = mapping_path.exists()
+        catalogue_exists = catalogue_in_db or catalogue_on_disk
+        mapping_exists = mapping_in_db or mapping_on_disk
+
         dashboard_url = await _discover_dashboard_url()
 
         # Build step-by-step guidance
@@ -486,26 +527,61 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         recommended_workflow: str
 
         if not catalogue_exists:
-            steps.append("Create ./fr-catalog.json — read the codebase, identify the project's functional capabilities, and draft a v3 catalogue. Show the user before writing.")
-            recommended_workflow = "setup-project"
+            steps.append(
+                f"No catalogue found for {resolved_project}. Read the codebase, "
+                "identify the project's functional capabilities, and draft a v3 "
+                "catalogue. Show the user, then call save_catalogue with the "
+                "catalogue JSON + this project_path. Do NOT write to disk — "
+                "save_catalogue stores it in the DB."
+            )
+            recommended_workflow = "generate-fr-catalogue"
         else:
-            steps.append("Call load_fr_catalog with fr_catalog_path=\"./fr-catalog.json\" to validate the catalogue.")
-            steps.append("Call start_scan to run an initial scan (~90 seconds; first run may take ~3-5 minutes for scanner DB downloads).")
-            if not mapping_exists:
-                steps.append("After the scan completes, draft a compliance mapping: read data/compliance-packs/asvs-5.0.0.json, match ASVS rows to FRs, write ./fr-compliance-mapping.json with rationale + confidence. Show the user before writing.")
-                steps.append("Call start_scan again to load the mapping.")
-                recommended_workflow = "setup-project"
+            if catalogue_in_db:
+                steps.append(
+                    f"Catalogue already stored in DB ({catalogue_fr_count} FRs, "
+                    f"version {catalogue_version}). No load needed."
+                )
             else:
-                steps.append("Call get_findings and get_gap_analysis to see the current state.")
+                steps.append(
+                    "Catalogue exists on disk only. Call save_catalogue with the "
+                    "file's contents + this project_path to migrate it into the DB, "
+                    "then remove the file from the project folder."
+                )
+            steps.append(
+                f"Call start_scan with project_path=\"{resolved_project}\" to run an "
+                "initial scan (~90 seconds; first run may take ~3-5 minutes for "
+                "scanner DB downloads)."
+            )
+            if not mapping_exists:
+                steps.append(
+                    "After the scan completes, draft a compliance mapping: read the "
+                    "ASVS pack via `docker exec assurance-scan cat /opt/assurance-scan/"
+                    "data/compliance-packs/asvs-5.0.0.json`, match ASVS rows to FRs, "
+                    "then call save_mapping with the mapping JSON + this project_path. "
+                    "Do NOT write to disk."
+                )
+                recommended_workflow = "propose-compliance-mapping"
+            else:
+                steps.append(
+                    f"Mapping stored ({mapping_count} entries). Call get_findings and "
+                    "get_gap_analysis on the latest run to see the current state."
+                )
                 recommended_workflow = "scan-and-propose-fixes"
 
         return {
-            "project_root": str(project_root),
+            "project_path": resolved_project,
             "dashboard_url": dashboard_url,
             "catalogue_exists": catalogue_exists,
+            "catalogue_in_db": catalogue_in_db,
+            "catalogue_on_disk": catalogue_on_disk,
             "catalogue_path": str(catalogue_path),
+            "catalogue_version": catalogue_version,
+            "catalogue_fr_count": catalogue_fr_count,
             "mapping_exists": mapping_exists,
+            "mapping_in_db": mapping_in_db,
+            "mapping_on_disk": mapping_on_disk,
             "mapping_path": str(mapping_path),
+            "mapping_count": mapping_count,
             "latest_run_id": latest_run_id,
             "latest_run_status": latest_run_status,
             "recommended_workflow": recommended_workflow,

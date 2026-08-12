@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from server.api.routes import compliance, config, findings, frs, frs_list, health, scans, stream, test_source, trends
+from server.api.routes import compliance, config, findings, folders, frs, frs_list, health, scans, stream, test_source, trends
 from server.config import Settings, load_settings
 from server.db.connection import dispose_engine
 from server.mcp import build_mcp_server, mount_mcp_on_app
@@ -90,6 +90,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(trends.router, prefix="/api")
     app.include_router(test_source.router, prefix="/api")
     app.include_router(config.router, prefix="/api")
+    app.include_router(folders.router, prefix="/api")
 
     # MCP Streamable HTTP endpoint at /mcp. Build the server first so we can
     # expose its session manager to the lifespan for initialization.
