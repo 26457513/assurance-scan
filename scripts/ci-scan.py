@@ -23,23 +23,38 @@ from server.worker.parsers import parser_for
 from server.worker.parsers.base import ParsedFinding
 from server.worker.runner import DockerRunner
 from server.worker.sarif import build_sarif
-from server.worker.scanners import CODE_SCANNERS
-
-# trivy-image needs a locally built image; syft produces no findings.
-EXCLUDED_KINDS = {"trivy-image", "syft"}
-CI_SCANNERS = tuple(s for s in CODE_SCANNERS if s.kind not in EXCLUDED_KINDS)
+from server.worker.scanners import ci_scanner_set
 
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"]
 SUMMARY_TOP_FINDINGS = 15
 
+SBOM_FILENAME = "sbom.cyclonedx.json"
+
+
+async def _image_exists(tag: str) -> bool:
+    proc = await asyncio.create_subprocess_exec(
+        "docker", "image", "inspect", tag,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    await proc.wait()
+    return proc.returncode == 0
+
 
 async def run_scanners(
     project_path: str,
+    image: str | None,
+    sbom_path: Path | None,
 ) -> tuple[list[ParsedFinding], dict[str, str]]:
+    if image and not await _image_exists(image):
+        print(f"[trivy-image] skipped: image {image} not built")
+        image = None
+    scanners = ci_scanner_set(image)
+
     runner = DockerRunner(project_path)
     findings: list[ParsedFinding] = []
     status: dict[str, str] = {}
-    for scanner in CI_SCANNERS:
+    for scanner in scanners:
         try:
             result = await runner.run(scanner, timeout=900)
         except Exception as exc:  # timeout, docker missing, etc.
@@ -51,6 +66,9 @@ async def run_scanners(
             status[scanner.kind] = f"exit={result.returncode}"
             print(f"[{scanner.kind}] FAILED exit={result.returncode}: {err}", file=sys.stderr)
             continue
+        if scanner.output_kind == "cyclonedx-json" and sbom_path is not None:
+            sbom_path.write_bytes(result.stdout)
+            print(f"[{scanner.kind}] ok (SBOM written to {sbom_path})")
         try:
             parsed = parser_for(scanner).parse(result.stdout)
         except Exception as exc:
@@ -102,15 +120,18 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("project_path", help="path to the repo to scan")
     ap.add_argument("--sarif", required=True, help="output SARIF path")
+    ap.add_argument("--image", help="docker image tag to scan with trivy-image (must already be built)")
     args = ap.parse_args()
 
     project_path = str(Path(args.project_path).resolve())
-    print(f"scanning {project_path} with {[s.kind for s in CI_SCANNERS]}")
+    sarif_path = Path(args.sarif)
+    sbom_path = sarif_path.with_name(SBOM_FILENAME)
+    print(f"scanning {project_path} (image={args.image or 'none'})")
 
-    findings, status = asyncio.run(run_scanners(project_path))
+    findings, status = asyncio.run(run_scanners(project_path, args.image, sbom_path))
     sarif = build_sarif(findings)
-    Path(args.sarif).write_text(json.dumps(sarif, indent=2))
-    print(f"wrote {args.sarif}: {len(findings)} findings")
+    sarif_path.write_text(json.dumps(sarif, indent=2))
+    print(f"wrote {sarif_path}: {len(findings)} findings")
 
     md = summary_markdown(findings, status)
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")

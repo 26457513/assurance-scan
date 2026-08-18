@@ -68,15 +68,17 @@ jobs:
 
 Pin to the branch carrying the reusable workflow while it's under development (currently `@target-schema-implementation`), `@main` once merged — and the reusable workflow's internal scanner checkout must be pinned to match.
 
-Each run produces a GitHub Step Summary (severity counts + top findings) and an `assurance-sarif` artifact. Scans never fail the workflow; scanner failures are listed in the summary instead.
+Each run produces a GitHub Step Summary (severity counts + top findings) and an `assurance-scan-results` artifact containing the SARIF plus a CycloneDX SBOM (`sbom.cyclonedx.json`). When the repo has a root `Dockerfile`, the workflow builds it and adds a Trivy image scan of the built image. Scans never fail the workflow; scanner failures are listed in the summary instead.
 
 ### Run the same scan locally
 
 ```bash
 python3 scripts/ci-scan.py /path/to/project --sarif out.sarif
+# optional: scan a locally built image too
+python3 scripts/ci-scan.py /path/to/project --sarif out.sarif --image app:local
 ```
 
-Needs Docker; no server, no DB. CI runs the code-scanner subset (no image builds, no SBOM).
+Needs Docker; no server, no DB.
 
 ## Prerequisites
 

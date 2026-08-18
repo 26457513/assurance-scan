@@ -16,10 +16,14 @@ jobs:
           # sibling private repos. Callers pass the org secret via
           # `secrets: inherit` (fine-grained PAT, Contents: Read-only).
           token: ${{ secrets.ASSURANCE_SCAN_TOKEN }}
+      - name: Build image (if Dockerfile present)
+        run: '[ -f Dockerfile ] && docker build -t assurance-scan-target:ci . || echo "no Dockerfile, skipping image build"'
       - name: Run assurance-scan
-        run: python3 assurance-scan/scripts/ci-scan.py . --sarif assurance.sarif
+        run: python3 assurance-scan/scripts/ci-scan.py . --sarif assurance.sarif --image assurance-scan-target:ci
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: assurance-sarif
-          path: assurance.sarif
+          name: assurance-scan-results
+          path: |
+            assurance.sarif
+            sbom.cyclonedx.json

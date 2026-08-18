@@ -59,10 +59,11 @@ python3 scripts/ci-scan.py <project_path> --sarif out.sarif
 
 Behavior:
 
-- Run the **CI scanner subset** — all `CODE_SCANNERS` except:
-  - `trivy-image` (no locally built image on a runner),
-  - `syft` (`produces_findings=False`; SBOM only matters for phase 2).
-  So: semgrep, gitleaks, trivy-fs, trivy-config, grype, osv-scanner.
+- Run the **CI scanner subset** — all `CODE_SCANNERS` except `trivy-image` by
+  default: semgrep, gitleaks, trivy-fs, trivy-config, syft (SBOM artifact),
+  grype, osv-scanner. With `--image <tag>`, trivy-image runs against that
+  image; the workflow builds it from the root Dockerfile when present
+  (`ci_scanner_set()` in `server/worker/scanners.py`).
 - Drive them with `DockerRunner` + `parser_for` exactly as the orchestrator
   does; collect `ParsedFinding` rows in memory (no DB).
 - Emit one unified SARIF file and print a summary (counts by scanner and

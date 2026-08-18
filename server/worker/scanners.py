@@ -9,7 +9,7 @@ user-named volumes. The worker creates them on first scan if missing.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 
@@ -198,3 +198,16 @@ CODE_SCANNERS: tuple[ScannerConfig, ...] = (
     GRYPE,
     OSV_SCANNER,
 )
+
+
+def ci_scanner_set(image: str | None = None) -> tuple[ScannerConfig, ...]:
+    """Scanner set for CI runs: everything except trivy-image by default.
+
+    SBOM (syft) runs so its CycloneDX output can be shipped as an artifact.
+    When `image` is given, trivy-image is included with that tag in place of
+    the hardcoded local one.
+    """
+    scanners = tuple(s for s in CODE_SCANNERS if s.kind != "trivy-image")
+    if image:
+        scanners += (replace(TRIVY_IMAGE, command=TRIVY_IMAGE.command[:-1] + (image,)),)
+    return scanners

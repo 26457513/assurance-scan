@@ -57,6 +57,8 @@ def test_expected_tools_are_registered(mcp_server) -> None:
         "list_workflows",
         "get_workflow",
         "bootstrap",
+        "save_catalogue",
+        "save_mapping",
     }
     missing = expected - names
     assert not missing, f"missing MCP tools: {missing}"
@@ -78,6 +80,8 @@ def test_no_unexpected_extra_tools_registered(mcp_server) -> None:
         "list_workflows",
         "get_workflow",
         "bootstrap",
+        "save_catalogue",
+        "save_mapping",
     }
     extras = names - known
     # If you added a tool, add it to `known` above and to FR-MCP-SERVER's
