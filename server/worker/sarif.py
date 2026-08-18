@@ -161,9 +161,10 @@ def summary_markdown(
     )
     lines.append("")
 
-    run_url = _run_url()
-    if run_url:
-        lines.append(f"[Download full SARIF + SBOM zip file]({run_url})")
+    if _on_github():
+        lines.append("**Artifacts** (run page → Artifacts section):")
+        lines.append("- `assurance-scan-results` — zip containing the full SARIF findings and the CycloneDX SBOM.")
+        lines.append("- Docker build record — buildx timing/cache details, debugging only.")
     else:
         lines.append("Full results: SARIF + SBOM files written beside this summary.")
     lines.append("")
@@ -176,11 +177,5 @@ def summary_markdown(
     return "\n".join(lines) + "\n"
 
 
-def _run_url() -> str | None:
-    """Deep link to the run's artifacts section (zip download lives there)."""
-    server = os.environ.get("GITHUB_SERVER_URL")
-    repo = os.environ.get("GITHUB_REPOSITORY")
-    run_id = os.environ.get("GITHUB_RUN_ID")
-    if server and repo and run_id:
-        return f"{server}/{repo}/actions/runs/{run_id}/artifacts"
-    return None
+def _on_github() -> bool:
+    return bool(os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_RUN_ID"))
