@@ -5,7 +5,9 @@
 
   let versions: { snapshot_id: string; version?: string | null; fr_count: number; content_hash: string; created_at: string }[] = [];
   let org = '';
-  let localPath = '';
+  // Registered/local projects carry their checkout path at setup; only
+  // github:-only selections need the user to supply one.
+  let manualPath = '';
   let pastedJson = '';
   let loading = true;
   let saving = false;
@@ -15,20 +17,18 @@
 
   $: project = $selectedProject ?? '';
 
-  function rememberLocalPath(p: string, path: string) {
+  function rememberManualPath(p: string, path: string) {
     if (!p || !path) return;
     const store = JSON.parse(localStorage.getItem(LOCAL_PATH_KEY) ?? '{}');
     store[p] = path;
     localStorage.setItem(LOCAL_PATH_KEY, JSON.stringify(store));
   }
 
-  function recallLocalPath(p: string): string {
-    const store = JSON.parse(localStorage.getItem(LOCAL_PATH_KEY) ?? '{}');
-    return store[p] ?? '';
-  }
+  $: isGithubOnly = project.startsWith('github:');
+  $: agentPath = isGithubOnly ? manualPath.trim() : project;
 
   function derivedGithubPath(): string | null {
-    const base = localPath.replace(/\/$/, '').split('/').pop();
+    const base = agentPath.replace(/\/$/, '').split('/').pop();
     if (!org || !base) return null;
     return `github:${org}/${base}`;
   }
@@ -51,7 +51,10 @@
 
   // Reload when the top-bar project selection changes.
   $: if (project) {
-    localPath = recallLocalPath(project);
+    if (isGithubOnly) {
+      const store = JSON.parse(localStorage.getItem(LOCAL_PATH_KEY) ?? '{}');
+      manualPath = store[project] ?? '';
+    }
     flow = null;
     loadVersions();
   }
@@ -74,12 +77,12 @@
   }
 
   function buildPrompt(): string {
-    if (!localPath.trim()) {
+    if (!agentPath) {
       return 'Enter the local checkout path first — the workflow needs it to explore the codebase.';
     }
     const identity = derivedGithubPath();
     const lines = [
-      `Call the assurance-scan MCP tool \`get_workflow\` with name="generate-fr-catalogue" and parameters={"project_path": "${localPath}"} and follow the returned workflow prompt.`
+      `Call the assurance-scan MCP tool \`get_workflow\` with name="generate-fr-catalogue" and parameters={"project_path": "${agentPath}"} and follow the returned workflow prompt.`
     ];
     if (identity && identity !== project) {
       lines.push(
@@ -92,7 +95,7 @@
 
   async function copyPrompt() {
     if (!project) return;
-    rememberLocalPath(project, localPath);
+    if (isGithubOnly) rememberManualPath(project, manualPath);
     try {
       await navigator.clipboard.writeText(buildPrompt());
       pushToast('success', 'Agent prompt copied — paste it into Claude Code');
@@ -182,18 +185,24 @@
           <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">Author with an agent</div>
           <button type="button" on:click={() => (flow = null)} class="text-[11px] font-mono text-ink-muted hover:text-accent">✕ back</button>
         </div>
-        <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="local-path">Local checkout path</label>
-        <input
-          id="local-path"
-          type="text"
-          bind:value={localPath}
-          on:blur={() => rememberLocalPath(project, localPath)}
-          placeholder="/Users/you/Development/project"
-          class="w-full max-w-xl px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-        />
+        {#if isGithubOnly}
+          <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="local-path">Local checkout path</label>
+          <input
+            id="local-path"
+            type="text"
+            bind:value={manualPath}
+            on:blur={() => rememberManualPath(project, manualPath)}
+            placeholder="/Users/you/Development/project"
+            class="w-full max-w-xl px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+          />
+        {:else}
+          <div class="mb-3">
+            <div class="text-[11px] font-mono text-ink-secondary mb-1">Local checkout (from project setup)</div>
+            <div class="font-mono text-[11px] text-ink-primary border border-line-hairline rounded-sm bg-surface-base px-2 py-1 inline-block">{agentPath}</div>
+          </div>
+        {/if}
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
           Delegates to the server-side <code class="text-ink-secondary">generate-fr-catalogue</code> workflow.
-          The local path is remembered per project (a future bridge can supply it automatically).
         </p>
         <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
         <button
