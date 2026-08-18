@@ -172,7 +172,7 @@
       </div>
     {:else}
       <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel mb-5">
-        <div class="grid grid-cols-[minmax(0,2fr)_110px_120px_80px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">
+        <div class="grid grid-cols-[minmax(0,2.2fr)_150px_180px_90px_120px_80px_80px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">
           <div>Run</div>
           <div>Status</div>
           <div>Started</div>
@@ -182,28 +182,21 @@
           <button
             type="button"
             on:click={() => pickScan(s.run_id)}
-            class="w-full text-left grid grid-cols-[minmax(0,2fr)_110px_120px_80px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
+            class="w-full text-left grid grid-cols-[minmax(0,2.2fr)_150px_180px_90px_120px_80px_80px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
             class:bg-accent-subtle={selectedRunId === s.run_id}
           >
-            <span class="min-w-0 flex flex-col gap-0.5">
-              <span class="text-ink-primary truncate" title={s.run_id}>
-                {#if s.run_number != null}#{s.run_number} · {s.display_title || s.run_id}{:else}{s.run_id}{/if}
-              </span>
-              {#if s.event}
-                <span class="text-[10px] text-ink-muted truncate">
-                  {eventLabel(s)} · {s.git_branch ?? ''}
-                </span>
-              {/if}
+            <span class="text-ink-primary truncate" title={s.run_id}>
+              {#if s.run_number != null}#{s.run_number} · {s.display_title || s.run_id}{:else}{s.run_id}{/if}
             </span>
+            <span class="font-mono text-[11px] text-ink-secondary truncate" title={s.git_branch ?? ''}>{s.git_branch ?? '—'}</span>
+            <span class="text-[11px] text-ink-muted truncate">{eventLabel(s) || '—'}</span>
             <span class={s.status === 'completed'
               ? 'text-state-passed'
               : s.status === 'failed'
                 ? 'text-state-failed'
                 : 'text-state-pending'}>{s.status}</span>
-            <span class="text-ink-muted">
-              {fmtDate(s.started_at)}
-              <span class="text-[10px] block">{fmtDuration(s)}</span>
-            </span>
+            <span class="text-ink-muted">{fmtDate(s.started_at)}</span>
+            <span class="text-ink-muted tabular-nums">{fmtDuration(s)}</span>
             <span class="text-right text-ink-secondary tabular-nums">{s.finding_count}</span>
           </button>
         {/each}
