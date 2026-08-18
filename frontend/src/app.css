@@ -58,3 +58,31 @@ html, body {
   50%      { opacity: 0.35; }
 }
 .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+
+/* Standard table primitives — every data table composes these with its own
+   grid template. Keeps look-and-feel in one place. */
+.as-table {
+  border: 1px solid var(--border-hairline);
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--bg-panel);
+  font-family: 'Geist Mono', ui-monospace, monospace;
+}
+.as-head {
+  padding: 6px 12px;
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border-hairline);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+.as-row {
+  border-bottom: 1px solid var(--border-hairline);
+  align-items: center;
+  transition: background-color 120ms;
+}
+.as-row:last-child { border-bottom: none; }
+.as-row-click { cursor: pointer; }
+.as-row-click:hover { background: var(--bg-elevated); }
+.as-row-sel { background: var(--accent-subtle); }

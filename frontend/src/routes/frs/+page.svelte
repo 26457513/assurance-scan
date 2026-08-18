@@ -15,6 +15,8 @@
   let flow: 'agent' | 'paste' | null = null;
   let selectedVersionId: string | null = null;
   let versionJson = '';
+  let showJson = false;
+  let frRows: { fr_id: string; title: string; category: string | null; state: string; test_count: number; test_results: Record<string, number> }[] = [];
   const versionCache = new Map<string, string>();
 
   async function toggleVersion(v: CatalogueVersion) {
@@ -24,6 +26,11 @@
       return;
     }
     selectedVersionId = v.snapshot_id;
+    showJson = false;
+    frRows = [];
+    api.listFRs(undefined, v.snapshot_id)
+      .then((res) => (frRows = res.frs))
+      .catch(() => (frRows = []));
     if (versionCache.has(v.snapshot_id)) {
       versionJson = versionCache.get(v.snapshot_id)!;
       return;
@@ -36,6 +43,14 @@
     } catch (e) {
       versionJson = `failed to load: ${e}`;
     }
+  }
+
+  function stateColor(state: string): string {
+    if (state === 'pass' || state === 'passed') return 'var(--state-passed)';
+    if (state === 'fail' || state === 'failed') return 'var(--state-failed)';
+    if (state === 'waived') return 'var(--state-waived)';
+    if (state === 'untested') return 'var(--state-untested)';
+    return 'var(--state-pending)';
   }
 
   const LOCAL_PATH_KEY = 'assurance-scan:local-paths';
@@ -273,8 +288,8 @@
     {#if versions.length > 0}
       <section class="mt-6">
         <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2.5">Versions</div>
-        <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel font-mono text-[11px]">
-          <div class="grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3 px-3 py-2 bg-surface-inset border-b border-line-hairline text-[10px] uppercase tracking-[0.14em] text-ink-muted items-center">
+        <div class="as-table text-[11px]">
+          <div class="as-head grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3">
             <div>Version</div>
             <div class="text-right">FRs</div>
             <div>Origin</div>
@@ -287,8 +302,8 @@
               tabindex="0"
               on:click={() => toggleVersion(v)}
               on:keydown={(e) => e.key === 'Enter' && toggleVersion(v)}
-              class="grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3 px-3 py-2 border-b border-line-hairline last:border-0 items-center cursor-pointer hover:bg-surface-elevated transition-colors"
-              class:bg-accent-subtle={selectedVersionId === v.snapshot_id}
+              class="as-row as-row-click grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3 px-3 py-2"
+              class:as-row-sel={selectedVersionId === v.snapshot_id}
             >
               <span class="text-ink-primary truncate">{v.version ?? '(unversioned)'}</span>
               <span class="text-right text-ink-secondary tabular-nums">{v.fr_count}</span>
