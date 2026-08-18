@@ -36,6 +36,20 @@ jobs:
         # Build failures degrade to a skipped image scan — ci-scan.py's
         # image guard handles the missing tag.
         continue-on-error: true
+      - name: Strip buildx's own summary section
+        # build-push-action appends a "Docker Build summary" block to the
+        # Step Summary; the record stays downloadable in Artifacts, so drop
+        # the duplicate block. Harmless no-op if its wording ever changes.
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import os, re
+          p = os.environ.get("GITHUB_STEP_SUMMARY")
+          if p:
+              s = open(p).read()
+              s = re.sub(r"\n*Docker Build summary.*?(?=\n## |\Z)", "", s, flags=re.S)
+              open(p, "w").write(s)
+          EOF
       - name: Run assurance-scan
         run: python3 assurance-scan/scripts/ci-scan.py target --sarif assurance.sarif --image assurance-scan-target:ci
       - uses: actions/upload-artifact@v5
