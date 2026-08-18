@@ -12,7 +12,7 @@
 
   let activeSeverity: string | null = null;
   let expandedId: number | null = null;
-  let groupMode = false;
+  let groupMode = true;
   // Groups render closed by default; users open the files they care about.
   let expandedGroups = new Set<string>();
 

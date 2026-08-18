@@ -2,7 +2,6 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
   import FindingsTable from './FindingsTable.svelte';
-  import StatePill from './StatePill.svelte';
   import type { ScanStatus, FindingsListResponse, ScanSummary } from '$lib/types';
 
   export let scan: ScanSummary;
@@ -72,8 +71,17 @@
     es?.close();
   });
 
-  function fmtDate(s: string | null): string {
-    return s ? new Date(s).toLocaleString() : '—';
+  function fmtShort(iso: string | null): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function fmtDuration(): string {
+    if (!detail?.completed_at) return '—';
+    const secs = Math.max(1, Math.round((new Date(detail.completed_at).getTime() - new Date(detail.started_at).getTime()) / 1000));
+    return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
   }
 
   $: scannerColor = (status: string) =>
@@ -100,64 +108,46 @@
   <div class="text-[12px] text-state-failed font-mono">{error}</div>
 {:else if detail}
   <div class="max-w-6xl">
-    <div class="mb-6">
-      <div class="font-mono text-[13px] text-ink-primary break-all">{detail.run_id}</div>
-      <div class="font-mono text-[11px] text-ink-muted mt-1 truncate">{detail.project_path}</div>
-      <div class="flex items-center gap-3 mt-3 text-[11px] font-mono text-ink-secondary">
-        <StatePill state={detail.status} size="sm" />
-        {#if detail.started_at}<span>started {fmtDate(detail.started_at)}</span>{/if}
-        {#if detail.completed_at}<span>· completed {fmtDate(detail.completed_at)}</span>{/if}
+    <section class="mb-5">
+      <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel font-mono text-[11px]">
+        <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_90px_100px_80px] gap-3 px-3 py-1.5 bg-surface-inset border-b border-line-hairline text-[10px] uppercase tracking-[0.14em] text-ink-muted items-center">
+          <div>Run</div>
+          <div>Project</div>
+          <div>Status</div>
+          <div>Started</div>
+          <div>Duration</div>
+        </div>
+        <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_90px_100px_80px] gap-3 px-3 py-2 items-center border-b border-line-hairline">
+          <div class="text-ink-primary truncate" title={detail.run_id}>{detail.run_id}</div>
+          <div class="text-ink-muted truncate" title={detail.project_path}>{detail.project_path}</div>
+          <div style="color: {scannerColor(detail.status)}">{detail.status}</div>
+          <div class="text-ink-muted">{fmtShort(detail.started_at)}</div>
+          <div class="text-ink-muted tabular-nums">{fmtDuration()}</div>
+        </div>
+        <div class="px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span class="text-[10px] uppercase tracking-[0.14em] text-ink-muted">Scanners</span>
+          {#each codeScanners as s (s.kind)}
+            <span
+              class="truncate"
+              style="color: {scannerColor(s.status)}"
+              title={s.error_message ?? s.status}
+            >{s.status === 'completed' ? '✓' : s.status === 'failed' ? '✗' : s.status === 'running' ? '▸' : '·'} {s.kind}</span>
+          {/each}
+          {#if codeScanners.length > 0 && imageScanners.length > 0}
+            <span class="text-ink-muted">|</span>
+          {/if}
+          {#each imageScanners as s (s.kind)}
+            <span
+              class="truncate"
+              style="color: {scannerColor(s.status)}"
+              title={s.error_message ?? s.status}
+            >{s.status === 'completed' ? '✓' : s.status === 'failed' ? '✗' : s.status === 'running' ? '▸' : '·'} {s.kind}</span>
+          {/each}
+          {#if codeScanners.length === 0 && imageScanners.length === 0}
+            <span class="text-ink-muted">no scanners yet</span>
+          {/if}
+        </div>
       </div>
-    </div>
-
-    <section class="mb-8">
-      <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2.5">Scanners</div>
-
-      {#if codeScanners.length > 0}
-        <div class="mb-3">
-          <div class="font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted mb-1.5">Code-level</div>
-          <div class="flex flex-wrap gap-1.5">
-            {#each codeScanners as s (s.kind)}
-              <div class="px-2.5 py-1 border border-line-hairline rounded-sm bg-surface-panel flex items-center gap-2">
-                <span class="font-mono text-[11px] text-ink-primary">{s.kind}</span>
-                <span class="text-ink-muted text-[11px]">·</span>
-                <span class="font-mono text-[11px]" style="color: {scannerColor(s.status)}">
-                  {s.status}
-                  {#if s.status === 'running'}<span class="pulse-dot">▌</span>{/if}
-                </span>
-                {#if s.error_message}
-                  <span class="block text-[10px] text-state-failed mt-0.5 font-mono">{s.error_message}</span>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-
-      {#if imageScanners.length > 0}
-        <div>
-          <div class="font-mono text-[9px] uppercase tracking-[0.12em] text-ink-muted mb-1.5">Image-level</div>
-          <div class="flex flex-wrap gap-1.5">
-            {#each imageScanners as s (s.kind)}
-              <div class="px-2.5 py-1 border border-line-hairline rounded-sm bg-surface-panel flex items-center gap-2">
-                <span class="font-mono text-[11px] text-ink-primary">{s.kind}</span>
-                <span class="text-ink-muted text-[11px]">·</span>
-                <span class="font-mono text-[11px]" style="color: {scannerColor(s.status)}">
-                  {s.status}
-                  {#if s.status === 'running'}<span class="pulse-dot">▌</span>{/if}
-                </span>
-                {#if s.error_message}
-                  <span class="block text-[10px] text-state-failed mt-0.5 font-mono">{s.error_message}</span>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-
-      {#if codeScanners.length === 0 && imageScanners.length === 0}
-        <div class="text-[11px] text-ink-muted font-mono">No scanners yet — scan may be initializing.</div>
-      {/if}
     </section>
 
     {#if findings}
