@@ -218,26 +218,32 @@
           <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">Paste a catalogue</div>
           <button type="button" on:click={() => (flow = null)} class="text-[11px] font-mono text-ink-muted hover:text-accent">✕ back</button>
         </div>
-        <div class="text-[11px] font-mono text-ink-secondary mb-1">Expected format (v3)</div>
-        <pre class="text-[10px] font-mono text-ink-muted whitespace-pre overflow-x-auto max-h-44 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-2 max-w-2xl">{TEMPLATE}</pre>
-        <button
-          type="button"
-          on:click={copyTemplate}
-          class="mb-4 px-3 py-1 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[10px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
-        >Copy template</button>
-        <textarea
-          bind:value={pastedJson}
-          rows="10"
-          placeholder="Paste your catalogue JSON here"
-          class="w-full max-w-2xl px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[10px] text-ink-primary"
-        ></textarea>
-        <div>
-          <button
-            type="button"
-            on:click={savePasted}
-            disabled={saving || !pastedJson.trim()}
-            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
-          >{saving ? 'Saving…' : 'Save catalogue'}</button>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          <div>
+            <div class="text-[11px] font-mono text-ink-secondary mb-1">Expected format (v3)</div>
+            <pre class="text-[10px] font-mono text-ink-muted whitespace-pre overflow-auto h-56 border border-line-hairline rounded-sm bg-surface-base p-2 mb-2">{TEMPLATE}</pre>
+            <button
+              type="button"
+              on:click={copyTemplate}
+              class="px-3 py-1 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[10px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+            >Copy template</button>
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="paste-json">Your catalogue</label>
+            <textarea
+              id="paste-json"
+              bind:value={pastedJson}
+              rows="14"
+              placeholder="Paste your catalogue JSON here"
+              class="w-full px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[10px] text-ink-primary"
+            ></textarea>
+            <button
+              type="button"
+              on:click={savePasted}
+              disabled={saving || !pastedJson.trim()}
+              class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
+            >{saving ? 'Saving…' : 'Save catalogue'}</button>
+          </div>
         </div>
       </section>
     {/if}
