@@ -109,7 +109,7 @@ export const api = {
 
   saveCatalogue: (projectPath: string, catalogueJson: string) =>
     getJson<{ status: string; project?: string; catalogue_version?: string; fr_count?: number; content_hash?: string }>(
-      `/api/frs/catalogue?project_path=${encodeURIComponent(projectPath)}`,
+      `/api/catalogue?project_path=${encodeURIComponent(projectPath)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
