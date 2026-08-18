@@ -81,6 +81,16 @@ export const api = {
       lines?: { n: number; text: string }[];
     }>(`/api/github/source?repo=${encodeURIComponent(repo)}&commit=${encodeURIComponent(commit)}&path=${encodeURIComponent(path)}${line ? `&line=${line}` : ''}`),
 
+  createProject: (tag: string, localPath: string, githubUrl: string) =>
+    getJson<{ status: string; tag: string; local_path: string; github_repo: string | null }>(
+      '/api/projects',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag, local_path: localPath, github_url: githubUrl })
+      }
+    ),
+
   saveCatalogue: (projectPath: string, catalogueJson: string) =>
     getJson<{ status: string; project?: string; catalogue_version?: string; fr_count?: number; content_hash?: string }>(
       `/api/frs/catalogue?project_path=${encodeURIComponent(projectPath)}`,

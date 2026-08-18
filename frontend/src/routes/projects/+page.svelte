@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { pushToast } from '$lib/stores/toasts';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import { selectProject, projectSlug } from '$lib/stores/selectedProject';
@@ -11,6 +12,27 @@
 
   const PAGE_SIZE = 5;
   let page = 0;
+  let addOpen = false;
+  let newTag = '';
+  let newPath = '';
+  let newRepo = '';
+  let adding = false;
+
+  async function addProject() {
+    adding = true;
+    try {
+      await api.createProject(newTag.trim(), newPath.trim(), newRepo.trim());
+      pushToast('success', `Project "${newTag.trim()}" registered`);
+      addOpen = false;
+      newTag = newPath = newRepo = '';
+      loading = true;
+      await load();
+    } catch (e) {
+      pushToast('error', `Register failed: ${e}`);
+    } finally {
+      adding = false;
+    }
+  }
 
   $: pageCount = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   $: visible = projects.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -20,7 +42,7 @@
     goto(`/projects/${projectSlug(p.project_path)}`);
   }
 
-  onMount(async () => {
+  async function load() {
     try {
       const [data, gh] = await Promise.all([
         api.listProjects(),
@@ -61,7 +83,9 @@
     } finally {
       loading = false;
     }
-  });
+  }
+
+  onMount(load);
 
   function fmtDate(iso: string | null): string {
     if (!iso) return '—';
@@ -71,12 +95,21 @@
 </script>
 
 <div class="p-6 max-w-6xl">
-  <div class="mb-4">
-    <div class="text-[15px] text-ink-primary mb-1">Projects</div>
-    <div class="text-[12px] text-ink-secondary">
-      Local scanned folders and the org's GitHub repos — select one to browse its scans,
-      requirements, and compliance.
+  <div class="flex items-start justify-between mb-4">
+    <div>
+      <div class="text-[15px] text-ink-primary mb-1">Projects</div>
+      <div class="text-[12px] text-ink-secondary">
+        Registered projects and discovered leftovers — select one to browse its scans, FRs, and compliance.
+      </div>
     </div>
+    <button
+      type="button"
+      on:click={() => (addOpen = true)}
+      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+    >
+      <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none"><path d="M6 2v8M2 6h8" stroke-linecap="round" /></svg>
+      Add project
+    </button>
   </div>
 
   {#if loading}
@@ -101,8 +134,11 @@
           on:click={() => open(p)}
           class="w-full text-left grid grid-cols-[minmax(0,2fr)_80px_130px_110px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
         >
-          <span class="text-ink-primary truncate flex items-center gap-2">
-            {p.project_path}
+          <span class="text-ink-primary truncate flex items-center gap-2" title={p.project_path}>
+            {p.tag ?? p.project_path}
+            {#if p.tag && p.tag !== p.project_path.replace(/\/$/, '').split('/').pop()}
+              <span class="text-[10px] text-ink-muted truncate">{p.project_path}</span>
+            {/if}
             {#if p.github_project}
               <span class="text-[10px] text-ink-muted border border-line-hairline rounded-sm px-1.5 py-0.5" title={p.github_project}>repo</span>
             {/if}
@@ -133,5 +169,38 @@
         >next ›</button>
       </div>
     {/if}
+  {/if}
+
+  {#if addOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (addOpen = false)} aria-label="Close"></button>
+      <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
+        <div class="text-[13px] text-ink-primary mb-4 font-mono">Register project</div>
+        <div class="space-y-3 mb-5">
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-tag">Tag</label>
+            <input id="np-tag" type="text" bind:value={newTag} placeholder="doc2context"
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-path">Local path (full path on this machine)</label>
+            <input id="np-path" type="text" bind:value={newPath} placeholder="/Users/you/Development/project"
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-repo">GitHub repo URL (org/repo or full URL)</label>
+            <input id="np-repo" type="text" bind:value={newRepo} placeholder="https://github.com/26457513/project"
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+          <p class="text-[10px] text-ink-muted font-mono">GitHub access uses the org key already configured on the server (.env).</p>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" on:click={() => (addOpen = false)}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
+          <button type="button" on:click={addProject} disabled={adding || !newTag.trim() || !newPath.trim()}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary disabled:opacity-50">{adding ? 'Saving…' : 'Register'}</button>
+        </div>
+      </div>
+    </div>
   {/if}
 </div>

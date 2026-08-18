@@ -46,6 +46,7 @@ class CatalogueSnapshot(Base):
     catalogue_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
@@ -83,6 +84,22 @@ class Fr(Base):
 # ---------------------------------------------------------------------------
 
 
+class Project(Base):
+    """User-declared project: tag + local path + optional GitHub repo.
+
+    The registry is the identity source of truth; runs/snapshots keyed by
+    either identity (local path or github:{owner}/{repo}) fold into it.
+    """
+
+    __tablename__ = "projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tag: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    local_path: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
+    github_repo: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class Run(Base):
     """One scan execution against a project."""
 
@@ -100,6 +117,8 @@ class Run(Base):
     started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    git_branch: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mapping_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
     findings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_bundle_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -381,6 +400,7 @@ class ComplianceMapping(Base):
     The mapping is a separate JSON artifact (fr-compliance-mapping.json)
     connecting project FRs to compliance framework rows. Loaded fresh on
     each scan if the file changes; one row per project (latest only).
+    History is kept in ComplianceMappingSnapshot.
     """
 
     __tablename__ = "compliance_mappings"
@@ -393,6 +413,26 @@ class ComplianceMapping(Base):
 
     __table_args__ = (
         Index("ix_compliance_mappings_project", "project_path"),
+    )
+
+
+class ComplianceMappingSnapshot(Base):
+    """Immutable historical copy of a compliance mapping, with the targets it
+    was authored against (catalogue hash + packs) so old runs and matrices
+    stay interpretable when the mapping is later replaced."""
+
+    __tablename__ = "compliance_mapping_snapshots"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
+    catalogue_content_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    packs_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    mapping_doc_json: Mapped[str] = mapped_column(Text, nullable=False)
+    loaded_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("ix_compliance_mapping_snapshots_project", "project_path"),
     )
 
 
@@ -411,4 +451,5 @@ __all__ = [
     "Waiver",
     "AgentAction",
     "ComplianceMapping",
+    "ComplianceMappingSnapshot",
 ]
