@@ -23,13 +23,13 @@
     ? $selectedProject.split('/').filter(Boolean).pop()
     : null;
 
+  // Project sub-links: scans live under the project; FRs and Compliance
+  // are standalone pages.
   const PROJECT_VIEWS = [
-    { view: 'scans', label: 'Scans' },
-    { view: 'frs', label: 'FRs' },
-    { view: 'compliance', label: 'Compliance' }
+    { view: 'scans', label: 'Scans', href: '' },
+    { view: 'frs', label: 'FRs', href: '/frs' },
+    { view: 'compliance', label: 'Compliance', href: '/compliance' }
   ];
-
-  $: activeView = $page.url.searchParams.get('view') ?? 'scans';
 </script>
 
 <aside class="bg-surface-panel border-r border-line-hairline flex flex-col h-full">
@@ -75,13 +75,14 @@
           <span class="truncate flex-1">{projectShort}</span>
         </a>
         {#each PROJECT_VIEWS as v (v.view)}
+          {@const active = v.view === 'scans' ? projectActive && path === projectBase : isActive(v.href)}
           <a
-            href="{projectBase}?view={v.view}"
+            href={v.view === 'scans' ? projectBase : v.href}
             class="relative ml-6 flex items-center gap-2 pl-7 pr-3 py-1.5 text-[11px] font-mono transition-colors duration-150 rounded-sm"
-            class:bg-accent-subtle={projectActive && activeView === v.view}
-            class:text-accent={projectActive && activeView === v.view}
-            class:text-ink-secondary={!(projectActive && activeView === v.view)}
-            class:hover:bg-surface-elevated={!(projectActive && activeView === v.view)}
+            class:bg-accent-subtle={active}
+            class:text-accent={active}
+            class:text-ink-secondary={!active}
+            class:hover:bg-surface-elevated={!active}
           >
             <span class="text-ink-muted select-none">└</span>
             <span class="truncate flex-1">{v.label}</span>
