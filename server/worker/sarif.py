@@ -117,12 +117,14 @@ def summary_markdown(findings: list[ParsedFinding], status: dict[str, str]) -> s
     per_tool: dict[str, Counter[str]] = {}
     for f in findings:
         per_tool.setdefault(f.scanner_kind, Counter())[f.severity] += 1
+    # Every scanner that ran gets a row — clean scanners are information too.
+    all_tools = sorted(set(per_tool) | set(status))
 
     lines = ["## assurance-scan", ""]
 
     lines.append("| Scanner | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total |")
     lines.append("|---|---|---|---|---|---|---|")
-    for tool in sorted(per_tool):
+    for tool in all_tools:
         counts = per_tool[tool]
         low_info = counts["LOW"] + counts["INFO"] + counts["UNKNOWN"]
         lines.append(

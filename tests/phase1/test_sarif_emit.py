@@ -96,3 +96,11 @@ def test_summary_without_github_env_links_to_files(monkeypatch) -> None:
     md = summary_markdown([], {})
     assert "written beside this summary" in md
     assert "| **Total** | **0** | **0** | **0** | **0** | **0** | **0** |" in md
+
+
+def test_summary_includes_clean_scanners() -> None:
+    from server.worker.sarif import summary_markdown
+
+    # gitleaks ran clean (no findings) but must still get a visible row.
+    md = summary_markdown([_finding(severity="HIGH")], {"semgrep": "ok", "gitleaks": "ok"})
+    assert "| gitleaks | · | · | · | · | · | 0 |" in md
