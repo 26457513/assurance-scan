@@ -56,6 +56,27 @@ class GitHubClient:
         with self._opener.open(req, timeout=30) as resp:
             return json.loads(resp.read())
 
+    def _get_raw(self, url: str, accept: str) -> bytes:
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {self._token}",
+            "Accept": accept,
+            "User-Agent": "assurance-scan-poller",
+        })
+        with self._opener.open(req, timeout=30) as resp:
+            return resp.read()
+
+    def org_repos(self, org: str) -> list[dict[str, Any]]:
+        """Full names of the org's non-archived repos."""
+        doc = self._get(f"{API_ROOT}/orgs/{org}/repos?per_page=100")
+        return [r for r in doc if not r.get("archived")]
+
+    def file_contents(self, repo: str, commit: str, path: str) -> bytes:
+        """Raw file bytes at a commit. Raises urllib.error.HTTPError on 404/403."""
+        return self._get_raw(
+            f"{API_ROOT}/repos/{repo}/contents/{path}?ref={commit}",
+            accept="application/vnd.github.raw",
+        )
+
     def list_runs(self, repo: str) -> list[dict[str, Any]]:
         doc = self._get(f"{API_ROOT}/repos/{repo}/actions/runs?per_page=15")
         return [
@@ -154,15 +175,38 @@ async def poll_cycle(
     return result
 
 
+_repo_cache: dict[str, Any] = {"key": None, "repos": (), "at": 0.0}
+_REPO_CACHE_TTL = 3600.0
+
+
+def resolve_repos(client: GitHubClient, poll_repos: tuple[str, ...], org: str) -> tuple[str, ...]:
+    """Manual POLL_REPOS wins; otherwise the org's repos, cached 1h."""
+    import time as _time
+
+    if poll_repos:
+        return poll_repos
+    if not org:
+        return ()
+    key = ("org", org)
+    now = _time.monotonic()
+    if _repo_cache["key"] == key and now - _repo_cache["at"] < _REPO_CACHE_TTL:
+        return _repo_cache["repos"]
+    repos = tuple(r["full_name"] for r in client.org_repos(org))
+    _repo_cache.update(key=key, repos=repos, at=now)
+    return repos
+
+
 async def poller_loop(
     session_factory: async_sessionmaker[AsyncSession],
     client: GitHubClient,
-    repos: tuple[str, ...],
+    poll_repos: tuple[str, ...],
+    org: str,
     interval_seconds: int,
 ) -> None:
-    log.info("github poller started: repos=%s interval=%ss", repos, interval_seconds)
+    log.info("github poller started: org=%s override=%s interval=%ss", org, poll_repos, interval_seconds)
     while True:
         try:
+            repos = await asyncio.to_thread(resolve_repos, client, poll_repos, org)
             await poll_cycle(session_factory, client, repos)
         except asyncio.CancelledError:
             raise

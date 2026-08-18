@@ -62,6 +62,7 @@ class Settings:
     poll_repos: tuple[str, ...]
     poll_interval_seconds: int
     github_poll_token: str
+    github_org: str
 
 
 def load_settings() -> Settings:
@@ -76,6 +77,7 @@ def load_settings() -> Settings:
         poll_repos=tuple(r.strip() for r in _env("POLL_REPOS", "").split(",") if r.strip()),
         poll_interval_seconds=_env_int("POLL_INTERVAL_SECONDS", 60),
         github_poll_token=_env("GITHUB_POLL_TOKEN", ""),
+        github_org=_env("GITHUB_ORG", ""),
         db_url=f"sqlite+aiosqlite:///{db_path.as_posix()}",
         db_url_sync=f"sqlite:///{db_path.as_posix()}",
         project_root=project_root,

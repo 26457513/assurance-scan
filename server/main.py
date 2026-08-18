@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from server.api.routes import catalogue_drift, compliance, config, findings, folders, frs, frs_list, health, poller, projects, scans, stream, test_source, trends, versions
+from server.api.routes import catalogue_drift, compliance, config, findings, folders, frs, frs_list, github, health, poller, projects, scans, stream, test_source, trends, versions
 from server.config import Settings, load_settings
 from server.db.connection import dispose_engine
 from server.mcp import build_mcp_server, mount_mcp_on_app
@@ -68,6 +68,7 @@ async def _lifespan(app: FastAPI):
             get_sessionmaker(settings),
             GitHubClient(settings.github_poll_token),
             settings.poll_repos,
+            settings.github_org,
             settings.poll_interval_seconds,
         ))
 
@@ -110,6 +111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(catalogue_drift.router, prefix="/api")
     app.include_router(projects.router, prefix="/api")
     app.include_router(poller.router, prefix="/api")
+    app.include_router(github.router, prefix="/api")
     app.include_router(versions.router, prefix="/api")
     app.include_router(compliance.router, prefix="/api")
 

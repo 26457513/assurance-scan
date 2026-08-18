@@ -103,3 +103,46 @@ async def test_ingest_failed_run_without_payload(session) -> None:
     assert run.status == "failed"
     assert run.error_message == "GitHub workflow run failed"
     assert (await session.execute(sa_select(Finding))).scalars().first() is None
+
+
+def test_source_window_slices_context() -> None:
+    from server.api.routes.github import _window
+
+    lines = [f"line{i}" for i in range(1, 11)]
+    w = _window(lines, 5)
+    assert w["start_line"] == 2 and w["end_line"] == 8
+    assert [l["n"] for l in w["lines"]] == [2, 3, 4, 5, 6, 7, 8]
+    assert w["highlight"] == 5
+    assert w["lines"][3]["text"] == "line5"
+
+    # Clamp at the top of the file.
+    top = _window(lines, 1)
+    assert top["start_line"] == 1 and top["end_line"] == 4 and top["highlight"] == 1
+
+    # Missing line info defaults to the file start.
+    default = _window(lines, None)
+    assert default["start_line"] == 1 and default["highlight"] == 1
+
+
+def test_resolve_repos_override_and_org_cache() -> None:
+    from server.github_poller import resolve_repos
+
+    class StubClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def org_repos(self, org: str):
+            self.calls += 1
+            return [{"full_name": f"{org}/a"}, {"full_name": f"{org}/b"}]
+
+    stub = StubClient()
+    # Manual override wins, no org call.
+    assert resolve_repos(stub, ("x/y",), "org") == ("x/y",)
+    assert stub.calls == 0
+    # No org configured -> nothing.
+    assert resolve_repos(stub, (), "") == ()
+    # Org mode lists repos and caches across calls.
+    first = resolve_repos(stub, (), "myorg")
+    second = resolve_repos(stub, (), "myorg")
+    assert first == second == ("myorg/a", "myorg/b")
+    assert stub.calls == 1

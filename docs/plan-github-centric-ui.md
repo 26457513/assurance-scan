@@ -71,10 +71,10 @@ page (slug ⇄ `github:owner/repo` encoding).
    finding → code context renders with the correct line highlighted against
    the run's commit; a moved/deleted path degrades gracefully.
 
-## Open questions (at review)
+## Decisions (resolved at review, 2026-08-18)
 
-1. `GITHUB_ORG` default — hardcode `26457513` or require explicit env?
-   Proposed: default to 26457513.
-2. Code window size ±3 lines — enough?
-3. Local projects section: keep parity on the projects page from day one, or
-   GitHub-only first with locals accessible via their old routes?
+1. `GITHUB_ORG` is a `.env` variable (documented in `.env.example`);
+   unset → no GitHub section, local projects unaffected.
+2. Code window stays ±3 lines.
+3. Projects page shows **both** kinds from day one: local folders and
+   GitHub repos.
