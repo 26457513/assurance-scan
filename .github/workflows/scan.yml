@@ -6,8 +6,8 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           repository: 26457513/assurance-scan
           ref: target-schema-implementation   # match caller's pin; switch to main at merge
@@ -18,7 +18,7 @@ jobs:
           token: ${{ secrets.ASSURANCE_SCAN_TOKEN }}
       - name: Run assurance-scan
         run: python3 assurance-scan/scripts/ci-scan.py . --sarif assurance.sarif
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: assurance-sarif
