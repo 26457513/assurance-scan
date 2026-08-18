@@ -6,6 +6,8 @@
   import type { ScanStatus, FindingsListResponse, ScanSummary } from '$lib/types';
 
   export let scan: ScanSummary;
+  export let repo: string | null = null;
+  export let commit: string | null = null;
 
   let detail: ScanStatus | null = null;
   let findings: FindingsListResponse | null = null;
@@ -163,7 +165,7 @@
         <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2.5">
           Findings · {findings.total}
         </div>
-        <FindingsTable findings={findings.findings} total={findings.total} bySeverity={findings.by_severity} />
+        <FindingsTable findings={findings.findings} total={findings.total} bySeverity={findings.by_severity} {repo} {commit} />
       </section>
     {/if}
   </div>

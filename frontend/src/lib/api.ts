@@ -67,6 +67,20 @@ export const api = {
 
   listProjects: () => getJson<{ projects: ProjectSummary[] }>('/api/projects'),
 
+  githubRepos: () =>
+    getJson<{ repos: { full_name: string; name?: string; pushed_at?: string; html_url?: string }[] }>(
+      '/api/github/repos'
+    ),
+
+  githubSource: (repo: string, commit: string, path: string, line?: number | null) =>
+    getJson<{
+      unavailable?: boolean;
+      start_line?: number;
+      end_line?: number;
+      highlight?: number;
+      lines?: { n: number; text: string }[];
+    }>(`/api/github/source?repo=${encodeURIComponent(repo)}&commit=${encodeURIComponent(commit)}&path=${encodeURIComponent(path)}${line ? `&line=${line}` : ''}`),
+
   pollNow: () =>
     getJson<{ ingested?: number; skipped?: number; failed?: number; error?: string; hint?: string }>(
       '/api/poller/poll-now',

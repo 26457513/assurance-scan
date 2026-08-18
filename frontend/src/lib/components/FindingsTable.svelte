@@ -1,19 +1,50 @@
 <script lang="ts">
   import SeverityBadge from './SeverityBadge.svelte';
+  import { api } from '$lib/api';
   import type { FindingResponse } from '$lib/types';
 
   export let findings: FindingResponse[] = [];
   export let total = 0;
   export let bySeverity: Record<string, number> = {};
+  // GitHub CI runs only: enables the source-peek code context.
+  export let repo: string | null = null;
+  export let commit: string | null = null;
 
   let activeSeverity: string | null = null;
   let expandedId: number | null = null;
 
+  type Peek = { lines: { n: number; text: string }[]; highlight: number } | { unavailable: true };
+  let peek: Peek | null = null;
+  let peekLoading = false;
+  const peekCache = new Map<number, Peek>();
+
   $: severities = Object.keys(bySeverity).filter((s) => bySeverity[s] > 0);
   $: filtered = activeSeverity ? findings.filter((f) => f.severity === activeSeverity) : findings;
 
-  function toggle(id: number) {
-    expandedId = expandedId === id ? null : id;
+  function toggle(f: FindingResponse) {
+    expandedId = expandedId === f.id ? null : f.id;
+    peek = null;
+    if (expandedId === f.id && repo && commit && f.file_path) loadPeek(f);
+  }
+
+  async function loadPeek(f: FindingResponse) {
+    if (peekCache.has(f.id)) {
+      peek = peekCache.get(f.id)!;
+      return;
+    }
+    peekLoading = true;
+    try {
+      const res = await api.githubSource(repo!, commit!, f.file_path!, f.line_start);
+      const value: Peek = res.unavailable
+        ? { unavailable: true }
+        : { lines: res.lines ?? [], highlight: res.highlight ?? 0 };
+      peekCache.set(f.id, value);
+      peek = value;
+    } catch {
+      peek = { unavailable: true };
+    } finally {
+      peekLoading = false;
+    }
   }
 
   function scanLevel(scanner: string): 'code' | 'image' {
@@ -64,7 +95,7 @@
       <div class="border-b border-line-hairline last:border-0">
         <button
           type="button"
-          on:click={() => toggle(f.id)}
+          on:click={() => toggle(f)}
           class="w-full text-left grid {COLS} gap-3 px-3 py-2 hover:bg-surface-elevated transition-colors items-center"
         >
           <div><SeverityBadge severity={f.severity} /></div>
@@ -100,6 +131,28 @@
                 <dd class="text-[11px] text-ink-secondary break-words leading-[1.6]">{f.compliance_tags.join('  ·  ')}</dd>
               {/if}
             </dl>
+            {#if repo && commit && f.file_path}
+              <div class="mt-3">
+                {#if peekLoading}
+                  <div class="font-mono text-[11px] text-ink-muted">loading source…</div>
+                {:else if peek && 'unavailable' in peek}
+                  <div class="font-mono text-[11px] text-ink-muted">source unavailable</div>
+                {:else if peek}
+                  <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-base font-mono text-[11px] leading-[1.7]">
+                    {#each peek.lines as l (l.n)}
+                      <div
+                        class="flex"
+                        class:bg-accent-subtle={l.n === peek.highlight}
+                        style={l.n === peek.highlight ? 'box-shadow: inset 2px 0 0 var(--state-failed);' : ''}
+                      >
+                        <span class="w-12 shrink-0 text-right pr-3 text-ink-muted select-none tabular-nums">{l.n}</span>
+                        <span class="whitespace-pre overflow-x-auto flex-1 pr-3 {l.n === peek.highlight ? 'text-ink-primary' : 'text-ink-secondary'}">{l.text}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/if}
       </div>
