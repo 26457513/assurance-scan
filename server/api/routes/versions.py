@@ -77,6 +77,17 @@ async def list_catalogue_versions(
     }
 
 
+@router.get("/catalogue/versions/{snapshot_id}")
+async def get_catalogue_version(snapshot_id: str, session: AsyncSession = SessionDep) -> dict[str, Any]:
+    """The full catalogue JSON for one snapshot."""
+    snapshot = await session.get(CatalogueSnapshot, snapshot_id)
+    if snapshot is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="snapshot not found")
+    return json.loads(snapshot.snapshot_json)
+
+
 @router.get("/mappings/versions")
 async def list_mapping_versions(
     project_path: str = Query(..., description="absolute project root"),

@@ -49,6 +49,9 @@ export const api = {
       `/api/catalogue/drift?project_path=${encodeURIComponent(projectPath)}`
     ),
 
+  getCatalogueVersion: (snapshotId: string) =>
+    getJson<Record<string, unknown>>(`/api/catalogue/versions/${encodeURIComponent(snapshotId)}`),
+
   listCatalogueVersions: (projectPath: string) =>
     getJson<{ versions: CatalogueVersion[] }>(
       `/api/catalogue/versions?project_path=${encodeURIComponent(projectPath)}`

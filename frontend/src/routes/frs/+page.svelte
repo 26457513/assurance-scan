@@ -13,6 +13,30 @@
   let loading = true;
   let saving = false;
   let flow: 'agent' | 'paste' | null = null;
+  let selectedVersionId: string | null = null;
+  let versionJson = '';
+  const versionCache = new Map<string, string>();
+
+  async function toggleVersion(v: CatalogueVersion) {
+    if (selectedVersionId === v.snapshot_id) {
+      selectedVersionId = null;
+      versionJson = '';
+      return;
+    }
+    selectedVersionId = v.snapshot_id;
+    if (versionCache.has(v.snapshot_id)) {
+      versionJson = versionCache.get(v.snapshot_id)!;
+      return;
+    }
+    try {
+      const doc = await api.getCatalogueVersion(v.snapshot_id);
+      const text = JSON.stringify(doc, null, 2);
+      versionCache.set(v.snapshot_id, text);
+      versionJson = text;
+    } catch (e) {
+      versionJson = `failed to load: ${e}`;
+    }
+  }
 
   const LOCAL_PATH_KEY = 'assurance-scan:local-paths';
 
@@ -258,7 +282,14 @@
             <div>Saved</div>
           </div>
           {#each versions as v (v.snapshot_id)}
-            <div class="grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3 px-3 py-2 border-b border-line-hairline last:border-0 items-center">
+            <div
+              role="button"
+              tabindex="0"
+              on:click={() => toggleVersion(v)}
+              on:keydown={(e) => e.key === 'Enter' && toggleVersion(v)}
+              class="grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3 px-3 py-2 border-b border-line-hairline last:border-0 items-center cursor-pointer hover:bg-surface-elevated transition-colors"
+              class:bg-accent-subtle={selectedVersionId === v.snapshot_id}
+            >
               <span class="text-ink-primary truncate">{v.version ?? '(unversioned)'}</span>
               <span class="text-right text-ink-secondary tabular-nums">{v.fr_count}</span>
               <span class="text-ink-muted truncate" title={v.project_path ?? ''}>
@@ -269,6 +300,9 @@
             </div>
           {/each}
         </div>
+        {#if selectedVersionId}
+          <pre class="mt-3 text-[10px] font-mono text-ink-secondary whitespace-pre overflow-auto max-h-[480px] border border-line-hairline rounded-sm bg-surface-base p-3">{versionJson}</pre>
+        {/if}
       </section>
     {/if}
   {/if}
