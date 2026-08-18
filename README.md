@@ -60,6 +60,9 @@ Create `.github/workflows/assurance-scan.yml` in the target repo:
 ```yaml
 name: assurance-scan
 on: [push, pull_request]
+permissions:
+  contents: read
+  actions: write   # buildx layer cache for image builds
 jobs:
   scan:
     uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
