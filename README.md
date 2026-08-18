@@ -74,7 +74,7 @@ jobs:
     secrets: inherit   # passes ASSURANCE_SCAN_TOKEN
 ```
 
-Pin to the branch carrying the reusable workflow while it's under development (currently `@target-schema-implementation`), `@main` once merged — and the reusable workflow's internal scanner checkout must be pinned to match.
+Pin to the branch carrying the reusable workflow while it's under development; `@main` is the stable pin — the reusable workflow's internal scanner checkout must match the caller's pin.
 
 Each run produces a GitHub Step Summary (severity counts + top findings) and an `assurance-scan-results` artifact containing the SARIF plus a CycloneDX SBOM (`sbom.cyclonedx.json`). When the repo has a root `Dockerfile`, the workflow builds it and adds a Trivy image scan of the built image. Scans never fail the workflow; scanner failures are listed in the summary instead.
 
