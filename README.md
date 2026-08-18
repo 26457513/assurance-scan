@@ -61,6 +61,7 @@ Create `.github/workflows/assurance-scan.yml` in the target repo:
 name: assurance-scan
 on:
   pull_request:
+    types: [opened, synchronize]   # skip redundant rescan on reopen
   push:
     branches: [<default branch>]   # scans each commit exactly once
 permissions:
