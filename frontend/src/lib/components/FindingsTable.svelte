@@ -12,6 +12,16 @@
 
   let activeSeverity: string | null = null;
   let expandedId: number | null = null;
+  let groupMode = false;
+  let collapsedGroups = new Set<string>();
+
+  const SEV_WEIGHT: Record<string, number> = {
+    CRITICAL: 5, HIGH: 4, MEDIUM: 3, LOW: 2, INFO: 1, UNKNOWN: 0
+  };
+
+  function worstSev(fs: FindingResponse[]): string {
+    return fs.reduce((a, f) => (SEV_WEIGHT[f.severity] ?? 0) > (SEV_WEIGHT[a] ?? 0) ? f.severity : a, 'UNKNOWN');
+  }
 
   type Peek = { lines: { n: number; text: string }[]; highlight: number } | { unavailable: true };
   let peek: Peek | null = null;
@@ -20,6 +30,38 @@
 
   $: severities = Object.keys(bySeverity).filter((s) => bySeverity[s] > 0);
   $: filtered = activeSeverity ? findings.filter((f) => f.severity === activeSeverity) : findings;
+
+  type Group = { key: string; fs: FindingResponse[]; worst: string };
+  $: groups = (() => {
+    if (!groupMode) return null;
+    const by = new Map<string, FindingResponse[]>();
+    for (const f of filtered) {
+      const key = f.file_path || '(no location)';
+      const list = by.get(key);
+      if (list) list.push(f);
+      else by.set(key, [f]);
+    }
+    const out: Group[] = [...by.entries()].map(([key, fs]) => ({ key, fs, worst: worstSev(fs) }));
+    out.sort((a, b) => (SEV_WEIGHT[b.worst] ?? 0) - (SEV_WEIGHT[a.worst] ?? 0) || b.fs.length - a.fs.length);
+    return out;
+  })();
+
+  type RenderRow = { type: 'group'; g: Group } | { type: 'finding'; f: FindingResponse };
+  $: renderRows = (() => {
+    if (!groups) return filtered.map((f) => ({ type: 'finding', f }) as RenderRow);
+    const rows: RenderRow[] = [];
+    for (const g of groups) {
+      rows.push({ type: 'group', g });
+      if (!collapsedGroups.has(g.key)) for (const f of g.fs) rows.push({ type: 'finding', f });
+    }
+    return rows;
+  })();
+
+  function toggleGroup(key: string) {
+    if (collapsedGroups.has(key)) collapsedGroups.delete(key);
+    else collapsedGroups.add(key);
+    collapsedGroups = collapsedGroups;
+  }
 
   function toggle(f: FindingResponse) {
     expandedId = expandedId === f.id ? null : f.id;
@@ -56,8 +98,28 @@
 </script>
 
 <div>
+  <div class="flex items-center gap-1.5 mb-3 flex-wrap">
+    <button
+      type="button"
+      on:click={() => (groupMode = false)}
+      class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors"
+      class:border-line-strong={!groupMode}
+      class:text-ink-primary={!groupMode}
+      class:border-line-hairline={groupMode}
+      class:text-ink-muted={groupMode}
+    >Flat</button>
+    <button
+      type="button"
+      on:click={() => (groupMode = true)}
+      class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors mr-2"
+      class:border-line-strong={groupMode}
+      class:text-ink-primary={groupMode}
+      class:border-line-hairline={!groupMode}
+      class:text-ink-muted={!groupMode}
+    >By file</button>
+
   {#if severities.length > 0}
-    <div class="flex items-center gap-1.5 mb-3 flex-wrap">
+    <div class="flex items-center gap-1.5 flex-wrap">
       <button
         type="button"
         on:click={() => (activeSeverity = null)}
@@ -80,6 +142,7 @@
       {/each}
     </div>
   {/if}
+  </div>
 
   <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
     <div class="grid {COLS} gap-3 px-3 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
@@ -91,7 +154,22 @@
       <div></div>
     </div>
 
-    {#each filtered as f (f.id)}
+    {#each renderRows as row (row.type === 'group' ? 'g:' + row.g.key : 'f:' + row.f.id)}
+      {#if row.type === 'group'}
+        <button
+          type="button"
+          on:click={() => toggleGroup(row.g.key)}
+          class="w-full flex items-center gap-3 px-3 py-2 bg-surface-inset border-b border-line-hairline hover:bg-surface-elevated transition-colors"
+        >
+          <svg class="h-3 w-3 text-ink-muted transition-transform duration-150 {collapsedGroups.has(row.g.key) ? '-rotate-90' : ''}" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 4.5l3 3 3-3" stroke-linecap="round" />
+          </svg>
+          <span class="font-mono text-[11px] text-ink-primary truncate flex-1 text-left">{row.g.key}</span>
+          <span class="font-mono text-[10px] text-ink-muted tabular-nums shrink-0">{row.g.fs.length}</span>
+          <span class="shrink-0"><SeverityBadge severity={row.g.worst} /></span>
+        </button>
+      {:else}
+      {@const f = row.f}
       <div class="border-b border-line-hairline last:border-0">
         <button
           type="button"
@@ -111,7 +189,7 @@
             </svg>
           </div>
         </button>
-        {#if expandedId === f.id}
+      {#if expandedId === f.id}
           <div class="px-3 py-4 bg-surface-inset border-t border-line-hairline">
             <dl class="grid grid-cols-[100px_minmax(0,1fr)] gap-x-4 gap-y-2.5">
               {#if f.rule_id}
@@ -154,8 +232,9 @@
               </div>
             {/if}
           </div>
-        {/if}
+      {/if}
       </div>
+      {/if}
     {:else}
       <div class="px-3 py-8 text-center text-[12px] text-ink-muted font-mono">no findings</div>
     {/each}
