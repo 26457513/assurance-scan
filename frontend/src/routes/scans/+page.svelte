@@ -213,7 +213,7 @@
         <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none">
           <path d="M10 6a4 4 0 11-1.2-2.8M10 1v2.5H7.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{polling ? 'Polling…' : 'From GitHub'}</span>
+        <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{polling ? 'Retrieving…' : 'Retrieve from GitHub'}</span>
       </button>
       <button
         type="button"

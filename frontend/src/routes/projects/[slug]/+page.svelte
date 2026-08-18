@@ -20,6 +20,35 @@
   let loading = true;
   let error: string | null = null;
   let polling = false;
+  let selected = new Set<string>();
+  let deleteModalOpen = false;
+  $: selectedCount = selected.size;
+
+  function toggleRow(runId: string) {
+    if (selected.has(runId)) selected.delete(runId);
+    else selected.add(runId);
+    selected = new Set(selected);
+  }
+
+  async function confirmDelete() {
+    const ids = [...selected];
+    let ok = 0;
+    let fail = 0;
+    for (const id of ids) {
+      try {
+        await api.deleteScan(id);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    selected = new Set();
+    deleteModalOpen = false;
+    if (ids.includes(selectedRunId)) selectedRunId = '';
+    if (ok > 0) pushToast('success', `Deleted ${ok} scan${ok === 1 ? '' : 's'} from assurance-scan`);
+    if (fail > 0) pushToast('error', `${fail} delete${fail === 1 ? '' : 's'} failed`);
+    await loadScans();
+  }
 
   const PAGE_SIZES = [5, 10, 25, 50];
   let pageSize = 10;
@@ -139,7 +168,15 @@
         <span class="text-ink-muted">— needs investigation, click to open</span>
       </button>
     {/if}
-    <div class="flex justify-end mb-3">
+    <div class="flex justify-end items-center gap-2 mb-3">
+      {#if selectedCount > 0}
+        <button
+          type="button"
+          on:click={() => (deleteModalOpen = true)}
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm border transition-colors font-mono text-[11px] uppercase tracking-[0.1em]"
+          style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent); background: color-mix(in srgb, var(--state-failed) 8%, transparent);"
+        >Delete {selectedCount} selected</button>
+      {/if}
       <button
         type="button"
         on:click={pollNow}
@@ -150,7 +187,7 @@
         <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none">
           <path d="M10 6a4 4 0 11-1.2-2.8M10 1v2.5H7.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{polling ? 'Polling…' : 'From GitHub'}</span>
+        <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{polling ? 'Retrieving…' : 'Retrieve from GitHub'}</span>
       </button>
     </div>
     {#if loading}
@@ -163,7 +200,8 @@
       </div>
     {:else}
       <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel mb-5">
-        <div class="grid grid-cols-[minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+        <div class="grid grid-cols-[26px_minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+          <div></div>
           <div>Run</div>
           <div>Repo</div>
           <div>Branch</div>
@@ -174,12 +212,21 @@
           <div class="text-right">Findings</div>
         </div>
         {#each visible as s (s.run_id)}
-          <button
-            type="button"
+          <div
+            role="button"
+            tabindex="0"
             on:click={() => pickScan(s.run_id)}
-            class="w-full text-left grid grid-cols-[minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
+            on:keydown={(e) => e.key === 'Enter' && pickScan(s.run_id)}
+            class="w-full text-left grid grid-cols-[26px_minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
             class:bg-accent-subtle={selectedRunId === s.run_id}
           >
+            <input
+              type="checkbox"
+              checked={selected.has(s.run_id)}
+              on:click|stopPropagation={() => toggleRow(s.run_id)}
+              class="cursor-pointer accent-current"
+              aria-label="Select {s.run_id}"
+            />
             <span class="text-ink-primary truncate" title={s.run_id}>
               {#if s.run_number != null}#{s.run_number} · {s.display_title || s.run_id}{:else}{s.run_id}{/if}
             </span>
@@ -194,7 +241,7 @@
             <span class="text-ink-muted">{fmtDate(s.started_at)}</span>
             <span class="text-ink-muted tabular-nums">{fmtDuration(s)}</span>
             <span class="text-right text-ink-secondary tabular-nums">{s.finding_count}</span>
-          </button>
+          </div>
         {/each}
       </div>
 
@@ -239,4 +286,30 @@
       {/if}
     {/if}
   </div>
+
+  {#if deleteModalOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (deleteModalOpen = false)} aria-label="Close"></button>
+      <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
+        <div class="text-[13px] text-ink-primary mb-2 font-mono">Delete {selectedCount} scan{selectedCount === 1 ? '' : 's'}?</div>
+        <p class="text-[12px] text-ink-secondary leading-relaxed mb-5">
+          This removes the scan information from <strong>assurance-scan only</strong> — nothing is deleted from GitHub.
+          The scans will be restored the next time <em>Retrieve from GitHub</em> runs.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            on:click={() => (deleteModalOpen = false)}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary"
+          >Cancel</button>
+          <button
+            type="button"
+            on:click={confirmDelete}
+            class="px-3 py-1.5 rounded-sm text-[11px] font-mono uppercase tracking-[0.1em]"
+            style="color: var(--state-failed); border: 1px solid color-mix(in srgb, var(--state-failed) 35%, transparent); background: color-mix(in srgb, var(--state-failed) 8%, transparent);"
+          >Delete</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 {/if}
