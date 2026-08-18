@@ -14,6 +14,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -41,7 +42,7 @@ async def run_scanners(
     project_path: str,
     image: str | None,
     sbom_path: Path | None,
-) -> tuple[list[ParsedFinding], dict[str, str]]:
+) -> tuple[list[ParsedFinding], dict[str, str], dict[str, float]]:
     if image and not await _image_exists(image):
         print(f"[trivy-image] skipped: image {image} not built")
         image = None
@@ -50,31 +51,46 @@ async def run_scanners(
     runner = DockerRunner(project_path)
     findings: list[ParsedFinding] = []
     status: dict[str, str] = {}
+    durations: dict[str, float] = {}
     for scanner in scanners:
+        t0 = time.monotonic()
         try:
-            result = await runner.run(scanner, timeout=900)
-        except Exception as exc:  # timeout, docker missing, etc.
-            status[scanner.kind] = f"error: {exc}"
-            print(f"[{scanner.kind}] ERROR {exc}", file=sys.stderr)
-            continue
-        if result.returncode not in scanner.success_exit_codes:
-            err = result.stderr.decode("utf-8", "replace")[:300]
-            status[scanner.kind] = f"exit={result.returncode}"
-            print(f"[{scanner.kind}] FAILED exit={result.returncode}: {err}", file=sys.stderr)
-            continue
-        if scanner.output_kind == "cyclonedx-json" and sbom_path is not None:
-            sbom_path.write_bytes(result.stdout)
-            print(f"[{scanner.kind}] ok (SBOM written to {sbom_path})")
-        try:
-            parsed = parser_for(scanner).parse(result.stdout)
-        except Exception as exc:
-            status[scanner.kind] = f"parse-error: {exc}"
-            print(f"[{scanner.kind}] PARSE ERROR {exc}", file=sys.stderr)
-            continue
-        findings.extend(parsed)
-        status[scanner.kind] = "ok"
-        print(f"[{scanner.kind}] ok ({len(parsed)} findings)")
-    return findings, status
+            await _run_one(scanner, runner, findings, status, sbom_path)
+        finally:
+            durations[scanner.kind] = round(time.monotonic() - t0, 1)
+    return findings, status, durations
+
+
+async def _run_one(
+    scanner,
+    runner: DockerRunner,
+    findings: list[ParsedFinding],
+    status: dict[str, str],
+    sbom_path: Path | None,
+) -> None:
+    try:
+        result = await runner.run(scanner, timeout=900)
+    except Exception as exc:  # timeout, docker missing, etc.
+        status[scanner.kind] = f"error: {exc}"
+        print(f"[{scanner.kind}] ERROR {exc}", file=sys.stderr)
+        return
+    if result.returncode not in scanner.success_exit_codes:
+        err = result.stderr.decode("utf-8", "replace")[:300]
+        status[scanner.kind] = f"exit={result.returncode}"
+        print(f"[{scanner.kind}] FAILED exit={result.returncode}: {err}", file=sys.stderr)
+        return
+    if scanner.output_kind == "cyclonedx-json" and sbom_path is not None:
+        sbom_path.write_bytes(result.stdout)
+        print(f"[{scanner.kind}] ok (SBOM written to {sbom_path})")
+    try:
+        parsed = parser_for(scanner).parse(result.stdout)
+    except Exception as exc:
+        status[scanner.kind] = f"parse-error: {exc}"
+        print(f"[{scanner.kind}] PARSE ERROR {exc}", file=sys.stderr)
+        return
+    findings.extend(parsed)
+    status[scanner.kind] = "ok"
+    print(f"[{scanner.kind}] ok ({len(parsed)} findings)")
 
 
 def main() -> int:
@@ -89,12 +105,12 @@ def main() -> int:
     sbom_path = sarif_path.with_name(SBOM_FILENAME)
     print(f"scanning {project_path} (image={args.image or 'none'})")
 
-    findings, status = asyncio.run(run_scanners(project_path, args.image, sbom_path))
+    findings, status, durations = asyncio.run(run_scanners(project_path, args.image, sbom_path))
     sarif = build_sarif(findings)
     sarif_path.write_text(json.dumps(sarif, indent=2))
     print(f"wrote {sarif_path}: {len(findings)} findings")
 
-    md = summary_markdown(findings, status)
+    md = summary_markdown(findings, status, durations)
     sarif_path.with_name("summary.md").write_text(md)
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:

@@ -79,11 +79,13 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     monkeypatch.setenv("GITHUB_REPOSITORY", "26457513/doc2context")
     monkeypatch.setenv("GITHUB_RUN_ID", "12345")
 
-    md = summary_markdown(findings, {"semgrep": "ok", "gitleaks": "ok", "trivy-fs": "exit=1"})
+    durations = {"semgrep": 12.3, "gitleaks": 1.2}
+    md = summary_markdown(findings, {"semgrep": "ok", "gitleaks": "ok", "trivy-fs": "exit=1"}, durations)
 
-    assert "| Scanner | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total |" in md
-    assert "| gitleaks | · | 1 | · | · | 1 | 2 |" in md
-    assert "| **Total** | **1** | **2** | **0** | **0** | **1** | **4** |" in md
+    assert "| Scanner | Checks | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total | s |" in md
+    assert "| gitleaks | hardcoded secrets | · | 1 | · | · | 1 | 2 | 1.2 |" in md
+    assert "| semgrep | static code analysis | 1 | 1 | · | · | · | 2 | 12.3 |" in md
+    assert "| **Total** |  | **1** | **2** | **0** | **0** | **1** | **4** |  |" in md
     assert "https://github.com/26457513/doc2context/actions/runs/12345" in md
     assert "`trivy-fs` — exit=1" in md
 
@@ -95,7 +97,7 @@ def test_summary_without_github_env_links_to_files(monkeypatch) -> None:
         monkeypatch.delenv(var, raising=False)
     md = summary_markdown([], {})
     assert "written beside this summary" in md
-    assert "| **Total** | **0** | **0** | **0** | **0** | **0** | **0** |" in md
+    assert "| **Total** |  | **0** | **0** | **0** | **0** | **0** | **0** |  |" in md
 
 
 def test_summary_includes_clean_scanners() -> None:
@@ -103,4 +105,4 @@ def test_summary_includes_clean_scanners() -> None:
 
     # gitleaks ran clean (no findings) but must still get a visible row.
     md = summary_markdown([_finding(severity="HIGH")], {"semgrep": "ok", "gitleaks": "ok"})
-    assert "| gitleaks | · | · | · | · | · | 0 |" in md
+    assert "| gitleaks | hardcoded secrets | · | · | · | · | · | 0 | · |" in md

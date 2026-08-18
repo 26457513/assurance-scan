@@ -111,9 +111,25 @@ def build_sarif(findings: list[ParsedFinding]) -> dict[str, Any]:
 
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"]
 
+SCANNER_DESCRIPTIONS: dict[str, str] = {
+    "semgrep": "static code analysis",
+    "gitleaks": "hardcoded secrets",
+    "trivy-fs": "dependency CVEs (fs)",
+    "trivy-config": "Dockerfile/IaC misconfig",
+    "trivy-image": "image CVEs",
+    "syft": "SBOM inventory",
+    "grype": "dependency CVEs",
+    "osv-scanner": "dependency CVEs (OSV)",
+}
 
-def summary_markdown(findings: list[ParsedFinding], status: dict[str, str]) -> str:
+
+def summary_markdown(
+    findings: list[ParsedFinding],
+    status: dict[str, str],
+    durations: dict[str, float] | None = None,
+) -> str:
     """Per-tool severity matrix + link to the full results artifact."""
+    durations = durations or {}
     per_tool: dict[str, Counter[str]] = {}
     for f in findings:
         per_tool.setdefault(f.scanner_kind, Counter())[f.severity] += 1
@@ -122,22 +138,24 @@ def summary_markdown(findings: list[ParsedFinding], status: dict[str, str]) -> s
 
     lines = ["## assurance-scan", ""]
 
-    lines.append("| Scanner | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total |")
-    lines.append("|---|---|---|---|---|---|---|")
+    lines.append("| Scanner | Checks | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total | s |")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
     for tool in all_tools:
         counts = per_tool.get(tool, Counter())
         low_info = counts["LOW"] + counts["INFO"] + counts["UNKNOWN"]
+        secs = durations.get(tool)
         lines.append(
-            f"| {tool} | {counts['CRITICAL'] or '·'} | {counts['HIGH'] or '·'} "
+            f"| {tool} | {SCANNER_DESCRIPTIONS.get(tool, '·')} "
+            f"| {counts['CRITICAL'] or '·'} | {counts['HIGH'] or '·'} "
             f"| {counts['MEDIUM'] or '·'} | {counts['LOW'] or '·'} "
-            f"| {low_info or '·'} | {sum(counts.values())} |"
+            f"| {low_info or '·'} | {sum(counts.values())} | {secs if secs is not None else '·'} |"
         )
     total = len(findings)
     by_sev = Counter(f.severity for f in findings)
     lines.append(
-        f"| **Total** | **{by_sev['CRITICAL']}** | **{by_sev['HIGH']}** "
+        f"| **Total** |  | **{by_sev['CRITICAL']}** | **{by_sev['HIGH']}** "
         f"| **{by_sev['MEDIUM']}** | **{by_sev['LOW']}** "
-        f"| **{by_sev['INFO'] + by_sev['UNKNOWN']}** | **{total}** |"
+        f"| **{by_sev['INFO'] + by_sev['UNKNOWN']}** | **{total}** |  |"
     )
     lines.append("")
 
