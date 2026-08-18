@@ -161,8 +161,10 @@
     </div>
   {:else}
     <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
-      <div class="grid grid-cols-[minmax(0,2fr)_80px_130px_110px_40px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
-        <div>Path</div>
+      <div class="grid grid-cols-[110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_90px_32px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+        <div>Project</div>
+        <div>Local path</div>
+        <div>GitHub repo</div>
         <div class="text-right">Runs</div>
         <div>Last scan</div>
         <div>Catalogue</div>
@@ -174,16 +176,14 @@
           tabindex="0"
           on:click={() => open(p)}
           on:keydown={(e) => e.key === 'Enter' && open(p)}
-          class="w-full text-left grid grid-cols-[minmax(0,2fr)_80px_130px_110px_40px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
+          class="w-full text-left grid grid-cols-[110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_90px_32px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
         >
-          <span class="text-ink-primary truncate flex items-center gap-2" title={p.project_path}>
-            {p.tag ?? p.project_path}
-            {#if p.tag && p.tag !== p.project_path.replace(/\/$/, '').split('/').pop()}
-              <span class="text-[10px] text-ink-muted truncate">{p.project_path}</span>
-            {/if}
-            {#if p.github_project}
-              <span class="text-[10px] text-ink-muted border border-line-hairline rounded-sm px-1.5 py-0.5" title={p.github_project}>repo</span>
-            {/if}
+          <span class="text-ink-primary truncate">
+            {p.tag ?? p.project_path.replace(/\/$/, '').split('/').pop()}
+          </span>
+          <span class="text-ink-secondary truncate" title={p.project_path}>{p.project_path}</span>
+          <span class="text-ink-muted truncate" title={p.github_project ?? ''}>
+            {p.github_project ? p.github_project.replace('github:', '') : '—'}
           </span>
           <span class="text-right text-ink-secondary tabular-nums">{p.run_count}</span>
           <span class="text-ink-muted">{fmtDate(p.last_scan_at)}</span>
