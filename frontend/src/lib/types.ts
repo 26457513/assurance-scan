@@ -15,6 +15,11 @@ export interface ScanSummary {
   started_at: string;
   completed_at: string | null;
   finding_count: number;
+  run_number?: number | null;
+  event?: string | null;
+  actor?: string | null;
+  display_title?: string | null;
+  git_branch?: string | null;
 }
 
 export interface ScannerStatus {
@@ -23,6 +28,64 @@ export interface ScannerStatus {
   started_at: string | null;
   completed_at: string | null;
   error_message: string | null;
+}
+
+export interface CatalogueRef {
+  snapshot_id: string | null;
+  version: string | null;
+  content_hash: string | null;
+}
+
+export interface ScanProvenance {
+  catalogue: CatalogueRef | null;
+  mapping_hash: string | null;
+  current_catalogue: CatalogueRef | null;
+  current_mapping_hash: string | null;
+  catalogue_stale: boolean | null;
+  mapping_stale: boolean | null;
+}
+
+export interface CatalogueDriftResponse {
+  project_path: string;
+  catalogue_snapshot_id: string;
+  catalogue_version: string | null;
+  catalogue_content_hash: string;
+  snapshot_commit: string | null;
+  current_commit: string | null;
+  code_moved: boolean | null;
+  missing_files: { fr_id: string; ref: string }[];
+  unresolved_patterns: { fr_id: string; test_id: string; name_pattern: string }[];
+  drifted_fr_ids: string[];
+}
+
+export interface CatalogueVersion {
+  snapshot_id: string;
+  version: string | null;
+  content_hash: string;
+  source_commit_sha: string | null;
+  created_at: string;
+  fr_count: number;
+}
+
+export interface MappingVersion {
+  snapshot_id: string;
+  content_hash: string;
+  catalogue_content_hash: string | null;
+  packs: { ruleset: string; version: string }[];
+  loaded_at: string;
+}
+
+export interface CompliancePack {
+  id: string;
+  version: string;
+  file: string;
+}
+
+export interface ProjectSummary {
+  project_path: string;
+  run_count: number;
+  last_scan_at: string | null;
+  has_catalogue: boolean;
 }
 
 export interface ScanStatus {
@@ -34,6 +97,9 @@ export interface ScanStatus {
   scanner_status: ScannerStatus[];
   options: Record<string, unknown>;
   error_message: string | null;
+  provenance: ScanProvenance | null;
+  git_branch: string | null;
+  commit_sha: string | null;
 }
 
 export interface ScanResponse {

@@ -37,6 +37,30 @@ class ScannerStatus(BaseModel):
     error_message: str | None = None
 
 
+class CatalogueRef(BaseModel):
+    """Identity of one catalogue snapshot."""
+
+    snapshot_id: str | None = None
+    version: str | None = None
+    content_hash: str | None = None
+
+
+class ScanProvenance(BaseModel):
+    """What a run evaluated against, and what the project currently has.
+
+    `*_stale` is true when the run's pinned artifact differs from the
+    project's latest; None when it can't be determined (nothing pinned or
+    nothing current).
+    """
+
+    catalogue: CatalogueRef | None = None
+    mapping_hash: str | None = None
+    current_catalogue: CatalogueRef | None = None
+    current_mapping_hash: str | None = None
+    catalogue_stale: bool | None = None
+    mapping_stale: bool | None = None
+
+
 class ScanStatus(BaseModel):
     """Detail view for one scan."""
 
@@ -48,10 +72,20 @@ class ScanStatus(BaseModel):
     scanner_status: list[ScannerStatus] = Field(default_factory=list)
     options: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = None
+    provenance: ScanProvenance | None = None
+    git_branch: str | None = None
+    commit_sha: str | None = None
 
 
 class ScanSummary(BaseModel):
     """List view for one scan."""
+
+    # CI-run display metadata (GitHub runs only; None for local scans).
+    run_number: int | None = None
+    event: str | None = None
+    actor: str | None = None
+    display_title: str | None = None
+    git_branch: str | None = None
 
     run_id: str
     project_path: str

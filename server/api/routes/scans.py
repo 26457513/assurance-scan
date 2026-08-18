@@ -69,6 +69,7 @@ async def list_scans(
     summaries: list[ScanSummary] = []
     for run in rows:
         count = await findings.count_for_run(run.run_id)
+        opts = _ci_display_fields(run)
         summaries.append(
             ScanSummary(
                 run_id=run.run_id,
@@ -77,14 +78,38 @@ async def list_scans(
                 started_at=run.started_at,
                 completed_at=run.completed_at,
                 finding_count=count,
+                **opts,
             )
         )
     return summaries
 
 
+def _ci_display_fields(run: Run) -> dict:
+    """GitHub run display metadata from options_json (empty for local runs)."""
+    import json as _json
+
+    if not run.run_id.startswith("gh-"):
+        return {}
+    try:
+        opts = _json.loads(run.options_json or "{}")
+    except ValueError:
+        return {}
+    fields = {
+        k: opts.get(k)
+        for k in ("run_number", "event", "actor", "display_title")
+    }
+    fields["git_branch"] = run.git_branch
+    return fields
+
+
 @router.get("/{run_id}", response_model=ScanStatus)
 async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatus:
-    """Get full detail for one scan, including per-scanner status."""
+    """Get full detail for one scan, including per-scanner status + provenance."""
+    from sqlalchemy import select as sa_select
+
+    from server.api.schemas.scan import CatalogueRef, ScanProvenance
+    from server.db.models import CatalogueSnapshot, ComplianceMapping
+
     runs = RunRepository(session)
     scanner_runs = ScannerRunRepository(session)
 
@@ -104,6 +129,54 @@ async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatu
         for r in scanner_rows
     ]
 
+    used_snap = (
+        await session.get(CatalogueSnapshot, run.catalogue_snapshot_id)
+        if run.catalogue_snapshot_id
+        else None
+    )
+    latest_snap = (
+        await session.execute(
+            sa_select(CatalogueSnapshot)
+            .where(CatalogueSnapshot.project_path == run.project_path)
+            .order_by(CatalogueSnapshot.created_at.desc())
+            .limit(1)
+        )
+    ).scalars().first()
+    latest_map = (
+        await session.execute(
+            sa_select(ComplianceMapping)
+            .where(ComplianceMapping.project_path == run.project_path)
+            .order_by(ComplianceMapping.loaded_at.desc())
+            .limit(1)
+        )
+    ).scalars().first()
+
+    def _ref(snap) -> CatalogueRef | None:
+        if snap is None:
+            return None
+        return CatalogueRef(
+            snapshot_id=snap.id,
+            version=snap.catalogue_version,
+            content_hash=snap.content_hash,
+        )
+
+    provenance = ScanProvenance(
+        catalogue=_ref(used_snap),
+        mapping_hash=run.mapping_hash,
+        current_catalogue=_ref(latest_snap),
+        current_mapping_hash=latest_map.content_hash if latest_map else None,
+        catalogue_stale=(
+            used_snap.content_hash != latest_snap.content_hash
+            if used_snap is not None and latest_snap is not None
+            else None
+        ),
+        mapping_stale=(
+            run.mapping_hash != latest_map.content_hash
+            if run.mapping_hash is not None and latest_map is not None
+            else None
+        ),
+    )
+
     return ScanStatus(
         run_id=run.run_id,
         project_path=run.project_path,
@@ -113,6 +186,9 @@ async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatu
         scanner_status=scanner_status,
         options=json.loads(run.options_json or "{}"),
         error_message=run.error_message,
+        provenance=provenance,
+        git_branch=run.git_branch,
+        commit_sha=run.commit_sha,
     )
 
 

@@ -115,6 +115,10 @@ def _meta_from_run(repo: str, run: dict[str, Any]) -> dict[str, Any]:
         "head_branch": run.get("head_branch"),
         "head_sha": run.get("head_sha"),
         "run_url": run.get("html_url"),
+        "run_number": run.get("run_number"),
+        "event": run.get("event"),
+        "actor": (run.get("actor") or {}).get("login"),
+        "display_title": run.get("display_title"),
         "started_at": _parse_ts(run.get("created_at")),
         "completed_at": _parse_ts(run.get("updated_at")),
     }

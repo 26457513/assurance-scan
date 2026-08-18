@@ -93,6 +93,20 @@
     }
   }
 
+  function fmtDuration(s: ScanSummary): string {
+    if (!s.completed_at) return '—';
+    const secs = Math.max(1, Math.round((new Date(s.completed_at).getTime() - new Date(s.started_at).getTime()) / 1000));
+    if (secs < 60) return `${secs}s`;
+    return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+  }
+
+  function eventLabel(s: ScanSummary): string {
+    if (!s.event) return '';
+    if (s.event === 'pull_request') return `PR synchronize by ${s.actor ?? 'unknown'}`;
+    if (s.event === 'push') return `commit pushed by ${s.actor ?? 'unknown'}`;
+    return s.event;
+  }
+
   function fmtDate(iso: string | null): string {
     if (!iso) return '—';
     const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
@@ -171,13 +185,25 @@
             class="w-full text-left grid grid-cols-[minmax(0,2fr)_110px_120px_80px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
             class:bg-accent-subtle={selectedRunId === s.run_id}
           >
-            <span class="text-ink-primary truncate">{s.run_id}</span>
+            <span class="min-w-0 flex flex-col gap-0.5">
+              <span class="text-ink-primary truncate" title={s.run_id}>
+                {#if s.run_number != null}#{s.run_number} · {s.display_title || s.run_id}{:else}{s.run_id}{/if}
+              </span>
+              {#if s.event}
+                <span class="text-[10px] text-ink-muted truncate">
+                  {eventLabel(s)} · {s.git_branch ?? ''}
+                </span>
+              {/if}
+            </span>
             <span class={s.status === 'completed'
               ? 'text-state-passed'
               : s.status === 'failed'
                 ? 'text-state-failed'
                 : 'text-state-pending'}>{s.status}</span>
-            <span class="text-ink-muted">{fmtDate(s.started_at)}</span>
+            <span class="text-ink-muted">
+              {fmtDate(s.started_at)}
+              <span class="text-[10px] block">{fmtDuration(s)}</span>
+            </span>
             <span class="text-right text-ink-secondary tabular-nums">{s.finding_count}</span>
           </button>
         {/each}
