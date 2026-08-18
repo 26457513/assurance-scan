@@ -1,17 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { selectedProject, selectProject } from '$lib/stores/selectedProject';
+  import { selectedProject } from '$lib/stores/selectedProject';
   import { pushToast } from '$lib/stores/toasts';
-  import type { ProjectSummary } from '$lib/types';
 
-  let projects: ProjectSummary[] = [];
   let versions: { snapshot_id: string; version?: string | null; fr_count: number; content_hash: string; created_at: string }[] = [];
-  let localPath = '';
   let org = '';
+  let localPath = '';
   let pastedJson = '';
   let loading = true;
   let saving = false;
+  let flow: 'agent' | 'paste' | null = null;
 
   const LOCAL_PATH_KEY = 'assurance-scan:local-paths';
 
@@ -49,6 +47,13 @@
     } catch {
       versions = [];
     }
+  }
+
+  // Reload when the top-bar project selection changes.
+  $: if (project) {
+    localPath = recallLocalPath(project);
+    flow = null;
+    loadVersions();
   }
 
   $: latest = versions[0] ?? null;
@@ -96,13 +101,6 @@
     }
   }
 
-  function onProjectChange(e: Event) {
-    const value = (e.target as HTMLSelectElement).value;
-    selectProject(value);
-    localPath = recallLocalPath(value);
-    loadVersions();
-  }
-
   function fmtDate(iso: string | null): string {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -110,60 +108,80 @@
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  onMount(async () => {
+  async function init() {
     try {
       const gh = await api.githubRepos().catch(() => ({ org: '', repos: [] }));
       org = gh.org ?? '';
     } catch {
       /* org stays empty — identity falls back to the selected project */
     }
-    try {
-      const data = await api.listProjects();
-      projects = data.projects;
-      if (!project && projects.length) selectProject(projects[0].project_path);
-    } catch {
-      /* leave selection empty */
-    }
-    localPath = recallLocalPath(project);
-    await loadVersions();
     loading = false;
-  });
+  }
+  init();
 </script>
 
 <div class="p-6 max-w-6xl">
-  <div class="mb-4">
+  <div class="mb-5">
     <div class="text-[15px] text-ink-primary mb-1">FR catalogue</div>
     <div class="text-[12px] text-ink-secondary">
-      The project's functional requirements. Paste a catalogue, or hand an agent prompt to Claude Code to author one.
+      {#if project}
+        <span class="font-mono">{project}</span>
+        {#if latest}
+          <span class="text-ink-muted"> · v{latest.version ?? '—'} · {latest.fr_count} FRs · saved {fmtDate(latest.created_at)}</span>
+        {:else}
+          <span class="text-ink-muted"> · no catalogue saved yet</span>
+        {/if}
+      {:else}
+        Select a project in the top bar to manage its FR catalogue.
+      {/if}
     </div>
-  </div>
-
-  <div class="flex items-center gap-3 mb-5 font-mono text-[11px]">
-    <select
-      value={project}
-      on:change={onProjectChange}
-      class="px-2 py-1 border border-line-strong rounded-sm bg-surface-elevated text-ink-primary max-w-md"
-      aria-label="Project"
-    >
-      {#each projects as p (p.project_path)}
-        <option value={p.project_path}>{p.project_path}</option>
-      {/each}
-    </select>
-    {#if latest}
-      <span class="text-ink-muted">
-        current: v{latest.version ?? '—'} · {latest.fr_count} FRs · saved {fmtDate(latest.created_at)}
-      </span>
-    {:else}
-      <span class="text-ink-muted">no catalogue saved yet</span>
-    {/if}
   </div>
 
   {#if loading}
     <div class="text-[12px] text-ink-muted font-mono">Loading…</div>
-  {:else}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-      <section class="border border-line-hairline rounded-sm bg-surface-panel p-4">
-        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-3">Agent prompt</div>
+  {:else if project}
+    {#if flow === null}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <button
+          type="button"
+          on:click={() => (flow = 'agent')}
+          class="text-left border border-line-strong rounded-sm bg-surface-panel hover:border-accent hover:bg-surface-elevated transition-colors p-6"
+        >
+          <div class="text-[14px] text-ink-primary mb-2 flex items-center gap-2">
+            <svg class="h-4 w-4 text-accent" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M9 2l-5 9h3l-1 4 5-9H8l1-4z" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            Author with an agent
+          </div>
+          <p class="text-[12px] text-ink-secondary leading-relaxed">
+            Copy an agentic prompt for Claude Code: it analyses the local checkout and saves a v3
+            catalogue to this project via the MCP <code class="text-ink-primary">save_catalogue</code> tool.
+          </p>
+        </button>
+        <button
+          type="button"
+          on:click={() => (flow = 'paste')}
+          class="text-left border border-line-strong rounded-sm bg-surface-panel hover:border-accent hover:bg-surface-elevated transition-colors p-6"
+        >
+          <div class="text-[14px] text-ink-primary mb-2 flex items-center gap-2">
+            <svg class="h-4 w-4 text-accent" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <rect x="4" y="2" width="8" height="12" rx="1" />
+              <path d="M6.5 6.5h3M6.5 9h3" stroke-linecap="round" />
+            </svg>
+            Paste a catalogue
+          </div>
+          <p class="text-[12px] text-ink-secondary leading-relaxed">
+            Already have a catalogue JSON? Paste it — it's validated against the v3 schema and stored
+            as this project's current version.
+          </p>
+        </button>
+      </div>
+    {:else if flow === 'agent'}
+      <section class="border border-line-hairline rounded-sm bg-surface-panel p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">Author with an agent</div>
+          <button type="button" on:click={() => (flow = null)} class="text-[11px] font-mono text-ink-muted hover:text-accent">✕ back</button>
+        </div>
         <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="local-path">Local checkout path</label>
         <input
           id="local-path"
@@ -171,38 +189,41 @@
           bind:value={localPath}
           on:blur={() => rememberLocalPath(project, localPath)}
           placeholder="/Users/you/Development/project"
-          class="w-full px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+          class="w-full max-w-xl px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
         />
-        <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
-          Delegates to the server-side <code class="text-ink-secondary">generate-fr-catalogue</code> workflow; the agent
-          explores the local checkout and saves the catalogue under this project's identity. Local path is remembered
-          per project (a future bridge can supply it automatically).
+        <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
+          Delegates to the server-side <code class="text-ink-secondary">generate-fr-catalogue</code> workflow.
+          The local path is remembered per project (a future bridge can supply it automatically).
         </p>
-        <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3">{buildPrompt()}</pre>
+        <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
         <button
           type="button"
           on:click={copyPrompt}
-          disabled={!project}
-          class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
+          class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
         >Copy prompt</button>
       </section>
-
-      <section class="border border-line-hairline rounded-sm bg-surface-panel p-4">
-        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-3">Paste catalogue</div>
+    {:else if flow === 'paste'}
+      <section class="border border-line-hairline rounded-sm bg-surface-panel p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">Paste a catalogue</div>
+          <button type="button" on:click={() => (flow = null)} class="text-[11px] font-mono text-ink-muted hover:text-accent">✕ back</button>
+        </div>
         <textarea
           bind:value={pastedJson}
-          rows="10"
+          rows="12"
           placeholder={'{ "schema_version": 3, "project": "...", "frs": [...] }'}
-          class="w-full px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[10px] text-ink-primary"
+          class="w-full max-w-2xl px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[10px] text-ink-primary"
         ></textarea>
-        <button
-          type="button"
-          on:click={savePasted}
-          disabled={!project || saving || !pastedJson.trim()}
-          class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
-        >{saving ? 'Saving…' : 'Save catalogue'}</button>
+        <div>
+          <button
+            type="button"
+            on:click={savePasted}
+            disabled={saving || !pastedJson.trim()}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
+          >{saving ? 'Saving…' : 'Save catalogue'}</button>
+        </div>
       </section>
-    </div>
+    {/if}
 
     {#if versions.length > 0}
       <section class="mt-6">
