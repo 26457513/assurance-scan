@@ -188,8 +188,9 @@ Runner behaviour to expect (fine for phase 1, noted so nobody's surprised):
 
 ## Open questions (decide at review)
 
-1. **Events:** `pull_request` + `push` to main (no double-runs), or every
-   branch push as the user originally said?
+1. ~~Events~~ **Resolved (2026-08-18):** `pull_request` for branches + `push`
+   restricted to the default branch — each commit is scanned exactly once,
+   and PR branches get the comment (the only event that can post it).
 2. ~~GHAS~~ **Resolved (2026-08-18):** all repos private under org
    `26457513` on the free plan — no GHAS. Display = Step Summary + SARIF
    artifact (as now designed above). Revisit GHAS only if the native

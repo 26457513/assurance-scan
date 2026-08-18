@@ -59,7 +59,10 @@ Create `.github/workflows/assurance-scan.yml` in the target repo:
 
 ```yaml
 name: assurance-scan
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches: [<default branch>]   # scans each commit exactly once
 permissions:
   contents: read
   actions: write        # build layer cache
