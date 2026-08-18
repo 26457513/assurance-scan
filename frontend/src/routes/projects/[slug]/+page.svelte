@@ -100,6 +100,11 @@
     return `${Math.floor(secs / 60)}m ${secs % 60}s`;
   }
 
+  function repoName(s: ScanSummary): string {
+    const parts = s.project_path.replace(/^github:/, '').split('/').filter(Boolean);
+    return parts[parts.length - 1] ?? s.project_path;
+  }
+
   function eventLabel(s: ScanSummary): string {
     if (!s.event) return '';
     if (s.event === 'pull_request') return `PR synchronize by ${s.actor ?? 'unknown'}`;
@@ -172,8 +177,9 @@
       </div>
     {:else}
       <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel mb-5">
-        <div class="grid grid-cols-[minmax(0,2fr)_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+        <div class="grid grid-cols-[minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
           <div>Run</div>
+          <div>Repo</div>
           <div>Branch</div>
           <div>Trigger</div>
           <div>Status</div>
@@ -185,12 +191,13 @@
           <button
             type="button"
             on:click={() => pickScan(s.run_id)}
-            class="w-full text-left grid grid-cols-[minmax(0,2fr)_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
+            class="w-full text-left grid grid-cols-[minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
             class:bg-accent-subtle={selectedRunId === s.run_id}
           >
             <span class="text-ink-primary truncate" title={s.run_id}>
               {#if s.run_number != null}#{s.run_number} · {s.display_title || s.run_id}{:else}{s.run_id}{/if}
             </span>
+            <span class="font-mono text-[11px] text-ink-secondary truncate" title={s.project_path}>{repoName(s)}</span>
             <span class="font-mono text-[11px] text-ink-secondary truncate" title={s.git_branch ?? ''}>{s.git_branch ?? '—'}</span>
             <span class="text-[11px] text-ink-muted truncate">{eventLabel(s) || '—'}</span>
             <span class={s.status === 'completed'
