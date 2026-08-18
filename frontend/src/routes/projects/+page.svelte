@@ -20,6 +20,33 @@
 
   let editOpen = false;
   let editId: number | null = null;
+  let selected = new Set<string>();
+  let deleteModalOpen = false;
+  $: selectedCount = selected.size;
+
+  function toggleRow(path: string) {
+    if (selected.has(path)) selected.delete(path);
+    else selected.add(path);
+    selected = new Set(selected);
+  }
+
+  async function confirmDelete() {
+    const rows = projects.filter((p) => selected.has(p.project_path));
+    for (const row of rows) {
+      try {
+        await api.deleteAllScans(row.project_path);
+        if (row.github_project) await api.deleteAllScans(row.github_project);
+        if (row.id) await api.deleteProject(row.id);
+      } catch (e) {
+        pushToast('error', `Delete failed for ${row.tag ?? row.project_path}: ${e}`);
+      }
+    }
+    selected = new Set();
+    deleteModalOpen = false;
+    pushToast('success', 'Projects deleted');
+    loading = true;
+    await load();
+  }
   let editTag = '';
   let editPath = '';
   let editRepo = '';
@@ -141,14 +168,24 @@
         Registered projects and discovered leftovers — select one to browse its scans, FRs, and compliance.
       </div>
     </div>
-    <button
-      type="button"
-      on:click={() => (addOpen = true)}
-      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
-    >
+    <div class="flex items-center gap-2">
+      {#if selectedCount > 0}
+        <button
+          type="button"
+          on:click={() => (deleteModalOpen = true)}
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm border font-mono text-[11px] uppercase tracking-[0.1em] transition-colors"
+          style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent); background: color-mix(in srgb, var(--state-failed) 8%, transparent);"
+        >Delete {selectedCount} selected</button>
+      {/if}
+      <button
+        type="button"
+        on:click={() => (addOpen = true)}
+        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+      >
       <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none"><path d="M6 2v8M2 6h8" stroke-linecap="round" /></svg>
-      Add project
-    </button>
+        Add project
+      </button>
+    </div>
   </div>
 
   {#if loading}
@@ -161,7 +198,8 @@
     </div>
   {:else}
     <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
-      <div class="grid grid-cols-[110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_90px_32px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+      <div class="grid grid-cols-[26px_110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_90px_32px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+        <div></div>
         <div>Project</div>
         <div>Local path</div>
         <div>GitHub repo</div>
@@ -176,8 +214,15 @@
           tabindex="0"
           on:click={() => open(p)}
           on:keydown={(e) => e.key === 'Enter' && open(p)}
-          class="w-full text-left grid grid-cols-[110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_90px_32px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
+          class="w-full text-left grid grid-cols-[26px_110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_90px_32px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
         >
+          <input
+            type="checkbox"
+            checked={selected.has(p.project_path)}
+            on:click|stopPropagation={() => toggleRow(p.project_path)}
+            class="cursor-pointer"
+            aria-label="Select {p.tag ?? p.project_path}"
+          />
           <span class="text-ink-primary truncate">
             {p.tag ?? p.project_path.replace(/\/$/, '').split('/').pop()}
           </span>
@@ -221,6 +266,28 @@
         >next ›</button>
       </div>
     {/if}
+  {/if}
+
+  {#if deleteModalOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (deleteModalOpen = false)} aria-label="Close"></button>
+      <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
+        <div class="text-[13px] text-ink-primary mb-2 font-mono">Delete {selectedCount} project{selectedCount === 1 ? '' : 's'}?</div>
+        <p class="text-[12px] text-ink-secondary leading-relaxed mb-5">
+          This removes the project registration and <strong>all of its data from assurance-scan</strong> —
+          scans, FR catalogue, mappings, waivers, and acceptances. Nothing is deleted from GitHub:
+          CI scans return on the next <em>Retrieve from GitHub</em>, but local scans and the catalogue
+          are gone for good.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button type="button" on:click={() => (deleteModalOpen = false)}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
+          <button type="button" on:click={confirmDelete}
+            class="px-3 py-1.5 rounded-sm text-[11px] font-mono uppercase tracking-[0.1em]"
+            style="color: var(--state-failed); border: 1px solid color-mix(in srgb, var(--state-failed) 35%, transparent); background: color-mix(in srgb, var(--state-failed) 8%, transparent);">Delete</button>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if editOpen}

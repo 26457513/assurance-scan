@@ -101,6 +101,9 @@ export const api = {
       }
     ),
 
+  deleteProject: (id: number) =>
+    getJson<{ status: string }>(`/api/projects/${id}`, { method: 'DELETE' }),
+
   saveCatalogue: (projectPath: string, catalogueJson: string) =>
     getJson<{ status: string; project?: string; catalogue_version?: string; fr_count?: number; content_hash?: string }>(
       `/api/frs/catalogue?project_path=${encodeURIComponent(projectPath)}`,

@@ -174,6 +174,22 @@ async def update_project(
     }
 
 
+@router.delete("/{project_id}")
+async def delete_project(project_id: int, session: AsyncSession = SessionDep) -> dict[str, Any]:
+    """Remove a project registration (scan data is deleted separately via
+    DELETE /api/scans?project_path=…, which fully resets a project)."""
+    from sqlalchemy import select as _select
+
+    project = (
+        await session.execute(_select(Project).where(Project.id == project_id))
+    ).scalars().first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    await session.delete(project)
+    await session.commit()
+    return {"status": "deleted", "tag": project.tag}
+
+
 @router.get("")
 async def list_projects(request: Request, session: AsyncSession = SessionDep) -> dict[str, Any]:
     """Registered projects first (explicit identity), then derived leftovers."""

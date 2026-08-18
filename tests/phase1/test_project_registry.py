@@ -83,3 +83,23 @@ async def test_update_project_validates_path(session) -> None:
         raise AssertionError("expected 404")
     except HTTPException as exc:
         assert exc.status_code == 404
+
+
+async def test_delete_project_removes_registry_row(session) -> None:
+    from fastapi import HTTPException
+
+    from server.api.routes.projects import delete_project
+
+    session.add(Project(tag="temp", local_path="/tmp"))
+    await session.commit()
+    row_id = (await session.execute(sa_select(Project))).scalars().one().id
+
+    res = await delete_project(row_id, session=session)
+    assert res["status"] == "deleted"
+    assert (await session.execute(sa_select(Project))).scalars().first() is None
+
+    try:
+        await delete_project(row_id, session=session)
+        raise AssertionError("expected 404")
+    except HTTPException as exc:
+        assert exc.status_code == 404
