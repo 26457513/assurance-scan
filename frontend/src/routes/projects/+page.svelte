@@ -19,14 +19,15 @@
   let adding = false;
 
   let editOpen = false;
-  let editId = 0;
+  let editId: number | null = null;
   let editTag = '';
   let editPath = '';
   let editRepo = '';
   let editing = false;
 
+  // Editing a derived (unregistered) row registers it on save.
   function openEdit(p: ProjectSummary) {
-    editId = p.id ?? 0;
+    editId = p.id ?? null;
     editTag = p.tag ?? '';
     editPath = p.project_path;
     editRepo = p.github_project ? `https://github.com/${p.github_project.replace('github:', '')}` : '';
@@ -36,12 +37,16 @@
   async function saveEdit() {
     editing = true;
     try {
-      await api.updateProject(editId, {
-        tag: editTag.trim(),
-        local_path: editPath.trim(),
-        github_url: editRepo.trim()
-      });
-      pushToast('success', 'Project updated');
+      if (editId == null) {
+        await api.createProject(editTag.trim(), editPath.trim(), editRepo.trim());
+      } else {
+        await api.updateProject(editId, {
+          tag: editTag.trim(),
+          local_path: editPath.trim(),
+          github_url: editRepo.trim()
+        });
+      }
+      pushToast('success', 'Project saved');
       editOpen = false;
       loading = true;
       await load();
@@ -185,16 +190,16 @@
           <span class={p.has_catalogue ? 'text-state-passed' : 'text-ink-muted'}>
             {p.has_catalogue ? 'yes' : 'none'}
           </span>
-          {#if p.id}
-            <button
-              type="button"
-              on:click|stopPropagation={() => openEdit(p)}
-              title="Edit project"
-              class="text-ink-muted hover:text-accent transition-colors"
-            >✎</button>
-          {:else}
-            <span></span>
-          {/if}
+          <button
+            type="button"
+            on:click|stopPropagation={() => openEdit(p)}
+            title={p.id ? 'Edit project' : 'Register project (edit + save)'}
+            class="text-ink-secondary hover:text-accent transition-colors p-1"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M10.2 2.2l1.6 1.6L4.4 11.2l-2 .4.4-2 7.4-7.4z" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
         </div>
       {/each}
     </div>
@@ -222,7 +227,7 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
       <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (editOpen = false)} aria-label="Close"></button>
       <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
-        <div class="text-[13px] text-ink-primary mb-4 font-mono">Edit project</div>
+        <div class="text-[13px] text-ink-primary mb-4 font-mono">{editId == null ? 'Register project' : 'Edit project'}</div>
         <div class="space-y-3 mb-5">
           <div>
             <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-tag">Tag</label>
