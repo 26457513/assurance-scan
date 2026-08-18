@@ -134,6 +134,7 @@ def main() -> int:
     print(f"wrote {sarif_path}: {len(findings)} findings")
 
     md = summary_markdown(findings, status)
+    sarif_path.with_name("summary.md").write_text(md)
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:
         with open(step_summary, "a") as fh:
