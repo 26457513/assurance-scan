@@ -48,7 +48,7 @@
     saving = true;
     try {
       const res = await api.saveCatalogue(project, pastedJson);
-      pushToast('success', `Catalogue saved — ${res.fr_count} FRs (${res.content_hash.slice(0, 8)})`);
+      pushToast('success', `Catalogue saved — ${res.fr_count ?? 0} FRs (${(res.content_hash ?? '').slice(0, 8)})`);
       pastedJson = '';
       await loadVersions();
     } catch (e) {
@@ -178,7 +178,7 @@
         <textarea
           bind:value={pastedJson}
           rows="10"
-          placeholder='{ "schema_version": 2, "project": "...", "frs": [...] }'
+          placeholder={'{ "schema_version": 3, "project": "...", "frs": [...] }'}
           class="w-full px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[10px] text-ink-primary"
         ></textarea>
         <button
