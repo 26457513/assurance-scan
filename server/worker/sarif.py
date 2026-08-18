@@ -163,7 +163,7 @@ def summary_markdown(
 
     run_url = _run_url()
     if run_url:
-        lines.append(f"Full results (SARIF + SBOM): {run_url}")
+        lines.append(f"[Download full SARIF + SBOM zip file]({run_url})")
     else:
         lines.append("Full results: SARIF + SBOM files written beside this summary.")
     lines.append("")

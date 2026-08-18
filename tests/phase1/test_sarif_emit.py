@@ -86,7 +86,7 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     assert "| gitleaks | hardcoded secrets | · | 1 | · | · | 1 | 2 | 1.2 |" in md
     assert "| semgrep | static code analysis | 1 | 1 | · | · | · | 2 | 12.3 |" in md
     assert "| **Total** |  | **1** | **2** | **0** | **0** | **1** | **4** | **13.5** |" in md
-    assert "https://github.com/26457513/doc2context/actions/runs/12345/artifacts" in md
+    assert "[Download full SARIF + SBOM zip file](https://github.com/26457513/doc2context/actions/runs/12345/artifacts)" in md
     assert "`trivy-fs` — exit=1" in md
 
 
