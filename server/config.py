@@ -57,6 +57,12 @@ class Settings:
     # Logging level.
     log_level: str
 
+    # GitHub CI polling (phase-2 ingest). Poller runs only when both a
+    # token and at least one repo are configured.
+    poll_repos: tuple[str, ...]
+    poll_interval_seconds: int
+    github_poll_token: str
+
 
 def load_settings() -> Settings:
     """Build a Settings instance from the current environment."""
@@ -67,6 +73,9 @@ def load_settings() -> Settings:
     )
     return Settings(
         db_path=db_path,
+        poll_repos=tuple(r.strip() for r in _env("POLL_REPOS", "").split(",") if r.strip()),
+        poll_interval_seconds=_env_int("POLL_INTERVAL_SECONDS", 60),
+        github_poll_token=_env("GITHUB_POLL_TOKEN", ""),
         db_url=f"sqlite+aiosqlite:///{db_path.as_posix()}",
         db_url_sync=f"sqlite:///{db_path.as_posix()}",
         project_root=project_root,

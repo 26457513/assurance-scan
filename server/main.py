@@ -6,15 +6,16 @@ The app is assembled at import time so uvicorn can target it directly via
 """
 from __future__ import annotations
 
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from server.api.routes import compliance, config, findings, folders, frs, frs_list, health, scans, stream, test_source, trends
+from server.api.routes import catalogue_drift, compliance, config, findings, folders, frs, frs_list, health, poller, projects, scans, stream, test_source, trends, versions
 from server.config import Settings, load_settings
 from server.db.connection import dispose_engine
 from server.mcp import build_mcp_server, mount_mcp_on_app
@@ -58,12 +59,28 @@ async def _lifespan(app: FastAPI):
     app.state.scan_queue = queue
     await queue.start()
 
+    poller_task = None
+    if settings.github_poll_token and settings.poll_repos:
+        from server.db.connection import get_sessionmaker
+        from server.github_poller import GitHubClient, poller_loop
+
+        poller_task = asyncio.create_task(poller_loop(
+            get_sessionmaker(settings),
+            GitHubClient(settings.github_poll_token),
+            settings.poll_repos,
+            settings.poll_interval_seconds,
+        ))
+
     # The MCP server's session manager needs lifespan initialization.
     mcp_server = app.state.mcp_server
     async with mcp_server.session_manager.run():
         try:
             yield
         finally:
+            if poller_task is not None:
+                poller_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await poller_task
             await queue.stop()
             await dispose_engine()
 
@@ -86,11 +103,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(frs.router, prefix="/api")
     app.include_router(frs_list.router, prefix="/api")
     app.include_router(stream.router, prefix="/api")
-    app.include_router(compliance.router, prefix="/api")
     app.include_router(trends.router, prefix="/api")
     app.include_router(test_source.router, prefix="/api")
     app.include_router(config.router, prefix="/api")
     app.include_router(folders.router, prefix="/api")
+    app.include_router(catalogue_drift.router, prefix="/api")
+    app.include_router(projects.router, prefix="/api")
+    app.include_router(poller.router, prefix="/api")
+    app.include_router(versions.router, prefix="/api")
+    app.include_router(compliance.router, prefix="/api")
 
     # MCP Streamable HTTP endpoint at /mcp. Build the server first so we can
     # expose its session manager to the lifespan for initialization.

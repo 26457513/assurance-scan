@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from server.worker.parsers import parser_for
 from server.worker.parsers.base import ParsedFinding
 from server.worker.runner import DockerRunner
-from server.worker.sarif import build_sarif, summary_markdown
+from server.worker.sarif import build_sarif, ci_payload, github_run_url, summary_markdown
 from server.worker.scanners import ci_scanner_set
 
 SBOM_FILENAME = "sbom.cyclonedx.json"
@@ -108,6 +108,15 @@ def main() -> int:
     findings, status, durations = asyncio.run(run_scanners(project_path, args.image, sbom_path))
     sarif = build_sarif(findings)
     sarif_path.write_text(json.dumps(sarif, indent=2))
+    payload = ci_payload(
+        findings, status, durations,
+        repo=os.environ.get("GITHUB_REPOSITORY"),
+        run_url=github_run_url(),
+        github_run_id=os.environ.get("GITHUB_RUN_ID"),
+        branch=os.environ.get("GITHUB_REF_NAME"),
+        commit=os.environ.get("GITHUB_SHA"),
+    )
+    sarif_path.with_name("findings.json").write_text(json.dumps(payload, indent=2))
     print(f"wrote {sarif_path}: {len(findings)} findings")
 
     md = summary_markdown(findings, status, durations)

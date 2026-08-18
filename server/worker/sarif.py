@@ -182,3 +182,58 @@ def summary_markdown(
 
 def _on_github() -> bool:
     return bool(os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_RUN_ID"))
+
+
+def github_run_url() -> str | None:
+    server = os.environ.get("GITHUB_SERVER_URL")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    if server and repo and run_id:
+        return f"{server}/{repo}/actions/runs/{run_id}"
+    return None
+
+
+def ci_payload(
+    findings: list[ParsedFinding],
+    status: dict[str, str],
+    durations: dict[str, float],
+    repo: str | None,
+    run_url: str | None,
+    github_run_id: str | None = None,
+    branch: str | None = None,
+    commit: str | None = None,
+) -> dict[str, Any]:
+    """findings.json payload for the phase-2 pull ingest (see
+    docs/plan-github-polling-ingest.md)."""
+    return {
+        "schema_version": 1,
+        "source": "github-actions",
+        "repo": repo,
+        "github_run_id": github_run_id,
+        "run_url": run_url,
+        "branch": branch,
+        "commit": commit,
+        "scanner_status": status,
+        "durations": durations,
+        "summary": {
+            "total": len(findings),
+            "by_severity": dict(Counter(f.severity for f in findings)),
+            "by_scanner": dict(Counter(f.scanner_kind for f in findings)),
+        },
+        "findings": [
+            {
+                "id": f"F-{i + 1:03d}",
+                "scanner": f.scanner_kind,
+                "rule_id": f.rule_id,
+                "severity": f.severity,
+                "file_path": f.file_path,
+                "line_start": f.line_start,
+                "line_end": f.line_end,
+                "message": f.message,
+                "theme": f.theme,
+                "fix_strategy": f.fix_strategy,
+                "compliance_tags": list(f.compliance_tags),
+            }
+            for i, f in enumerate(findings)
+        ],
+    }

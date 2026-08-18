@@ -18,6 +18,7 @@
   let newScanModalOpen = false;
   let newScanPath = '';
   let showFolderPicker = false;
+  let polling = false;
 
   $: recentPaths = [...new Set(scans.map((s) => s.project_path))].slice(0, 5);
 
@@ -141,6 +142,36 @@
     await refresh();
   }
 
+  // CI projects whose newest run failed — surfaced as a banner.
+  $: failedGithubRuns = (() => {
+    const latest = new Map<string, ScanSummary>();
+    for (const s of scans) {
+      if (!s.project_path.startsWith('github:')) continue;
+      const cur = latest.get(s.project_path);
+      if (!cur || (s.started_at ?? '') > (cur.started_at ?? '')) latest.set(s.project_path, s);
+    }
+    return [...latest.values()].filter((s) => s.status === 'failed');
+  })();
+
+  async function pollNow() {
+    polling = true;
+    try {
+      const res = await api.pollNow();
+      if (res.error) {
+        pushToast('error', res.error);
+      } else {
+        const parts = [`${res.ingested ?? 0} new`, `${res.skipped ?? 0} up to date`];
+        if (res.failed) parts.push(`${res.failed} failed`);
+        pushToast(res.failed ? 'error' : 'success', `GitHub poll: ${parts.join(', ')}`);
+      }
+    } catch (e) {
+      pushToast('error', `GitHub poll failed: ${e}`);
+    } finally {
+      polling = false;
+      await refresh();
+    }
+  }
+
   function fmtTime(s: string): string {
     const d = new Date(s);
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -171,18 +202,49 @@
         </button>
       {/if}
     </div>
-    <button
-      type="button"
-      on:click={openNewScanModal}
-      disabled={scanning}
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        on:click={pollNow}
+        disabled={polling}
+        title="Fetch completed assurance-scan runs from GitHub Actions"
+        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-ink-primary transition-colors disabled:opacity-50"
+      >
+        <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none">
+          <path d="M10 6a4 4 0 11-1.2-2.8M10 1v2.5H7.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{polling ? 'Polling…' : 'From GitHub'}</span>
+      </button>
+      <button
+        type="button"
+        on:click={openNewScanModal}
+        disabled={scanning}
       class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-ink-primary transition-colors disabled:opacity-50"
     >
       <svg viewBox="0 0 12 12" class="h-3 w-3 group-hover:text-accent" stroke="currentColor" stroke-width="1.6" fill="none">
         <path d="M6 2v8M2 6h8" stroke-linecap="round" />
       </svg>
-      <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{scanning ? 'Queuing…' : 'New scan'}</span>
-    </button>
+        <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{scanning ? 'Queuing…' : 'New scan'}</span>
+      </button>
+    </div>
   </div>
+
+  {#if failedGithubRuns.length > 0}
+    <div class="mb-4 border border-line-strong rounded-sm overflow-hidden">
+      {#each failedGithubRuns as run (run.run_id)}
+        <button
+          type="button"
+          on:click={() => openScan(run)}
+          class="w-full flex items-center gap-2 px-3 py-2 text-left font-mono text-[11px] transition-colors"
+          style="color: var(--state-failed); background: color-mix(in srgb, var(--state-failed) 8%, transparent);"
+        >
+          <span class="uppercase tracking-[0.1em]">Latest scan failed</span>
+          <span class="text-ink-primary">{run.project_path.replace('github:', '')}</span>
+          <span class="text-ink-muted">— needs investigation, click to open</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if loading}
     <div class="text-[12px] text-ink-muted font-mono">Loading…</div>

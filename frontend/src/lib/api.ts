@@ -1,5 +1,8 @@
 import type {
+  CatalogueDriftResponse,
+  CatalogueVersion,
   ComplianceListResponse,
+  CompliancePack,
   ComplianceMatrixResponse,
   ConfigResponse,
   FindingAcceptance,
@@ -7,7 +10,10 @@ import type {
   FrDetailResponse,
   FrHistoryResponse,
   FrListResponse,
+  FoldersResponse,
   HealthResponse,
+  MappingVersion,
+  ProjectSummary,
   ScanResponse,
   ScanStatus,
   ScanSummary,
@@ -37,6 +43,35 @@ export const api = {
   getTrendsForScanList: () => getJson<TrendsResponse>('/api/trends?limit=30'),
 
   getScan: (runId: string) => getJson<ScanStatus>(`/api/scans/${runId}`),
+
+  getCatalogueDrift: (projectPath: string) =>
+    getJson<CatalogueDriftResponse>(
+      `/api/catalogue/drift?project_path=${encodeURIComponent(projectPath)}`
+    ),
+
+  listCatalogueVersions: (projectPath: string) =>
+    getJson<{ versions: CatalogueVersion[] }>(
+      `/api/catalogue/versions?project_path=${encodeURIComponent(projectPath)}`
+    ),
+
+  listMappingVersions: (projectPath: string) =>
+    getJson<{ versions: MappingVersion[] }>(
+      `/api/mappings/versions?project_path=${encodeURIComponent(projectPath)}`
+    ),
+
+  listCompliancePacks: () =>
+    getJson<{ packs: CompliancePack[] }>('/api/compliance/packs'),
+
+  getCompliancePack: (file: string) =>
+    getJson<Record<string, unknown>>(`/api/compliance/packs/${encodeURIComponent(file)}`),
+
+  listProjects: () => getJson<{ projects: ProjectSummary[] }>('/api/projects'),
+
+  pollNow: () =>
+    getJson<{ ingested?: number; skipped?: number; failed?: number; error?: string; hint?: string }>(
+      '/api/poller/poll-now',
+      { method: 'POST' }
+    ),
 
   deleteScan: (runId: string) =>
     getJson<{ status: string; run_id: string }>(`/api/scans/${runId}`, { method: 'DELETE' }),
@@ -80,9 +115,14 @@ export const api = {
   listComplianceFrameworks: () =>
     getJson<ComplianceListResponse>('/api/compliance'),
 
-  getComplianceMatrix: (framework: string, projectPath?: string) => {
-    const qs = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : '';
-    return getJson<ComplianceMatrixResponse>(`/api/compliance/${encodeURIComponent(framework)}${qs}`);
+  getComplianceMatrix: (framework: string, projectPath?: string, mappingHash?: string) => {
+    const params = new URLSearchParams();
+    if (projectPath) params.set('project_path', projectPath);
+    if (mappingHash) params.set('mapping_hash', mappingHash);
+    const qs = params.toString();
+    return getJson<ComplianceMatrixResponse>(
+      `/api/compliance/${encodeURIComponent(framework)}${qs ? `?${qs}` : ''}`
+    );
   },
 
   getTrends: (projectPath?: string, limit = 20) => {
@@ -92,9 +132,12 @@ export const api = {
     return getJson<TrendsResponse>(`/api/trends?${params.toString()}`);
   },
 
-  listFRs: (projectPath?: string) => {
-    const qs = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : '';
-    return getJson<FrListResponse>(`/api/frs${qs}`);
+  listFRs: (projectPath?: string, snapshotId?: string) => {
+    const params = new URLSearchParams();
+    if (projectPath) params.set('project_path', projectPath);
+    if (snapshotId) params.set('snapshot_id', snapshotId);
+    const qs = params.toString();
+    return getJson<FrListResponse>(`/api/frs${qs ? `?${qs}` : ''}`);
   },
 
   getTestSource: (namePattern: string, projectPath: string) => {
