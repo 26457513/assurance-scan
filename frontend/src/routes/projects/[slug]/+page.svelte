@@ -6,18 +6,14 @@
   import { pushToast } from '$lib/stores/toasts';
   import { selectProject, slugToProject } from '$lib/stores/selectedProject';
   import ScanDetail from '$lib/components/ScanDetail.svelte';
-  import CatalogueView from '$lib/components/CatalogueView.svelte';
-  import ComplianceView from '$lib/components/ComplianceView.svelte';
   import type { ScanSummary } from '$lib/types';
 
   $: projectPath = slugToProject($page.params.slug ?? '');
-  $: view = $page.url.searchParams.get('view') ?? 'scans';
+  // FR/compliance views live as sub-tabs inside each scan (ScanDetail);
+  // anything else normalizes to the scans view.
+  $: view = 'scans';
 
-  const VIEWS = [
-    { id: 'scans', label: 'Scans' },
-    { id: 'frs', label: 'Functional Requirements' },
-    { id: 'compliance', label: 'Compliance' }
-  ] as const;
+  const VIEWS = [{ id: 'scans', label: 'Scans' }] as const;
 
   let scans: ScanSummary[] = [];
   let selectedRunId = '';
@@ -31,17 +27,6 @@
   $: projectScans = scans; // already filtered by project on load
   $: pageCount = Math.max(1, Math.ceil(projectScans.length / PAGE_SIZE));
   $: visible = projectScans.slice(pg * PAGE_SIZE, (pg + 1) * PAGE_SIZE);
-
-  // Catalogue/Compliance views only need project_path; a stub scan suffices
-  // when no scan is selected.
-  $: stubScan = {
-    run_id: '',
-    project_path: projectPath,
-    status: '',
-    started_at: '',
-    completed_at: null,
-    finding_count: 0
-  };
 
   async function loadScans() {
     try {
@@ -236,13 +221,5 @@
         </div>
       {/if}
     {/if}
-  </div>
-{:else if view === 'frs'}
-  <div class="p-6">
-    <CatalogueView scan={stubScan} />
-  </div>
-{:else if view === 'compliance'}
-  <div class="p-6">
-    <ComplianceView scan={stubScan} />
   </div>
 {/if}
