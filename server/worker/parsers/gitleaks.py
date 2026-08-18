@@ -9,7 +9,7 @@ import json
 import re
 from typing import Any
 
-from server.worker.parsers.base import FindingParser, ParsedFinding
+from server.worker.parsers.base import FindingParser, ParsedFinding, strip_mount_prefix
 
 
 SEVERITY_RULE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
@@ -49,7 +49,7 @@ class GitleaksJsonParser(FindingParser):
         if not rule_id:
             return None
 
-        file_path = item.get("File") or item.get("file")
+        file_path = strip_mount_prefix(item.get("File") or item.get("file"))
         line_start = item.get("StartLine") or item.get("startLine")
 
         message = (

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from server.worker.parsers.base import FindingParser, ParsedFinding
+from server.worker.parsers.base import FindingParser, ParsedFinding, strip_mount_prefix
 
 
 SEVERITY_MAP: dict[str, str] = {
@@ -62,7 +62,7 @@ class GrypeJsonParser(FindingParser):
             scanner_kind="grype",
             rule_id=vid,
             severity=severity,
-            file_path=artifact.get("locations", [{}])[0].get("path") if artifact.get("locations") else None,
+            file_path=strip_mount_prefix(artifact.get("locations", [{}])[0].get("path")) if artifact.get("locations") else None,
             line_start=None,
             line_end=None,
             message=message,

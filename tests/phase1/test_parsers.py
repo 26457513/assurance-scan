@@ -47,7 +47,7 @@ def test_semgrep_parser_extracts_findings_from_sarif() -> None:
 def test_gitleaks_parser_extracts_leak() -> None:
     raw = json.dumps([{
         "RuleID": "aws-access-key",
-        "File": "src/config.py",
+        "File": "/src/src/config.py",
         "StartLine": 5,
         "Description": "AWS access key",
         "Secret": "AKIAIOSFODNN7EXAMPLE",
@@ -130,7 +130,7 @@ def test_grype_parser_extracts_matches() -> None:
 def test_osv_scanner_parser_extracts_results() -> None:
     raw = json.dumps({
         "results": [{
-            "source": {"path": "package-lock.json"},
+            "source": {"path": "/src/package-lock.json"},
             "packages": [{
                 "package": {"name": "lodash", "version": "4.17.20"},
                 "vulnerabilities": [{

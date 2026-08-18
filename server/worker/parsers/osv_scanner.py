@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from server.worker.parsers.base import FindingParser, ParsedFinding
+from server.worker.parsers.base import FindingParser, ParsedFinding, strip_mount_prefix
 
 
 SEVERITY_MAP: dict[str, str] = {
@@ -92,7 +92,7 @@ class OsvScannerJsonParser(FindingParser):
                         scanner_kind="osv-scanner",
                         rule_id=rule_id,
                         severity=severity,
-                        file_path=source,
+                        file_path=strip_mount_prefix(source),
                         line_start=None,
                         line_end=None,
                         message=message,

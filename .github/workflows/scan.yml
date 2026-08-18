@@ -1,0 +1,24 @@
+name: assurance-scan
+
+on: [workflow_call]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: 26457513/assurance-scan
+          path: assurance-scan
+          # Private cross-repo checkout: the caller's GITHUB_TOKEN can't read
+          # sibling private repos. Callers pass the org secret via
+          # `secrets: inherit` (fine-grained PAT, Contents: Read-only).
+          token: ${{ secrets.ASSURANCE_SCAN_TOKEN }}
+      - name: Run assurance-scan
+        run: python3 assurance-scan/scripts/ci-scan.py . --sarif assurance.sarif
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: assurance-sarif
+          path: assurance.sarif

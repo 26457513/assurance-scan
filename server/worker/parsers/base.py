@@ -21,6 +21,17 @@ class ParsedFinding:
     compliance_tags: tuple[str, ...] = ()
 
 
+# Scanner containers see the project at this mount point; some report
+# absolute container paths that must be made repo-relative.
+MOUNT_PREFIX = "/src"
+
+
+def strip_mount_prefix(path: str | None) -> str | None:
+    if path and path.startswith(MOUNT_PREFIX + "/"):
+        return path[len(MOUNT_PREFIX) + 1:]
+    return path
+
+
 class FindingParser(ABC):
     """Convert raw scanner output into normalized findings."""
 
