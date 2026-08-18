@@ -59,22 +59,13 @@
   }
 
   function buildPrompt(): string {
-    const repo = project.replace(/^github:/, '');
+    if (!localPath.trim()) {
+      return 'Enter the local checkout path first — the workflow needs it to explore the codebase.';
+    }
     return [
-      `Create an FR (functional requirements) catalogue for the project "${project}".`,
+      `Call the assurance-scan MCP tool \`get_workflow\` with name="generate-fr-catalogue" and parameters={"project_path": "${localPath}"} and follow the returned workflow prompt.`,
       ``,
-      `1. Analyse the codebase at: ${localPath || '<LOCAL CHECKOUT PATH>'}`,
-      `2. Produce a catalogue JSON document with this shape (schema v3):`,
-      `   { "schema_version": 3, "project": "${repo.split('/').pop() ?? repo}", "catalogue_version": "<ISO timestamp>",`,
-      `     "frs": [ { "id": "FR-001", "title": "...", "description": "...", "category": "...",`,
-      `       "lifecycle_status": "in_scope",`,
-      `       "implemented_by": [ { "kind": "file|glob|symbol", "ref": "..." } ],`,
-      `       "tests": [ { "id": "T-001", "type": "scanner-clean", "scanner": "semgrep", "rule_pattern": "..." },`,
-      `                  { "id": "T-002", "type": "unit-test", "name_pattern": "tests/test_x.py::test_y", "expected_result": "pass" } ] } ] }`,
-      `   Derive FRs from real security and functional behaviour in this codebase; point implemented_by at actual files/globs/symbols and tests at real scanner rules or test names.`,
-      `3. Save it by calling the assurance-scan MCP tool \`save_catalogue\` with project_path="${project}" and the catalogue as a JSON string.`,
-      ``,
-      `Report the FR ids you created when done.`
+      `One change: when saving via \`save_catalogue\`, use project_path="${project}" — this project's identity — not the local path.`
     ].join('\n');
   }
 
@@ -161,8 +152,9 @@
           class="w-full px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
         />
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
-          The prompt asks an agent to analyse that checkout and save the catalogue to this project via the MCP
-          <code class="text-ink-secondary">save_catalogue</code> tool. Local path is remembered per project (a future bridge can supply it automatically).
+          Delegates to the server-side <code class="text-ink-secondary">generate-fr-catalogue</code> workflow; the agent
+          explores the local checkout and saves the catalogue under this project's identity. Local path is remembered
+          per project (a future bridge can supply it automatically).
         </p>
         <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3">{buildPrompt()}</pre>
         <button
