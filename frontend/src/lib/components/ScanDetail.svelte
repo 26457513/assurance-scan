@@ -72,6 +72,9 @@
   }
 
   $: runUrl = typeof status?.options?.run_url === 'string' ? status.options.run_url : null;
+  $: runLabel = typeof status?.options?.run_number === 'number'
+    ? `#${status.options.run_number}${status.options.display_title ? ' · ' + status.options.display_title : ''}`
+    : runId;
 
   $: ghRepo = status?.project_path?.startsWith('github:')
     ? status.project_path.slice('github:'.length)
@@ -132,7 +135,7 @@
         {status.git_branch}{status.commit_sha ? ` @ ${status.commit_sha.slice(0, 8)}` : ''}
       </span>
     {/if}
-    <span class="font-mono text-[11px] text-ink-muted pr-1">{runId}</span>
+    <span class="font-mono text-[11px] text-ink-muted pr-1" title={runId}>{runLabel}</span>
     {#if runUrl}
       <a
         href={runUrl}
