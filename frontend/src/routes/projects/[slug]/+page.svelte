@@ -21,12 +21,13 @@
   let error: string | null = null;
   let polling = false;
 
-  const PAGE_SIZE = 5;
+  const PAGE_SIZES = [5, 10, 25, 50];
+  let pageSize = 10;
   let pg = 0;
 
   $: projectScans = scans; // already filtered by project on load
-  $: pageCount = Math.max(1, Math.ceil(projectScans.length / PAGE_SIZE));
-  $: visible = projectScans.slice(pg * PAGE_SIZE, (pg + 1) * PAGE_SIZE);
+  $: pageCount = Math.max(1, Math.ceil(projectScans.length / pageSize));
+  $: visible = projectScans.slice(pg * pageSize, (pg + 1) * pageSize);
 
   async function loadScans() {
     try {
@@ -197,23 +198,39 @@
         {/each}
       </div>
 
-      {#if pageCount > 1}
-        <div class="flex items-center gap-2 mb-4 font-mono text-[11px]">
-          <button
-            type="button"
-            on:click={() => (pg = Math.max(0, pg - 1))}
-            disabled={pg === 0}
-            class="px-2 py-0.5 border border-line-hairline rounded-sm text-ink-secondary disabled:opacity-40"
-          >‹ prev</button>
-          <span class="text-ink-muted">page {pg + 1} / {pageCount}</span>
-          <button
-            type="button"
-            on:click={() => (pg = Math.min(pageCount - 1, pg + 1))}
-            disabled={pg >= pageCount - 1}
-            class="px-2 py-0.5 border border-line-hairline rounded-sm text-ink-secondary disabled:opacity-40"
-          >next ›</button>
+      <div class="flex items-center justify-between mb-4 font-mono text-[11px]">
+        <div class="flex items-center gap-1.5 text-ink-muted">
+          <span class="uppercase tracking-[0.1em] text-[10px]">rows</span>
+          {#each PAGE_SIZES as size (size)}
+            <button
+              type="button"
+              on:click={() => { pageSize = size; pg = 0; }}
+              class="px-2 py-0.5 border rounded-sm transition-colors"
+              class:border-line-strong={pageSize === size}
+              class:text-ink-primary={pageSize === size}
+              class:border-line-hairline={pageSize !== size}
+              class:hover:text-ink-secondary={pageSize !== size}
+            >{size}</button>
+          {/each}
         </div>
-      {/if}
+        {#if pageCount > 1}
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              on:click={() => (pg = Math.max(0, pg - 1))}
+              disabled={pg === 0}
+              class="px-2 py-0.5 border border-line-hairline rounded-sm text-ink-secondary disabled:opacity-40"
+            >‹ prev</button>
+            <span class="text-ink-muted">page {pg + 1} / {pageCount}</span>
+            <button
+              type="button"
+              on:click={() => (pg = Math.min(pageCount - 1, pg + 1))}
+              disabled={pg >= pageCount - 1}
+              class="px-2 py-0.5 border border-line-hairline rounded-sm text-ink-secondary disabled:opacity-40"
+            >next ›</button>
+          </div>
+        {/if}
+      </div>
 
       {#if selectedRunId}
         <div class="border border-line-hairline rounded-sm overflow-hidden">

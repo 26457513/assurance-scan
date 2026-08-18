@@ -90,12 +90,17 @@
     }
   }
 
-  function scanLevel(scanner: string): 'code' | 'image' {
-    if (['syft', 'grype', 'trivy-fs'].includes(scanner)) return 'image';
-    return 'code';
-  }
+  const COLS = 'grid-cols-[72px_110px_minmax(0,1fr)_minmax(150px,240px)_20px]';
 
-  const COLS = 'grid-cols-[80px_120px_44px_minmax(0,1fr)_minmax(140px,220px)_24px]';
+  // Severity as compact colored text — the pill badges eat space.
+  const SEV_COLOR: Record<string, string> = {
+    CRITICAL: 'var(--state-failed)',
+    HIGH: 'var(--state-failed)',
+    MEDIUM: 'var(--state-pending)',
+    LOW: 'var(--ink-muted)',
+    INFO: 'var(--ink-muted)',
+    UNKNOWN: 'var(--ink-muted)'
+  };
 </script>
 
 <div>
@@ -149,7 +154,6 @@
     <div class="grid {COLS} gap-3 px-3 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
       <div>Sev</div>
       <div>Scanner</div>
-      <div>Lvl</div>
       <div>Message</div>
       <div>Location</div>
       <div></div>
@@ -167,7 +171,7 @@
           </svg>
           <span class="font-mono text-[11px] text-ink-primary truncate flex-1 text-left">{row.g.key}</span>
           <span class="font-mono text-[10px] text-ink-muted tabular-nums shrink-0">{row.g.fs.length}</span>
-          <span class="shrink-0"><SeverityBadge severity={row.g.worst} /></span>
+          <span class="font-mono text-[10px] font-semibold tracking-[0.04em] shrink-0" style="color:{SEV_COLOR[row.g.worst] ?? 'var(--ink-muted)'}">{row.g.worst}</span>
         </button>
       {:else}
       {@const f = row.f}
@@ -177,9 +181,8 @@
           on:click={() => toggle(f)}
           class="w-full text-left grid {COLS} gap-3 px-3 py-2 hover:bg-surface-elevated transition-colors items-center"
         >
-          <div><SeverityBadge severity={f.severity} /></div>
+          <div class="font-mono text-[10px] font-semibold tracking-[0.04em] truncate" style="color:{SEV_COLOR[f.severity] ?? 'var(--ink-muted)'}">{f.severity}</div>
           <div class="font-mono text-[11px] text-ink-secondary truncate">{f.scanner_kind}</div>
-          <div class="font-mono text-[10px] text-ink-muted">{scanLevel(f.scanner_kind)}</div>
           <div class="text-[12px] text-ink-primary truncate" title={f.message}>{f.message}</div>
           <div class="font-mono text-[11px] text-ink-muted truncate" title={f.file_path ?? ''}>
             {#if f.file_path}{f.file_path}{#if f.line_start}:{f.line_start}{/if}{:else}—{/if}
