@@ -91,6 +91,16 @@ export const api = {
       }
     ),
 
+  updateProject: (id: number, fields: { tag?: string; local_path?: string; github_url?: string }) =>
+    getJson<{ status: string; tag: string; local_path: string; github_repo: string | null }>(
+      `/api/projects/${id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields)
+      }
+    ),
+
   saveCatalogue: (projectPath: string, catalogueJson: string) =>
     getJson<{ status: string; project?: string; catalogue_version?: string; fr_count?: number; content_hash?: string }>(
       `/api/frs/catalogue?project_path=${encodeURIComponent(projectPath)}`,

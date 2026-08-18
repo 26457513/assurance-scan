@@ -5,6 +5,7 @@ from pathlib import PurePath
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import func, select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,6 +109,71 @@ def _parse_github_repo(url: str) -> str | None:
     raise HTTPException(status_code=422, detail=f"expected org/repo or a github URL: {url}")
 
 
+class ProjectUpdate(BaseModel):
+    tag: str | None = None
+    local_path: str | None = None
+    github_url: str | None = None
+
+
+@router.patch("/{project_id}")
+async def update_project(
+    project_id: int,
+    update: ProjectUpdate,
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    """Edit a registered project: tag, local path, and/or GitHub repo.
+
+    An empty github_url clears the repo link; tag/local_path must be
+    non-empty when provided. Validated like creation.
+    """
+    import os as _os
+    from sqlalchemy import select as _select
+
+    tag = update.tag
+    local_path = update.local_path
+    github_url = update.github_url
+
+    project = (
+        await session.execute(_select(Project).where(Project.id == project_id))
+    ).scalars().first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="project not found")
+
+    if tag is not None:
+        tag = tag.strip()
+        if not tag:
+            raise HTTPException(status_code=400, detail="tag cannot be empty")
+        project.tag = tag
+    if local_path is not None:
+        local_path = _os.path.expanduser(local_path.strip())
+        if not local_path:
+            raise HTTPException(status_code=400, detail="local_path cannot be empty")
+        if not _os.path.isdir(local_path):
+            raise HTTPException(status_code=422, detail=f"local path not found on this machine: {local_path}")
+        project.local_path = local_path
+    if github_url is not None:
+        project.github_repo = _parse_github_repo(github_url.strip())
+
+    clash = (
+        await session.execute(
+            _select(Project).where(
+                ((Project.tag == project.tag) | (Project.local_path == project.local_path))
+                & (Project.id != project.id)
+            )
+        )
+    ).scalars().first()
+    if clash is not None:
+        raise HTTPException(status_code=409, detail="another project already uses this tag or local path")
+
+    await session.commit()
+    return {
+        "status": "updated",
+        "tag": project.tag,
+        "local_path": project.local_path,
+        "github_repo": project.github_repo,
+    }
+
+
 @router.get("")
 async def list_projects(request: Request, session: AsyncSession = SessionDep) -> dict[str, Any]:
     """Registered projects first (explicit identity), then derived leftovers."""
@@ -151,6 +217,7 @@ async def list_projects(request: Request, session: AsyncSession = SessionDep) ->
             identities.append(gh)
         consumed.update(identities)
         projects.append({
+            "id": reg.id,
             "project_path": reg.local_path,
             "tag": reg.tag,
             "github_project": gh,

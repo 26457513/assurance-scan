@@ -82,6 +82,7 @@ export interface CompliancePack {
 }
 
 export interface ProjectSummary {
+  id?: number | null;
   tag?: string | null;
   registered?: boolean;
   github_project?: string | null;

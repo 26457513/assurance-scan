@@ -18,6 +18,40 @@
   let newRepo = '';
   let adding = false;
 
+  let editOpen = false;
+  let editId = 0;
+  let editTag = '';
+  let editPath = '';
+  let editRepo = '';
+  let editing = false;
+
+  function openEdit(p: ProjectSummary) {
+    editId = p.id ?? 0;
+    editTag = p.tag ?? '';
+    editPath = p.project_path;
+    editRepo = p.github_project ? `https://github.com/${p.github_project.replace('github:', '')}` : '';
+    editOpen = true;
+  }
+
+  async function saveEdit() {
+    editing = true;
+    try {
+      await api.updateProject(editId, {
+        tag: editTag.trim(),
+        local_path: editPath.trim(),
+        github_url: editRepo.trim()
+      });
+      pushToast('success', 'Project updated');
+      editOpen = false;
+      loading = true;
+      await load();
+    } catch (e) {
+      pushToast('error', `Update failed: ${e}`);
+    } finally {
+      editing = false;
+    }
+  }
+
   async function addProject() {
     adding = true;
     try {
@@ -122,17 +156,20 @@
     </div>
   {:else}
     <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
-      <div class="grid grid-cols-[minmax(0,2fr)_80px_130px_110px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">
+      <div class="grid grid-cols-[minmax(0,2fr)_80px_130px_110px_40px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
         <div>Path</div>
         <div class="text-right">Runs</div>
         <div>Last scan</div>
         <div>Catalogue</div>
+        <div></div>
       </div>
       {#each visible as p (p.project_path)}
-        <button
-          type="button"
+        <div
+          role="button"
+          tabindex="0"
           on:click={() => open(p)}
-          class="w-full text-left grid grid-cols-[minmax(0,2fr)_80px_130px_110px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
+          on:keydown={(e) => e.key === 'Enter' && open(p)}
+          class="w-full text-left grid grid-cols-[minmax(0,2fr)_80px_130px_110px_40px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
         >
           <span class="text-ink-primary truncate flex items-center gap-2" title={p.project_path}>
             {p.tag ?? p.project_path}
@@ -148,7 +185,17 @@
           <span class={p.has_catalogue ? 'text-state-passed' : 'text-ink-muted'}>
             {p.has_catalogue ? 'yes' : 'none'}
           </span>
-        </button>
+          {#if p.id}
+            <button
+              type="button"
+              on:click|stopPropagation={() => openEdit(p)}
+              title="Edit project"
+              class="text-ink-muted hover:text-accent transition-colors"
+            >✎</button>
+          {:else}
+            <span></span>
+          {/if}
+        </div>
       {/each}
     </div>
 
@@ -169,6 +216,38 @@
         >next ›</button>
       </div>
     {/if}
+  {/if}
+
+  {#if editOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (editOpen = false)} aria-label="Close"></button>
+      <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
+        <div class="text-[13px] text-ink-primary mb-4 font-mono">Edit project</div>
+        <div class="space-y-3 mb-5">
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-tag">Tag</label>
+            <input id="ep-tag" type="text" bind:value={editTag}
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-path">Local path</label>
+            <input id="ep-path" type="text" bind:value={editPath}
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-repo">GitHub repo URL (empty clears)</label>
+            <input id="ep-repo" type="text" bind:value={editRepo} placeholder="https://github.com/26457513/project"
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" on:click={() => (editOpen = false)}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
+          <button type="button" on:click={saveEdit} disabled={editing || !editTag.trim() || !editPath.trim()}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary disabled:opacity-50">{editing ? 'Saving…' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
   {/if}
 
   {#if addOpen}

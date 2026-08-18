@@ -48,3 +48,38 @@ async def test_registered_project_unifies_identities(session) -> None:
     assert row["run_count"] == 2
     # No derived leftover rows for the consumed identities.
     assert all(p["project_path"] != "github:26457513/doc2context" for p in res["projects"])
+
+
+async def test_update_project_changes_fields(session) -> None:
+    from server.api.routes.projects import ProjectUpdate, update_project
+
+    session.add(Project(tag="old-tag", local_path="/tmp", github_repo=None))
+    await session.commit()
+    row_id = (await session.execute(sa_select(Project))).scalars().one().id
+
+    res = await update_project(row_id, ProjectUpdate(tag="new-tag", github_url="26457513/x"), session=session)
+    assert res["status"] == "updated"
+    assert res["tag"] == "new-tag"
+    assert res["github_repo"] == "26457513/x"
+
+
+async def test_update_project_validates_path(session) -> None:
+    from fastapi import HTTPException
+
+    from server.api.routes.projects import ProjectUpdate, update_project
+
+    session.add(Project(tag="p", local_path="/tmp"))
+    await session.commit()
+    row_id = (await session.execute(sa_select(Project))).scalars().one().id
+
+    try:
+        await update_project(row_id, ProjectUpdate(local_path="/definitely/not/a/dir"), session=session)
+        raise AssertionError("expected 422")
+    except HTTPException as exc:
+        assert exc.status_code == 422
+
+    try:
+        await update_project(999999, ProjectUpdate(tag="x"), session=session)
+        raise AssertionError("expected 404")
+    except HTTPException as exc:
+        assert exc.status_code == 404
