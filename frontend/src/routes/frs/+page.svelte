@@ -2,8 +2,9 @@
   import { api } from '$lib/api';
   import { selectedProject } from '$lib/stores/selectedProject';
   import { pushToast } from '$lib/stores/toasts';
+  import type { CatalogueVersion } from '$lib/types';
 
-  let versions: { snapshot_id: string; version?: string | null; fr_count: number; content_hash: string; created_at: string }[] = [];
+  let versions: CatalogueVersion[] = [];
   let org = '';
   // Registered/local projects carry their checkout path at setup; only
   // github:-only selections need the user to supply one.
@@ -38,12 +39,9 @@
       versions = [];
       return;
     }
-    const identities = [project, derivedGithubPath()].filter(Boolean) as string[];
     try {
-      const lists = await Promise.all(identities.map((id) => api.listCatalogueVersions(id)));
-      versions = lists
-        .flatMap((l) => l.versions)
-        .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+      // The server expands identities (registry pair + org alias).
+      versions = (await api.listCatalogueVersions(project)).versions;
     } catch {
       versions = [];
     }
@@ -252,11 +250,21 @@
       <section class="mt-6">
         <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2.5">Versions</div>
         <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel font-mono text-[11px]">
+          <div class="grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3 px-3 py-2 bg-surface-inset border-b border-line-hairline text-[10px] uppercase tracking-[0.14em] text-ink-muted items-center">
+            <div>Version</div>
+            <div class="text-right">FRs</div>
+            <div>Origin</div>
+            <div>Hash</div>
+            <div>Saved</div>
+          </div>
           {#each versions as v (v.snapshot_id)}
-            <div class="flex items-center gap-4 px-3 py-2 border-b border-line-hairline last:border-0">
-              <span class="text-ink-primary w-40 truncate">{v.version ?? '(unversioned)'}</span>
-              <span class="text-ink-secondary tabular-nums w-16">{v.fr_count} FRs</span>
-              <span class="text-ink-muted truncate flex-1" title={v.content_hash}>{v.content_hash.slice(0, 16)}</span>
+            <div class="grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3 px-3 py-2 border-b border-line-hairline last:border-0 items-center">
+              <span class="text-ink-primary truncate">{v.version ?? '(unversioned)'}</span>
+              <span class="text-right text-ink-secondary tabular-nums">{v.fr_count}</span>
+              <span class="text-ink-muted truncate" title={v.project_path ?? ''}>
+                {v.project_path?.startsWith('github:') ? 'repo' : 'local'}
+              </span>
+              <span class="text-ink-muted truncate" title={v.content_hash}>{v.content_hash.slice(0, 16)}</span>
               <span class="text-ink-muted">{fmtDate(v.created_at)}</span>
             </div>
           {/each}
