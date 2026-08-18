@@ -10,6 +10,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: 26457513/assurance-scan
+          ref: target-schema-implementation   # match caller's pin; switch to main at merge
           path: assurance-scan
           # Private cross-repo checkout: the caller's GITHUB_TOKEN can't read
           # sibling private repos. Callers pass the org secret via
