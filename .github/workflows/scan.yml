@@ -36,7 +36,7 @@ jobs:
           load: true
           tags: assurance-scan-target:ci
           cache-from: type=gha
-          cache-to: type=gha,mode=min
+          cache-to: type=gha,mode=max
         # Build failures degrade to a skipped image scan — ci-scan.py's
         # image guard handles the missing tag.
         continue-on-error: true
