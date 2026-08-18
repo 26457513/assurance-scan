@@ -28,18 +28,33 @@
       ]);
       projects = data.projects;
       // Org repos with no scans yet still belong in the list; ones already
-      // scanned arrive via the projects API as github:{full_name}.
+      // scanned arrive via the projects API as github:{full_name}. A repo
+      // matching a local project's folder name tags that row instead of
+      // adding a duplicate.
       const known = new Set(
         projects.flatMap((p) => [p.project_path, p.github_project].filter(Boolean) as string[])
       );
-      const unscanned = gh.repos
-        .filter((r) => !known.has(`github:${r.full_name}`))
-        .map((r) => ({
-          project_path: `github:${r.full_name}`,
+      const byBase = new Map(
+        projects
+          .filter((p) => !p.project_path.startsWith('github:'))
+          .map((p) => [p.project_path.replace(/\/$/, '').split('/').pop() ?? '', p])
+      );
+      const unscanned: typeof projects = [];
+      for (const r of gh.repos) {
+        const ghPath = `github:${r.full_name}`;
+        if (known.has(ghPath)) continue;
+        const local = byBase.get(r.full_name.split('/').pop() ?? '');
+        if (local && !local.github_project) {
+          local.github_project = ghPath;
+          continue;
+        }
+        unscanned.push({
+          project_path: ghPath,
           run_count: 0,
           last_scan_at: r.pushed_at ?? null,
           has_catalogue: false
-        }));
+        });
+      }
       projects = [...projects, ...unscanned];
     } catch (e) {
       error = String(e);
