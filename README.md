@@ -37,7 +37,46 @@ First scan in a project downloads vulnerability databases (Trivy / Grype / OSV),
   ```bash
   docker run --rm --entrypoint cat <dockerhub-user>/assurance-scan:latest /opt/assurance-scan/README.md
   ```
-- Source, issues, and release notes live at `https://github.com/jondowson/assurance-scan`.
+- Source, issues, and release notes live at `https://github.com/26457513/assurance-scan`.
+
+## GitHub Actions CI Scanning (SARIF)
+
+Scans can run on GitHub Actions compute and report findings in the run's Step Summary plus a downloadable SARIF artifact (the GitHub-native Security-tab upload needs GHAS, which free-plan private orgs don't have). Design notes: `docs/plan-github-actions-sarif.md`.
+
+### One-time setup (organization)
+
+Tested on a free-plan org with private repos (`26457513`). Skipping any of these surfaces as a confusing `workflow was not found` or `Not Found` error in the run:
+
+1. **Tool-repo sharing:** `assurance-scan` → Settings → Actions → General → *Access* → **"Accessible from repositories in \<org\>"**. Without this, sibling repos can't see the reusable workflow at all.
+2. **Actions policy:** same page, top section → **Allow all actions and reusable workflows** (the workflow uses marketplace actions like `actions/checkout`).
+3. **Fine-grained PAT:** Settings → Developer settings → Fine-grained tokens → generate. **Resource owner must be the org** — left on the personal account, org repos never appear in the repository picker. Scope: Only select repositories → `assurance-scan`. Permissions: Contents → Read-only.
+4. **Org PAT policy** (org → Settings → Personal access tokens): allow fine-grained tokens, do not require administrator approval.
+5. **Secret:** free-plan orgs can't scope an org secret to all private repos (the option is greyed out), so add the token as a **repository secret** in each consuming repo: repo → Settings → Secrets and variables → Actions → `ASSURANCE_SCAN_TOKEN`.
+
+### Add scanning to a repo
+
+Create `.github/workflows/assurance-scan.yml` in the target repo:
+
+```yaml
+name: assurance-scan
+on: [push, pull_request]
+jobs:
+  scan:
+    uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
+    secrets: inherit   # passes ASSURANCE_SCAN_TOKEN
+```
+
+Pin to the branch carrying the reusable workflow while it's under development (currently `@target-schema-implementation`), `@main` once merged — and the reusable workflow's internal scanner checkout must be pinned to match.
+
+Each run produces a GitHub Step Summary (severity counts + top findings) and an `assurance-sarif` artifact. Scans never fail the workflow; scanner failures are listed in the summary instead.
+
+### Run the same scan locally
+
+```bash
+python3 scripts/ci-scan.py /path/to/project --sarif out.sarif
+```
+
+Needs Docker; no server, no DB. CI runs the code-scanner subset (no image builds, no SBOM).
 
 ## Prerequisites
 
