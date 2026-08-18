@@ -28,6 +28,9 @@ done
 
 docker info >/dev/null 2>&1 || { echo "ERROR: Docker daemon not running — start Docker Desktop first." >&2; exit 1; }
 
+# Load local env (GITHUB_POLL_TOKEN etc.) if present.
+if [ -f .env ]; then set -a; . ./.env; set +a; fi
+
 if (( BUILD )) || ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "Building ${IMAGE} (frontend + server are baked in)…"
   docker build -t "$IMAGE" .
