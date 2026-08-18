@@ -42,7 +42,8 @@ echo "Starting ${CONTAINER} from ${IMAGE}…"
 docker run -d --name "$CONTAINER" \
   -p "127.0.0.1:${PORT}:8000" \
   -e GITHUB_POLL_TOKEN="${GITHUB_POLL_TOKEN:-}" \
-  -e POLL_REPOS="${POLL_REPOS:-26457513/doc2context}" \
+  -e GITHUB_ORG="${GITHUB_ORG:-26457513}" \
+  -e POLL_REPOS="${POLL_REPOS:-}" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$HOME/Development:$HOME/Development" \
   -v "$HOME/.assurance-scan:/data" \
