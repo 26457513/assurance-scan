@@ -94,6 +94,17 @@
     }
   }
 
+  const TEMPLATE = `{\n  "schema_version": 3,\n  "project": "project-name",\n  "catalogue_version": "2026-08-18T00:00:00Z",\n  "frs": [\n    {\n      "id": "FR-001",\n      "title": "Short capability name",\n      "description": "What the system must do.",\n      "category": "security",\n      "lifecycle_status": "in_scope",\n      "implemented_by": [{ "kind": "glob", "ref": "src/**/*.py" }],\n      "tests": [\n        { "id": "T-001", "type": "scanner-clean", "scanner": "semgrep", "rule_pattern": "python.lang.security.audit.eval*" },\n        { "id": "T-002", "type": "unit-test", "name_pattern": "tests/test_x.py::test_y", "expected_result": "pass" }\n      ]\n    }\n  ]\n}`;
+
+  async function copyTemplate() {
+    try {
+      await navigator.clipboard.writeText(TEMPLATE);
+      pushToast('success', 'Template copied');
+    } catch {
+      pushToast('error', 'Clipboard unavailable');
+    }
+  }
+
   function fmtDate(iso: string | null): string {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -207,10 +218,17 @@
           <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">Paste a catalogue</div>
           <button type="button" on:click={() => (flow = null)} class="text-[11px] font-mono text-ink-muted hover:text-accent">✕ back</button>
         </div>
+        <div class="text-[11px] font-mono text-ink-secondary mb-1">Expected format (v3)</div>
+        <pre class="text-[10px] font-mono text-ink-muted whitespace-pre overflow-x-auto max-h-44 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-2 max-w-2xl">{TEMPLATE}</pre>
+        <button
+          type="button"
+          on:click={copyTemplate}
+          class="mb-4 px-3 py-1 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[10px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+        >Copy template</button>
         <textarea
           bind:value={pastedJson}
-          rows="12"
-          placeholder={'{ "schema_version": 3, "project": "...", "frs": [...] }'}
+          rows="10"
+          placeholder="Paste your catalogue JSON here"
           class="w-full max-w-2xl px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[10px] text-ink-primary"
         ></textarea>
         <div>
