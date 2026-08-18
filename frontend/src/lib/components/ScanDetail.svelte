@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
@@ -81,9 +80,9 @@
     : null;
   $: ghCommit = status?.commit_sha ?? null;
 
-  onMount(() => {
-    loadScan();
-  });
+  // Reactive so switching rows in the scans list reloads the detail view
+  // (the component is not remounted between selections).
+  $: if (runId) loadScan();
 
   function switchTab(id: TabId) {
     activeTab = id;
