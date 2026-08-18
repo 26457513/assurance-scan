@@ -125,7 +125,7 @@ def summary_markdown(findings: list[ParsedFinding], status: dict[str, str]) -> s
     lines.append("| Scanner | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total |")
     lines.append("|---|---|---|---|---|---|---|")
     for tool in all_tools:
-        counts = per_tool[tool]
+        counts = per_tool.get(tool, Counter())
         low_info = counts["LOW"] + counts["INFO"] + counts["UNKNOWN"]
         lines.append(
             f"| {tool} | {counts['CRITICAL'] or '·'} | {counts['HIGH'] or '·'} "
