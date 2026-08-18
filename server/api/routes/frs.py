@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +41,51 @@ async def _derive_satisfies(session: AsyncSession, project_path: str, fr_id: str
                 "row": entry.get("row", ""),
             })
     return result
+
+
+@router.post("/catalogue")
+async def save_catalogue(
+    project_path: str = Query(...),
+    catalogue_json: str = Body(..., embed=True),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    """Validate and store an FR catalogue snapshot for a project.
+
+    REST mirror of the MCP save_catalogue tool: same validation, same
+    snapshot storage. Used by the FRs page's paste flow.
+    """
+    from server.catalogue.loader import load_catalogue_from_dict
+    from server.db.repositories.catalogue_snapshots import CatalogueSnapshotRepository
+    from server.db.repositories.frs import FrRepository
+
+    try:
+        doc = json.loads(catalogue_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid JSON: {exc}") from exc
+
+    try:
+        catalogue = load_catalogue_from_dict(doc, project_path)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"catalogue validation failed: {exc}") from exc
+
+    snap_repo = CatalogueSnapshotRepository(session)
+    fr_repo = FrRepository(session)
+    snapshot = await snap_repo.store(
+        project_path=project_path,
+        catalogue=catalogue.doc,
+        catalogue_version=catalogue.doc.get("catalogue_version"),
+    )
+    await fr_repo.bulk_insert_for_snapshot(
+        snapshot.id, project_path, catalogue.doc.get("frs", [])
+    )
+    await session.commit()
+    return {
+        "status": "saved",
+        "project": catalogue.doc.get("project"),
+        "catalogue_version": catalogue.doc.get("catalogue_version"),
+        "fr_count": len(catalogue.doc.get("frs", [])),
+        "content_hash": catalogue.content_hash,
+    }
 
 
 @router.get("/frs/{fr_id}")

@@ -1,12 +1,15 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { selectedScan } from '$lib/stores/selectedScan';
+  import { selectedProject, projectSlug } from '$lib/stores/selectedProject';
 
   const nav = [
-    { href: '/scans', label: 'Scans', glyph: '⟳', match: '/scans', showScanSubitem: true },
-    { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix', showScanSubitem: false },
-    { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup', showScanSubitem: false },
-    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends', showScanSubitem: false }
+    { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup' },
+    { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes' },
+    { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects' },
+    { href: '/scans', label: 'Scans', glyph: '⟳', match: '/scans' },
+    { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix' },
+    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends' }
   ];
 
   $: path = $page.url.pathname;
@@ -14,20 +17,19 @@
   // nested detail pages (e.g. /scans/[id] is owned by the per-scan sub-link).
   const isActive = (match: string) => path === match;
 
-  $: scanDetailHref = $selectedScan ? `/scans/${$selectedScan.run_id}` : null;
-  $: scanDetailActive = scanDetailHref !== null && path === scanDetailHref;
-  $: scanShortLabel = $selectedScan ? shortLabel($selectedScan.run_id) : null;
-  $: scanIsRunning =
-    !!$selectedScan && ($selectedScan.status === 'queued' || $selectedScan.status === 'running');
+  $: projectBase = $selectedProject ? `/projects/${projectSlug($selectedProject)}` : null;
+  $: projectActive = projectBase !== null && path.startsWith(projectBase);
+  $: projectShort = $selectedProject
+    ? $selectedProject.split('/').filter(Boolean).pop()
+    : null;
 
-  function shortLabel(id: string): string {
-    const m = id.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z_/);
-    if (m) {
-      const [, , mo, d, h, mi] = m;
-      return `${mo}/${d} ${h}:${mi}`;
-    }
-    return id.slice(-8);
-  }
+  const PROJECT_VIEWS = [
+    { view: 'scans', label: 'Scans' },
+    { view: 'frs', label: 'FRs' },
+    { view: 'compliance', label: 'Compliance' }
+  ];
+
+  $: activeView = $page.url.searchParams.get('view') ?? 'scans';
 </script>
 
 <aside class="bg-surface-panel border-r border-line-hairline flex flex-col h-full">
@@ -59,25 +61,32 @@
         <span>{item.label}</span>
       </a>
 
-      {#if item.showScanSubitem && scanDetailHref}
+      {#if item.href === '/projects' && projectBase}
         <a
-          href={scanDetailHref}
+          href={projectBase}
           class="relative ml-3 flex items-center gap-2 pl-7 pr-3 py-1.5 text-[11px] font-mono transition-colors duration-150 rounded-sm"
-          class:bg-accent-subtle={scanDetailActive}
-          class:text-accent={scanDetailActive}
-          class:text-ink-secondary={!scanDetailActive}
-          class:hover:bg-surface-elevated={!scanDetailActive}
-          title={$selectedScan?.run_id}
+          class:bg-accent-subtle={projectActive && path === projectBase}
+          class:text-accent={projectActive && path === projectBase}
+          class:text-ink-secondary={!(projectActive && path === projectBase)}
+          class:hover:bg-surface-elevated={!(projectActive && path === projectBase)}
+          title={$selectedProject ?? ''}
         >
-          {#if scanDetailActive}
-            <span class="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-accent"></span>
-          {/if}
           <span class="text-ink-muted select-none">└</span>
-          <span class="truncate flex-1">{scanShortLabel}</span>
-          {#if scanIsRunning}
-            <span class="w-1.5 h-1.5 rounded-full bg-accent pulse-dot shrink-0"></span>
-          {/if}
+          <span class="truncate flex-1">{projectShort}</span>
         </a>
+        {#each PROJECT_VIEWS as v (v.view)}
+          <a
+            href="{projectBase}?view={v.view}"
+            class="relative ml-6 flex items-center gap-2 pl-7 pr-3 py-1.5 text-[11px] font-mono transition-colors duration-150 rounded-sm"
+            class:bg-accent-subtle={projectActive && activeView === v.view}
+            class:text-accent={projectActive && activeView === v.view}
+            class:text-ink-secondary={!(projectActive && activeView === v.view)}
+            class:hover:bg-surface-elevated={!(projectActive && activeView === v.view)}
+          >
+            <span class="text-ink-muted select-none">└</span>
+            <span class="truncate flex-1">{v.label}</span>
+          </a>
+        {/each}
       {/if}
     {/each}
   </nav>
