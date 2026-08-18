@@ -68,7 +68,7 @@ export const api = {
   listProjects: () => getJson<{ projects: ProjectSummary[] }>('/api/projects'),
 
   githubRepos: () =>
-    getJson<{ repos: { full_name: string; name?: string; pushed_at?: string; html_url?: string }[] }>(
+    getJson<{ org?: string; repos: { full_name: string; name?: string; pushed_at?: string; html_url?: string }[] }>(
       '/api/github/repos'
     ),
 

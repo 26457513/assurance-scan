@@ -58,10 +58,21 @@
   $: pageCount = Math.max(1, Math.ceil(projectScans.length / pageSize));
   $: visible = projectScans.slice(pg * pageSize, (pg + 1) * pageSize);
 
+  // Path-derived identity: the same project exists locally and as
+  // github:{org}/{folder} — join by folder name.
+  $: baseName = projectPath.replace(/\/$/, '').split('/').pop() ?? '';
+  function isProjectScan(s: ScanSummary): boolean {
+    if (s.project_path === projectPath) return true;
+    return (
+      s.project_path.startsWith('github:') &&
+      (s.project_path.split('/').pop() ?? '') === baseName
+    );
+  }
+
   async function loadScans() {
     try {
       const all = await api.listScans(200);
-      scans = all.filter((s) => s.project_path === projectPath);
+      scans = all.filter(isProjectScan);
       if (!selectedRunId && scans.length) selectedRunId = scans[0].run_id;
     } catch (e) {
       error = String(e);

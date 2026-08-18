@@ -8,6 +8,7 @@
   let projects: ProjectSummary[] = [];
   let versions: { snapshot_id: string; version?: string | null; fr_count: number; content_hash: string; created_at: string }[] = [];
   let localPath = '';
+  let org = '';
   let pastedJson = '';
   let loading = true;
   let saving = false;
@@ -28,14 +29,23 @@
     return store[p] ?? '';
   }
 
+  function derivedGithubPath(): string | null {
+    const base = localPath.replace(/\/$/, '').split('/').pop();
+    if (!org || !base) return null;
+    return `github:${org}/${base}`;
+  }
+
   async function loadVersions() {
     if (!project) {
       versions = [];
       return;
     }
+    const identities = [project, derivedGithubPath()].filter(Boolean) as string[];
     try {
-      const data = await api.listCatalogueVersions(project);
-      versions = data.versions;
+      const lists = await Promise.all(identities.map((id) => api.listCatalogueVersions(id)));
+      versions = lists
+        .flatMap((l) => l.versions)
+        .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
     } catch {
       versions = [];
     }
@@ -62,11 +72,17 @@
     if (!localPath.trim()) {
       return 'Enter the local checkout path first — the workflow needs it to explore the codebase.';
     }
-    return [
-      `Call the assurance-scan MCP tool \`get_workflow\` with name="generate-fr-catalogue" and parameters={"project_path": "${localPath}"} and follow the returned workflow prompt.`,
-      ``,
-      `One change: when saving via \`save_catalogue\`, use project_path="${project}" — this project's identity — not the local path.`
-    ].join('\n');
+    const identity = derivedGithubPath();
+    const lines = [
+      `Call the assurance-scan MCP tool \`get_workflow\` with name="generate-fr-catalogue" and parameters={"project_path": "${localPath}"} and follow the returned workflow prompt.`
+    ];
+    if (identity && identity !== project) {
+      lines.push(
+        ``,
+        `One change: when saving via \`save_catalogue\`, use project_path="${identity}" — this project's GitHub identity — not the local path.`
+      );
+    }
+    return lines.join('\n');
   }
 
   async function copyPrompt() {
@@ -95,6 +111,12 @@
   }
 
   onMount(async () => {
+    try {
+      const gh = await api.githubRepos().catch(() => ({ org: '', repos: [] }));
+      org = gh.org ?? '';
+    } catch {
+      /* org stays empty — identity falls back to the selected project */
+    }
     try {
       const data = await api.listProjects();
       projects = data.projects;

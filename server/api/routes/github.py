@@ -22,13 +22,14 @@ CONTEXT_PAD = 3  # lines above/below the flagged line
 async def list_repos(request: Request) -> dict[str, Any]:
     settings = request.app.state.settings
     if not settings.github_poll_token or not settings.github_org:
-        return {"repos": []}
+        return {"org": settings.github_org, "repos": []}
     client = GitHubClient(settings.github_poll_token)
     try:
         repos = await asyncio.to_thread(client.org_repos, settings.github_org)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"GitHub listing failed: {exc}") from exc
     return {
+        "org": settings.github_org,
         "repos": [
             {
                 "full_name": r["full_name"],

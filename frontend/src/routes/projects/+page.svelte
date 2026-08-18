@@ -29,7 +29,9 @@
       projects = data.projects;
       // Org repos with no scans yet still belong in the list; ones already
       // scanned arrive via the projects API as github:{full_name}.
-      const known = new Set(projects.map((p) => p.project_path));
+      const known = new Set(
+        projects.flatMap((p) => [p.project_path, p.github_project].filter(Boolean) as string[])
+      );
       const unscanned = gh.repos
         .filter((r) => !known.has(`github:${r.full_name}`))
         .map((r) => ({
@@ -84,7 +86,12 @@
           on:click={() => open(p)}
           class="w-full text-left grid grid-cols-[minmax(0,2fr)_80px_130px_110px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px]"
         >
-          <span class="text-ink-primary truncate">{p.project_path}</span>
+          <span class="text-ink-primary truncate flex items-center gap-2">
+            {p.project_path}
+            {#if p.github_project}
+              <span class="text-[10px] text-ink-muted border border-line-hairline rounded-sm px-1.5 py-0.5" title={p.github_project}>repo</span>
+            {/if}
+          </span>
           <span class="text-right text-ink-secondary tabular-nums">{p.run_count}</span>
           <span class="text-ink-muted">{fmtDate(p.last_scan_at)}</span>
           <span class={p.has_catalogue ? 'text-state-passed' : 'text-ink-muted'}>

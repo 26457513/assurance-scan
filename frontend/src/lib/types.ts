@@ -82,6 +82,7 @@ export interface CompliancePack {
 }
 
 export interface ProjectSummary {
+  github_project?: string | null;
   project_path: string;
   run_count: number;
   last_scan_at: string | null;
