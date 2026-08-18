@@ -71,6 +71,8 @@
     }
   }
 
+  $: runUrl = typeof status?.options?.run_url === 'string' ? status.options.run_url : null;
+
   $: ghRepo = status?.project_path?.startsWith('github:')
     ? status.project_path.slice('github:'.length)
     : null;
@@ -131,6 +133,17 @@
       </span>
     {/if}
     <span class="font-mono text-[11px] text-ink-muted pr-1">{runId}</span>
+    {#if runUrl}
+      <a
+        href={runUrl}
+        target="_blank"
+        rel="noreferrer"
+        title="Open the GitHub Actions run"
+        class="ml-1 inline-flex items-center gap-1 font-mono text-[11px] text-ink-muted hover:text-accent pr-1 transition-colors"
+      >GH<svg class="h-3 w-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M4 2h6v6M10 2L5.5 6.5M8 7v3H2V4h3" stroke-linecap="round" stroke-linejoin="round" />
+        </svg></a>
+    {/if}
   </div>
 </div>
 
