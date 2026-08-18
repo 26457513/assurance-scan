@@ -80,17 +80,7 @@
     if (!agentPath) {
       return 'Enter the local checkout path first — the workflow needs it to explore the codebase.';
     }
-    const identity = derivedGithubPath();
-    const lines = [
-      `Call the assurance-scan MCP tool \`get_workflow\` with name="generate-fr-catalogue" and parameters={"project_path": "${agentPath}"} and follow the returned workflow prompt.`
-    ];
-    if (identity && identity !== project) {
-      lines.push(
-        ``,
-        `One change: when saving via \`save_catalogue\`, use project_path="${identity}" — this project's GitHub identity — not the local path.`
-      );
-    }
-    return lines.join('\n');
+    return `Call the assurance-scan MCP tool \`get_workflow\` with name="generate-fr-catalogue" and parameters={"project_path": "${agentPath}"} and follow the returned workflow prompt.`;
   }
 
   async function copyPrompt() {
