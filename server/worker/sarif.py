@@ -151,11 +151,13 @@ def summary_markdown(
             f"| {low_info or '·'} | {sum(counts.values())} | {secs if secs is not None else '·'} |"
         )
     total = len(findings)
+    total_secs = round(sum(durations.values()), 1) if durations else None
     by_sev = Counter(f.severity for f in findings)
     lines.append(
         f"| **Total** |  | **{by_sev['CRITICAL']}** | **{by_sev['HIGH']}** "
         f"| **{by_sev['MEDIUM']}** | **{by_sev['LOW']}** "
-        f"| **{by_sev['INFO'] + by_sev['UNKNOWN']}** | **{total}** |  |"
+        f"| **{by_sev['INFO'] + by_sev['UNKNOWN']}** | **{total}** "
+        f"| **{total_secs if total_secs is not None else '·'}** |"
     )
     lines.append("")
 
@@ -175,10 +177,10 @@ def summary_markdown(
 
 
 def _run_url() -> str | None:
-    """Link to the workflow run page (artifact zip is one click from there)."""
+    """Deep link to the run's artifacts section (zip download lives there)."""
     server = os.environ.get("GITHUB_SERVER_URL")
     repo = os.environ.get("GITHUB_REPOSITORY")
     run_id = os.environ.get("GITHUB_RUN_ID")
     if server and repo and run_id:
-        return f"{server}/{repo}/actions/runs/{run_id}"
+        return f"{server}/{repo}/actions/runs/{run_id}/artifacts"
     return None

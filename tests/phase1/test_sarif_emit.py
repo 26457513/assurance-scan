@@ -85,8 +85,8 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     assert "| Scanner | Checks | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total | s |" in md
     assert "| gitleaks | hardcoded secrets | · | 1 | · | · | 1 | 2 | 1.2 |" in md
     assert "| semgrep | static code analysis | 1 | 1 | · | · | · | 2 | 12.3 |" in md
-    assert "| **Total** |  | **1** | **2** | **0** | **0** | **1** | **4** |  |" in md
-    assert "https://github.com/26457513/doc2context/actions/runs/12345" in md
+    assert "| **Total** |  | **1** | **2** | **0** | **0** | **1** | **4** | **13.5** |" in md
+    assert "https://github.com/26457513/doc2context/actions/runs/12345/artifacts" in md
     assert "`trivy-fs` — exit=1" in md
 
 
@@ -97,7 +97,7 @@ def test_summary_without_github_env_links_to_files(monkeypatch) -> None:
         monkeypatch.delenv(var, raising=False)
     md = summary_markdown([], {})
     assert "written beside this summary" in md
-    assert "| **Total** |  | **0** | **0** | **0** | **0** | **0** | **0** |  |" in md
+    assert "| **Total** |  | **0** | **0** | **0** | **0** | **0** | **0** | **·** |" in md
 
 
 def test_summary_includes_clean_scanners() -> None:
