@@ -87,7 +87,9 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     assert "| semgrep | static code analysis | 1 | 1 | · | · | · | 2 | 12.3 |" in md
     assert "| **Total** |  | **1** | **2** | **0** | **0** | **1** | **4** | **13.5** |" in md
     assert "`assurance-scan-results` — zip containing the full SARIF findings and the CycloneDX SBOM." in md
-    assert "Docker build record — buildx timing/cache details, debugging only." in md
+    assert "SARIF Viewer" in md
+    assert "jq -r" in md
+    assert "Docker Desktop's Builds view" in md
     assert "`trivy-fs` — exit=1" in md
 
 

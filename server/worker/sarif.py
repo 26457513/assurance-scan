@@ -164,7 +164,11 @@ def summary_markdown(
     if _on_github():
         lines.append("**Artifacts** (run page → Artifacts section):")
         lines.append("- `assurance-scan-results` — zip containing the full SARIF findings and the CycloneDX SBOM.")
-        lines.append("- Docker build record — buildx timing/cache details, debugging only.")
+        lines.append("  - SARIF: unzip, then open in VS Code with the *SARIF Viewer* extension "
+                     "and the repo folder as workspace — findings link to file/line.")
+        lines.append("  - SBOM: plain JSON — `jq -r '.components[] | \"\\(.name)@\\(.version)\"' sbom.cyclonedx.json` "
+                     "for a quick inventory.")
+        lines.append("- Docker build record — import into Docker Desktop's Builds view for layer timing/cache details.")
     else:
         lines.append("Full results: SARIF + SBOM files written beside this summary.")
     lines.append("")
