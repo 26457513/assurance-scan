@@ -127,7 +127,6 @@ def summary_markdown(
     findings: list[ParsedFinding],
     status: dict[str, str],
     durations: dict[str, float] | None = None,
-    image_scanned: bool = False,
 ) -> str:
     """Per-tool severity matrix + link to the full results artifact."""
     durations = durations or {}
@@ -169,8 +168,6 @@ def summary_markdown(
                      "and the repo folder as workspace — findings link to file/line.")
         lines.append("  - SBOM: plain JSON — `jq -r '.components[] | \"\\(.name)@\\(.version)\"' sbom.cyclonedx.json` "
                      "for a quick inventory.")
-        if image_scanned:
-            lines.append("- Docker build record — import into Docker Desktop's Builds view for layer timing/cache details.")
     else:
         lines.append("Full results: SARIF + SBOM files written beside this summary.")
     lines.append("")

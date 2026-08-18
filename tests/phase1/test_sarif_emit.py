@@ -80,7 +80,7 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     monkeypatch.setenv("GITHUB_RUN_ID", "12345")
 
     durations = {"semgrep": 12.3, "gitleaks": 1.2}
-    md = summary_markdown(findings, {"semgrep": "ok", "gitleaks": "ok", "trivy-fs": "exit=1"}, durations, image_scanned=True)
+    md = summary_markdown(findings, {"semgrep": "ok", "gitleaks": "ok", "trivy-fs": "exit=1"}, durations)
 
     assert "| Scanner | Checks | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total | s |" in md
     assert "| gitleaks | hardcoded secrets | · | 1 | · | · | 1 | 2 | 1.2 |" in md
@@ -89,10 +89,7 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     assert "`assurance-scan-results` — zip containing the full SARIF findings and the CycloneDX SBOM." in md
     assert "SARIF Viewer" in md
     assert "jq -r" in md
-    assert "Docker Desktop's Builds view" in md
-
-    no_build = summary_markdown(findings, {"semgrep": "ok"})
-    assert "Docker build record" not in no_build
+    assert "Docker build record" not in md
     assert "`trivy-fs` — exit=1" in md
 
 

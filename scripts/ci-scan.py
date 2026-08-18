@@ -42,12 +42,10 @@ async def run_scanners(
     project_path: str,
     image: str | None,
     sbom_path: Path | None,
-) -> tuple[list[ParsedFinding], dict[str, str], dict[str, float], bool]:
-    image_scanned = True
+) -> tuple[list[ParsedFinding], dict[str, str], dict[str, float]]:
     if image and not await _image_exists(image):
         print(f"[trivy-image] skipped: image {image} not built")
         image = None
-        image_scanned = False
     scanners = ci_scanner_set(image)
 
     runner = DockerRunner(project_path)
@@ -60,7 +58,7 @@ async def run_scanners(
             await _run_one(scanner, runner, findings, status, sbom_path)
         finally:
             durations[scanner.kind] = round(time.monotonic() - t0, 1)
-    return findings, status, durations, image_scanned
+    return findings, status, durations
 
 
 async def _run_one(
@@ -107,12 +105,12 @@ def main() -> int:
     sbom_path = sarif_path.with_name(SBOM_FILENAME)
     print(f"scanning {project_path} (image={args.image or 'none'})")
 
-    findings, status, durations, image_scanned = asyncio.run(run_scanners(project_path, args.image, sbom_path))
+    findings, status, durations = asyncio.run(run_scanners(project_path, args.image, sbom_path))
     sarif = build_sarif(findings)
     sarif_path.write_text(json.dumps(sarif, indent=2))
     print(f"wrote {sarif_path}: {len(findings)} findings")
 
-    md = summary_markdown(findings, status, durations, image_scanned)
+    md = summary_markdown(findings, status, durations)
     sarif_path.with_name("summary.md").write_text(md)
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:
