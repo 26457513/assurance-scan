@@ -13,7 +13,8 @@
   let activeSeverity: string | null = null;
   let expandedId: number | null = null;
   let groupMode = false;
-  let collapsedGroups = new Set<string>();
+  // Groups render closed by default; users open the files they care about.
+  let expandedGroups = new Set<string>();
 
   const SEV_WEIGHT: Record<string, number> = {
     CRITICAL: 5, HIGH: 4, MEDIUM: 3, LOW: 2, INFO: 1, UNKNOWN: 0
@@ -52,15 +53,15 @@
     const rows: RenderRow[] = [];
     for (const g of groups) {
       rows.push({ type: 'group', g });
-      if (!collapsedGroups.has(g.key)) for (const f of g.fs) rows.push({ type: 'finding', f });
+      if (expandedGroups.has(g.key)) for (const f of g.fs) rows.push({ type: 'finding', f });
     }
     return rows;
   })();
 
   function toggleGroup(key: string) {
-    if (collapsedGroups.has(key)) collapsedGroups.delete(key);
-    else collapsedGroups.add(key);
-    collapsedGroups = collapsedGroups;
+    if (expandedGroups.has(key)) expandedGroups.delete(key);
+    else expandedGroups.add(key);
+    expandedGroups = expandedGroups;
   }
 
   function toggle(f: FindingResponse) {
@@ -161,7 +162,7 @@
           on:click={() => toggleGroup(row.g.key)}
           class="w-full flex items-center gap-3 px-3 py-2 bg-surface-inset border-b border-line-hairline hover:bg-surface-elevated transition-colors"
         >
-          <svg class="h-3 w-3 text-ink-muted transition-transform duration-150 {collapsedGroups.has(row.g.key) ? '-rotate-90' : ''}" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg class="h-3 w-3 text-ink-muted transition-transform duration-150 {expandedGroups.has(row.g.key) ? '' : '-rotate-90'}" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M3 4.5l3 3 3-3" stroke-linecap="round" />
           </svg>
           <span class="font-mono text-[11px] text-ink-primary truncate flex-1 text-left">{row.g.key}</span>
