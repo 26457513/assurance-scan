@@ -14,7 +14,6 @@ import asyncio
 import json
 import os
 import sys
-from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -22,11 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from server.worker.parsers import parser_for
 from server.worker.parsers.base import ParsedFinding
 from server.worker.runner import DockerRunner
-from server.worker.sarif import build_sarif
+from server.worker.sarif import build_sarif, summary_markdown
 from server.worker.scanners import ci_scanner_set
-
-SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"]
-SUMMARY_TOP_FINDINGS = 15
 
 SBOM_FILENAME = "sbom.cyclonedx.json"
 
@@ -79,41 +75,6 @@ async def run_scanners(
         status[scanner.kind] = "ok"
         print(f"[{scanner.kind}] ok ({len(parsed)} findings)")
     return findings, status
-
-
-def summary_markdown(findings: list[ParsedFinding], status: dict[str, str]) -> str:
-    by_severity = Counter(f.severity for f in findings)
-    by_scanner = Counter(f.scanner_kind for f in findings)
-    failed = {k: v for k, v in status.items() if v != "ok"}
-
-    lines = ["## assurance-scan", ""]
-    lines.append(f"**{len(findings)} findings** "
-                 + " · ".join(f"{s}: {by_severity[s]}" for s in SEVERITY_ORDER if by_severity[s]))
-    lines.append("")
-    lines.append("By scanner: " + " · ".join(f"{k} {v}" for k, v in sorted(by_scanner.items())))
-    lines.append("")
-
-    if findings:
-        lines.append("| Severity | Scanner | Rule | Location |")
-        lines.append("|---|---|---|---|")
-        ranked = sorted(findings, key=lambda f: SEVERITY_ORDER.index(f.severity) if f.severity in SEVERITY_ORDER else 99)
-        for f in ranked[:SUMMARY_TOP_FINDINGS]:
-            if f.file_path and f.line_start is not None:
-                loc = f"{f.file_path}:{f.line_start}"
-            else:
-                loc = f.file_path or "-"
-            rule = f.rule_id or "(unclassified)"
-            lines.append(f"| {f.severity} | {f.scanner_kind} | {rule} | {loc} |")
-        if len(findings) > SUMMARY_TOP_FINDINGS:
-            lines.append("")
-            lines.append(f"_…and {len(findings) - SUMMARY_TOP_FINDINGS} more — see the SARIF artifact._")
-
-    if failed:
-        lines.append("")
-        lines.append("**Scanners with problems:**")
-        for kind, why in sorted(failed.items()):
-            lines.append(f"- `{kind}` — {why}")
-    return "\n".join(lines) + "\n"
 
 
 def main() -> int:

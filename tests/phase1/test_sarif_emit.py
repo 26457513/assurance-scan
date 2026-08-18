@@ -64,3 +64,35 @@ def test_findings_without_location_omit_locations() -> None:
     result = doc["runs"][0]["results"][0]
     assert "locations" not in result
     assert result["partialFingerprints"]["primaryLocationLineHash"] == fingerprint("rule-a", None, None)
+
+
+def test_summary_matrix_and_run_link(monkeypatch) -> None:
+    from server.worker.sarif import summary_markdown
+
+    findings = [
+        _finding(severity="CRITICAL"),
+        _finding(severity="HIGH"),
+        _finding(severity="HIGH", scanner_kind="gitleaks", rule_id=None),
+        _finding(severity="UNKNOWN", scanner_kind="gitleaks", rule_id="leak-2"),
+    ]
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "26457513/doc2context")
+    monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+
+    md = summary_markdown(findings, {"semgrep": "ok", "gitleaks": "ok", "trivy-fs": "exit=1"})
+
+    assert "| Scanner | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total |" in md
+    assert "| gitleaks | · | 1 | · | · | 1 | 2 |" in md
+    assert "| **Total** | **1** | **2** | **0** | **0** | **1** | **4** |" in md
+    assert "https://github.com/26457513/doc2context/actions/runs/12345" in md
+    assert "`trivy-fs` — exit=1" in md
+
+
+def test_summary_without_github_env_links_to_files(monkeypatch) -> None:
+    from server.worker.sarif import summary_markdown
+
+    for var in ("GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_RUN_ID"):
+        monkeypatch.delenv(var, raising=False)
+    md = summary_markdown([], {})
+    assert "written beside this summary" in md
+    assert "| **Total** | **0** | **0** | **0** | **0** | **0** | **0** |" in md

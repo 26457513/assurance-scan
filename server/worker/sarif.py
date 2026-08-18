@@ -1,4 +1,4 @@
-"""Emit normalized findings as a single SARIF 2.1.0 document.
+"""Emit normalized findings as SARIF 2.1.0 plus the human summary markdown.
 
 Used by scripts/ci-scan.py for GitHub compute runs. Stdlib only — do not
 import server.db / server.api here.
@@ -6,6 +6,8 @@ import server.db / server.api here.
 from __future__ import annotations
 
 import hashlib
+import os
+from collections import Counter
 from typing import Any
 
 from server.worker.parsers.base import ParsedFinding
@@ -105,3 +107,58 @@ def build_sarif(findings: list[ParsedFinding]) -> dict[str, Any]:
             "results": results,
         }],
     }
+
+
+SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"]
+
+
+def summary_markdown(findings: list[ParsedFinding], status: dict[str, str]) -> str:
+    """Per-tool severity matrix + link to the full results artifact."""
+    per_tool: dict[str, Counter[str]] = {}
+    for f in findings:
+        per_tool.setdefault(f.scanner_kind, Counter())[f.severity] += 1
+
+    lines = ["## assurance-scan", ""]
+
+    lines.append("| Scanner | CRITICAL | HIGH | MEDIUM | LOW | INFO/UNKNOWN | Total |")
+    lines.append("|---|---|---|---|---|---|---|")
+    for tool in sorted(per_tool):
+        counts = per_tool[tool]
+        low_info = counts["LOW"] + counts["INFO"] + counts["UNKNOWN"]
+        lines.append(
+            f"| {tool} | {counts['CRITICAL'] or '·'} | {counts['HIGH'] or '·'} "
+            f"| {counts['MEDIUM'] or '·'} | {counts['LOW'] or '·'} "
+            f"| {low_info or '·'} | {sum(counts.values())} |"
+        )
+    total = len(findings)
+    by_sev = Counter(f.severity for f in findings)
+    lines.append(
+        f"| **Total** | **{by_sev['CRITICAL']}** | **{by_sev['HIGH']}** "
+        f"| **{by_sev['MEDIUM']}** | **{by_sev['LOW']}** "
+        f"| **{by_sev['INFO'] + by_sev['UNKNOWN']}** | **{total}** |"
+    )
+    lines.append("")
+
+    run_url = _run_url()
+    if run_url:
+        lines.append(f"Full results (SARIF + SBOM): {run_url}")
+    else:
+        lines.append("Full results: SARIF + SBOM files written beside this summary.")
+    lines.append("")
+
+    failed = {k: v for k, v in status.items() if v != "ok"}
+    if failed:
+        lines.append("**Scanners with problems:**")
+        for kind, why in sorted(failed.items()):
+            lines.append(f"- `{kind}` — {why}")
+    return "\n".join(lines) + "\n"
+
+
+def _run_url() -> str | None:
+    """Link to the workflow run page (artifact zip is one click from there)."""
+    server = os.environ.get("GITHUB_SERVER_URL")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    if server and repo and run_id:
+        return f"{server}/{repo}/actions/runs/{run_id}"
+    return None
