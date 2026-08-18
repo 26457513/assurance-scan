@@ -22,15 +22,9 @@ jobs:
           token: ${{ secrets.ASSURANCE_SCAN_TOKEN }}
       - name: Build image (if Dockerfile present)
         if: hashFiles('target/Dockerfile') != ''
-        uses: docker/build-push-action@v6
-        with:
-          context: target
-          load: true
-          tags: assurance-scan-target:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-        # Build failures (incl. cache hiccups) degrade to a skipped image
-        # scan — ci-scan.py's image guard handles the missing tag.
+        run: docker build -t assurance-scan-target:ci target
+        # Build failures degrade to a skipped image scan — ci-scan.py's
+        # image guard handles the missing tag.
         continue-on-error: true
       - name: Run assurance-scan
         run: python3 assurance-scan/scripts/ci-scan.py target --sarif assurance.sarif --image assurance-scan-target:ci
