@@ -49,7 +49,12 @@ Tested on a free-plan org with private repos (`26457513`). Skipping any of these
 
 1. **Tool-repo sharing:** `assurance-scan` → Settings → Actions → General → *Access* → **"Accessible from repositories in \<org\>"**. Without this, sibling repos can't see the reusable workflow at all.
 2. **Actions policy:** same page, top section → **Allow all actions and reusable workflows** (the workflow uses marketplace actions like `actions/checkout`).
-3. **GHCR package access:** the workflow runs the scanner from `ghcr.io/<org>/assurance-scan-ci` (published by the `publish-ci-image` workflow on every scanner change). After the first publish, open the package → *Package settings → Manage Actions access* → grant each consuming repo (the publishing repo is granted automatically). Callers pull it with their own `GITHUB_TOKEN` — **no PATs and no repo secrets are needed for CI**.
+3. **GHCR package access:** the workflow runs the scanner from `ghcr.io/<org>/assurance-scan-ci` (published by the `publish-ci-image` workflow on every scanner change). After the first publish:
+   1. Wait for a green `publish-ci-image` run on `assurance-scan` (the package must exist before you can grant access).
+   2. Open `github.com/orgs/<org>/packages/container/assurance-scan-ci/settings` (org → Packages → the package → Package settings).
+   3. Under **Manage Actions access**, use **Add repository** to add each consuming repo with role **Read**, then repeat per repo. The publishing repo is granted automatically.
+   4. Re-run any workflow that failed pulling the image before the grant — access isn't retroactive.
+   Callers pull the image with their own `GITHUB_TOKEN` — **no PATs and no repo secrets are needed for CI**.
 
 > Historical note: an earlier design used a fine-grained PAT stored per repo as
 > `ASSURANCE_SCAN_TOKEN` to check out the private scanner repo inside the job.
