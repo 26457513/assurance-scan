@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  packages: read       # pull the scanner image from org GHCR
   actions: write        # build layer cache
   pull-requests: write  # assurance-scan PR comment
 

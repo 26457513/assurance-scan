@@ -1,0 +1,17 @@
+# Slim CI orchestrator: stdlib-only scanner glue; scanners themselves run as
+# stock public images via the docker socket (option A — see docs/).
+FROM python:3.12-slim
+
+# The runner drives sibling scanner containers via the docker CLI over the
+# mounted socket; python-slim has no docker binary.
+COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
+
+WORKDIR /app
+COPY scripts/ci-scan.py /app/scripts/ci-scan.py
+COPY server/__init__.py /app/server/__init__.py
+COPY server/worker/__init__.py /app/server/worker/__init__.py
+COPY server/worker/scanners.py server/worker/runner.py server/worker/sarif.py /app/server/worker/
+COPY server/worker/parsers/ /app/server/worker/parsers/
+
+ENV PYTHONPATH=/app
+ENTRYPOINT ["python3", "/app/scripts/ci-scan.py"]
