@@ -162,6 +162,11 @@ def summary_markdown(
     lines.append("")
 
     if _on_github():
+        ui_base = os.environ.get("ASSURANCE_SCAN_URL", "").rstrip("/")
+        if ui_base:
+            run_id = os.environ.get("GITHUB_RUN_ID")
+            if run_id:
+                lines.append(f"[Open in assurance-scan]({ui_base}/scans/gh-{run_id})")
         lines.append("**Artifacts** (run page → Artifacts section):")
         lines.append("- `assurance-scan-results` — zip containing the full SARIF findings and the CycloneDX SBOM.")
         lines.append("  - SARIF: unzip, then open in VS Code with the *SARIF Viewer* extension "

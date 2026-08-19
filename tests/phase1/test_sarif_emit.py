@@ -78,6 +78,7 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
     monkeypatch.setenv("GITHUB_REPOSITORY", "26457513/doc2context")
     monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+    monkeypatch.setenv("ASSURANCE_SCAN_URL", "http://localhost:8742")
 
     durations = {"semgrep": 12.3, "gitleaks": 1.2}
     md = summary_markdown(findings, {"semgrep": "ok", "gitleaks": "ok", "trivy-fs": "exit=1"}, durations)
@@ -87,6 +88,7 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     assert "| semgrep | static code analysis | 1 | 1 | · | · | · | 2 | 12.3 |" in md
     assert "| **Total** |  | **1** | **2** | **0** | **0** | **1** | **4** | **13.5** |" in md
     assert "`assurance-scan-results` — zip containing the full SARIF findings and the CycloneDX SBOM." in md
+    assert "[Open in assurance-scan](http://localhost:8742/scans/gh-12345)" in md
     assert "SARIF Viewer" in md
     assert "jq -r" in md
     assert "Docker build record" not in md

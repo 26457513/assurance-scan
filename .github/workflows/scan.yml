@@ -46,6 +46,7 @@ jobs:
             -w "$PWD/target" \
             -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_RUN_ID \
             -e GITHUB_REF_NAME -e GITHUB_SHA \
+            -e ASSURANCE_SCAN_URL="${ASSURANCE_SCAN_URL:-http://localhost:8742}" \
             ghcr.io/26457513/assurance-scan-ci:latest \
             "$PWD/target" --sarif "$PWD/target/assurance.sarif" --image assurance-scan-target:ci
           cat "$PWD/target/summary.md" >> "$GITHUB_STEP_SUMMARY"
