@@ -109,6 +109,16 @@ copy `.env` over, `docker compose up -d --build`.
 prompt once per session, so CI deep links into the UI keep working. Leave both
 unset locally for the auth-free dev experience.
 
+**Per-user Google Workspace login:** create a Google Cloud project for the
+Workspace org, configure the OAuth consent screen as **Internal** (only
+`@<domain>` accounts can reach it), and create an OAuth Client (Web
+application) with redirect URI `https://<host>/auth/callback`. Put
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_DOMAIN`,
+`SESSION_SECRET` (random string) and `PUBLIC_BASE_URL` in `.env`. Browsers
+then sign in with their Google account (one silent redirect when already
+logged in); Basic Auth remains valid for curl/API use. `/auth/logout` signs
+out.
+
 **TLS (no domain needed):** with the droplet on your tailnet and HTTPS
 enabled in the tailnet's DNS settings, Tailscale provisions a real Let's
 Encrypt certificate for `<machine>.<tailnet>.ts.net`:

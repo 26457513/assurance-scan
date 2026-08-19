@@ -61,6 +61,14 @@ class Settings:
     app_auth_user: str
     app_auth_password: str
 
+    # Google Workspace login (takes precedence over Basic Auth when set,
+    # which stays valid as a fallback for curl etc.).
+    google_client_id: str
+    google_client_secret: str
+    google_domain: str
+    session_secret: str
+    public_base_url: str
+
     # GitHub CI polling (phase-2 ingest). Poller runs only when both a
     # token and at least one repo are configured.
     poll_repos: tuple[str, ...]
@@ -92,6 +100,11 @@ def load_settings() -> Settings:
         log_level=_env("ASSURANCE_SCAN_LOG_LEVEL", "INFO"),
         app_auth_user=_env("APP_AUTH_USER", ""),
         app_auth_password=_env("APP_AUTH_PASSWORD", ""),
+        google_client_id=_env("GOOGLE_CLIENT_ID", ""),
+        google_client_secret=_env("GOOGLE_CLIENT_SECRET", ""),
+        google_domain=_env("GOOGLE_DOMAIN", "barkleygen.com"),
+        session_secret=_env("SESSION_SECRET", ""),
+        public_base_url=_env("PUBLIC_BASE_URL", ""),
     )
 
 

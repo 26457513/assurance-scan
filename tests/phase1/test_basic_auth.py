@@ -28,3 +28,25 @@ def test_missing_or_malformed_rejected() -> None:
 
 def test_password_containing_colon() -> None:
     assert basic_auth_ok(_header("team", "pa:ss:word"), "team", "pa:ss:word")
+
+
+def test_session_roundtrip_and_tamper() -> None:
+    from server.auth import mint_session, verify_session
+
+    token = mint_session("user@barkleygen.com", "sekrit")
+    assert verify_session(token, "sekrit") == "user@barkleygen.com"
+    # Wrong secret / tampered token rejected.
+    assert verify_session(token, "other") is None
+    assert verify_session(token[:-2] + "zz", "sekrit") is None
+    assert verify_session(None, "sekrit") is None
+    # Expired sessions rejected.
+    expired = mint_session("u@x", "sekrit", ttl=-10)
+    assert verify_session(expired, "sekrit") is None
+
+
+def test_google_account_domain_gate() -> None:
+    from server.auth import allowed_google_account
+
+    assert allowed_google_account({"email": "a@barkleygen.com", "hd": "barkleygen.com"}, "barkleygen.com")
+    assert not allowed_google_account({"email": "a@gmail.com", "hd": None}, "barkleygen.com")
+    assert not allowed_google_account({"email": "a@other.com", "hd": "other.com"}, "barkleygen.com")
