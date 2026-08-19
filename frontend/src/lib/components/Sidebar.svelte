@@ -7,7 +7,6 @@
     { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup' },
     { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes' },
     { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects' },
-    { href: '/scans', label: 'Scans', glyph: '⟳', match: '/scans' },
     { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix' },
     { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends' }
   ];

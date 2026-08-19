@@ -73,6 +73,23 @@
     try {
       const all = await api.listScans(200);
       scans = all.filter(isProjectScan);
+      // A ?run= deep link selects its run; if it isn't ingested yet, one
+      // getScan triggers the server's lazy pull, then we reload.
+      const wanted = $page.url.searchParams.get('run');
+      if (wanted) {
+        if (scans.some((s) => s.run_id === wanted)) {
+          selectedRunId = wanted;
+        } else {
+          try {
+            await api.getScan(wanted);
+            const refreshed = (await api.listScans(200)).filter(isProjectScan);
+            scans = refreshed;
+            selectedRunId = refreshed.some((s) => s.run_id === wanted) ? wanted : selectedRunId;
+          } catch {
+            /* unknown run id — fall through to default selection */
+          }
+        }
+      }
       if (!selectedRunId && scans.length) selectedRunId = scans[0].run_id;
     } catch (e) {
       error = String(e);

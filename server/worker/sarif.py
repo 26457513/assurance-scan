@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import urllib.parse
 from collections import Counter
 from typing import Any
 
@@ -163,14 +164,15 @@ def summary_markdown(
 
     if _on_github():
         ui_base = os.environ.get("ASSURANCE_SCAN_URL", "").rstrip("/")
-        if ui_base:
-            run_id = os.environ.get("GITHUB_RUN_ID")
-            if run_id:
-                # target=_blank for summaries that permit it; GitHub's markdown
-                # sanitizer may strip the attribute, degrading to a normal link.
-                lines.append(
-                    f'<a href="{ui_base}/scans/gh-{run_id}" target="_blank">Detailed Scan Results</a>'
-                )
+        repo = os.environ.get("GITHUB_REPOSITORY")
+        run_id = os.environ.get("GITHUB_RUN_ID")
+        if ui_base and repo and run_id:
+            # Land in the project's scans view with this run selected;
+            # target=_blank for summaries that permit it (sanitizer may strip).
+            slug = urllib.parse.quote(f"github:{repo}", safe="")
+            lines.append(
+                f'<a href="{ui_base}/projects/{slug}?run=gh-{run_id}" target="_blank">Detailed Scan Results</a>'
+            )
     else:
         lines.append("Full results: SARIF + SBOM files written beside this summary.")
     lines.append("")
