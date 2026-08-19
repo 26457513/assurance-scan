@@ -166,13 +166,11 @@ def summary_markdown(
         if ui_base:
             run_id = os.environ.get("GITHUB_RUN_ID")
             if run_id:
-                lines.append(f"[Open in assurance-scan]({ui_base}/scans/gh-{run_id})")
-        lines.append("**Artifacts** (run page → Artifacts section):")
-        lines.append("- `assurance-scan-results` — zip containing the full SARIF findings and the CycloneDX SBOM.")
-        lines.append("  - SARIF: unzip, then open in VS Code with the *SARIF Viewer* extension "
-                     "and the repo folder as workspace — findings link to file/line.")
-        lines.append("  - SBOM: plain JSON — `jq -r '.components[] | \"\\(.name)@\\(.version)\"' sbom.cyclonedx.json` "
-                     "for a quick inventory.")
+                # target=_blank for summaries that permit it; GitHub's markdown
+                # sanitizer may strip the attribute, degrading to a normal link.
+                lines.append(
+                    f'<a href="{ui_base}/scans/gh-{run_id}" target="_blank">Detailed Scan Results</a>'
+                )
     else:
         lines.append("Full results: SARIF + SBOM files written beside this summary.")
     lines.append("")

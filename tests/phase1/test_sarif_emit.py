@@ -87,10 +87,8 @@ def test_summary_matrix_and_run_link(monkeypatch) -> None:
     assert "| gitleaks | hardcoded secrets | · | 1 | · | · | 1 | 2 | 1.2 |" in md
     assert "| semgrep | static code analysis | 1 | 1 | · | · | · | 2 | 12.3 |" in md
     assert "| **Total** |  | **1** | **2** | **0** | **0** | **1** | **4** | **13.5** |" in md
-    assert "`assurance-scan-results` — zip containing the full SARIF findings and the CycloneDX SBOM." in md
-    assert "[Open in assurance-scan](http://localhost:8742/scans/gh-12345)" in md
-    assert "SARIF Viewer" in md
-    assert "jq -r" in md
+    assert '<a href="http://localhost:8742/scans/gh-12345" target="_blank">Detailed Scan Results</a>' in md
+    assert "Artifacts" not in md
     assert "Docker build record" not in md
     assert "`trivy-fs` — exit=1" in md
 
