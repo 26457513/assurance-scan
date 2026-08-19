@@ -98,6 +98,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
 
+    if settings.app_auth_user and settings.app_auth_password:
+        from fastapi.responses import JSONResponse
+
+        from server.auth import basic_auth_ok
+
+        @app.middleware("http")
+        async def _basic_auth(request, call_next):  # type: ignore[no-untyped-def]
+            # The container healthcheck hits /health from inside; leave it open.
+            if request.url.path == "/health":
+                return await call_next(request)
+            if not basic_auth_ok(
+                request.headers.get("authorization"),
+                settings.app_auth_user,
+                settings.app_auth_password,
+            ):
+                return JSONResponse(
+                    {"detail": "unauthorized"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": 'Basic realm="assurance-scan"'},
+                )
+            return await call_next(request)
+
     app.include_router(health.router)
     app.include_router(scans.router, prefix="/api")
     app.include_router(findings.router, prefix="/api")

@@ -102,9 +102,25 @@ dropped on hosts that only serve CI data. The database is one SQLite file in
 the volume — back it up by copying it out (`docker cp`), restore the same way.
 
 Deploying to a VM (e.g. a DigitalOcean droplet with Docker): clone the repo,
-copy `.env` over, `docker compose up -d --build`, and reach the UI over
-tailscale/VPN or an authenticated proxy — the API has no built-in auth, so
-keep the loopback bind and front it rather than exposing the port publicly.
+copy `.env` over, `docker compose up -d --build`.
+
+**Auth:** set `APP_AUTH_USER` / `APP_AUTH_PASSWORD` in `.env` and every route
+(except the container healthcheck's `/health`) requires Basic Auth — browsers
+prompt once per session, so CI deep links into the UI keep working. Leave both
+unset locally for the auth-free dev experience.
+
+**TLS (no domain needed):** with the droplet on your tailnet and HTTPS
+enabled in the tailnet's DNS settings, Tailscale provisions a real Let's
+Encrypt certificate for `<machine>.<tailnet>.ts.net`:
+
+```bash
+tailscale up
+tailscale serve --bg http://127.0.0.1:8742   # https://<machine>.<tailnet>.ts.net
+```
+
+Point `ASSURANCE_SCAN_URL` in `scan.yml` at that HTTPS URL and CI deep links
+land on the hosted UI. When a real domain shows up, swap the fronting for
+Caddy (auto-HTTPS) and keep the same auth.
 
 ### Run the same scan locally
 

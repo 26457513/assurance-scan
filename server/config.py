@@ -57,6 +57,10 @@ class Settings:
     # Logging level.
     log_level: str
 
+    # Shared Basic Auth credentials; unset (default) disables auth.
+    app_auth_user: str
+    app_auth_password: str
+
     # GitHub CI polling (phase-2 ingest). Poller runs only when both a
     # token and at least one repo are configured.
     poll_repos: tuple[str, ...]
@@ -86,6 +90,8 @@ def load_settings() -> Settings:
         host=_env("ASSURANCE_SCAN_HOST", "127.0.0.1"),
         port=_env_int("ASSURANCE_SCAN_PORT", 8000),
         log_level=_env("ASSURANCE_SCAN_LOG_LEVEL", "INFO"),
+        app_auth_user=_env("APP_AUTH_USER", ""),
+        app_auth_password=_env("APP_AUTH_PASSWORD", ""),
     )
 
 
