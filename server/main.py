@@ -60,7 +60,7 @@ async def _lifespan(app: FastAPI):
     await queue.start()
 
     poller_task = None
-    if settings.github_poll_token and settings.poll_repos:
+    if settings.github_poll_token and (settings.poll_repos or settings.github_org):
         from server.db.connection import get_sessionmaker
         from server.github_poller import GitHubClient, poller_loop
 
