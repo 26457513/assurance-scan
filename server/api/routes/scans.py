@@ -5,7 +5,7 @@ import datetime as dt
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.api.deps import SessionDep, QueueDep, get_settings
@@ -103,9 +103,23 @@ def _ci_display_fields(run: Run) -> dict:
 
 
 @router.get("/{run_id}", response_model=ScanStatus)
-async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatus:
-    """Get full detail for one scan, including per-scanner status + provenance."""
+async def get_scan(run_id: str, request: Request, session: AsyncSession = SessionDep) -> ScanStatus:
+    """Get full detail for one scan, including per-scanner status + provenance.
+
+    A gh- run that isn't ingested yet (link clicked before the poller cycle)
+    triggers one on-demand poll so deep links work immediately.
+    """
     from sqlalchemy import select as sa_select
+
+    if await RunRepository(session).get(run_id) is None and run_id.startswith("gh-"):
+        settings = request.app.state.settings
+        if settings.github_poll_token:
+            from server.db.connection import get_sessionmaker
+            from server.github_poller import GitHubClient, poll_cycle, resolve_repos
+
+            client = GitHubClient(settings.github_poll_token)
+            repos = resolve_repos(client, settings.poll_repos, settings.github_org)
+            await poll_cycle(get_sessionmaker(settings), client, repos)
 
     from server.api.schemas.scan import CatalogueRef, ScanProvenance
     from server.db.models import CatalogueSnapshot, ComplianceMapping
