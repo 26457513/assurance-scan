@@ -27,5 +27,24 @@ services:
       - ${HOME}/Development:${HOME}/Development:ro   # local-folder scan targets
     working_dir: ${PWD}
 
+  # Public TLS front. Start with:
+  #   DOMAIN=scan.example.com docker compose --profile public up -d
+  # Caddy obtains/renews the Let's Encrypt certificate on first request.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ["public"]
+    ports:
+      - "80:80"
+      - "443:443"
+    command: caddy reverse-proxy --from ${DOMAIN:?set DOMAIN to your hostname} --to server:8000
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - server
+
 volumes:
   assurance-data:
+  caddy-data:
+  caddy-config:

@@ -119,8 +119,20 @@ tailscale serve --bg http://127.0.0.1:8742   # https://<machine>.<tailnet>.ts.ne
 ```
 
 Point `ASSURANCE_SCAN_URL` in `scan.yml` at that HTTPS URL and CI deep links
-land on the hosted UI. When a real domain shows up, swap the fronting for
-Caddy (auto-HTTPS) and keep the same auth.
+land on the hosted UI.
+
+**TLS with your own domain (Caddy, automatic Let's Encrypt):** point an A
+record at the droplet's public IP (e.g. GoDaddy → your domain → DNS →
+Manage Zones → add record: Type **A**, Name `scan`, Value `<droplet IP>`),
+then on the droplet:
+
+```bash
+DOMAIN=scan.yourdomain.com docker compose --profile public up -d
+```
+
+Caddy handles the certificate and renewals from then on. Auth is mandatory
+on a public hostname: set `APP_AUTH_USER` / `APP_AUTH_PASSWORD` (or wire the
+per-user Google Workspace login) before opening the port.
 
 ### Run the same scan locally
 
