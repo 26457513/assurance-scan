@@ -15,4 +15,3 @@ permissions:
 jobs:
   scan:
     uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
-    secrets: inherit   # ASSURANCE_SCAN_TOKEN (repo secret)
