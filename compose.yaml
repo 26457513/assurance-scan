@@ -2,8 +2,10 @@
 # Assurance Scan — hosted stack (local parity with the cloud deployment).
 #
 #   Local:    docker compose up -d --build
-#   Cloud:    same file on a VM (e.g. a DigitalOcean droplet with Docker);
-#             put GITHUB_POLL_TOKEN / GITHUB_ORG in .env first.
+#   Cloud:    same file on a small VM (e.g. a 512MB DigitalOcean droplet):
+#             docker login ghcr.io once, then
+#             `docker compose pull server && docker compose up -d`
+#             so the VM never builds (publish-app-image builds in CI).
 #
 # The DB is a single SQLite file inside the named volume — backup = copy it.
 # The docker socket mount keeps local-folder scans working where a real
@@ -13,8 +15,11 @@ name: assurance-scan
 
 services:
   server:
+    # Dual mode: local `up --build` builds and tags; memory-constrained
+    # hosts `docker compose pull` the CI-published image instead
+    # (publish-app-image workflow pushes it on every app change).
     build: .
-    image: assurance-scan:app
+    image: ghcr.io/26457513/assurance-scan-app:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:8742:8000"   # loopback only; expose via tailscale/VPN or a proxy

@@ -1,0 +1,31 @@
+name: publish-app-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - frontend/**
+      - server/**
+      - .github/workflows/publish-app-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        run: |
+          IMAGE=ghcr.io/26457513/assurance-scan-app
+          docker build -t "$IMAGE:latest" -t "$IMAGE:${GITHUB_SHA::12}" .
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA::12}"

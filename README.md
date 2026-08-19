@@ -121,6 +121,17 @@ tailscale serve --bg http://127.0.0.1:8742   # https://<machine>.<tailnet>.ts.ne
 Point `ASSURANCE_SCAN_URL` in `scan.yml` at that HTTPS URL and CI deep links
 land on the hosted UI.
 
+**Updates on a small droplet:** the `publish-app-image` workflow builds and
+pushes `ghcr.io/<org>/assurance-scan-app` on every app change — small VMs
+(512MB) should never build locally. Update the droplet with:
+
+```bash
+docker compose pull server && docker compose up -d
+```
+
+(Pull auth: `docker login ghcr.io` with a PAT that has Packages:Read, e.g.
+the poll token with that permission added.)
+
 **TLS with your own domain (Caddy, automatic Let's Encrypt):** point an A
 record at the droplet's public IP (e.g. GoDaddy → your domain → DNS →
 Manage Zones → add record: Type **A**, Name `scan`, Value `<droplet IP>`),
