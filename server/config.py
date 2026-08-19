@@ -68,6 +68,8 @@ class Settings:
     google_domain: str
     session_secret: str
     public_base_url: str
+    token_encryption_key: str
+    runner_pull_token: str
 
     # GitHub CI polling (phase-2 ingest). Poller runs only when both a
     # token and at least one repo are configured.
@@ -105,6 +107,8 @@ def load_settings() -> Settings:
         google_domain=_env("GOOGLE_DOMAIN", "barkleygen.com"),
         session_secret=_env("SESSION_SECRET", ""),
         public_base_url=_env("PUBLIC_BASE_URL", ""),
+        token_encryption_key=_env("TOKEN_ENCRYPTION_KEY", ""),
+        runner_pull_token=_env("RUNNER_PULL_TOKEN", ""),
     )
 
 

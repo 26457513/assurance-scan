@@ -117,6 +117,25 @@ export const api = {
       }
     ),
 
+  getGithubToken: () => getJson<{ configured: boolean; login?: string; created_at?: string }>('/api/github/token'),
+
+  putGithubToken: (token: string) =>
+    getJson<{ configured: boolean; login: string }>('/api/github/token', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    }),
+
+  deleteGithubToken: () =>
+    getJson<{ configured: boolean }>('/api/github/token', { method: 'DELETE' }),
+
+  scanRemote: (repo: string, ref = '') =>
+    getJson<{ status: string; mode: string; repo: string; ref: string }>('/api/scans/remote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo, ref })
+    }),
+
   pollNow: () =>
     getJson<{ ingested?: number; skipped?: number; failed?: number; error?: string; hint?: string }>(
       '/api/poller/poll-now',

@@ -131,6 +131,18 @@ class Run(Base):
     )
 
 
+class GithubAccount(Base):
+    """A user's GitHub token, encrypted with TOKEN_ENCRYPTION_KEY."""
+
+    __tablename__ = "github_accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
+    login: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class ScanJob(Base):
     """State machine record for a scan: queued | running | completed | failed | cancelled."""
 

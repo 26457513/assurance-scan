@@ -50,3 +50,34 @@ def test_google_account_domain_gate() -> None:
     assert allowed_google_account({"email": "a@barkleygen.com", "hd": "barkleygen.com"}, "barkleygen.com")
     assert not allowed_google_account({"email": "a@gmail.com", "hd": None}, "barkleygen.com")
     assert not allowed_google_account({"email": "a@other.com", "hd": "other.com"}, "barkleygen.com")
+
+
+def test_secret_box_roundtrip_and_tamper() -> None:
+    from server.secrets import decrypt, encrypt
+
+    token = "ghp_abc123def456"
+    blob = encrypt(token, "key-one")
+    assert decrypt(blob, "key-one") == token
+    assert decrypt(blob, "key-two") is None          # wrong key
+    assert decrypt(blob[:-3] + "xyz", "key-one") is None  # tampered
+    assert decrypt("garbage", "key-one") is None
+    assert encrypt(token, "k1") != encrypt(token, "k1")   # randomized nonce
+
+
+async def test_github_account_store_roundtrip(session) -> None:
+    import datetime as dt
+    from sqlalchemy import select as sa_select
+
+    from server.db.models import GithubAccount
+    from server.secrets import decrypt, encrypt
+
+    session.add(GithubAccount(
+        email="a@barkleygen.com",
+        login="auser",
+        token_encrypted=encrypt("tok-1", "key"),
+        created_at=dt.datetime.now(dt.timezone.utc),
+    ))
+    await session.commit()
+    row = (await session.execute(sa_select(GithubAccount))).scalars().one()
+    assert row.login == "auser"
+    assert decrypt(row.token_encrypted, "key") == "tok-1"

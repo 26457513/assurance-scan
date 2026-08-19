@@ -108,9 +108,10 @@ def main() -> int:
     findings, status, durations = asyncio.run(run_scanners(project_path, args.image, sbom_path))
     sarif = build_sarif(findings)
     sarif_path.write_text(json.dumps(sarif, indent=2))
+    repo = os.environ.get("ASSURANCE_SCAN_REPO") or os.environ.get("GITHUB_REPOSITORY")
     payload = ci_payload(
         findings, status, durations,
-        repo=os.environ.get("GITHUB_REPOSITORY"),
+        repo=repo,
         run_url=github_run_url(),
         github_run_id=os.environ.get("GITHUB_RUN_ID"),
         branch=os.environ.get("GITHUB_REF_NAME"),

@@ -73,8 +73,10 @@ async def ingest_ci_run(
         status="failed" if failed else "completed",
         started_at=meta.get("started_at"),
         completed_at=meta.get("completed_at"),
-        commit_sha=meta.get("head_sha") or (payload or {}).get("commit"),
-        git_branch=meta.get("head_branch") or (payload or {}).get("branch"),
+        # Payload-first: remote-runner runs report the TARGET repo's
+        # branch/commit; meta would carry the runner repo's.
+        commit_sha=(payload or {}).get("commit") or meta.get("head_sha"),
+        git_branch=(payload or {}).get("branch") or meta.get("head_branch"),
         error_message="GitHub workflow run failed" if failed else None,
         findings_json=json.dumps(payload) if payload is not None else None,
     )

@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from server.api.routes import catalogue_drift, compliance, config, findings, folders, frs, frs_list, github, health, poller, projects, scans, stream, test_source, trends, versions
+from server.api.routes import catalogue_drift, compliance, config, findings, folders, frs, frs_list, gh_tokens, github, health, poller, projects, scans, stream, test_source, trends, versions
 from server.config import Settings, load_settings
 from server.db.connection import dispose_engine
 from server.mcp import build_mcp_server, mount_mcp_on_app
@@ -121,8 +121,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.middleware("http")
         async def _auth(request, call_next):  # type: ignore[no-untyped-def]
             path = request.url.path
-            # Healthcheck (container-internal) and the login flow itself stay open.
-            if path == "/health" or path.startswith("/auth/"):
+            # Healthcheck (container-internal), the login flow, and the
+            # runner tarball proxy (authenticated by its own shared token)
+            # stay outside session auth.
+            if path == "/health" or path.startswith("/auth/") or path.startswith("/api/internal/"):
                 return await call_next(request)
             if google_on and verify_session(request.cookies.get("as_session"), settings.session_secret):
                 return await call_next(request)
@@ -208,6 +210,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(projects.router, prefix="/api")
     app.include_router(poller.router, prefix="/api")
     app.include_router(github.router, prefix="/api")
+    app.include_router(gh_tokens.router, prefix="/api")
     app.include_router(versions.router, prefix="/api")
     app.include_router(compliance.router, prefix="/api")
 

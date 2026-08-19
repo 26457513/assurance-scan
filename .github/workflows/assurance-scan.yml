@@ -1,6 +1,7 @@
 name: assurance-scan
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize]
   # Self-scans run AFTER the image publish so they always test the freshly

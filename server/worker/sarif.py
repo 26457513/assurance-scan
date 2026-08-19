@@ -181,7 +181,7 @@ def summary_markdown(
 
     if _on_github():
         ui_base = os.environ.get("ASSURANCE_SCAN_URL", "").rstrip("/")
-        repo = os.environ.get("GITHUB_REPOSITORY")
+        repo = os.environ.get("ASSURANCE_SCAN_REPO") or os.environ.get("GITHUB_REPOSITORY")
         run_id = os.environ.get("GITHUB_RUN_ID")
         if ui_base and repo and run_id:
             # Land in the project's scans view with this run selected;

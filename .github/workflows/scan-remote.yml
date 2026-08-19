@@ -1,0 +1,62 @@
+name: assurance-scan-remote
+
+# On-demand scans of repos outside this org. Dispatched by the assurance-scan
+# server; the target's code is pulled from the server's tarball proxy (with
+# which this workflow shares RUNNER_PULL_TOKEN), so user GitHub tokens never
+# enter GitHub Actions.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'owner/repo to scan'
+        required: true
+      ref:
+        description: 'branch or SHA (empty = default branch)'
+        required: false
+        default: ''
+      account:
+        description: 'dispatching account (for token resolution server-side)'
+        required: false
+        default: 'org'
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      ASSURANCE_SCAN_URL: https://scan.squease.ai
+      ASSURANCE_SCAN_REPO: ${{ github.event.inputs.repo }}
+    steps:
+      - name: Fetch target code
+        run: |
+          curl -sfL -H "X-Runner-Token: ${{ secrets.RUNNER_PULL_TOKEN }}" \
+            -o target.tar.gz \
+            "${ASSURANCE_SCAN_URL}/api/internal/tarball?repo=${{ github.event.inputs.repo }}&ref=${{ github.event.inputs.ref }}&account=${{ github.event.inputs.account }}"
+          mkdir -p target
+          tar -xzf target.tar.gz -C target --strip-components=1
+          rm target.tar.gz
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Run assurance-scan
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/target:$PWD/target" \
+            -w "$PWD/target" \
+            -e GITHUB_REPOSITORY \
+            -e GITHUB_SERVER_URL -e GITHUB_RUN_ID \
+            -e ASSURANCE_SCAN_URL -e ASSURANCE_SCAN_REPO \
+            ghcr.io/26457513/assurance-scan-ci:latest \
+            "$PWD/target" --sarif "$PWD/target/assurance.sarif"
+          cat "$PWD/target/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: assurance-scan-results
+          path: |
+            target/assurance.sarif
+            target/sbom.cyclonedx.json
+            target/findings.json

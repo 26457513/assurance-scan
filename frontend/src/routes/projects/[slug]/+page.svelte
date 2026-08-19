@@ -20,6 +20,9 @@
   let loading = true;
   let error: string | null = null;
   let polling = false;
+  let scanRepo = '';
+  let scanRef = '';
+  let dispatching = false;
   let selected = new Set<string>();
   let deleteModalOpen = false;
   $: selectedCount = selected.size;
@@ -121,6 +124,27 @@
   );
   $: latestFailed = latestScan?.status === 'failed' ? latestScan : null;
 
+  $: projectRepo = projectPath.startsWith('github:')
+    ? projectPath.replace('github:', '')
+    : '';
+
+  async function scanNow() {
+    dispatching = true;
+    try {
+      const res = await api.scanRemote(scanRepo.trim() || projectRepo, scanRef.trim());
+      pushToast(
+        'success',
+        `Scan dispatched (${res.mode === 'stub' ? 'repo workflow' : 'remote runner'}) — ${res.repo}@${res.ref}`
+      );
+      scanRepo = '';
+      scanRef = '';
+    } catch (e) {
+      pushToast('error', `Dispatch failed: ${e}`);
+    } finally {
+      dispatching = false;
+    }
+  }
+
   async function pollNow() {
     polling = true;
     try {
@@ -155,6 +179,8 @@
   function eventLabel(s: ScanSummary): string {
     if (!s.event) return '';
     if (s.event === 'pull_request') return `PR synchronize by ${s.actor ?? 'unknown'}`;
+    if (s.event === 'workflow_dispatch') return `manual scan by ${s.actor ?? 'unknown'}`;
+    if (s.event === 'schedule') return 'nightly SCA';
     if (s.event === 'push') return `commit pushed by ${s.actor ?? 'unknown'}`;
     return s.event;
   }
@@ -201,6 +227,31 @@
       </button>
     {/if}
     <div class="flex justify-end items-center gap-2 mb-3">
+      <input
+        type="text"
+        bind:value={scanRepo}
+        placeholder={projectRepo || 'owner/repo'}
+        title="Repository to scan (defaults to this project's repo)"
+        class="w-56 px-2 py-1.5 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+      />
+      <input
+        type="text"
+        bind:value={scanRef}
+        placeholder="branch/sha (default)"
+        class="w-40 px-2 py-1.5 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+      />
+      <button
+        type="button"
+        on:click={scanNow}
+        disabled={dispatching || (!scanRepo.trim() && !projectRepo)}
+        title="Scan now — dispatches the repo workflow, or the remote runner for repos outside the org"
+        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
+      >
+        <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none">
+          <path d="M6 1.5v6M3.2 5.8L6 8.5l2.8-2.7M2 10.5h8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>{dispatching ? 'Dispatching…' : 'Scan now'}</span>
+      </button>
       {#if selectedCount > 0}
         <button
           type="button"
