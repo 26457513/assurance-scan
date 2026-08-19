@@ -3,7 +3,11 @@ name: assurance-scan
 on:
   pull_request:
     types: [opened, synchronize]
-  push:
+  # Self-scans run AFTER the image publish so they always test the freshly
+  # published orchestrator image (no publish/scan race on the same push).
+  workflow_run:
+    workflows: [publish-ci-image]
+    types: [completed]
     branches: [main]
 
 permissions:
@@ -14,4 +18,5 @@ permissions:
 
 jobs:
   scan:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
