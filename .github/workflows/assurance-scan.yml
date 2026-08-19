@@ -1,0 +1,17 @@
+name: assurance-scan
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: write        # build layer cache
+  pull-requests: write  # assurance-scan PR comment
+
+jobs:
+  scan:
+    uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
+    secrets: inherit   # ASSURANCE_SCAN_TOKEN (repo secret)
