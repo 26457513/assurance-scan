@@ -22,7 +22,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from server.catalogue import load_catalogue
+from server.catalogue import LoadedCatalogue, load_catalogue
 from server.db.repositories.catalogue_snapshots import CatalogueSnapshotRepository
 from server.db.repositories.compliance_mappings import ComplianceMappingRepository
 from server.db.repositories.findings import FindingRepository
@@ -38,6 +38,7 @@ from server.state.matcher import TestCaseRecord
 from server.worker.parsers import parser_for
 from server.worker.parsers.junit import parse as parse_junit
 from server.worker.runner import DockerRunner
+from server.vcs import git_branch, git_head
 from server.worker.scanners import CODE_SCANNERS, ScannerConfig
 
 
@@ -137,9 +138,10 @@ class ScanOrchestrator:
                 if candidate.exists():
                     mapping_path = str(candidate)
 
+            mapping_hash: str | None = None
             if mapping_row is not None:
                 # Use DB-stored mapping.
-                pass  # already in the DB — orchestrator will find it later
+                mapping_hash = mapping_row.content_hash
             elif mapping_path and Path(mapping_path).exists():
                 try:
                     mapping = load_mapping(Path(mapping_path), project_path)
@@ -148,6 +150,7 @@ class ScanOrchestrator:
                         content_hash=mapping.content_hash,
                         mapping_doc=mapping.doc,
                     )
+                    mapping_hash = mapping.content_hash
                     log.info(
                         "loaded compliance mapping: %d entries (hash=%s)",
                         len(mapping.mappings),
@@ -155,6 +158,20 @@ class ScanOrchestrator:
                     )
                 except Exception as exc:
                     log.warning("could not load compliance mapping: %s", exc)
+
+            # Pin the mapping hash on the run so historical runs stay
+            # interpretable when the project's mapping is later replaced.
+            run = await self.runs.get(run_id)
+            if run is not None:
+                run.mapping_hash = mapping_hash
+            await self.session.flush()
+
+            head = await git_head(project_path)
+            branch = await git_branch(project_path)
+            run = await self.runs.get(run_id)
+            if run is not None and head:
+                run.commit_sha = head
+                run.git_branch = branch
 
             await self.runs.mark_running(run_id)
             await self.session.commit()

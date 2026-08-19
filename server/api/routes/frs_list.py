@@ -23,14 +23,19 @@ router = APIRouter(tags=["frs"])
 @router.get("/frs")
 async def list_frs(
     project_path: str | None = Query(default=None),
+    snapshot_id: str | None = Query(default=None, description="specific catalogue snapshot; latest when omitted"),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
-    """Flat list of FRs for the most recent catalogue snapshot."""
-    snapshot_stmt = select(CatalogueSnapshot)
-    if project_path:
-        snapshot_stmt = snapshot_stmt.where(CatalogueSnapshot.project_path == project_path)
-    snapshot_stmt = snapshot_stmt.order_by(CatalogueSnapshot.created_at.desc()).limit(1)
-    snapshot = (await session.execute(snapshot_stmt)).scalars().first()
+    """Flat list of FRs for a catalogue snapshot (latest by default)."""
+    snapshot: CatalogueSnapshot | None = None
+    if snapshot_id:
+        snapshot = await session.get(CatalogueSnapshot, snapshot_id)
+    if snapshot is None:
+        snapshot_stmt = select(CatalogueSnapshot)
+        if project_path:
+            snapshot_stmt = snapshot_stmt.where(CatalogueSnapshot.project_path == project_path)
+        snapshot_stmt = snapshot_stmt.order_by(CatalogueSnapshot.created_at.desc()).limit(1)
+        snapshot = (await session.execute(snapshot_stmt)).scalars().first()
 
     if snapshot is None:
         return {"frs": [], "catalogue": None, "run_id": None}

@@ -184,6 +184,7 @@ async def run_suite(suite: TestSuite, project_path: str) -> TestRunResult:
         "docker", "run",
         "--name", container_name,
         "--label", "com.docker.compose.project=assurance-scan",
+        "--label", f"com.docker.compose.service=test-{suite.id}",
         "-v", f"{project_path}:/src:ro",
         "--tmpfs", "/tmp",
         "-w", suite.working_dir,

@@ -214,7 +214,11 @@ def docker_adapter_command(source_repo: Path, adapter_cmd: list[str], adapter_pa
             root = container_mount_root(candidate)
             if root not in mounts:
                 mounts.append(root)
-    cmd = ["docker", "run", "--rm"]
+    cmd = [
+        "docker", "run", "--rm",
+        "--label", "com.docker.compose.project=assurance-scan",
+        "--label", "com.docker.compose.service=approved-tests",
+    ]
     for mount in mounts:
         cmd.extend(["-v", f"{mount}:{mount}"])
     cmd.extend(["-w", str(source_repo), image])

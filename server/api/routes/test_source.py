@@ -66,6 +66,23 @@ async def get_test_source(
             language = lang
             break
 
+    # Patterns may be rooted at a test runner rootdir below the project root
+    # (e.g. backend/). Fall back to a recursive search.
+    if full is None:
+        for rel, lang in candidates:
+            try:
+                hit = next(root.glob(f"**/{rel}"), None)
+            except (ValueError, NotImplementedError):
+                continue
+            if hit is not None and hit.is_file():
+                full = hit.resolve()
+                try:
+                    relative_path = str(full.relative_to(root))
+                except ValueError:
+                    continue
+                language = lang
+                break
+
     if full is None or relative_path is None:
         raise HTTPException(status_code=404, detail=f"test file not found for module: {module}")
 

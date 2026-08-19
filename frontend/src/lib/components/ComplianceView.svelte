@@ -9,6 +9,7 @@
     ComplianceMatrixResponse,
     ComplianceFrameworkSummary,
     FrListResponse,
+    MappingVersion,
     ScanSummary
   } from '$lib/types';
 
@@ -23,6 +24,10 @@
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let selectedFramework: string | null = initialFramework;
 
+  let mappingVersions: MappingVersion[] = [];
+  let selectedMappingHash = '';
+  let currentCatalogueHash = '';
+
   async function loadFrameworks() {
     const data: ComplianceListResponse = await api.listComplianceFrameworks();
     frameworks = data.frameworks;
@@ -31,11 +36,29 @@
     }
   }
 
+  async function loadMappingVersions() {
+    try {
+      const [mv, cv] = await Promise.all([
+        api.listMappingVersions(scan.project_path),
+        api.listCatalogueVersions(scan.project_path)
+      ]);
+      mappingVersions = mv.versions;
+      currentCatalogueHash = cv.versions[0]?.content_hash ?? '';
+      if (!selectedMappingHash) selectedMappingHash = mappingVersions[0]?.content_hash ?? '';
+    } catch {
+      /* selectors stay hidden */
+    }
+  }
+
   async function loadMatrix() {
     if (!selectedFramework) return;
     loading = true;
     try {
-      matrix = await api.getComplianceMatrix(selectedFramework);
+      matrix = await api.getComplianceMatrix(
+        selectedFramework,
+        undefined,
+        mappingVersions.length > 1 ? selectedMappingHash || undefined : undefined
+      );
       error = null;
     } catch (e) {
       error = String(e);
@@ -43,6 +66,12 @@
       loading = false;
     }
   }
+
+  $: selectedMapping = mappingVersions.find((m) => m.content_hash === selectedMappingHash) ?? null;
+  $: mappingTargetsOlder =
+    selectedMapping?.catalogue_content_hash != null &&
+    currentCatalogueHash !== '' &&
+    selectedMapping.catalogue_content_hash !== currentCatalogueHash;
 
   async function loadFrList() {
     try {
@@ -54,7 +83,7 @@
 
   onMount(async () => {
     try {
-      await loadFrameworks();
+      await Promise.all([loadFrameworks(), loadMappingVersions()]);
       await Promise.all([loadMatrix(), loadFrList()]);
     } catch (e) {
       error = String(e);
@@ -72,6 +101,11 @@
 
   function pickFramework(id: string) {
     selectedFramework = id;
+    loadMatrix();
+  }
+
+  function pickMapping(hash: string) {
+    selectedMappingHash = hash;
     loadMatrix();
   }
 </script>
@@ -101,7 +135,7 @@
 {:else if error}
   <div class="text-[12px] text-state-failed font-mono">{error}</div>
 {:else}
-  <div class="flex items-center gap-1.5 mb-5">
+  <div class="flex items-center gap-1.5 mb-5 flex-wrap">
     {#each frameworks as fw (fw.id)}
       <button
         type="button"
@@ -117,6 +151,29 @@
         <span class="text-ink-muted ml-1.5 tabular-nums">{fw.rows}</span>
       </button>
     {/each}
+    <span class="flex-1"></span>
+    {#if mappingVersions.length > 1}
+      <select
+        value={selectedMappingHash}
+        on:change={(e) => pickMapping(e.currentTarget.value)}
+        class="font-mono text-[11px] text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-1.5 py-0.5"
+        title="Mapping snapshot — states shown are from the latest run"
+      >
+        {#each mappingVersions as mv (mv.snapshot_id)}
+          <option value={mv.content_hash}>
+            mapping {mv.content_hash.slice(7, 15)} · {mv.packs.map((p) => `${p.ruleset}${p.version ? ` ${p.version}` : ''}`).join(', ') || 'no pack'}{mv.snapshot_id === mappingVersions[0].snapshot_id ? ' (current)' : ''}
+          </option>
+        {/each}
+      </select>
+    {/if}
+    {#if mappingTargetsOlder}
+      <span
+        class="px-1.5 py-0.5 border border-state-pending text-state-pending font-mono text-[10px] uppercase tracking-[0.1em]"
+        title={`This mapping was authored against catalogue ${selectedMapping?.catalogue_content_hash?.slice(7, 15)}…; the current catalogue differs — rows may reference FRs that no longer exist.`}
+      >
+        targets older catalogue
+      </span>
+    {/if}
   </div>
 
   {#if matrix}

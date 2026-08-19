@@ -75,6 +75,7 @@ async def list_frameworks(
 async def compliance_matrix(
     framework: str,
     project_path: str | None = Query(default=None),
+    mapping_hash: str | None = Query(default=None, description="specific mapping snapshot hash; latest when omitted"),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Return compliance-row → state matrix for one framework.
@@ -85,19 +86,52 @@ async def compliance_matrix(
       - rationale: from the mapping (agent's reasoning)
       - confidence: agent's self-assessment
     """
-    mapping_stmt = select(ComplianceMapping)
-    if project_path:
-        mapping_stmt = mapping_stmt.where(ComplianceMapping.project_path == project_path)
-    mapping_stmt = mapping_stmt.order_by(ComplianceMapping.loaded_at.desc()).limit(1)
-    mapping_row = (await session.execute(mapping_stmt)).scalars().first()
+    mapping_doc: dict | None = None
+    mapping_project: str | None = None
+    mapping_loaded_at = None
+    resolved_hash: str | None = None
 
-    if mapping_row is None:
-        raise HTTPException(
-            status_code=404,
-            detail="no compliance mapping loaded — run a scan with fr-compliance-mapping.json present",
-        )
+    if mapping_hash:
+        # Historical mapping snapshot selected by content hash.
+        from server.db.models import ComplianceMappingSnapshot
+        snap = (
+            await session.execute(
+                select(ComplianceMappingSnapshot)
+                .where(ComplianceMappingSnapshot.content_hash == mapping_hash)
+                .order_by(ComplianceMappingSnapshot.loaded_at.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+        if snap is None:
+            raise HTTPException(
+                status_code=404, detail=f"no mapping snapshot with hash {mapping_hash}"
+            )
+        mapping_doc = json.loads(snap.mapping_doc_json)
+        mapping_project = snap.project_path
+        mapping_loaded_at = snap.loaded_at
+        resolved_hash = snap.content_hash
 
-    mapping_doc = json.loads(mapping_row.mapping_doc_json)
+    if mapping_doc is None:
+        mapping_stmt = select(ComplianceMapping)
+        if project_path:
+            mapping_stmt = mapping_stmt.where(ComplianceMapping.project_path == project_path)
+        mapping_stmt = mapping_stmt.order_by(ComplianceMapping.loaded_at.desc()).limit(1)
+        mapping_row = (await session.execute(mapping_stmt)).scalars().first()
+
+        if mapping_row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="no compliance mapping loaded — run a scan with fr-compliance-mapping.json present",
+            )
+        mapping_doc = json.loads(mapping_row.mapping_doc_json)
+        mapping_project = mapping_row.project_path
+        mapping_loaded_at = mapping_row.loaded_at
+        resolved_hash = mapping_row.content_hash
+
+    entries = [
+        m for m in mapping_doc.get("mappings", [])
+        if m.get("ruleset") == framework
+    ]
     entries = [
         m for m in mapping_doc.get("mappings", [])
         if m.get("ruleset") == framework
@@ -112,7 +146,7 @@ async def compliance_matrix(
     pack_data = _load_compliance_pack(framework, entries)
 
     # Latest run for the project (for state lookups).
-    run_stmt = select(Run).where(Run.project_path == mapping_row.project_path)
+    run_stmt = select(Run).where(Run.project_path == mapping_project)
     run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(1)
     run = (await session.execute(run_stmt)).scalars().first()
 
@@ -160,9 +194,9 @@ async def compliance_matrix(
 
     return {
         "framework": framework,
-        "project_path": mapping_row.project_path,
-        "mapping_loaded_at": mapping_row.loaded_at.isoformat(),
-        "mapping_hash": mapping_row.content_hash,
+        "project_path": mapping_project,
+        "mapping_loaded_at": mapping_loaded_at.isoformat() if mapping_loaded_at else None,
+        "mapping_hash": resolved_hash,
         "run_id": run.run_id if run else None,
         "row_count": len(matrix),
         "summary": dict(summary),

@@ -50,6 +50,7 @@ class DockerRunner:
         argv: list[str] = [
             "docker", "run", "--rm",
             "--label", "com.docker.compose.project=assurance-scan",
+            "--label", f"com.docker.compose.service={scanner.kind}",
             "-v", f"{self.project_path}:{PROJECT_MOUNT_TARGET}:ro",
             "-w", scanner.working_dir,
         ]

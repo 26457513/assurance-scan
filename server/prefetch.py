@@ -112,7 +112,11 @@ async def prefetch(names: Iterable[str], project_path: str) -> dict[str, str]:
         await runner.ensure_volumes(proxy)
 
         log.info("prefetching scanner DB: %s", name)
-        argv = ["docker", "run", "--rm"]
+        argv = [
+            "docker", "run", "--rm",
+            "--label", "com.docker.compose.project=assurance-scan",
+            "--label", f"com.docker.compose.service=prefetch-{name}",
+        ]
         for k, v in cfg.env.items() if cfg.env else []:
             argv.extend(["-e", f"{k}={v}"])
         for source, target in cfg.extra_mounts.items():

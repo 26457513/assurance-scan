@@ -2,22 +2,23 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { selectedScan } from '$lib/stores/selectedScan';
+  import { selectedProject, projectSlug } from '$lib/stores/selectedProject';
   import { api } from '$lib/api';
 
   onMount(async () => {
-    let runId = $selectedScan?.run_id;
-    if (!runId) {
+    let project = $selectedProject ?? $selectedScan?.project_path ?? null;
+    if (!project) {
       try {
-        const scans = await api.listScansForSelector();
-        if (scans.length > 0) runId = scans[0].run_id;
-      } catch (e) {
-        /* silent */
+        const data = await api.listProjects();
+        project = data.projects[0]?.project_path ?? null;
+      } catch {
+        /* fall through */
       }
     }
-    if (runId) {
-      goto(`/scans/${runId}?run_id=${runId}&tab=compliance`, { replaceState: true });
+    if (project) {
+      goto(`/projects/${projectSlug(project)}?view=compliance`, { replaceState: true });
     } else {
-      goto('/scans', { replaceState: true });
+      goto('/projects', { replaceState: true });
     }
   });
 </script>

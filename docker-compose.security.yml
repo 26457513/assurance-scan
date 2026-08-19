@@ -9,6 +9,9 @@
 # populate the named volumes; subsequent scans are offline-tolerant.
 # ---------------------------------------------------------------------------
 
+# Pins the Docker Desktop group name regardless of checkout dir name.
+name: assurance-scan
+
 services:
 
   # ==========================================================================

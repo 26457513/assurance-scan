@@ -4,7 +4,7 @@
   import FrRow from './FrRow.svelte';
   import SummaryStrip from './SummaryStrip.svelte';
   import CopyButton from './CopyButton.svelte';
-  import type { FrListResponse, ScanSummary } from '$lib/types';
+  import type { CatalogueVersion, FrListResponse, ScanSummary } from '$lib/types';
 
   export let scan: ScanSummary;
 
@@ -15,9 +15,12 @@
   let categoryFilter = '';
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  let versions: CatalogueVersion[] = [];
+  let selectedSnapshotId = '';
+
   async function refresh() {
     try {
-      data = await api.listFRs(scan.project_path);
+      data = await api.listFRs(scan.project_path, selectedSnapshotId || undefined);
       error = null;
     } catch (e) {
       error = String(e);
@@ -26,13 +29,28 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
+    try {
+      const v = await api.listCatalogueVersions(scan.project_path);
+      versions = v.versions;
+      selectedSnapshotId = versions[0]?.snapshot_id ?? '';
+    } catch {
+      /* selector stays hidden */
+    }
     refresh();
     pollTimer = setInterval(refresh, 10000);
   });
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
   });
+
+  function pickVersion(id: string) {
+    selectedSnapshotId = id;
+    loading = true;
+    refresh();
+  }
+
+  $: viewingHistorical = versions.length > 0 && selectedSnapshotId !== versions[0]?.snapshot_id;
 
   $: categories = data
     ? Array.from(new Set(data.frs.map((f) => f.category).filter(Boolean))).sort()
@@ -88,6 +106,24 @@
         <span class="font-mono text-[11px] text-ink-muted">v{data.catalogue.catalogue_version}</span>
       {/if}
       <span class="font-mono text-[11px] text-ink-muted">· {data.catalogue.fr_count} FRs</span>
+      <span class="flex-1"></span>
+      {#if versions.length > 1}
+        <select
+          value={selectedSnapshotId}
+          on:change={(e) => pickVersion(e.currentTarget.value)}
+          class="font-mono text-[11px] text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-1.5 py-0.5"
+          title="Catalogue snapshot — states shown are from the latest run"
+        >
+          {#each versions as v (v.snapshot_id)}
+            <option value={v.snapshot_id}>
+              v{v.version ?? '?'} · {v.content_hash.slice(7, 15)} · {v.fr_count} FRs{v.snapshot_id === versions[0].snapshot_id ? ' (current)' : ''}
+            </option>
+          {/each}
+        </select>
+      {/if}
+      {#if viewingHistorical}
+        <span class="px-1.5 py-0.5 border border-state-pending text-state-pending font-mono text-[10px] uppercase tracking-[0.1em]">historical</span>
+      {/if}
     </div>
     <SummaryStrip summary={data.summary} />
   </div>

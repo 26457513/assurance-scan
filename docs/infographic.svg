@@ -1,0 +1,637 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1240" font-family="'Hanken Grotesk', system-ui, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0A0A0A"/>
+    </marker>
+    <marker id="arrBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1C69D4"/>
+    </marker>
+  </defs>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    text { text-rendering: geometricPrecision; }
+    .blink { animation: blink 1.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+    @keyframes blink { 0%, 100% { opacity: 1 } 50% { opacity: 0.3 } }
+    @media (prefers-reduced-motion: reduce) { .blink { animation: none !important } }
+  </style>
+
+  <!-- ============ BACKGROUND ============ -->
+  <rect width="1600" height="1240" fill="#FFFFFF"/>
+
+  <!-- ============ M-STRIPE (top edge) ============ -->
+  <g id="m-stripe">
+    <rect x="0" y="0" width="534" height="4" fill="#6FB8E6"/>
+    <rect x="534" y="0" width="533" height="4" fill="#0A3D8F"/>
+    <rect x="1067" y="0" width="533" height="4" fill="#E22718"/>
+  </g>
+
+  <!-- ============ MASTHEAD ============ -->
+  <g id="masthead">
+    <!-- logo: scan reticle -->
+    <g transform="translate(56, 24)">
+      <circle cx="14" cy="14" r="13" fill="none" stroke="#0A0A0A" stroke-width="1.5"/>
+      <line x1="14" y1="3" x2="14" y2="25" stroke="#0A0A0A" stroke-width="1"/>
+      <line x1="3" y1="14" x2="25" y2="14" stroke="#0A0A0A" stroke-width="1"/>
+      <circle cx="14" cy="14" r="4" fill="#1C69D4"/>
+    </g>
+    <text x="100" y="44" font-family="'Bricolage Grotesque'" font-size="20" font-weight="700" fill="#0A0A0A" letter-spacing="-0.4">assurance<tspan fill="#1C69D4">·</tspan>scan</text>
+
+    <!-- spec strip -->
+    <g font-family="'JetBrains Mono'" font-size="10" letter-spacing="1.4" fill="#6B6B6B">
+      <text x="640" y="44" text-anchor="middle">
+        <tspan fill="#0A0A0A" font-weight="600">SYSTEM</tspan> OVERVIEW
+        <tspan dx="14">·</tspan>
+        <tspan dx="14" fill="#0A0A0A" font-weight="600">BUILD</tspan>
+        <tspan dx="6"> 2026.08</tspan>
+        <tspan dx="14">·</tspan>
+        <tspan dx="14" fill="#0A0A0A" font-weight="600">STAGE</tspan>
+        <tspan dx="6"> PRODUCTION</tspan>
+      </text>
+    </g>
+
+    <!-- live indicator -->
+    <g font-family="'JetBrains Mono'" font-size="10" letter-spacing="1.4">
+      <circle class="blink" cx="1440" cy="40" r="3.5" fill="#008A3B"/>
+      <text x="1452" y="44" fill="#0A0A0A" font-weight="600">LIVE</text>
+      <text x="1484" y="44" fill="#6B6B6B">· v0.12.0</text>
+    </g>
+  </g>
+  <line x1="56" y1="72" x2="1544" y2="72" stroke="#0A0A0A" stroke-width="1"/>
+
+  <!-- ============ HERO ============ -->
+  <g id="hero">
+    <!-- eyebrow -->
+    <line x1="56" y1="104" x2="84" y2="104" stroke="#1C69D4" stroke-width="1.5"/>
+    <text x="92" y="108" font-family="'JetBrains Mono'" font-size="11" font-weight="500" letter-spacing="2.2" fill="#1C69D4">CODEBASE TO COMPLIANCE — AUTOMATICALLY</text>
+
+    <!-- headline -->
+    <text x="56" y="178" font-family="'Bricolage Grotesque'" font-size="68" font-weight="300" fill="#A8A8A8" letter-spacing="-2.6">Read the code.</text>
+    <text x="56" y="248" font-family="'Bricolage Grotesque'" font-size="68" font-weight="600" fill="#0A0A0A" letter-spacing="-2.6">Map the <tspan fill="#1C69D4">evidence</tspan>.</text>
+    <text x="56" y="318" font-family="'Bricolage Grotesque'" font-size="68" font-weight="600" fill="#0A0A0A" letter-spacing="-2.6">Ship the <tspan fill="#1C69D4">proof</tspan>.</text>
+
+    <!-- vertical hairline divider -->
+    <line x1="1090" y1="100" x2="1090" y2="340" stroke="#E5E5E5" stroke-width="1"/>
+
+    <!-- lede under headline -->
+    <text x="56" y="350" font-family="'Hanken Grotesk'" font-size="13" fill="#6B6B6B">Five stages · Three artefacts · One bundle for your counterpart</text>
+
+    <!-- stat rail (right column) -->
+    <g id="stats" transform="translate(1116, 0)">
+      <!-- stat 1 -->
+      <text x="0" y="116" font-family="'JetBrains Mono'" font-size="10" font-weight="500" letter-spacing="1.6" fill="#6B6B6B">FUNCTIONAL REQUIREMENTS</text>
+      <text x="0" y="148" font-family="'Bricolage Grotesque'" font-size="32" font-weight="600" fill="#0A0A0A" letter-spacing="-1">15</text>
+      <text x="60" y="148" font-family="'JetBrains Mono'" font-size="10" fill="#A8A8A8" letter-spacing="0.5">derived from source</text>
+      <line x1="0" y1="162" x2="380" y2="162" stroke="#F0F0F0" stroke-width="1"/>
+
+      <!-- stat 2 -->
+      <text x="0" y="184" font-family="'JetBrains Mono'" font-size="10" font-weight="500" letter-spacing="1.6" fill="#6B6B6B">TESTS IN SUITE</text>
+      <text x="0" y="216" font-family="'Bricolage Grotesque'" font-size="32" font-weight="600" fill="#0A0A0A" letter-spacing="-1">100</text>
+      <text x="84" y="216" font-family="'JetBrains Mono'" font-size="10" fill="#A8A8A8" letter-spacing="0.5">across 13 files</text>
+      <line x1="0" y1="230" x2="380" y2="230" stroke="#F0F0F0" stroke-width="1"/>
+
+      <!-- stat 3 -->
+      <text x="0" y="252" font-family="'JetBrains Mono'" font-size="10" font-weight="500" letter-spacing="1.6" fill="#6B6B6B">COMPLIANCE ROWS</text>
+      <text x="0" y="284" font-family="'Bricolage Grotesque'" font-size="32" font-weight="600" fill="#0A0A0A" letter-spacing="-1">20</text>
+      <text x="60" y="284" font-family="'JetBrains Mono'" font-size="10" fill="#A8A8A8" letter-spacing="0.5">/ 4 regimes · 87 mappings</text>
+      <line x1="0" y1="298" x2="380" y2="298" stroke="#F0F0F0" stroke-width="1"/>
+
+      <!-- stat 4 -->
+      <text x="0" y="320" font-family="'JetBrains Mono'" font-size="10" font-weight="500" letter-spacing="1.6" fill="#6B6B6B">ASVS LEVEL</text>
+      <text x="0" y="352" font-family="'Bricolage Grotesque'" font-size="32" font-weight="600" fill="#0A0A0A" letter-spacing="-1">L1</text>
+      <text x="56" y="352" font-family="'JetBrains Mono'" font-size="10" fill="#A8A8A8" letter-spacing="0.5">verified · L2 gaps documented</text>
+    </g>
+  </g>
+
+  <!-- ============ § 01 + § 02 ROW ============ -->
+  <g id="row-1-2" transform="translate(0, 392)">
+    <!-- 01 section head -->
+    <g>
+      <rect x="56" y="0" width="28" height="20" fill="none" stroke="#1C69D4" stroke-width="1"/>
+      <text x="70" y="14" text-anchor="middle" font-family="'JetBrains Mono'" font-size="11" font-weight="600" fill="#1C69D4">01</text>
+      <text x="96" y="15" font-family="'Bricolage Grotesque'" font-size="22" font-weight="600" fill="#0A0A0A" letter-spacing="-0.6">Inputs <tspan fill="#A8A8A8" font-weight="300">/ what we read</tspan></text>
+      <text x="756" y="14" text-anchor="end" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#A8A8A8">FIG. 01 · INGESTION</text>
+    </g>
+    <line x1="56" y1="32" x2="756" y2="32" stroke="#0A0A0A" stroke-width="1"/>
+
+    <!-- input cells (2x2) -->
+    <g id="inputs" transform="translate(56, 48)">
+      <!-- cell A: Codebase -->
+      <g transform="translate(0, 0)">
+        <rect x="0" y="0" width="344" height="76" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1"/>
+        <text x="14" y="20" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#6B6B6B">01 · A</text>
+        <rect x="280" y="11" width="52" height="14" fill="none" stroke="#1C69D4" stroke-width="1"/>
+        <text x="306" y="21" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="600" letter-spacing="1.2" fill="#1C69D4">REQUIRED</text>
+        <text x="14" y="46" font-family="'Bricolage Grotesque'" font-size="17" font-weight="600" fill="#0A0A0A" letter-spacing="-0.4">Codebase</text>
+        <text x="14" y="64" font-family="'Hanken Grotesk'" font-size="11" fill="#6B6B6B">Source, config, manifests — parsed structurally.</text>
+      </g>
+      <!-- cell B: Test Suite -->
+      <g transform="translate(352, 0)">
+        <rect x="0" y="0" width="344" height="76" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1"/>
+        <text x="14" y="20" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#6B6B6B">01 · B</text>
+        <rect x="280" y="11" width="52" height="14" fill="none" stroke="#1C69D4" stroke-width="1"/>
+        <text x="306" y="21" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="600" letter-spacing="1.2" fill="#1C69D4">REQUIRED</text>
+        <text x="14" y="46" font-family="'Bricolage Grotesque'" font-size="17" font-weight="600" fill="#0A0A0A" letter-spacing="-0.4">Test Suite</text>
+        <text x="14" y="64" font-family="'Hanken Grotesk'" font-size="11" fill="#6B6B6B">Pytest, JUnit, jest — run for status &amp; duration.</text>
+      </g>
+      <!-- cell C: Images -->
+      <g transform="translate(0, 84)">
+        <rect x="0" y="0" width="344" height="76" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1"/>
+        <text x="14" y="20" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#6B6B6B">01 · C</text>
+        <rect x="288" y="11" width="44" height="14" fill="none" stroke="#A8A8A8" stroke-width="1"/>
+        <text x="310" y="21" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="600" letter-spacing="1.2" fill="#6B6B6B">OPTIONAL</text>
+        <text x="14" y="46" font-family="'Bricolage Grotesque'" font-size="17" font-weight="600" fill="#0A0A0A" letter-spacing="-0.4">Images</text>
+        <text x="14" y="64" font-family="'Hanken Grotesk'" font-size="11" fill="#6B6B6B">Screenshots &amp; diagrams — OCR'd, tagged.</text>
+      </g>
+      <!-- cell D: Runtime (ghost) -->
+      <g transform="translate(352, 84)">
+        <rect x="0" y="0" width="344" height="76" fill="#FAFAFA" stroke="#A8A8A8" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="14" y="20" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#A8A8A8">01 · D</text>
+        <rect x="288" y="11" width="44" height="14" fill="#0A0A0A"/>
+        <text x="310" y="21" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="600" letter-spacing="1.2" fill="#FFFFFF">FUTURE</text>
+        <text x="14" y="46" font-family="'Bricolage Grotesque'" font-size="17" font-weight="600" fill="#6B6B6B" letter-spacing="-0.4">Runtime</text>
+        <text x="14" y="64" font-family="'Hanken Grotesk'" font-size="11" fill="#A8A8A8">Logs, traces, SARIF — live channels roadmap.</text>
+      </g>
+    </g>
+
+    <!-- 02 section head -->
+    <g>
+      <rect x="788" y="0" width="28" height="20" fill="none" stroke="#1C69D4" stroke-width="1"/>
+      <text x="802" y="14" text-anchor="middle" font-family="'JetBrains Mono'" font-size="11" font-weight="600" fill="#1C69D4">02</text>
+      <text x="828" y="15" font-family="'Bricolage Grotesque'" font-size="22" font-weight="600" fill="#0A0A0A" letter-spacing="-0.6">Pipeline <tspan fill="#A8A8A8" font-weight="300">/ five stages</tspan></text>
+      <text x="1544" y="14" text-anchor="end" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#A8A8A8">FIG. 02 · PROCESS</text>
+    </g>
+    <line x1="788" y1="32" x2="1544" y2="32" stroke="#0A0A0A" stroke-width="1"/>
+
+    <!-- pipeline -->
+    <g id="pipeline" transform="translate(788, 48)">
+      <!-- background frame -->
+      <rect x="0" y="0" width="756" height="160" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1"/>
+
+      <!-- stage columns -->
+      <!-- stage i: Ingest (active) -->
+      <g transform="translate(0, 0)">
+        <line x1="75" y1="56" x2="83" y2="56" stroke="#0A0A0A" stroke-width="1"/>
+        <text x="14" y="18" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.2" fill="#1C69D4">STG · i</text>
+        <text x="14" y="30" font-family="'JetBrains Mono'" font-size="8" letter-spacing="1" fill="#A8A8A8">~0.3s</text>
+        <rect x="38" y="38" width="56" height="38" fill="#0A0A0A" stroke="#0A0A0A"/>
+        <g transform="translate(50, 46)" stroke="#FFFFFF" stroke-width="1.5" fill="none">
+          <line x1="0" y1="2" x2="32" y2="2"/>
+          <line x1="0" y1="11" x2="32" y2="11"/>
+          <line x1="0" y1="20" x2="32" y2="20"/>
+        </g>
+        <circle cx="92" cy="42" r="4" fill="#1C69D4" stroke="#FFFFFF" stroke-width="1.5"/>
+        <text x="66" y="98" text-anchor="middle" font-family="'Bricolage Grotesque'" font-size="14" font-weight="600" fill="#0A0A0A" letter-spacing="-0.3">Ingest</text>
+        <text x="66" y="114" text-anchor="middle" font-family="'JetBrains Mono'" font-size="9" fill="#6B6B6B">read the tree</text>
+        <line x1="14" y1="128" x2="118" y2="128" stroke="#F0F0F0"/>
+        <text x="66" y="142" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">FILES · IMAGES</text>
+        <text x="66" y="152" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">MANIFESTS</text>
+      </g>
+
+      <!-- stage ii: Parse -->
+      <g transform="translate(151, 0)">
+        <text x="14" y="18" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.2" fill="#1C69D4">STG · ii</text>
+        <text x="14" y="30" font-family="'JetBrains Mono'" font-size="8" letter-spacing="1" fill="#A8A8A8">~1.2s</text>
+        <rect x="38" y="38" width="56" height="38" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1.5"/>
+        <g transform="translate(50, 46)" stroke="#0A0A0A" stroke-width="1.5" fill="none">
+          <line x1="0" y1="0" x2="0" y2="28"/>
+          <line x1="10" y1="0" x2="10" y2="28"/>
+          <line x1="20" y1="0" x2="20" y2="28"/>
+          <line x1="32" y1="0" x2="32" y2="28"/>
+        </g>
+        <text x="66" y="98" text-anchor="middle" font-family="'Bricolage Grotesque'" font-size="14" font-weight="600" fill="#0A0A0A" letter-spacing="-0.3">Parse</text>
+        <text x="66" y="114" text-anchor="middle" font-family="'JetBrains Mono'" font-size="9" fill="#6B6B6B">find structure</text>
+        <line x1="14" y1="128" x2="118" y2="128" stroke="#F0F0F0"/>
+        <text x="66" y="142" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">AST · TESTS</text>
+        <text x="66" y="152" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">OCR</text>
+      </g>
+
+      <!-- stage iii: Catalogue (active) -->
+      <g transform="translate(302, 0)">
+        <text x="14" y="18" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.2" fill="#1C69D4">STG · iii</text>
+        <text x="14" y="30" font-family="'JetBrains Mono'" font-size="8" letter-spacing="1" fill="#A8A8A8">~4.5s</text>
+        <rect x="38" y="38" width="56" height="38" fill="#0A0A0A" stroke="#0A0A0A"/>
+        <g transform="translate(45, 46)" stroke="#FFFFFF" stroke-width="1.5" fill="none">
+          <rect x="0" y="0" width="22" height="6"/>
+          <rect x="0" y="9" width="22" height="6"/>
+          <rect x="0" y="18" width="22" height="6"/>
+        </g>
+        <circle cx="92" cy="42" r="4" fill="#1C69D4" stroke="#FFFFFF" stroke-width="1.5"/>
+        <text x="66" y="98" text-anchor="middle" font-family="'Bricolage Grotesque'" font-size="14" font-weight="600" fill="#0A0A0A" letter-spacing="-0.3">Catalogue</text>
+        <text x="66" y="114" text-anchor="middle" font-family="'JetBrains Mono'" font-size="9" fill="#6B6B6B">derive FRs</text>
+        <line x1="14" y1="128" x2="118" y2="128" stroke="#F0F0F0"/>
+        <text x="66" y="142" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">15 FUNCTIONAL</text>
+        <text x="66" y="152" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">REQUIREMENTS</text>
+      </g>
+
+      <!-- stage iv: Map -->
+      <g transform="translate(453, 0)">
+        <text x="14" y="18" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.2" fill="#1C69D4">STG · iv</text>
+        <text x="14" y="30" font-family="'JetBrains Mono'" font-size="8" letter-spacing="1" fill="#A8A8A8">~6.0s</text>
+        <rect x="38" y="38" width="56" height="38" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1.5"/>
+        <g transform="translate(50, 46)" stroke="#0A0A0A" stroke-width="1.5" fill="none">
+          <circle cx="3" cy="3" r="2.5"/>
+          <circle cx="22" cy="3" r="2.5"/>
+          <circle cx="3" cy="22" r="2.5"/>
+          <circle cx="22" cy="22" r="2.5"/>
+          <line x1="5.5" y1="3" x2="19.5" y2="3"/>
+          <line x1="5.5" y1="22" x2="19.5" y2="22"/>
+          <line x1="3" y1="5.5" x2="3" y2="19.5"/>
+          <line x1="22" y1="5.5" x2="22" y2="19.5"/>
+        </g>
+        <text x="66" y="98" text-anchor="middle" font-family="'Bricolage Grotesque'" font-size="14" font-weight="600" fill="#0A0A0A" letter-spacing="-0.3">Map</text>
+        <text x="66" y="114" text-anchor="middle" font-family="'JetBrains Mono'" font-size="9" fill="#6B6B6B">align regimes</text>
+        <line x1="14" y1="128" x2="118" y2="128" stroke="#F0F0F0"/>
+        <text x="66" y="142" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">ASVS · NIST</text>
+        <text x="66" y="152" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">ISO · SOC2</text>
+      </g>
+
+      <!-- stage v: Evidence (active) -->
+      <g transform="translate(604, 0)">
+        <text x="14" y="18" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.2" fill="#1C69D4">STG · v</text>
+        <text x="14" y="30" font-family="'JetBrains Mono'" font-size="8" letter-spacing="1" fill="#A8A8A8">~2.1s</text>
+        <rect x="38" y="38" width="56" height="38" fill="#0A0A0A" stroke="#0A0A0A"/>
+        <g transform="translate(56, 46)" stroke="#FFFFFF" stroke-width="1.5" fill="none">
+          <line x1="10" y1="0" x2="10" y2="28"/>
+          <polyline points="0,10 10,28 20,10"/>
+          <circle cx="10" cy="0" r="2" fill="#FFFFFF"/>
+        </g>
+        <circle cx="92" cy="42" r="4" fill="#1C69D4" stroke="#FFFFFF" stroke-width="1.5"/>
+        <text x="66" y="98" text-anchor="middle" font-family="'Bricolage Grotesque'" font-size="14" font-weight="600" fill="#0A0A0A" letter-spacing="-0.3">Evidence</text>
+        <text x="66" y="114" text-anchor="middle" font-family="'JetBrains Mono'" font-size="9" fill="#6B6B6B">attach proof</text>
+        <line x1="14" y1="128" x2="118" y2="128" stroke="#F0F0F0"/>
+        <text x="66" y="142" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">100 TESTS ·</text>
+        <text x="66" y="152" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8.5" font-weight="500" letter-spacing="0.8" fill="#1C69D4">SCANS · IMAGES</text>
+      </g>
+
+      <!-- connecting line through nodes -->
+      <line x1="94" y1="57" x2="640" y2="57" stroke="#0A0A0A" stroke-width="1"/>
+    </g>
+  </g>
+
+  <!-- ============ § 03 ARTEFACTS ============ -->
+  <g id="artefacts-section" transform="translate(0, 632)">
+    <!-- section head -->
+    <g>
+      <rect x="56" y="0" width="28" height="20" fill="none" stroke="#1C69D4" stroke-width="1"/>
+      <text x="70" y="14" text-anchor="middle" font-family="'JetBrains Mono'" font-size="11" font-weight="600" fill="#1C69D4">03</text>
+      <text x="96" y="15" font-family="'Bricolage Grotesque'" font-size="22" font-weight="600" fill="#0A0A0A" letter-spacing="-0.6">Artefacts <tspan fill="#A8A8A8" font-weight="300">/ three outputs</tspan></text>
+      <text x="1544" y="14" text-anchor="end" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#A8A8A8">FIG. 03 · DATA MODEL</text>
+    </g>
+    <line x1="56" y1="32" x2="1544" y2="32" stroke="#0A0A0A" stroke-width="1"/>
+
+    <!-- 3 cards in one frame -->
+    <g transform="translate(56, 48)">
+      <rect x="0" y="0" width="1488" height="156" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1"/>
+
+      <!-- vertical separators -->
+      <line x1="496" y1="0" x2="496" y2="156" stroke="#E5E5E5" stroke-width="1"/>
+      <line x1="992" y1="0" x2="992" y2="156" stroke="#E5E5E5" stroke-width="1"/>
+
+      <!-- CARD A: FR Catalogue -->
+      <g transform="translate(0, 0)">
+        <!-- header -->
+        <rect x="0" y="0" width="496" height="36" fill="#0A0A0A"/>
+        <text x="20" y="16" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.6" fill="#1C69D4">ARTEFACT · A</text>
+        <text x="20" y="29" font-family="'Bricolage Grotesque'" font-size="14" font-weight="600" fill="#FFFFFF" letter-spacing="-0.3">FR Catalogue</text>
+        <text x="476" y="22" text-anchor="end" font-family="'Bricolage Grotesque'" font-size="24" font-weight="300" fill="#FFFFFF" letter-spacing="-0.8">15</text>
+
+        <!-- body -->
+        <text x="20" y="56" font-family="'Hanken Grotesk'" font-size="11.5" fill="#6B6B6B">Each FR tied to the code that implements it.</text>
+        <line x1="20" y1="64" x2="476" y2="64" stroke="#F0F0F0"/>
+
+        <g font-family="'JetBrains Mono'" font-size="10.5" fill="#0A0A0A">
+          <!-- row -->
+          <text x="20" y="80">FR-REST-API</text>
+          <rect x="420" y="71" width="50" height="14" fill="rgba(0,138,59,0.1)"/>
+          <circle cx="427" cy="78" r="2.5" fill="#008A3B"/>
+          <text x="435" y="82" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#008A3B">PASS</text>
+
+          <text x="20" y="98">FR-MCP-SERVER</text>
+          <rect x="420" y="89" width="50" height="14" fill="rgba(0,138,59,0.1)"/>
+          <circle cx="427" cy="96" r="2.5" fill="#008A3B"/>
+          <text x="435" y="100" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#008A3B">PASS</text>
+
+          <text x="20" y="116">FR-WORKFLOWS</text>
+          <rect x="420" y="107" width="50" height="14" fill="rgba(0,138,59,0.1)"/>
+          <circle cx="427" cy="114" r="2.5" fill="#008A3B"/>
+          <text x="435" y="118" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#008A3B">PASS</text>
+
+          <text x="20" y="134">FR-FINDINGS-PERSIST</text>
+          <rect x="420" y="125" width="50" height="14" fill="rgba(0,138,59,0.1)"/>
+          <circle cx="427" cy="132" r="2.5" fill="#008A3B"/>
+          <text x="435" y="136" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#008A3B">PASS</text>
+
+          <text x="20" y="152" fill="#A8A8A8">+ 11 more · 14 pass / 1 waived</text>
+        </g>
+      </g>
+
+      <!-- CARD B: Compliance Map -->
+      <g transform="translate(496, 0)">
+        <rect x="0" y="0" width="496" height="36" fill="#0A0A0A"/>
+        <text x="20" y="16" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.6" fill="#1C69D4">ARTEFACT · B</text>
+        <text x="20" y="29" font-family="'Bricolage Grotesque'" font-size="14" font-weight="600" fill="#FFFFFF" letter-spacing="-0.3">Compliance Map</text>
+        <text x="476" y="22" text-anchor="end" font-family="'Bricolage Grotesque'" font-size="24" font-weight="300" fill="#FFFFFF" letter-spacing="-0.8">20</text>
+
+        <text x="20" y="56" font-family="'Hanken Grotesk'" font-size="11.5" fill="#6B6B6B">Each control row traced to a FR — with rationale.</text>
+        <line x1="20" y1="64" x2="476" y2="64" stroke="#F0F0F0"/>
+
+        <g font-family="'JetBrains Mono'" font-size="10.5" fill="#0A0A0A">
+          <text x="20" y="80">ASVS V1.2.1 <tspan fill="#A8A8A8">— Injection</tspan></text>
+          <rect x="420" y="71" width="50" height="14" fill="rgba(28,105,212,0.1)"/>
+          <circle cx="427" cy="78" r="2.5" fill="#1C69D4"/>
+          <text x="435" y="82" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#1C69D4">MED</text>
+
+          <text x="20" y="98">NIST SI-10 <tspan fill="#A8A8A8">— Input Validation</tspan></text>
+          <rect x="420" y="89" width="50" height="14" fill="rgba(28,105,212,0.1)"/>
+          <circle cx="427" cy="96" r="2.5" fill="#1C69D4"/>
+          <text x="435" y="100" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#1C69D4">MED</text>
+
+          <text x="20" y="116">ISO 27001 A.14.2 <tspan fill="#A8A8A8">— Sec. Dev.</tspan></text>
+          <rect x="420" y="107" width="50" height="14" fill="rgba(28,105,212,0.1)"/>
+          <circle cx="427" cy="114" r="2.5" fill="#1C69D4"/>
+          <text x="435" y="118" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#1C69D4">MED</text>
+
+          <text x="20" y="134">ASVS V3.4.1 <tspan fill="#A8A8A8">— CSP Headers</tspan></text>
+          <rect x="424" y="125" width="46" height="14" fill="none" stroke="#A8A8A8"/>
+          <circle cx="430" cy="132" r="2.5" fill="#A8A8A8"/>
+          <text x="438" y="136" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#6B6B6B">LOW</text>
+
+          <text x="20" y="152" fill="#A8A8A8">+ 16 more · 4 regimes · L1 verified</text>
+        </g>
+      </g>
+
+      <!-- CARD C: Evidence -->
+      <g transform="translate(992, 0)">
+        <rect x="0" y="0" width="496" height="36" fill="#0A0A0A"/>
+        <text x="20" y="16" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.6" fill="#1C69D4">ARTEFACT · C</text>
+        <text x="20" y="29" font-family="'Bricolage Grotesque'" font-size="14" font-weight="600" fill="#FFFFFF" letter-spacing="-0.3">Evidence</text>
+        <text x="476" y="22" text-anchor="end" font-family="'Bricolage Grotesque'" font-size="24" font-weight="300" fill="#FFFFFF" letter-spacing="-0.8">100</text>
+
+        <text x="20" y="56" font-family="'Hanken Grotesk'" font-size="11.5" fill="#6B6B6B">Tests, scanner findings, attached at the leaf.</text>
+        <line x1="20" y1="64" x2="476" y2="64" stroke="#F0F0F0"/>
+
+        <g font-family="'JetBrains Mono'" font-size="10.5" fill="#0A0A0A">
+          <text x="20" y="80">test_api.py</text>
+          <rect x="416" y="71" width="54" height="14" fill="rgba(0,138,59,0.1)"/>
+          <circle cx="423" cy="78" r="2.5" fill="#008A3B"/>
+          <text x="431" y="82" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#008A3B">PASS</text>
+
+          <text x="20" y="98">test_workflows.py</text>
+          <rect x="416" y="89" width="54" height="14" fill="rgba(0,138,59,0.1)"/>
+          <circle cx="423" cy="96" r="2.5" fill="#008A3B"/>
+          <text x="431" y="100" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#008A3B">PASS</text>
+
+          <text x="20" y="116">semgrep · r/lang</text>
+          <rect x="412" y="107" width="58" height="14" fill="rgba(0,138,59,0.1)"/>
+          <circle cx="419" cy="114" r="2.5" fill="#008A3B"/>
+          <text x="427" y="118" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#008A3B">CLEAN</text>
+
+          <text x="20" y="134">dashboard.png</text>
+          <rect x="408" y="125" width="62" height="14" fill="rgba(10,61,143,0.1)"/>
+          <circle cx="415" cy="132" r="2.5" fill="#0A3D8F"/>
+          <text x="423" y="136" font-size="8.5" font-weight="600" letter-spacing="0.8" fill="#0A3D8F">ATTACH</text>
+
+          <text x="20" y="152" fill="#A8A8A8">+ 96 more · 13 test files · 4 scans</text>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ § 04 + § 05 ROW ============ -->
+  <g id="row-4-5" transform="translate(0, 856)">
+    <!-- 04 section head -->
+    <g>
+      <rect x="56" y="0" width="28" height="20" fill="none" stroke="#1C69D4" stroke-width="1"/>
+      <text x="70" y="14" text-anchor="middle" font-family="'JetBrains Mono'" font-size="11" font-weight="600" fill="#1C69D4">04</text>
+      <text x="96" y="15" font-family="'Bricolage Grotesque'" font-size="22" font-weight="600" fill="#0A0A0A" letter-spacing="-0.6">Export <tspan fill="#A8A8A8" font-weight="300">/ the hand-off</tspan></text>
+      <g transform="translate(356, 4)">
+        <rect x="0" y="0" width="86" height="16" fill="#1C69D4"/>
+        <circle class="blink" cx="10" cy="8" r="2.5" fill="#FFFFFF"/>
+        <text x="20" y="12" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.6" fill="#FFFFFF">IN PREVIEW</text>
+      </g>
+      <text x="756" y="14" text-anchor="end" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#A8A8A8">FIG. 04 · BUNDLE</text>
+    </g>
+    <line x1="56" y1="32" x2="756" y2="32" stroke="#0A0A0A" stroke-width="1"/>
+
+    <!-- 04 bundle spec -->
+    <g transform="translate(56, 48)">
+      <rect x="0" y="0" width="700" height="244" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1"/>
+
+      <!-- dark header strip -->
+      <rect x="0" y="0" width="700" height="32" fill="#0A0A0A"/>
+      <text x="16" y="20" font-family="'JetBrains Mono'" font-size="11" font-weight="600" letter-spacing="0.4" fill="#FFFFFF">bundle.assurance-scan.zip</text>
+      <text x="684" y="20" text-anchor="end" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.2" fill="#A8A8A8">6 FILES · 54.7 KB</text>
+
+      <!-- file rows -->
+      <g font-family="'JetBrains Mono'" font-size="11">
+        <!-- row 1 -->
+        <text x="16" y="56" font-size="9.5" font-weight="600" letter-spacing="1" fill="#1C69D4">CSV</text>
+        <text x="64" y="56" fill="#0A0A0A" font-weight="500">fr-catalogue.csv</text>
+        <text x="64" y="68" font-family="'Hanken Grotesk'" font-size="10" fill="#A8A8A8">FR ID, name, status, implemented_by</text>
+        <text x="586" y="56" font-size="9" fill="#A8A8A8" letter-spacing="0.8">15 ROWS</text>
+        <text x="684" y="56" text-anchor="end" fill="#0A0A0A" font-weight="500">2.1 KB</text>
+        <line x1="16" y1="76" x2="684" y2="76" stroke="#F0F0F0"/>
+
+        <!-- row 2 -->
+        <text x="16" y="92" font-size="9.5" font-weight="600" letter-spacing="1" fill="#1C69D4">CSV</text>
+        <text x="64" y="92" fill="#0A0A0A" font-weight="500">compliance-mapping.csv</text>
+        <text x="64" y="104" font-family="'Hanken Grotesk'" font-size="10" fill="#A8A8A8">regime, control, FR ref, rationale, confidence</text>
+        <text x="586" y="92" font-size="9" fill="#A8A8A8" letter-spacing="0.8">20 ROWS</text>
+        <text x="684" y="92" text-anchor="end" fill="#0A0A0A" font-weight="500">4.8 KB</text>
+        <line x1="16" y1="112" x2="684" y2="112" stroke="#F0F0F0"/>
+
+        <!-- row 3 -->
+        <text x="16" y="128" font-size="9.5" font-weight="600" letter-spacing="1" fill="#1C69D4">CSV</text>
+        <text x="64" y="128" fill="#0A0A0A" font-weight="500">evidence.csv</text>
+        <text x="64" y="140" font-family="'Hanken Grotesk'" font-size="10" fill="#A8A8A8">test/scanner, FR ref, status, duration</text>
+        <text x="586" y="128" font-size="9" fill="#A8A8A8" letter-spacing="0.8">100 ROWS</text>
+        <text x="684" y="128" text-anchor="end" fill="#0A0A0A" font-weight="500">11.3 KB</text>
+        <line x1="16" y1="148" x2="684" y2="148" stroke="#F0F0F0"/>
+
+        <!-- row 4 (featured) -->
+        <rect x="0" y="148" width="700" height="36" fill="rgba(28,105,212,0.05)"/>
+        <text x="16" y="164" font-size="9.5" font-weight="600" letter-spacing="1" fill="#1C69D4">CSV</text>
+        <text x="64" y="164" fill="#0A3D8F" font-weight="600">regime-fr-evidence.csv</text>
+        <text x="64" y="176" font-family="'Hanken Grotesk'" font-size="10" fill="#6B6B6B">Flat triple store — the one your counterpart opens first</text>
+        <text x="582" y="164" font-size="9" fill="#1C69D4" letter-spacing="0.8" font-weight="600">87 ROWS</text>
+        <text x="684" y="164" text-anchor="end" fill="#0A3D8F" font-weight="600">6.4 KB</text>
+        <line x1="16" y1="184" x2="684" y2="184" stroke="#F0F0F0"/>
+
+        <!-- row 5 -->
+        <text x="16" y="200" font-size="9.5" font-weight="600" letter-spacing="1" fill="#1C69D4">JSON</text>
+        <text x="64" y="200" fill="#0A0A0A" font-weight="500">bundle.json</text>
+        <text x="64" y="212" font-family="'Hanken Grotesk'" font-size="10" fill="#A8A8A8">All artefacts in one typed document</text>
+        <text x="586" y="200" font-size="9" fill="#A8A8A8" letter-spacing="0.8">NESTED</text>
+        <text x="684" y="200" text-anchor="end" fill="#0A0A0A" font-weight="500">28.9 KB</text>
+        <line x1="16" y1="220" x2="684" y2="220" stroke="#F0F0F0"/>
+
+        <!-- row 6 -->
+        <text x="16" y="236" font-size="9.5" font-weight="600" letter-spacing="1" fill="#1C69D4">MD</text>
+        <text x="64" y="236" fill="#0A0A0A" font-weight="500">schema.md</text>
+        <text x="64" y="248" font-family="'Hanken Grotesk'" font-size="10" fill="#A8A8A8">Field definitions &amp; consumer guidance</text>
+        <text x="684" y="236" text-anchor="end" fill="#0A0A0A" font-weight="500">1.2 KB</text>
+      </g>
+    </g>
+
+    <!-- 05 section head -->
+    <g>
+      <rect x="788" y="0" width="28" height="20" fill="none" stroke="#1C69D4" stroke-width="1"/>
+      <text x="802" y="14" text-anchor="middle" font-family="'JetBrains Mono'" font-size="11" font-weight="600" fill="#1C69D4">05</text>
+      <text x="828" y="15" font-family="'Bricolage Grotesque'" font-size="22" font-weight="600" fill="#0A0A0A" letter-spacing="-0.6">Consumer <tspan fill="#A8A8A8" font-weight="300">/ what they see</tspan></text>
+      <text x="1544" y="14" text-anchor="end" font-family="'JetBrains Mono'" font-size="9.5" letter-spacing="1.4" fill="#A8A8A8">FIG. 05 · GRAPH</text>
+    </g>
+    <line x1="788" y1="32" x2="1544" y2="32" stroke="#0A0A0A" stroke-width="1"/>
+
+    <!-- 05 consumer graph frame -->
+    <g transform="translate(788, 48)">
+      <rect x="0" y="0" width="756" height="244" fill="#FFFFFF" stroke="#0A0A0A" stroke-width="1"/>
+
+      <!-- header strip -->
+      <rect x="0" y="0" width="756" height="28" fill="#FAFAFA"/>
+      <line x1="0" y1="28" x2="756" y2="28" stroke="#0A0A0A" stroke-width="1"/>
+      <text x="16" y="18" font-family="'JetBrains Mono'" font-size="10.5" font-weight="600" letter-spacing="1.2" fill="#0A0A0A">REGIME <tspan fill="#1C69D4">→</tspan> FR <tspan fill="#1C69D4">→</tspan> EVIDENCE</text>
+      <text x="740" y="18" text-anchor="end" font-family="'JetBrains Mono'" font-size="9" letter-spacing="1" fill="#A8A8A8">RENDERED IN RECIPIENT'S TOOL</text>
+
+      <!-- graph area -->
+      <g transform="translate(0, 36)">
+        <!-- subtle column dividers -->
+        <line x1="174" y1="0" x2="174" y2="170" stroke="#F0F0F0"/>
+        <line x1="476" y1="0" x2="476" y2="170" stroke="#F0F0F0"/>
+
+        <!-- column headers -->
+        <text x="87" y="14" text-anchor="middle" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.6" fill="#1C69D4">REGIMES</text>
+        <text x="325" y="14" text-anchor="middle" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.6" fill="#0A0A0A">FUNCTIONAL REQUIREMENTS</text>
+        <text x="668" y="14" text-anchor="middle" font-family="'JetBrains Mono'" font-size="9" font-weight="600" letter-spacing="1.6" fill="#008A3B">EVIDENCE</text>
+
+        <!-- edges -->
+        <g stroke="#0A0A0A" stroke-width="1" fill="none">
+          <!-- ASVS V1.2.1 -> FR-FINDINGS-PERSIST -->
+          <path d="M 160 38 H 240" marker-end="url(#arr)"/>
+          <!-- ASVS V1.2.1 -> FR-REST-API (orthogonal) -->
+          <path d="M 160 38 H 200 V 78 H 240" marker-end="url(#arr)"/>
+
+          <!-- ASVS V3.4.1 -> FR-UI-RENDER -->
+          <path d="M 160 78 H 200 V 118 H 240" marker-end="url(#arr)"/>
+
+          <!-- NIST SI-10 -> FR-REST-API -->
+          <path d="M 160 118 H 200 V 78 H 240" marker-end="url(#arr)"/>
+          <!-- NIST SI-10 -> FR-WORKFLOWS -->
+          <path d="M 160 118 H 200 V 158 H 240" marker-end="url(#arr)"/>
+
+          <!-- FR-FINDINGS-PERSIST -> test_api.py -->
+          <path d="M 410 38 H 480 V 38 H 596" marker-end="url(#arr)"/>
+          <!-- FR-FINDINGS-PERSIST -> semgrep -->
+          <path d="M 410 38 H 480 V 118 H 596" marker-end="url(#arr)"/>
+
+          <!-- FR-REST-API -> test_api.py -->
+          <path d="M 410 78 H 480 V 38 H 596" marker-end="url(#arr)"/>
+
+          <!-- FR-WORKFLOWS -> test_workflows.py -->
+          <path d="M 410 158 H 480 V 78 H 596" marker-end="url(#arr)"/>
+        </g>
+
+        <!-- low-confidence edge -->
+        <path d="M 410 118 H 480 V 158 H 596" stroke="#1C69D4" stroke-width="1" stroke-dasharray="4 3" fill="none" marker-end="url(#arrBlue)"/>
+
+        <!-- junction dots -->
+        <g fill="#1C69D4">
+          <circle cx="200" cy="38" r="2.5"/>
+          <circle cx="200" cy="78" r="2.5"/>
+          <circle cx="200" cy="118" r="2.5"/>
+          <circle cx="480" cy="38" r="2.5"/>
+          <circle cx="480" cy="78" r="2.5"/>
+          <circle cx="480" cy="118" r="2.5"/>
+          <circle cx="480" cy="158" r="2.5"/>
+        </g>
+
+        <!-- regime nodes -->
+        <g>
+          <rect x="14" y="26" width="146" height="24" fill="#1C69D4"/>
+          <text x="87" y="42" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#FFFFFF">ASVS V1.2.1</text>
+
+          <rect x="14" y="66" width="146" height="24" fill="#1C69D4"/>
+          <text x="87" y="82" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#FFFFFF">ASVS V3.4.1</text>
+
+          <rect x="14" y="106" width="146" height="24" fill="#1C69D4"/>
+          <text x="87" y="122" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#FFFFFF">NIST SI-10</text>
+
+          <rect x="14" y="146" width="146" height="24" fill="#1C69D4"/>
+          <text x="87" y="162" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#FFFFFF">ISO 27001 A.14.2</text>
+        </g>
+
+        <!-- FR nodes -->
+        <g>
+          <rect x="240" y="26" width="170" height="24" fill="#0A0A0A"/>
+          <text x="252" y="42" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#FFFFFF">FR-FINDINGS-PERSIST</text>
+          <rect x="378" y="29" width="28" height="18" fill="#008A3B"/>
+          <text x="392" y="42" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8" font-weight="700" fill="#FFFFFF">PASS</text>
+
+          <rect x="240" y="66" width="170" height="24" fill="#0A0A0A"/>
+          <text x="252" y="82" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#FFFFFF">FR-REST-API</text>
+          <rect x="378" y="69" width="28" height="18" fill="#008A3B"/>
+          <text x="392" y="82" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8" font-weight="700" fill="#FFFFFF">PASS</text>
+
+          <rect x="240" y="106" width="170" height="24" fill="#0A0A0A"/>
+          <text x="252" y="122" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#FFFFFF">FR-UI-RENDER</text>
+          <rect x="378" y="109" width="28" height="18" fill="#FFFFFF" stroke="#0A0A0A"/>
+          <text x="392" y="122" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8" font-weight="700" fill="#6B6B6B">LOW</text>
+
+          <rect x="240" y="146" width="170" height="24" fill="#0A0A0A"/>
+          <text x="252" y="162" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#FFFFFF">FR-WORKFLOWS</text>
+          <rect x="378" y="149" width="28" height="18" fill="#008A3B"/>
+          <text x="392" y="162" text-anchor="middle" font-family="'JetBrains Mono'" font-size="8" font-weight="700" fill="#FFFFFF">PASS</text>
+        </g>
+
+        <!-- evidence nodes -->
+        <g>
+          <rect x="596" y="26" width="146" height="24" fill="#FFFFFF" stroke="#008A3B" stroke-width="1.5"/>
+          <text x="669" y="42" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#008A3B">test_api.py</text>
+
+          <rect x="596" y="66" width="146" height="24" fill="#FFFFFF" stroke="#008A3B" stroke-width="1.5"/>
+          <text x="669" y="82" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#008A3B">test_workflows.py</text>
+
+          <rect x="596" y="106" width="146" height="24" fill="#FFFFFF" stroke="#008A3B" stroke-width="1.5"/>
+          <text x="669" y="122" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#008A3B">semgrep · clean</text>
+
+          <rect x="596" y="146" width="146" height="24" fill="#FFFFFF" stroke="#C9831C" stroke-width="1.5"/>
+          <text x="669" y="162" text-anchor="middle" font-family="'JetBrains Mono'" font-size="10" font-weight="600" fill="#C9831C">dashboard.png</text>
+        </g>
+      </g>
+
+      <!-- legend strip -->
+      <line x1="0" y1="208" x2="756" y2="208" stroke="#E5E5E5"/>
+      <g transform="translate(16, 224)" font-family="'JetBrains Mono'" font-size="8.5" letter-spacing="0.8" fill="#6B6B6B">
+        <rect x="0" y="-7" width="9" height="9" fill="#1C69D4"/>
+        <text x="14" y="1">REGIME</text>
+
+        <rect x="80" y="-7" width="9" height="9" fill="#0A0A0A"/>
+        <text x="94" y="1">FR</text>
+
+        <rect x="120" y="-7" width="9" height="9" fill="#FFFFFF" stroke="#0A0A0A"/>
+        <text x="134" y="1">EVIDENCE</text>
+
+        <circle cx="208" cy="-3" r="3" fill="#1C69D4"/>
+        <text x="218" y="1">JUNCTION</text>
+
+        <line x1="280" y1="-3" x2="296" y2="-3" stroke="#A8A8A8" stroke-dasharray="3 2"/>
+        <text x="302" y="1">LOW-CONFIDENCE LINK</text>
+
+        <text x="724" y="1" text-anchor="end" fill="#A8A8A8">FLAT TRIPLE STORE → regime-fr-evidence.csv</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ FOOTER ============ -->
+  <line x1="56" y1="1148" x2="1544" y2="1148" stroke="#0A0A0A" stroke-width="1"/>
+  <g id="footer" font-family="'JetBrains Mono'" font-size="10" letter-spacing="1.4" fill="#A8A8A8">
+    <text x="56" y="1172">SYSTEM OVERVIEW · BUILD 2026.08</text>
+
+    <text x="800" y="1172" text-anchor="middle" font-family="'Bricolage Grotesque'" font-size="16" font-weight="700" fill="#0A0A0A" letter-spacing="-0.3">assurance<tspan fill="#1C69D4">·</tspan>scan</text>
+    <text x="800" y="1190" text-anchor="middle" font-size="8.5" letter-spacing="1.8" fill="#A8A8A8">EVIDENCE, NOT ASSERTION</text>
+
+    <text x="1544" y="1172" text-anchor="end">VOL. 01 · NO. 012 · 12 AUG 2026</text>
+  </g>
+
+</svg>

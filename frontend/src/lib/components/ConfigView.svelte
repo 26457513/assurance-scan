@@ -12,8 +12,8 @@
   let activeSub: SubTabId = 'catalogue';
 
   const SUB_TABS = [
-    { id: 'catalogue', label: 'Catalogue', file: 'fr-catalog.json' },
-    { id: 'mapping', label: 'Mapping', file: 'fr-compliance-mapping.json' },
+    { id: 'catalogue', label: 'Catalogue', file: 'db · catalogue_snapshots (latest)' },
+    { id: 'mapping', label: 'Mapping', file: 'db · compliance_mappings (latest)' },
     { id: 'pack', label: 'Compliance Pack', file: 'data/compliance-packs/asvs-5.0.0.json' }
   ] as const;
 
