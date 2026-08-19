@@ -38,6 +38,7 @@ jobs:
       - name: Deploy to droplet
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        if: ${{ env.DEPLOY_KEY != '' }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
