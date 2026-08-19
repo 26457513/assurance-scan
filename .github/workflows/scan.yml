@@ -31,6 +31,10 @@ jobs:
         # Build failures degrade to a skipped image scan — ci-scan.py's
         # image guard handles the missing tag.
         continue-on-error: true
+      # The scanner image is a private org package; the job token can pull
+      # it, but only after an explicit docker login.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       # Same-path bind mount: scanner sibling containers mount from the
       # docker daemon host, so the project path inside this container must
       # equal its path on the runner.
