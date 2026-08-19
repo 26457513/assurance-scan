@@ -112,6 +112,23 @@ def build_sarif(findings: list[ParsedFinding]) -> dict[str, Any]:
 
 SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"]
 
+
+def md_escape(text: str | None) -> str:
+    """Neutralize markdown/HTML in scanner-derived text before it lands in
+    the Step Summary / PR comment (finding fields derive from repo content)."""
+    if not text:
+        return ""
+    return (
+        text.replace("\\", "\\\\")
+        .replace("|", "\\|")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+        .replace("`", "\\`")
+    )
+
+
 SCANNER_DESCRIPTIONS: dict[str, str] = {
     "semgrep": "static code analysis",
     "gitleaks": "hardcoded secrets",
@@ -146,7 +163,7 @@ def summary_markdown(
         low_info = counts["LOW"] + counts["INFO"] + counts["UNKNOWN"]
         secs = durations.get(tool)
         lines.append(
-            f"| {tool} | {SCANNER_DESCRIPTIONS.get(tool, '·')} "
+            f"| {md_escape(tool)} | {SCANNER_DESCRIPTIONS.get(tool, '·')} "
             f"| {counts['CRITICAL'] or '·'} | {counts['HIGH'] or '·'} "
             f"| {counts['MEDIUM'] or '·'} | {counts['LOW'] or '·'} "
             f"| {low_info or '·'} | {sum(counts.values())} | {secs if secs is not None else '·'} |"
@@ -181,7 +198,7 @@ def summary_markdown(
     if failed:
         lines.append("**Scanners with problems:**")
         for kind, why in sorted(failed.items()):
-            lines.append(f"- `{kind}` — {why}")
+            lines.append(f"- `{md_escape(kind)}` — {md_escape(why)}")
     return "\n".join(lines) + "\n"
 
 

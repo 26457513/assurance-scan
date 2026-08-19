@@ -109,3 +109,21 @@ def test_summary_includes_clean_scanners() -> None:
     # gitleaks ran clean (no findings) but must still get a visible row.
     md = summary_markdown([_finding(severity="HIGH")], {"semgrep": "ok", "gitleaks": "ok"})
     assert "| gitleaks | hardcoded secrets | · | · | · | · | · | 0 | · |" in md
+
+
+def test_summary_escapes_injected_markdown(monkeypatch) -> None:
+    from server.worker.sarif import md_escape, summary_markdown
+
+    assert md_escape("a|b<c>[d](e)`f") == "a\\|b&lt;c&gt;\\[d\\](e)\\`f"
+    assert md_escape(None) == ""
+
+    evil = _finding(
+        scanner_kind="x<script>",
+        rule_id="[click](https://evil)",
+        message="<img src=x onerror=alert(1)>",
+    )
+    monkeypatch.delenv("GITHUB_SERVER_URL", raising=False)
+    md = summary_markdown([evil], {"x<script> | fake": "exit=<b>1</b>"})
+    assert "<script>" not in md
+    assert "onerror" not in md
+    assert "https://evil" not in md
