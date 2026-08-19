@@ -49,9 +49,11 @@ Tested on a free-plan org with private repos (`26457513`). Skipping any of these
 
 1. **Tool-repo sharing:** `assurance-scan` → Settings → Actions → General → *Access* → **"Accessible from repositories in \<org\>"**. Without this, sibling repos can't see the reusable workflow at all.
 2. **Actions policy:** same page, top section → **Allow all actions and reusable workflows** (the workflow uses marketplace actions like `actions/checkout`).
-3. **Fine-grained PAT:** Settings → Developer settings → Fine-grained tokens → generate. **Resource owner must be the org** — left on the personal account, org repos never appear in the repository picker. Scope: Only select repositories → `assurance-scan`. Permissions: Contents → Read-only.
-4. **Org PAT policy** (org → Settings → Personal access tokens): allow fine-grained tokens, do not require administrator approval.
-5. **Secret:** free-plan orgs can't scope an org secret to all private repos (the option is greyed out), so add the token as a **repository secret** in each consuming repo: repo → Settings → Secrets and variables → Actions → `ASSURANCE_SCAN_TOKEN`.
+3. **GHCR package access:** the workflow runs the scanner from `ghcr.io/<org>/assurance-scan-ci` (published by the `publish-ci-image` workflow on every scanner change). After the first publish, open the package → *Package settings → Manage Actions access* → grant each consuming repo (the publishing repo is granted automatically). Callers pull it with their own `GITHUB_TOKEN` — **no PATs and no repo secrets are needed for CI**.
+
+> Historical note: an earlier design used a fine-grained PAT stored per repo as
+> `ASSURANCE_SCAN_TOKEN` to check out the private scanner repo inside the job.
+> That setup is retired — the token and its repo secrets can be deleted.
 
 ### Add scanning to a repo
 
@@ -66,17 +68,17 @@ on:
     branches: [<default branch>]   # scans each commit exactly once
 permissions:
   contents: read
+  packages: read       # pull the scanner image from org GHCR
   actions: write        # build layer cache
   pull-requests: write  # findings comment on PRs
 jobs:
   scan:
     uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
-    secrets: inherit   # passes ASSURANCE_SCAN_TOKEN
 ```
 
-Pin to the branch carrying the reusable workflow while it's under development; `@main` is the stable pin — the reusable workflow's internal scanner checkout must match the caller's pin.
+`@main` is the stable pin; pin to a branch while iterating on the workflow itself.
 
-Each run produces a GitHub Step Summary (severity counts + top findings) and an `assurance-scan-results` artifact containing the SARIF plus a CycloneDX SBOM (`sbom.cyclonedx.json`). When the repo has a root `Dockerfile`, the workflow builds it and adds a Trivy image scan of the built image. Scans never fail the workflow; scanner failures are listed in the summary instead.
+Each run produces a GitHub Step Summary (per-tool severity matrix with runtimes) and an `assurance-scan-results` artifact containing the SARIF, a CycloneDX SBOM (`sbom.cyclonedx.json`), and the normalized `findings.json` payload that the assurance-scan server ingests. The scanner itself is a slim orchestrator image (`Dockerfile.ci`): our glue code only — semgrep, trivy, grype, osv-scanner and syft run as their stock public images via the docker socket, so they are always current at run time. When the repo has a root `Dockerfile`, the workflow builds it and adds a Trivy image scan of the built image. Scans never fail the workflow; scanner failures are listed in the summary instead.
 
 ### Run the same scan locally
 
