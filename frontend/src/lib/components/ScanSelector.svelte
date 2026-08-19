@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { selectedScan, selectScan } from '$lib/stores/selectedScan';
+  import { selectedProject } from '$lib/stores/selectedProject';
   import { pushToast } from '$lib/stores/toasts';
   import { api } from '$lib/api';
   import type { ScanSummary } from '$lib/types';
@@ -10,12 +11,34 @@
   let recent: ScanSummary[] = [];
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Same identity join as the project page: a scan belongs to the project
+  // when its path matches exactly or its github repo folder name does.
+  function isProjectScan(scan: ScanSummary, project: string): boolean {
+    if (!project) return true;
+    if (scan.project_path === project) return true;
+    const base = project.replace(/\/$/, '').split('/').pop();
+    return (
+      scan.project_path.startsWith('github:') &&
+      (scan.project_path.split('/').pop() ?? '') === base
+    );
+  }
+
   async function loadRecent() {
     try {
-      recent = await api.listScansForSelector();
+      const all = await api.listScansForSelector();
+      recent = $selectedProject ? all.filter((s) => isProjectScan(s, $selectedProject)) : all;
+      // Drop a selected scan that no longer belongs to this project.
+      if ($selectedScan && $selectedProject && !isProjectScan($selectedScan, $selectedProject)) {
+        selectScan(recent[0] ?? null);
+      }
     } catch (e) {
       /* silent */
     }
+  }
+
+  // Refilter when the project selection changes.
+  $: if ($selectedProject !== undefined) {
+    loadRecent();
   }
 
   async function tickPoll() {
