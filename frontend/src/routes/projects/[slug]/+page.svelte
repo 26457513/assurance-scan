@@ -77,14 +77,18 @@
       // getScan triggers the server's lazy pull, then we reload.
       const wanted = $page.url.searchParams.get('run');
       if (wanted) {
-        if (scans.some((s) => s.run_id === wanted)) {
+        const selectWanted = () => {
+          const idx = scans.findIndex((s) => s.run_id === wanted);
+          if (idx === -1) return false;
           selectedRunId = wanted;
-        } else {
+          pg = Math.floor(idx / pageSize);  // jump pagination to the row
+          return true;
+        };
+        if (!selectWanted()) {
           try {
-            await api.getScan(wanted);
-            const refreshed = (await api.listScans(200)).filter(isProjectScan);
-            scans = refreshed;
-            selectedRunId = refreshed.some((s) => s.run_id === wanted) ? wanted : selectedRunId;
+            await api.getScan(wanted);  // lazy pull for un-ingested runs
+            scans = (await api.listScans(200)).filter(isProjectScan);
+            selectWanted();
           } catch {
             /* unknown run id — fall through to default selection */
           }
