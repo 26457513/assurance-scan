@@ -69,6 +69,7 @@ async def list_catalogue_versions(
                 "content_hash": r.content_hash,
                 "source_commit_sha": r.source_commit_sha,
                 "created_at": r.created_at.isoformat(),
+                "tag": r.tag,
                 "project_path": r.project_path,
                 "fr_count": len(json.loads(r.snapshot_json).get("frs", [])),
             }

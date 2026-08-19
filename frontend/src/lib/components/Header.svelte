@@ -23,7 +23,7 @@
   {/if}
   <ProjectSelector />
   <span class="text-ink-muted font-mono text-[11px]">·</span>
-  <CatalogueSelector />
-  <span class="text-ink-muted font-mono text-[11px]">·</span>
   <ScanSelector />
+  <span class="text-ink-muted font-mono text-[11px]">·</span>
+  <CatalogueSelector />
 </header>

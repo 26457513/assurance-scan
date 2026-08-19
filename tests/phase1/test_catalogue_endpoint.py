@@ -5,7 +5,7 @@ import json
 
 from sqlalchemy import select as sa_select
 
-from server.api.routes.frs import save_catalogue
+from server.api.routes.frs import SaveCatalogueBody, save_catalogue
 from server.catalogue.loader import load_catalogue_from_dict
 from server.db.models import CatalogueSnapshot
 
@@ -36,7 +36,7 @@ async def test_save_catalogue_stores_snapshot(session) -> None:
     raw = json.dumps(V3_CATALOGUE)
     res = await save_catalogue(
         project_path="github:26457513/doc2context",
-        catalogue_json=raw,
+        body=SaveCatalogueBody(catalogue_json=raw),
         session=session,
     )
     assert res["status"] == "saved"
@@ -57,7 +57,7 @@ async def test_save_catalogue_rejects_invalid_json(session) -> None:
 
     try:
         await save_catalogue(
-            project_path="p", catalogue_json="{not json", session=session
+            project_path="p", body=SaveCatalogueBody(catalogue_json="{not json"), session=session
         )
         raise AssertionError("expected 400")
     except HTTPException as exc:
@@ -69,7 +69,7 @@ async def test_save_catalogue_rejects_invalid_schema(session) -> None:
 
     try:
         await save_catalogue(
-            project_path="p", catalogue_json=json.dumps({"schema_version": 99}), session=session
+            project_path="p", body=SaveCatalogueBody(catalogue_json=json.dumps({"schema_version": 99})), session=session
         )
         raise AssertionError("expected 422")
     except HTTPException as exc:

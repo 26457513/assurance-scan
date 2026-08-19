@@ -30,7 +30,9 @@
         status: fresh.status,
         started_at: fresh.started_at,
         completed_at: fresh.completed_at,
-        finding_count: s.finding_count
+        finding_count: s.finding_count,
+        run_number: s.run_number,
+        display_title: s.display_title
       });
       if (fresh.status === 'completed' || fresh.status === 'failed' || fresh.status === 'cancelled') {
         await loadRecent();
@@ -78,7 +80,16 @@
     return id.slice(-8);
   }
 
-  $: scanShort = $selectedScan ? shortLabel($selectedScan.run_id) : null;
+  function scanLabel(scan: ScanSummary): string {
+    if (scan.run_number != null) return `#${scan.run_number} ${scan.display_title ?? scan.run_id}`;
+    return scan.run_id;
+  }
+
+  $: scanShort = $selectedScan
+    ? $selectedScan.run_number != null
+      ? `#${$selectedScan.run_number} ${$selectedScan.display_title ?? $selectedScan.run_id}`
+      : shortLabel($selectedScan.run_id)
+    : null;
   $: isRunning = $selectedScan && ($selectedScan.status === 'queued' || $selectedScan.status === 'running');
 </script>
 
@@ -124,7 +135,7 @@
             class:bg-accent-subtle={$selectedScan?.run_id === scan.run_id}
           >
             <div class="min-w-0 flex-1">
-              <div class="font-mono text-[12px] text-ink-primary">{scan.run_id}</div>
+              <div class="font-mono text-[12px] text-ink-primary truncate" title={scan.run_id}>{scanLabel(scan)}</div>
               <div class="text-[11px] text-ink-muted font-mono truncate">{scan.project_path}</div>
             </div>
             <div class="flex items-center gap-2 shrink-0">

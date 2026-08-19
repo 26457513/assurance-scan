@@ -107,13 +107,13 @@ export const api = {
   deleteProject: (id: number) =>
     getJson<{ status: string }>(`/api/projects/${id}`, { method: 'DELETE' }),
 
-  saveCatalogue: (projectPath: string, catalogueJson: string) =>
+  saveCatalogue: (projectPath: string, catalogueJson: string, tag = '') =>
     getJson<{ status: string; project?: string; catalogue_version?: string; fr_count?: number; content_hash?: string }>(
       `/api/catalogue?project_path=${encodeURIComponent(projectPath)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ catalogue_json: catalogueJson })
+        body: JSON.stringify({ catalogue_json: catalogueJson, tag })
       }
     ),
 

@@ -10,6 +10,7 @@
   // github:-only selections need the user to supply one.
   let manualPath = '';
   let pastedJson = '';
+  let catalogueTag = '';
   let loading = true;
   let saving = false;
   let flow: 'agent' | 'paste' | null = null;
@@ -102,7 +103,7 @@
     if (!project) return;
     saving = true;
     try {
-      const res = await api.saveCatalogue(project, pastedJson);
+      const res = await api.saveCatalogue(project, pastedJson, catalogueTag);
       pushToast('success', `Catalogue saved — ${res.fr_count ?? 0} FRs (${(res.content_hash ?? '').slice(0, 8)})`);
       pastedJson = '';
       await loadVersions();
@@ -266,7 +267,15 @@
             >Copy template</button>
           </div>
           <div>
-            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="paste-json">Your catalogue</label>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="paste-tag">Tag (shown in the catalogue dropdown)</label>
+        <input
+          id="paste-tag"
+          type="text"
+          bind:value={catalogueTag}
+          placeholder="e.g. baseline-2026-08"
+          class="w-full max-w-md px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+        />
+        <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="paste-json">Your catalogue</label>
             <textarea
               id="paste-json"
               bind:value={pastedJson}
@@ -289,11 +298,11 @@
       <section class="mt-6">
         <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2.5">Versions</div>
         <div class="as-table text-[11px]">
-          <div class="as-head grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3">
+          <div class="as-head grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_90px_110px] gap-3">
+            <div>Tag</div>
             <div>Version</div>
             <div class="text-right">FRs</div>
             <div>Origin</div>
-            <div>Hash</div>
             <div>Saved</div>
           </div>
           {#each versions as v (v.snapshot_id)}
@@ -302,15 +311,15 @@
               tabindex="0"
               on:click={() => toggleVersion(v)}
               on:keydown={(e) => e.key === 'Enter' && toggleVersion(v)}
-              class="as-row as-row-click grid grid-cols-[minmax(0,1.2fr)_80px_90px_minmax(0,1fr)_110px] gap-3 px-3 py-2"
+              class="as-row as-row-click grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_90px_110px] gap-3 px-3 py-2"
               class:as-row-sel={selectedVersionId === v.snapshot_id}
             >
-              <span class="text-ink-primary truncate">{v.version ?? '(unversioned)'}</span>
+              <span class="text-ink-primary truncate">{v.tag ?? '—'}</span>
+              <span class="text-ink-secondary truncate">{v.version ?? '(unversioned)'}</span>
               <span class="text-right text-ink-secondary tabular-nums">{v.fr_count}</span>
               <span class="text-ink-muted truncate" title={v.project_path ?? ''}>
                 {v.project_path?.startsWith('github:') ? 'repo' : 'local'}
               </span>
-              <span class="text-ink-muted truncate" title={v.content_hash}>{v.content_hash.slice(0, 16)}</span>
               <span class="text-ink-muted">{fmtDate(v.created_at)}</span>
             </div>
           {/each}

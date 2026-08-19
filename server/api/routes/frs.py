@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,10 +44,15 @@ async def _derive_satisfies(session: AsyncSession, project_path: str, fr_id: str
     return result
 
 
+class SaveCatalogueBody(BaseModel):
+    catalogue_json: str
+    tag: str = ""
+
+
 @router.post("/catalogue")
 async def save_catalogue(
+    body: SaveCatalogueBody,
     project_path: str = Query(...),
-    catalogue_json: str = Body(..., embed=True),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Validate and store an FR catalogue snapshot for a project.
@@ -59,7 +65,7 @@ async def save_catalogue(
     from server.db.repositories.frs import FrRepository
 
     try:
-        doc = json.loads(catalogue_json)
+        doc = json.loads(body.catalogue_json)
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail=f"invalid JSON: {exc}") from exc
 
@@ -74,6 +80,7 @@ async def save_catalogue(
         project_path=project_path,
         catalogue=catalogue.doc,
         catalogue_version=catalogue.doc.get("catalogue_version"),
+        tag=body.tag,
     )
     await fr_repo.bulk_insert_for_snapshot(
         snapshot.id, project_path, catalogue.doc.get("frs", [])
@@ -81,6 +88,7 @@ async def save_catalogue(
     await session.commit()
     return {
         "status": "saved",
+        "tag": snapshot.tag,
         "project": catalogue.doc.get("project"),
         "catalogue_version": catalogue.doc.get("catalogue_version"),
         "fr_count": len(catalogue.doc.get("frs", [])),

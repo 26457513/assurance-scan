@@ -18,7 +18,7 @@
       versions = data.versions;
       if (versions.length) {
         const v = versions[0];
-        selectCatalogue({ snapshot_id: v.snapshot_id, version: v.version ?? null, fr_count: v.fr_count });
+        selectCatalogue({ snapshot_id: v.snapshot_id, version: v.version ?? null, tag: v.tag ?? null, fr_count: v.fr_count });
       }
     } catch {
       versions = [];
@@ -27,7 +27,7 @@
 
   function pick(v: CatalogueVersion) {
     open = false;
-    selectCatalogue({ snapshot_id: v.snapshot_id, version: v.version ?? null, fr_count: v.fr_count });
+    selectCatalogue({ snapshot_id: v.snapshot_id, version: v.version ?? null, tag: v.tag ?? null, fr_count: v.fr_count });
   }
 
   function shortLabel(v: { version?: string | null }): string {
@@ -44,7 +44,7 @@
     title={$selectedCatalogue ? `FR catalogue ${$selectedCatalogue.version ?? ''}` : 'no FR catalogue for this project'}
   >
     <span class="font-mono text-[12px] text-ink-primary">
-      {#if $selectedCatalogue}FRs {shortLabel($selectedCatalogue)} · {$selectedCatalogue.fr_count}{:else}no catalogue{/if}
+      {#if $selectedCatalogue}{$selectedCatalogue.tag ?? shortLabel($selectedCatalogue)} · {$selectedCatalogue.fr_count} FRs{:else}no catalogue{/if}
     </span>
     <svg class="h-3 w-3 text-ink-muted" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
       <path d="M3 4.5l3 3 3-3" stroke-linecap="round" />
@@ -73,9 +73,9 @@
             class="w-full text-left px-3 py-2 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 flex items-center justify-between gap-3"
             class:bg-accent-subtle={$selectedCatalogue?.snapshot_id === v.snapshot_id}
           >
-            <div class="font-mono text-[12px] text-ink-primary truncate">{shortLabel(v)}</div>
+            <div class="font-mono text-[12px] text-ink-primary truncate">{v.tag ?? shortLabel(v)}</div>
             <div class="text-[11px] text-ink-muted font-mono whitespace-nowrap">
-              {v.fr_count} FRs · {v.project_path?.startsWith('github:') ? 'repo' : 'local'}
+              {v.fr_count} FRs · {shortLabel(v)}
             </div>
           </button>
         {:else}

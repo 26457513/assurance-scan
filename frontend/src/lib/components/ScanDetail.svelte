@@ -22,7 +22,9 @@
         status: fetched.status,
         started_at: fetched.started_at,
         completed_at: fetched.completed_at,
-        finding_count: 0
+        finding_count: 0,
+        run_number: (fetched.options as Record<string, unknown>)?.run_number as number | undefined ?? undefined,
+        display_title: (fetched.options as Record<string, unknown>)?.display_title as string | undefined ?? undefined
       };
       selectScan(scan);
       error = null;

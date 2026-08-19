@@ -60,6 +60,7 @@ export interface CatalogueDriftResponse {
 
 export interface CatalogueVersion {
   project_path?: string;
+  tag?: string | null;
   snapshot_id: string;
   version: string | null;
   content_hash: string;

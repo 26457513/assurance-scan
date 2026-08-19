@@ -138,6 +138,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     async def save_catalogue(
         catalogue_json: str,
         project_path: str,
+        tag: str = "",
     ) -> dict[str, Any]:
         """Validate and store an FR catalogue in the DB. No file write needed.
 
@@ -168,6 +169,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
                 project_path=project_path,
                 catalogue=catalogue.doc,
                 catalogue_version=catalogue.doc.get("catalogue_version"),
+                tag=tag,
             )
             await fr_repo.bulk_insert_for_snapshot(
                 snapshot.id, project_path, catalogue.doc.get("frs", []),

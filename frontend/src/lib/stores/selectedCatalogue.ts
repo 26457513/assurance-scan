@@ -3,6 +3,7 @@ import { writable } from 'svelte/store';
 export interface SelectedCatalogue {
   snapshot_id: string;
   version: string | null;
+  tag: string | null;
   fr_count: number;
 }
 

@@ -44,6 +44,7 @@ class CatalogueSnapshot(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     catalogue_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tag: Mapped[str | None] = mapped_column(String(128), nullable=True)
     snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     source_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
