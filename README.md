@@ -85,6 +85,27 @@ jobs:
 
 Each run produces a GitHub Step Summary (per-tool severity matrix with runtimes) and an `assurance-scan-results` artifact containing the SARIF, a CycloneDX SBOM (`sbom.cyclonedx.json`), and the normalized `findings.json` payload that the assurance-scan server ingests. The scanner itself is a slim orchestrator image (`Dockerfile.ci`): our glue code only — semgrep, trivy, grype, osv-scanner and syft run as their stock public images via the docker socket, so they are always current at run time. When the repo has a root `Dockerfile`, the workflow builds it and adds a Trivy image scan of the built image. Scans never fail the workflow; scanner failures are listed in the summary instead.
 
+### Run the hosted stack (local parity with the cloud deployment)
+
+`compose.yaml` runs the exact containers a cloud VM would run — use it locally
+so what you test is what ships:
+
+```bash
+docker compose up -d --build      # builds the image, starts on 127.0.0.1:8742
+docker compose logs -f server
+docker compose down               # data persists in the assurance-data volume
+```
+
+Requirements: `.env` with `GITHUB_POLL_TOKEN` / `GITHUB_ORG`; the docker socket
+mount (for local-folder scans) and the read-only `~/Development` mount can be
+dropped on hosts that only serve CI data. The database is one SQLite file in
+the volume — back it up by copying it out (`docker cp`), restore the same way.
+
+Deploying to a VM (e.g. a DigitalOcean droplet with Docker): clone the repo,
+copy `.env` over, `docker compose up -d --build`, and reach the UI over
+tailscale/VPN or an authenticated proxy — the API has no built-in auth, so
+keep the loopback bind and front it rather than exposing the port publicly.
+
 ### Run the same scan locally
 
 ```bash
