@@ -124,9 +124,13 @@
   );
   $: latestFailed = latestScan?.status === 'failed' ? latestScan : null;
 
-  $: projectRepo = projectPath.startsWith('github:')
-    ? projectPath.replace('github:', '')
-    : '';
+  // Repo for Scan now: the project's own github identity, or the first
+  // joined scan's (local-path projects ingest github: runs too).
+  $: projectRepo = (() => {
+    if (projectPath.startsWith('github:')) return projectPath.replace('github:', '');
+    const gh = scans.find((s) => s.project_path.startsWith('github:'));
+    return gh ? gh.project_path.replace('github:', '') : '';
+  })();
 
   async function scanNow() {
     dispatching = true;
