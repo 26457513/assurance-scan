@@ -150,27 +150,27 @@ link to the hosted UI) and an `assurance-scan-results` artifact (SARIF,
 CycloneDX SBOM, `findings.json`). Repos with a root `Dockerfile` also get a
 Trivy image scan of the build. Scans never fail the workflow.
 
-## Running assurance-scan for another organisation (self-hosted)
+## Adding another organisation
 
-Each organisation runs its own instance — findings, tokens, and code never
-leave that organisation's infrastructure. Their complete setup:
+One central instance serves all organisations. An org's complete onboarding:
 
-1. **Deploy their instance**: follow the droplet recipe above with their own
-   values — `GITHUB_ORG`, their GitHub PAT (fine-grained, org-owned,
-   Actions+Contents read; Actions **write** too if they want *Scan now*),
-   their Google Workspace domain for login, their `DOMAIN`/DNS.
+1. **Register the org** (Settings → GitHub organisations): org name + a
+   fine-grained PAT owned by that org (Actions+Contents read on its repos).
+   Verified and stored encrypted on save; the poller picks up its repos on
+   the next cycle.
 2. **Per repo**: copy `templates/assurance-scan.yml` into
-   `.github/workflows/`, set `ASSURANCE_SCAN_URL` to their instance, and set
-   the default branch in `push.branches`. The scanner image is public — no
-   GHCR grants or secrets needed.
-3. Runs appear in their UI within a minute (their poller, their org); deep
-   links in PR comments point at their instance.
+   `.github/workflows/`, keep `ASSURANCE_SCAN_URL` pointing at this
+   instance, set the default branch in `push.branches`. The scanner image is
+   public — no GHCR grants or secrets needed.
+3. Runs appear in the shared UI within a minute; deep links and *Scan now*
+   (via any user token that can write Actions there) work the same as for
+   the home org. Identity is org-qualified (`github:{owner}/{repo}`), so
+   projects never collide across orgs.
 
-The scanner image (`assurance-scan-ci`) is public glue over open-source
-scanners. The **app image** (`assurance-scan-app`, the server + UI) stays
-private to the product owner — other organisations get access to run it
-under licence, or build from source access. That's the commercial surface,
-not a technical one.
+Auth today is the home org's Google Workspace; external users use the Basic
+Auth fallback until multi-tenant SSO arrives. The scanner image
+(`assurance-scan-ci`) is public; the **app image** (`assurance-scan-app`)
+stays private to the product owner.
 
 ## On-demand scans from the UI
 

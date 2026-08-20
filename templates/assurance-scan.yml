@@ -1,10 +1,9 @@
 # assurance-scan — vendored CI stub for organisations outside the scanner's
 # own GitHub org. Copy to .github/workflows/assurance-scan.yml in your repo.
 #
-# One edit required: ASSURANCE_SCAN_URL below must point at your
-# organisation's assurance-scan instance (deep links land there).
-# Keep the workflow name exactly "assurance-scan" — your instance's poller
-# filters runs by this name.
+# Keep the workflow name exactly "assurance-scan" — the poller filters runs
+# by this name. ASSURANCE_SCAN_URL points at the central instance; deep
+# links in PR comments land there.
 
 name: assurance-scan
 
@@ -47,7 +46,7 @@ jobs:
             -w "$PWD" \
             -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_RUN_ID \
             -e GITHUB_REF_NAME -e GITHUB_SHA \
-            -e ASSURANCE_SCAN_URL=https://scan.your-organisation.example \
+            -e ASSURANCE_SCAN_URL=https://scan.squease.ai \
             ghcr.io/26457513/assurance-scan-ci:latest \
             "$PWD" --sarif "$PWD/assurance.sarif" --image assurance-scan-target:ci
           cat "$PWD/summary.md" >> "$GITHUB_STEP_SUMMARY"

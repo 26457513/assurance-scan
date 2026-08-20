@@ -117,6 +117,18 @@ export const api = {
       }
     ),
 
+  listOrgs: () => getJson<{ orgs: { name: string; login: string | null; created_at: string }[] }>('/api/orgs'),
+
+  putOrg: (name: string, token: string) =>
+    getJson<{ status: string; name: string; login: string; repos_visible: number }>('/api/orgs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, token })
+    }),
+
+  deleteOrg: (name: string) =>
+    getJson<{ status: string }>(`/api/orgs?name=${encodeURIComponent(name)}`, { method: 'DELETE' }),
+
   getGithubToken: () => getJson<{ configured: boolean; login?: string; created_at?: string }>('/api/github/token'),
 
   putGithubToken: (token: string) =>

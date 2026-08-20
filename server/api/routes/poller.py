@@ -8,7 +8,7 @@ import asyncio
 from fastapi import APIRouter, Request
 
 from server.db.connection import get_sessionmaker
-from server.github_poller import GitHubClient, poll_cycle, resolve_repos
+from server.github_poller import poll_all_orgs
 
 
 router = APIRouter(prefix="/poller", tags=["poller"])
@@ -22,6 +22,6 @@ async def poll_now(request: Request) -> dict[str, Any]:
             "error": "poller not configured",
             "hint": "set GITHUB_POLL_TOKEN (and GITHUB_ORG or POLL_REPOS) on the server",
         }
-    client = GitHubClient(settings.github_poll_token)
-    repos = await asyncio.to_thread(resolve_repos, client, settings.poll_repos, settings.github_org)
-    return await poll_cycle(get_sessionmaker(settings), client, repos)
+    return await poll_all_orgs(
+        get_sessionmaker(settings), settings.github_poll_token, settings.github_org
+    )

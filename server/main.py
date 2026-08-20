@@ -66,8 +66,7 @@ async def _lifespan(app: FastAPI):
 
         poller_task = asyncio.create_task(poller_loop(
             get_sessionmaker(settings),
-            GitHubClient(settings.github_poll_token),
-            settings.poll_repos,
+            settings.github_poll_token,
             settings.github_org,
             settings.poll_interval_seconds,
         ))

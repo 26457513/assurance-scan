@@ -4,7 +4,7 @@ from __future__ import annotations
 import urllib.parse
 from typing import Any
 
-from fastapi import APIRouter, Body, Header, HTTPException, Request
+from fastapi import APIRouter, Body, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,6 +107,69 @@ async def _await_or_run(fn):  # tiny helper: run sync client call in a thread
     import asyncio
 
     return await asyncio.to_thread(fn)
+
+
+@router.get("/orgs")
+async def list_orgs(request: Request, session: AsyncSession = SessionDep) -> dict[str, Any]:
+    if not _user_email(request):
+        raise HTTPException(status_code=401, detail="sign in")
+    from server.db.models import Organisation
+
+    rows = (await session.execute(sa_select(Organisation).order_by(Organisation.name))).scalars().all()
+    return {"orgs": [{"name": r.name, "login": r.login, "created_at": r.created_at.isoformat()} for r in rows]}
+
+
+@router.put("/orgs")
+async def put_org(
+    request: Request,
+    session: AsyncSession = SessionDep,
+    name: str = Body(...),
+    token: str = Body(...),
+) -> dict[str, Any]:
+    """Register a GitHub organisation: verify the token, store it encrypted."""
+    import datetime as dt
+
+    if not _user_email(request):
+        raise HTTPException(status_code=401, detail="sign in")
+    settings = request.app.state.settings
+    if not settings.token_encryption_key:
+        raise HTTPException(status_code=503, detail="server missing TOKEN_ENCRYPTION_KEY")
+
+    name = name.strip()
+    client = GitHubClient(token.strip())
+    try:
+        login = await _await_or_run(client.user_login)
+    except Exception:
+        raise HTTPException(status_code=422, detail="token rejected by GitHub")
+    # The token must actually see the org's repos.
+    try:
+        repos = await _await_or_run(client.org_repos, name)
+    except Exception:
+        raise HTTPException(status_code=422, detail=f"token cannot read organisation '{name}'")
+
+    from server.db.models import Organisation
+
+    row = (await session.execute(sa_select(Organisation).where(Organisation.name == name))).scalars().first()
+    if row is None:
+        row = Organisation(name=name, token_encrypted="", created_at=dt.datetime.now(dt.timezone.utc))
+        session.add(row)
+    row.token_encrypted = encrypt(token.strip(), settings.token_encryption_key)
+    row.login = login
+    await session.commit()
+    return {"status": "registered", "name": name, "login": login, "repos_visible": len(repos)}
+
+
+@router.delete("/orgs")
+async def delete_org(request: Request, session: AsyncSession = SessionDep, name: str = Query(...)) -> dict[str, Any]:
+    if not _user_email(request):
+        raise HTTPException(status_code=401, detail="sign in")
+    from server.db.models import Organisation
+
+    row = (await session.execute(sa_select(Organisation).where(Organisation.name == name))).scalars().first()
+    if row is not None:
+        await session.delete(row)
+        await session.commit()
+    return {"status": "removed", "name": name}
 
 
 RUNNER_REPO = "26457513/assurance-scan"

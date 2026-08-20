@@ -19,6 +19,7 @@ import zipfile
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from server.ci_ingest import ci_run_id, ingest_ci_run
@@ -224,7 +225,7 @@ async def poll_cycle(
     return result
 
 
-_repo_cache: dict[str, Any] = {"key": None, "repos": (), "at": 0.0}
+_repo_cache: dict[Any, Any] = {}
 _REPO_CACHE_TTL = 3600.0
 
 
@@ -238,25 +239,61 @@ def resolve_repos(client: GitHubClient, poll_repos: tuple[str, ...], org: str) -
         return ()
     key = ("org", org)
     now = _time.monotonic()
-    if _repo_cache["key"] == key and now - _repo_cache["at"] < _REPO_CACHE_TTL:
-        return _repo_cache["repos"]
+    cached = _repo_cache.get(key)
+    if cached and now - cached["at"] < _REPO_CACHE_TTL:
+        return cached["repos"]
     repos = tuple(r["full_name"] for r in client.org_repos(org))
-    _repo_cache.update(key=key, repos=repos, at=now)
+    _repo_cache[key] = {"repos": repos, "at": now}
     return repos
+
+
+async def poll_all_orgs(session_factory, default_token: str, default_org: str) -> dict[str, Any]:
+    """Poll the configured org plus every registered organisation.
+
+    Registered orgs live in the organisations table; each carries its own
+    token so this instance can read that org's runs and artifacts.
+    """
+    from server.db.models import Organisation
+
+    result: dict[str, Any] = {"orgs": {}, "ingested": 0, "skipped": 0, "failed": 0}
+    targets: list[tuple[str, str]] = []
+    if default_token and default_org:
+        targets.append((default_org, default_token))
+    async with session_factory() as session:
+        rows = (
+            await session.execute(sa_select(Organisation).order_by(Organisation.name))
+        ).scalars().all()
+        key_enc = None
+        for row in rows:
+            if key_enc is None:
+                from server.config import load_settings
+
+                key_enc = load_settings().token_encryption_key
+            from server.secrets import decrypt
+
+            token = decrypt(row.token_encrypted, key_enc) if key_enc else None
+            if token:
+                targets.append((row.name, token))
+    for org, token in targets:
+        client = GitHubClient(token)
+        repos = await asyncio.to_thread(resolve_repos, client, (), org)
+        counts = await poll_cycle(session_factory, client, repos)
+        result["orgs"][org] = counts
+        for k in ("ingested", "skipped", "failed"):
+            result[k] += counts[k]
+    return result
 
 
 async def poller_loop(
     session_factory: async_sessionmaker[AsyncSession],
-    client: GitHubClient,
-    poll_repos: tuple[str, ...],
-    org: str,
+    default_token: str,
+    default_org: str,
     interval_seconds: int,
 ) -> None:
-    log.info("github poller started: org=%s override=%s interval=%ss", org, poll_repos, interval_seconds)
+    log.info("github poller started: default_org=%s interval=%ss", default_org, interval_seconds)
     while True:
         try:
-            repos = await asyncio.to_thread(resolve_repos, client, poll_repos, org)
-            await poll_cycle(session_factory, client, repos)
+            await poll_all_orgs(session_factory, default_token, default_org)
         except asyncio.CancelledError:
             raise
         except Exception:

@@ -131,6 +131,18 @@ class Run(Base):
     )
 
 
+class Organisation(Base):
+    """A GitHub organisation whose repos this instance polls and serves."""
+
+    __tablename__ = "organisations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+    login: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+
 class GithubAccount(Base):
     """A user's GitHub token, encrypted with TOKEN_ENCRYPTION_KEY."""
 

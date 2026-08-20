@@ -9,6 +9,19 @@
   let newToken = '';
   let saving = false;
 
+  let orgs: { name: string; login: string | null; created_at: string }[] = [];
+  let newOrg = '';
+  let newOrgToken = '';
+  let orgSaving = false;
+
+  async function loadOrgs() {
+    try {
+      orgs = (await api.listOrgs()).orgs;
+    } catch {
+      orgs = [];
+    }
+  }
+
   async function load() {
     try {
       const res = await api.getGithubToken();
@@ -20,7 +33,35 @@
       loading = false;
     }
   }
-  onMount(load);
+  onMount(() => {
+    load();
+    loadOrgs();
+  });
+
+  async function addOrg() {
+    orgSaving = true;
+    try {
+      const res = await api.putOrg(newOrg.trim(), newOrgToken.trim());
+      pushToast('success', `Organisation ${res.name} registered — ${res.repos_visible} repos visible`);
+      newOrg = '';
+      newOrgToken = '';
+      await loadOrgs();
+    } catch (e) {
+      pushToast('error', `Registration failed: ${e}`);
+    } finally {
+      orgSaving = false;
+    }
+  }
+
+  async function removeOrg(name: string) {
+    try {
+      await api.deleteOrg(name);
+      pushToast('success', `Organisation ${name} removed`);
+      await loadOrgs();
+    } catch (e) {
+      pushToast('error', `Remove failed: ${e}`);
+    }
+  }
 
   async function save() {
     saving = true;
@@ -54,6 +95,49 @@
     <div class="text-[15px] text-ink-primary mb-1">Settings</div>
     <div class="text-[12px] text-ink-secondary">
       Your GitHub connection — used to scan repositories your account can read.
+    </div>
+  </div>
+
+  <div class="border border-line-hairline rounded-sm bg-surface-panel p-4 mb-4">
+    <div class="text-[12px] text-ink-primary font-mono mb-1">GitHub organisations</div>
+    <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
+      Registered organisations are polled for scan results. Each needs a fine-grained PAT
+      (org-owned, Actions+Contents read) — stored encrypted, verified on save.
+    </p>
+    {#if orgs.length > 0}
+      <div class="mb-3">
+        {#each orgs as o (o.name)}
+          <div class="flex items-center justify-between py-1.5 border-b border-line-hairline last:border-0">
+            <span class="font-mono text-[12px] text-ink-primary">{o.name}</span>
+            <button
+              type="button"
+              on:click={() => removeOrg(o.name)}
+              class="text-[10px] font-mono uppercase tracking-[0.1em] px-2 py-0.5 border rounded-sm transition-colors"
+              style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent);"
+            >Remove</button>
+          </div>
+        {/each}
+      </div>
+    {/if}
+    <div class="flex gap-2">
+      <input
+        type="text"
+        bind:value={newOrg}
+        placeholder="organisation name"
+        class="w-44 px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+      />
+      <input
+        type="password"
+        bind:value={newOrgToken}
+        placeholder="org PAT (Actions+Contents read)"
+        class="flex-1 px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+      />
+      <button
+        type="button"
+        on:click={addOrg}
+        disabled={orgSaving || !newOrg.trim() || !newOrgToken.trim()}
+        class="px-3 py-1 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[10px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
+      >{orgSaving ? 'Verifying…' : 'Add org'}</button>
     </div>
   </div>
 
