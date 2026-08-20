@@ -8,7 +8,6 @@
 
   const nav = [
     { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup', scoped: false, divider: false },
-    { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes', scoped: false, divider: false },
     { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects', scoped: false, divider: false },
     { href: '', label: 'Scans', glyph: '⌗', match: '', scoped: true, divider: true },
     { href: '/frs', label: 'FRs', glyph: '☰', match: '/frs', scoped: true, divider: false },
@@ -59,6 +58,20 @@
         >{item.glyph}</span>
         <span>{item.label}</span>
       </a>
+
+      {#if item.label === 'Scans'}
+        <a
+          href="/regimes"
+          class="relative ml-4 flex items-center gap-2 pl-5 pr-3 py-1.5 text-[11px] font-mono transition-colors duration-150 rounded-sm"
+          class:bg-accent-subtle={path === '/regimes'}
+          class:text-accent={path === '/regimes'}
+          class:text-ink-secondary={path !== '/regimes'}
+          class:hover:bg-surface-elevated={path !== '/regimes'}
+        >
+          <span class="text-ink-muted select-none">└</span>
+          <span class="truncate flex-1">Regimes</span>
+        </a>
+      {/if}
 
       {#if item.divider}
         <div class="my-1 mx-3 border-t border-line-hairline"></div>

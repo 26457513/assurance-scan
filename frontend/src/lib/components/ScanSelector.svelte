@@ -9,6 +9,8 @@
 
   let open = false;
   let recent: ScanSummary[] = [];
+  let pg = 0;
+  const PAGE_SIZE = 10;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   // Same identity join as the project page: a scan belongs to the project
@@ -124,6 +126,10 @@
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
+  $: pageCount = Math.max(1, Math.ceil(recent.length / PAGE_SIZE));
+  $: if (pg >= pageCount) pg = pageCount - 1;
+  $: pageRows = recent.slice(pg * PAGE_SIZE, pg * PAGE_SIZE + PAGE_SIZE);
+
   $: scanShort = $selectedScan
     ? $selectedScan.run_number != null
       ? `#${$selectedScan.run_number} ${$selectedScan.display_title ?? $selectedScan.run_id}`
@@ -175,16 +181,16 @@
         <div class="text-right">Finds</div>
       </div>
       <div class="overflow-auto">
-        {#each recent as scan (scan.run_id)}
+        {#each pageRows as scan (scan.run_id)}
           <button
             type="button"
             on:click={() => pick(scan)}
-            class="w-full text-left px-3 py-2 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_110px_80px_70px_60px] gap-3 items-center"
+            class="w-full text-left px-3 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_110px_80px_70px_60px] gap-3 items-center"
             class:bg-accent-subtle={$selectedScan?.run_id === scan.run_id}
           >
-            <div class="font-mono text-[12px] text-ink-primary truncate" title={scan.run_id}>{scanLabel(scan)}</div>
-            <div class="font-mono text-[11px] text-ink-secondary truncate">{scan.git_branch ?? '—'}</div>
-            <div class="font-mono text-[10px] uppercase tracking-[0.08em] flex items-center gap-1.5">
+            <span class="font-mono text-[11px] text-ink-primary truncate" title={scan.run_id}>{scanLabel(scan)}</span>
+            <span class="font-mono text-[11px] text-ink-secondary truncate">{scan.git_branch ?? '—'}</span>
+            <span class="font-mono text-[10px] uppercase tracking-[0.08em] flex items-center gap-1.5">
               {#if scan.status === 'queued' || scan.status === 'running'}
                 <span class="w-1.5 h-1.5 rounded-full bg-accent pulse-dot shrink-0"></span><span class="text-ink-secondary">{scan.status}</span>
               {:else if scan.status === 'completed'}
@@ -192,14 +198,33 @@
               {:else}
                 <span class="text-ink-muted">{scan.status}</span>
               {/if}
-            </div>
-            <div class="text-right font-mono text-[11px] text-ink-muted tabular-nums whitespace-nowrap">{fmtWhen(scan.started_at)}</div>
-            <div class="text-right font-mono text-[11px] text-ink-secondary tabular-nums">{scan.finding_count}</div>
+            </span>
+            <span class="text-right font-mono text-[11px] text-ink-muted tabular-nums whitespace-nowrap">{fmtWhen(scan.started_at)}</span>
+            <span class="text-right font-mono text-[11px] text-ink-secondary tabular-nums">{scan.finding_count}</span>
           </button>
         {:else}
-          <div class="px-3 py-10 text-center text-[12px] text-ink-muted font-mono">no scans yet for this project</div>
+          <div class="px-3 py-8 text-center text-[12px] text-ink-muted font-mono">no scans yet for this project</div>
         {/each}
       </div>
+      {#if recent.length > PAGE_SIZE}
+        <div class="px-3 py-1.5 border-t border-line-hairline flex items-center justify-between text-[10px] font-mono text-ink-muted">
+          <span>{pg * PAGE_SIZE + 1}–{Math.min((pg + 1) * PAGE_SIZE, recent.length)} of {recent.length}</span>
+          <span class="flex gap-1">
+            <button
+              type="button"
+              disabled={pg === 0}
+              on:click={() => (pg -= 1)}
+              class="px-1.5 rounded-sm border border-line-hairline hover:border-line-strong disabled:opacity-30 disabled:hover:border-line-hairline"
+            >‹</button>
+            <button
+              type="button"
+              disabled={pg >= pageCount - 1}
+              on:click={() => (pg += 1)}
+              class="px-1.5 rounded-sm border border-line-hairline hover:border-line-strong disabled:opacity-30 disabled:hover:border-line-hairline"
+            >›</button>
+          </span>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
