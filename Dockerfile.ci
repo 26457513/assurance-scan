@@ -10,7 +10,7 @@ WORKDIR /app
 COPY scripts/ci-scan.py /app/scripts/ci-scan.py
 COPY server/__init__.py /app/server/__init__.py
 COPY server/worker/__init__.py /app/server/worker/__init__.py
-COPY server/worker/scanners.py server/worker/runner.py server/worker/sarif.py /app/server/worker/
+COPY server/worker/scanners.py server/worker/runner.py server/worker/sarif.py server/worker/tribal.py /app/server/worker/
 COPY server/worker/parsers/ /app/server/worker/parsers/
 
 ENV PYTHONPATH=/app

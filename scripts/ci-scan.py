@@ -24,6 +24,7 @@ from server.worker.parsers.base import ParsedFinding
 from server.worker.runner import DockerRunner
 from server.worker.sarif import SCANNER_DESCRIPTIONS, build_sarif, ci_payload, github_run_url, summary_markdown
 from server.worker.scanners import ci_scanner_set
+from server.worker.tribal import TRIBAL_FILENAME, load_checks, run_checks
 
 SBOM_FILENAME = "sbom.cyclonedx.json"
 
