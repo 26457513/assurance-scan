@@ -150,6 +150,28 @@ link to the hosted UI) and an `assurance-scan-results` artifact (SARIF,
 CycloneDX SBOM, `findings.json`). Repos with a root `Dockerfile` also get a
 Trivy image scan of the build. Scans never fail the workflow.
 
+## Running assurance-scan for another organisation (self-hosted)
+
+Each organisation runs its own instance — findings, tokens, and code never
+leave that organisation's infrastructure. Their complete setup:
+
+1. **Deploy their instance**: follow the droplet recipe above with their own
+   values — `GITHUB_ORG`, their GitHub PAT (fine-grained, org-owned,
+   Actions+Contents read; Actions **write** too if they want *Scan now*),
+   their Google Workspace domain for login, their `DOMAIN`/DNS.
+2. **Per repo**: copy `templates/assurance-scan.yml` into
+   `.github/workflows/`, set `ASSURANCE_SCAN_URL` to their instance, and set
+   the default branch in `push.branches`. The scanner image is public — no
+   GHCR grants or secrets needed.
+3. Runs appear in their UI within a minute (their poller, their org); deep
+   links in PR comments point at their instance.
+
+The scanner image (`assurance-scan-ci`) is public glue over open-source
+scanners. The **app image** (`assurance-scan-app`, the server + UI) stays
+private to the product owner — other organisations get access to run it
+under licence, or build from source access. That's the commercial surface,
+not a technical one.
+
 ## On-demand scans from the UI
 
 *Scan now* on any project page (repo prefilled, any `owner/repo` accepted,
