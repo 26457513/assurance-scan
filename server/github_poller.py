@@ -54,8 +54,16 @@ class GitHubClient:
             "Accept": accept,
             "User-Agent": "assurance-scan-poller",
         })
-        with self._opener.open(req, timeout=30) as resp:
-            return json.loads(resp.read())
+        try:
+            with self._opener.open(req, timeout=30) as resp:
+                return json.loads(resp.read())
+        except urllib.error.URLError:
+            # One retry — transient container-to-GitHub timeouts are common
+            # (observed on Docker Desktop DNS/IPv6 flakiness).
+            import time as _t
+            _t.sleep(1)
+            with self._opener.open(req, timeout=30) as resp:
+                return json.loads(resp.read())
 
     def _get_raw(self, url: str, accept: str) -> bytes:
         req = urllib.request.Request(url, headers={
@@ -121,8 +129,14 @@ class GitHubClient:
                 "User-Agent": "assurance-scan-poller",
             },
         )
-        with self._opener.open(req, timeout=20):
-            pass  # 204 No Content
+        try:
+            with self._opener.open(req, timeout=30):
+                pass  # 204 No Content
+        except urllib.error.URLError:
+            import time as _t
+            _t.sleep(1)
+            with self._opener.open(req, timeout=30):
+                pass
 
     def repo_branches(self, repo: str) -> list[str]:
         """All branch names, paginated to completion, case-insensitive order."""
