@@ -32,6 +32,7 @@ class ScanResponse(BaseModel):
 class ScannerStatus(BaseModel):
     kind: str
     status: str
+    duration_seconds: float | None = None
     started_at: dt.datetime | None = None
     completed_at: dt.datetime | None = None
     error_message: str | None = None
