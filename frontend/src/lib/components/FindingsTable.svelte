@@ -125,15 +125,6 @@
       class:border-line-hairline={groupMode !== 'tribal'}
       class:text-ink-muted={groupMode !== 'tribal'}
     >Tribal</button>
-    <button
-      type="button"
-      on:click={() => (groupMode = 'flat')}
-      class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors mr-2"
-      class:border-line-strong={groupMode === 'flat'}
-      class:text-ink-primary={groupMode === 'flat'}
-      class:border-line-hairline={groupMode !== 'flat'}
-      class:text-ink-muted={groupMode !== 'flat'}
-    >Flat</button>
 
   {#if severities.length > 0}
     <div class="flex items-center gap-1.5 flex-wrap">
