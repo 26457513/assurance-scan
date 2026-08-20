@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, HTTPException, Query, Request
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import urllib.error
 from typing import Any, Optional
 
 from fastapi import Depends
@@ -28,6 +29,32 @@ def _user_email(request: Request) -> str | None:
     if not settings.session_secret:
         return None
     return verify_session(request.cookies.get("as_session"), settings.session_secret)
+
+
+async def resolve_repo_token(
+    request: Request, session: AsyncSession, repo: str
+) -> tuple[str | None, str | None]:
+    """Token for acting on a repo: the user's, else its registered org's,
+    else the home-org token. Returns (token, source) for error messaging."""
+    settings = request.app.state.settings
+    user_token, login = await resolve_user_token(request, session)
+    if user_token:
+        return user_token, f"user:{login}"
+    owner = repo.split("/")[0] if "/" in repo else ""
+    if owner and owner != settings.github_org and settings.token_encryption_key:
+        from sqlalchemy import select as _select
+
+        from server.db.models import Organisation
+        from server.secrets import decrypt as _decrypt
+
+        row = (
+            await session.execute(_select(Organisation).where(Organisation.name == owner))
+        ).scalars().first()
+        if row is not None:
+            tok = _decrypt(row.token_encrypted, settings.token_encryption_key)
+            if tok:
+                return tok, f"org:{owner}"
+    return (settings.github_poll_token or None), f"home:{settings.github_org}"
 
 
 async def resolve_user_token(request: Request, session: AsyncSession) -> tuple[str | None, str | None]:
@@ -276,8 +303,7 @@ async def scan_remote(
     import asyncio
 
     settings = request.app.state.settings
-    user_token, _login = await resolve_user_token(request, session)
-    token = user_token or settings.github_poll_token
+    token, source = await resolve_repo_token(request, session, repo)
     if not token:
         raise HTTPException(
             status_code=422,
@@ -307,6 +333,18 @@ async def scan_remote(
         }
     except HTTPException:
         raise
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{repo} is not visible to the resolved credential ({source}) "
+                    "or has no assurance-scan workflow. Add the stub "
+                    "(templates/assurance-scan.yml) or register the organisation "
+                    "in Settings."
+                ),
+            ) from exc
+        raise HTTPException(status_code=502, detail=f"GitHub dispatch failed: {exc}") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"GitHub dispatch failed: {exc}") from exc
 
