@@ -24,6 +24,19 @@
   let scanRef = '';
   let dispatching = false;
   let scanConfirmOpen = false;
+  let scanBranches: string[] = [];
+  let scanBranchError = false;
+
+  async function loadScanBranches(repo: string) {
+    scanBranchError = false;
+    scanBranches = [];
+    if (!repo) return;
+    try {
+      scanBranches = (await api.githubBranches(repo)).branches;
+    } catch {
+      scanBranchError = true;
+    }
+  }
   let selected = new Set<string>();
   let deleteModalOpen = false;
   $: selectedCount = selected.size;
@@ -149,6 +162,7 @@
 
   function confirmScan() {
     scanConfirmOpen = true;
+    loadScanBranches(scanRepo.trim() || projectRepo);
   }
 
   async function scanNow() {
@@ -252,19 +266,6 @@
       </button>
     {/if}
     <div class="flex justify-end items-center gap-2 mb-3">
-      <input
-        type="text"
-        bind:value={scanRepo}
-        placeholder={projectRepo || 'owner/repo'}
-        title="Repository to scan (defaults to this project's repo)"
-        class="w-56 px-2 py-1.5 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-      />
-      <input
-        type="text"
-        bind:value={scanRef}
-        placeholder="branch/sha (default)"
-        class="w-40 px-2 py-1.5 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-      />
       <button
         type="button"
         on:click={confirmScan}
@@ -399,7 +400,46 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
       <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (scanConfirmOpen = false)} aria-label="Close"></button>
       <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
-        <div class="text-[13px] text-ink-primary mb-2 font-mono">Start scan?</div>
+        <div class="text-[13px] text-ink-primary mb-3 font-mono">Start scan?</div>
+        <div class="space-y-3 mb-4">
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="scan-repo">Repository</label>
+            <input
+              id="scan-repo"
+              type="text"
+              bind:value={scanRepo}
+              on:blur={() => loadScanBranches(scanRepo.trim() || projectRepo)}
+              placeholder={projectRepo || 'owner/repo'}
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+            />
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="scan-branch">Branch (defaults to the project's preference or repo default)</label>
+            {#if scanBranchError}
+              <p class="text-[10px] font-mono mb-1" style="color: var(--state-failed);">couldn't load branches — type a branch or SHA below</p>
+            {/if}
+            {#if scanBranches.length > 0}
+              <select
+                id="scan-branch"
+                bind:value={scanRef}
+                class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+              >
+                <option value="">(repo default)</option>
+                {#each scanBranches as b (b)}
+                  <option value={b}>{b}</option>
+                {/each}
+              </select>
+            {:else}
+              <input
+                id="scan-branch"
+                type="text"
+                bind:value={scanRef}
+                placeholder="branch/sha (default)"
+                class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+              />
+            {/if}
+          </div>
+        </div>
         <p class="text-[12px] text-ink-secondary leading-relaxed mb-5">
           This dispatches the <code>assurance-scan</code> workflow on the repo's own
           GitHub Actions — you can follow it live on the repo's Actions page. Results
