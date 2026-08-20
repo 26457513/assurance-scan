@@ -25,11 +25,18 @@
 
   async function loadRecent() {
     try {
-      const all = await api.listScansForSelector();
-      recent = $selectedProject ? all.filter((s) => isProjectScan(s, $selectedProject)) : all;
-      // Drop a selected scan that no longer belongs to this project.
-      if ($selectedScan && $selectedProject && !isProjectScan($selectedScan, $selectedProject)) {
-        selectScan(recent[0] ?? null);
+      // Fetch a deep window so quieter projects still have scans after the
+      // project filter (the global top-15 often has none).
+      const all = await api.listScans(200);
+      if ($selectedProject) {
+        recent = all.filter((s) => isProjectScan(s, $selectedProject));
+        // Follow the project: adopt its newest scan when the current
+        // selection doesn't belong to it.
+        if (!$selectedScan || !isProjectScan($selectedScan, $selectedProject)) {
+          selectScan(recent[0] ?? null);
+        }
+      } else {
+        recent = all.slice(0, 15);
       }
     } catch (e) {
       /* silent */
