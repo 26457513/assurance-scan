@@ -92,12 +92,28 @@
   let editing = false;
 
   // Editing a derived (unregistered) row registers it on save.
+  let editingProject: ProjectSummary | null = null;
+
   function openEdit(p: ProjectSummary) {
+    editingProject = p;
     editId = p.id ?? null;
     editTag = p.tag ?? '';
     editPath = p.project_path;
     editRepo = p.github_project ? `https://github.com/${p.github_project.replace('github:', '')}` : '';
     editOpen = true;
+  }
+
+  async function removeProject(p: ProjectSummary) {
+    if (!p.id) return;
+    try {
+      await api.deleteProject(p.id);
+      pushToast('success', `Project "${p.tag ?? p.project_path}" removed`);
+      editOpen = false;
+      loading = true;
+      await load();
+    } catch (e) {
+      pushToast('error', `Remove failed: ${e}`);
+    }
   }
 
   async function saveEdit() {
@@ -352,11 +368,20 @@
               class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
           </div>
         </div>
-        <div class="flex justify-end gap-2">
+        <div class="flex justify-between items-center gap-2">
+          <button
+            type="button"
+            on:click={() => editingProject && removeProject(editingProject)}
+            class="px-3 py-1.5 rounded-sm border text-[11px] font-mono uppercase tracking-[0.1em] transition-colors"
+            style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent);"
+            title="Removes the project registration from assurance-scan only — nothing is deleted from GitHub"
+          >Remove project</button>
+          <div class="flex gap-2">
           <button type="button" on:click={() => (editOpen = false)}
             class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
-          <button type="button" on:click={saveEdit} disabled={editing || !editTag.trim() || !editPath.trim()}
+          <button type="button" on:click={saveEdit} disabled={editing || !editTag.trim() || (!editPath.trim() && !editRepo.trim())}
             class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary disabled:opacity-50">{editing ? 'Saving…' : 'Save'}</button>
+          </div>
         </div>
       </div>
     </div>
