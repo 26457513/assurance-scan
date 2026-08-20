@@ -125,9 +125,17 @@ class GitHubClient:
             pass  # 204 No Content
 
     def repo_branches(self, repo: str) -> list[str]:
-        """Branch names (up to 100, case-insensitive order)."""
-        doc = self._get(f"{API_ROOT}/repos/{repo}/branches?per_page=100")
-        return sorted((b["name"] for b in doc), key=str.lower)
+        """All branch names, paginated to completion, case-insensitive order."""
+        names: list[str] = []
+        page = 1
+        while True:
+            doc = self._get(f"{API_ROOT}/repos/{repo}/branches?per_page=100&page={page}")
+            names.extend(b["name"] for b in doc)
+            if len(doc) < 100:
+                return sorted(names, key=str.lower)
+            page += 1
+            if page > 30:  # ponytail: 3000 branches is plenty
+                return sorted(names, key=str.lower)
 
     def list_runs(self, repo: str) -> list[dict[str, Any]]:
         doc = self._get(f"{API_ROOT}/repos/{repo}/actions/runs?per_page=15")
