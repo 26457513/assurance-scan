@@ -31,12 +31,15 @@
 
   $: severities = Object.keys(bySeverity).filter((s) => bySeverity[s] > 0);
   $: filtered = activeSeverity ? findings.filter((f) => f.severity === activeSeverity) : findings;
+  // Tribal view scopes to tribal findings only — other scanners' rule ids
+  // would otherwise pollute the grouping.
+  $: viewable = groupMode === 'tribal' ? filtered.filter((f) => f.scanner_kind === 'tribal') : filtered;
 
   type Group = { key: string; fs: FindingResponse[]; worst: string };
   $: groups = (() => {
     if (groupMode === 'flat') return null;
     const by = new Map<string, FindingResponse[]>();
-    for (const f of filtered) {
+    for (const f of viewable) {
       const key = groupMode === 'tribal'
         ? (f.rule_id ?? '(unclassified)')
         : (f.file_path || '(no location)');
@@ -51,7 +54,7 @@
 
   type RenderRow = { type: 'group'; g: Group } | { type: 'finding'; f: FindingResponse };
   $: renderRows = (() => {
-    if (!groups) return filtered.map((f) => ({ type: 'finding', f }) as RenderRow);
+    if (!groups) return viewable.map((f) => ({ type: 'finding', f }) as RenderRow);
     const rows: RenderRow[] = [];
     for (const g of groups) {
       rows.push({ type: 'group', g });
