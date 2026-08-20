@@ -434,11 +434,20 @@
             </div>
           {/if}
         </div>
-        <div class="flex justify-end gap-2">
-          <button type="button" on:click={() => (addOpen = false)}
-            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
-          <button type="button" on:click={addProject} disabled={adding || !newRepo.trim()}
-            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary disabled:opacity-50">{adding ? 'Saving…' : 'Register'}</button>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[10px] font-mono text-ink-muted truncate">
+            {#if newRepo}
+              <span class="text-ink-secondary">{repoFullName()}</span>{selectedBranch ? ` · ${selectedBranch}` : ''}
+            {:else}
+              click a repository row to select it
+            {/if}
+          </span>
+          <div class="flex gap-2">
+            <button type="button" on:click={() => (addOpen = false)}
+              class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
+            <button type="button" on:click={addProject} disabled={adding || !newRepo.trim()}
+              class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary disabled:opacity-50">{adding ? 'Saving…' : 'Register'}</button>
+          </div>
         </div>
       </div>
     </div>
