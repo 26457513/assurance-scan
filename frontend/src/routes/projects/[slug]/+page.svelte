@@ -23,6 +23,7 @@
   let scanRepo = '';
   let scanRef = '';
   let dispatching = false;
+  let scanConfirmOpen = false;
   let selected = new Set<string>();
   let deleteModalOpen = false;
   $: selectedCount = selected.size;
@@ -146,7 +147,12 @@
   }
   let defaultScanRef: string | null = null;
 
+  function confirmScan() {
+    scanConfirmOpen = true;
+  }
+
   async function scanNow() {
+    scanConfirmOpen = false;
     dispatching = true;
     try {
       const res = await api.scanRemote(scanRepo.trim() || projectRepo, scanRef.trim());
@@ -261,7 +267,7 @@
       />
       <button
         type="button"
-        on:click={scanNow}
+        on:click={confirmScan}
         disabled={dispatching || (!scanRepo.trim() && !projectRepo)}
         title="Scan now — dispatches this repo's own assurance-scan workflow (stub required)"
         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
@@ -388,6 +394,27 @@
       {/if}
     {/if}
   </div>
+
+  {#if scanConfirmOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (scanConfirmOpen = false)} aria-label="Close"></button>
+      <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
+        <div class="text-[13px] text-ink-primary mb-2 font-mono">Start scan?</div>
+        <p class="text-[12px] text-ink-secondary leading-relaxed mb-5">
+          This dispatches the <code>assurance-scan</code> workflow on the repo's own
+          GitHub Actions — you can follow it live on the repo's Actions page. Results
+          appear here automatically within a minute, or immediately via the
+          <em>Retrieve from GitHub</em> button.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button type="button" on:click={() => (scanConfirmOpen = false)}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
+          <button type="button" on:click={scanNow}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Start scan</button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   {#if deleteModalOpen}
     <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
