@@ -8,8 +8,7 @@
     { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes' },
     { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects' },
     { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix' },
-    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends' },
-    { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup' }
+    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends' }
   ];
 
   $: path = $page.url.pathname;
