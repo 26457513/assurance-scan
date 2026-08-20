@@ -6,8 +6,6 @@
   import CatalogueSelector from './CatalogueSelector.svelte';
   import ScanSelector from './ScanSelector.svelte';
 
-  import { goto } from '$app/navigation';
-
   let me: { email: string; role: string } | null = null;
   onMount(async () => {
     try {
@@ -17,11 +15,11 @@
     }
   });
 
+  let confirmLogout = false;
+
   async function logout() {
     await api.logout();
-    me = null;
-    goto('/');
-    location.reload();
+    window.location.href = 'https://tapestry.barkleygen.com/';
   }
 
   $: path = $page.url.pathname;
@@ -64,9 +62,39 @@
     </a>
     <button
       type="button"
-      on:click={logout}
+      on:click={() => (confirmLogout = true)}
       title="Sign out"
       class="px-2 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors text-[11px] font-mono text-ink-muted hover:text-ink-primary"
     >⏻</button>
+  {/if}
+
+  {#if confirmLogout}
+    <div class="fixed inset-0 z-50 flex items-center justify-center">
+      <button
+        type="button"
+        class="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
+        on:click={() => (confirmLogout = false)}
+        aria-label="Close"
+      ></button>
+      <div class="relative w-[360px] border border-line-strong rounded-md bg-surface-panel p-5" style="box-shadow: 0 12px 32px rgba(0,0,0,0.4);">
+        <div class="text-[13px] text-ink-primary mb-1.5">Sign out?</div>
+        <p class="text-[12px] text-ink-secondary leading-relaxed mb-4">
+          You will be returned to <span class="font-mono text-ink-primary">tapestry.barkleygen.com</span>.
+        </p>
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            on:click={() => (confirmLogout = false)}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+          >Cancel</button>
+          <button
+            type="button"
+            on:click={logout}
+            class="px-3 py-1.5 rounded-sm border font-mono text-[11px] uppercase tracking-[0.1em] transition-colors"
+            style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent);"
+          >Sign out</button>
+        </div>
+      </div>
+    </div>
   {/if}
 </header>
