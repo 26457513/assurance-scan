@@ -98,6 +98,7 @@ class Project(Base):
     tag: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     local_path: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
     github_repo: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    default_scan_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

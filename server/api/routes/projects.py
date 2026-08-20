@@ -67,7 +67,12 @@ async def create_project(
 
     tag = tag.strip()
     local_path = _os.path.expanduser(local_path.strip())
-    repo = _parse_github_repo(github_url.strip())
+    raw_url = github_url.strip()
+    default_scan_ref = ""
+    if "#" in raw_url:
+        raw_url, default_scan_ref = raw_url.split("#", 1)
+        default_scan_ref = default_scan_ref.strip()
+    repo = _parse_github_repo(raw_url)
     if not tag:
         raise HTTPException(status_code=400, detail="tag is required")
     if not local_path and not repo:
@@ -86,10 +91,11 @@ async def create_project(
     if existing is not None:
         raise HTTPException(status_code=409, detail="a project with this tag or local path already exists")
 
-    project = Project(tag=tag, local_path=anchor, github_repo=repo)
+    project = Project(tag=tag, local_path=anchor, github_repo=repo,
+                      default_scan_ref=default_scan_ref or None)
     session.add(project)
     await session.commit()
-    return {"status": "created", "tag": tag, "local_path": anchor, "github_repo": repo}
+    return {"status": "created", "tag": tag, "local_path": anchor, "github_repo": repo, "default_scan_ref": default_scan_ref or None}
 
 
 def _parse_github_repo(url: str) -> str | None:
@@ -116,6 +122,7 @@ class ProjectUpdate(BaseModel):
     tag: str | None = None
     local_path: str | None = None
     github_url: str | None = None
+    default_scan_ref: str | None = None
 
 
 @router.patch("/{project_id}")
@@ -135,6 +142,8 @@ async def update_project(
     tag = update.tag
     local_path = update.local_path
     github_url = update.github_url
+    if update.default_scan_ref is not None:
+        project.default_scan_ref = update.default_scan_ref or None
 
     project = (
         await session.execute(_select(Project).where(Project.id == project_id))
@@ -239,6 +248,7 @@ async def list_projects(request: Request, session: AsyncSession = SessionDep) ->
             "id": reg.id,
             "project_path": reg.local_path,
             "tag": reg.tag,
+            "default_scan_ref": reg.default_scan_ref,
             "github_project": gh,
             "registered": True,
             **stats_for(identities),

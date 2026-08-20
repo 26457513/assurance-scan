@@ -70,6 +70,9 @@ export const api = {
 
   listProjects: () => getJson<{ projects: ProjectSummary[] }>('/api/projects'),
 
+  githubBranches: (repo: string) =>
+    getJson<{ repo: string; branches: string[] }>(`/api/github/branches?repo=${encodeURIComponent(repo)}`),
+
   githubRepos: () =>
     getJson<{
       org?: string;

@@ -115,6 +115,11 @@ class GitHubClient:
         with self._opener.open(req, timeout=20):
             pass  # 204 No Content
 
+    def repo_branches(self, repo: str) -> list[str]:
+        """Branch names, newest-commit first."""
+        doc = self._get(f"{API_ROOT}/repos/{repo}/branches?per_page=50")
+        return [b["name"] for b in doc]
+
     def list_runs(self, repo: str) -> list[dict[str, Any]]:
         doc = self._get(f"{API_ROOT}/repos/{repo}/actions/runs?per_page=15")
         return [

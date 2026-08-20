@@ -59,6 +59,26 @@ async def list_repos(request: Request, session: AsyncSession = SessionDep) -> di
     return {"org": settings.github_org, "repos": repos, "errors": errors}
 
 
+@router.get("/branches")
+async def list_branches(
+    request: Request, session: AsyncSession = SessionDep, repo: str = ""
+) -> dict[str, Any]:
+    """Branches of a repo, resolved with the same token chain as dispatch."""
+    from server.api.routes.gh_tokens import resolve_repo_token
+    from fastapi import HTTPException as _HTTP
+
+    if not repo:
+        raise _HTTP(status_code=400, detail="repo required")
+    token, source = await resolve_repo_token(request, session, repo)
+    if not token:
+        raise _HTTP(status_code=422, detail="no credential can read this repo")
+    try:
+        branches = await asyncio.to_thread(GitHubClient(token).repo_branches, repo)
+    except Exception as exc:
+        raise _HTTP(status_code=422, detail=f"cannot read branches ({source}): {exc}")
+    return {"repo": repo, "branches": branches}
+
+
 def _window(lines: list[str], line: int | None, pad: int = CONTEXT_PAD) -> dict[str, Any]:
     """1-indexed `line` plus `pad` lines either side."""
     if line is None or line < 1:

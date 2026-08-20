@@ -86,6 +86,7 @@ export interface CompliancePack {
 
 export interface ProjectSummary {
   id?: number | null;
+  default_scan_ref?: string | null;
   tag?: string | null;
   registered?: boolean;
   github_project?: string | null;

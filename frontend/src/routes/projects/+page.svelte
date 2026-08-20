@@ -19,6 +19,8 @@
   let adding = false;
   let availableRepos: { full_name: string; org?: string; pushed_at?: string }[] = [];
   let repoFilter = '';
+  let branches: string[] = [];
+  let selectedBranch = '';
 
   async function loadAvailableRepos() {
     if (availableRepos.length > 0) return;
@@ -29,9 +31,26 @@
     }
   }
 
+  function repoFullName(): string {
+    const m = newRepo.trim().match(/github\.com\/([^/]+\/[^/#?]+)/);
+    return m ? m[1] : (newRepo.includes('/') && !newRepo.includes(' ') ? newRepo.trim() : '');
+  }
+
+  async function loadBranches() {
+    const full = repoFullName();
+    if (!full) { branches = []; return; }
+    try {
+      branches = (await api.githubBranches(full)).branches;
+    } catch {
+      branches = [];
+    }
+  }
+
   function pickRepo(fullName: string) {
     newRepo = `https://github.com/${fullName}`;
     if (!newTag.trim()) newTag = fullName.split('/').pop() ?? fullName;
+    selectedBranch = '';
+    loadBranches();
   }
 
   $: filteredRepos = repoFilter.trim()
@@ -107,7 +126,8 @@
   async function addProject() {
     adding = true;
     try {
-      await api.createProject(newTag.trim(), newPath.trim(), newRepo.trim());
+      const repoUrl = selectedBranch ? `${newRepo.trim()}#${selectedBranch}` : newRepo.trim();
+      await api.createProject(newTag.trim(), newPath.trim(), repoUrl);
       pushToast('success', `Project "${newTag.trim()}" registered`);
       addOpen = false;
       newTag = newPath = newRepo = '';
@@ -367,6 +387,19 @@
               placeholder="https://github.com/org/project"
               class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
             />
+            {#if branches.length > 0}
+              <label class="block text-[11px] font-mono text-ink-secondary mt-2 mb-1" for="np-branch">Default branch to scan</label>
+              <select
+                id="np-branch"
+                bind:value={selectedBranch}
+                class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+              >
+                <option value="">(repo default)</option>
+                {#each branches as b (b)}
+                  <option value={b}>{b}</option>
+                {/each}
+              </select>
+            {/if}
             {#if availableRepos.length > 0}
               <input
                 type="text"

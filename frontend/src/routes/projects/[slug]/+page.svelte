@@ -105,9 +105,16 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     selectProject(projectPath);
     loadScans();
+    try {
+      const projects = (await api.listProjects()).projects;
+      const me = projects.find((p) => p.project_path === projectPath);
+      defaultScanRef = (me as { default_scan_ref?: string | null })?.default_scan_ref ?? null;
+    } catch {
+      defaultScanRef = null;
+    }
   });
 
   function switchView(id: string) {
@@ -131,6 +138,13 @@
     const gh = scans.find((s) => s.project_path.startsWith('github:'));
     return gh ? gh.project_path.replace('github:', '') : '';
   })();
+
+  // Seed the Scan-now ref with the project's default branch preference
+  // (from the registry) the first time the field is still empty.
+  $: if (defaultScanRef && !scanRef && !scanRepo && !dispatching) {
+    scanRef = defaultScanRef;
+  }
+  let defaultScanRef: string | null = null;
 
   async function scanNow() {
     dispatching = true;
