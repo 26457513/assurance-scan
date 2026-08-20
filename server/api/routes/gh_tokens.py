@@ -251,6 +251,7 @@ async def put_org(
 
 @router.delete("/orgs")
 async def delete_org(
+    request: Request,
     user: Any = Depends(require_admin),
     session: AsyncSession = SessionDep,
     name: str = Query(...),
