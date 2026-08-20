@@ -156,7 +156,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return resp
 
         @app.get("/auth/callback")
-        async def auth_callback(request: Request, code: str = ""):  # type: ignore[no-untyped-def]
+        async def auth_callback(request: Request, code: str = "", error: str = "", error_description: str = ""):  # type: ignore[no-untyped-def]
+            if error:
+                return JSONResponse(
+                    {"detail": f"google auth error: {error}", "description": error_description},
+                    status_code=401,
+                )
             if not code:
                 return JSONResponse({"detail": "missing code"}, status_code=400)
             try:
