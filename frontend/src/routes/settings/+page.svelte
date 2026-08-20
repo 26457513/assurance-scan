@@ -259,9 +259,15 @@
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-4">
       <div class="text-[12px] text-ink-secondary mb-1 font-mono">Personal token</div>
       <ul class="text-[11px] text-ink-muted leading-relaxed mb-3 list-disc pl-4">
-        <li><strong class="text-ink-secondary">What it enables:</strong> Scan now on repos you can write to outside the registered organisations — personal repos, another org.</li>
-        <li><strong class="text-ink-secondary">How:</strong> fine-grained PAT with <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code> on the repos you want to scan.</li>
-        <li><strong class="text-ink-secondary">Safety:</strong> verified, stored encrypted; repos without the workflow are refused with setup guidance.</li>
+        <li><strong class="text-ink-secondary">What it enables:</strong> Scan now on repos you can write to outside the registered organisations — personal repos, another org. Repos without the workflow are refused with setup guidance.</li>
+        <li>
+          <strong class="text-ink-secondary">How:</strong>
+          <ul class="mt-1 list-disc pl-4">
+            <li>GitHub → your avatar → <strong class="text-ink-secondary">Settings</strong> → Developer settings → Personal access tokens → Fine-grained tokens → Generate (suggested name: <code class="text-ink-secondary">assurance-scan</code>)</li>
+            <li>Resource owner = your account · select the repositories you want to scan · <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code></li>
+            <li>Paste the token below — stored encrypted, verified on save</li>
+          </ul>
+        </li>
       </ul>
       <div class="flex gap-2">
         <input
