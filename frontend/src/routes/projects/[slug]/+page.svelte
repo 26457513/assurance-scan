@@ -241,7 +241,7 @@
         type="button"
         on:click={scanNow}
         disabled={dispatching || (!scanRepo.trim() && !projectRepo)}
-        title="Scan now — dispatches the repo workflow, or the remote runner for repos outside the org"
+        title="Scan now — dispatches this repo's own assurance-scan workflow (stub required)"
         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
       >
         <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none">
