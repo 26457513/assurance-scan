@@ -160,20 +160,22 @@
         {#if scannersExpanded && detail}
           {@const allScanners = [...detail.scanner_status].sort((a, b) => a.kind.localeCompare(b.kind))}
           <div class="border-t border-line-hairline">
-            <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_90px] gap-3 px-3 py-1.5 bg-surface-inset text-[10px] uppercase tracking-[0.14em] text-ink-muted items-center">
+            <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_70px_90px] gap-3 px-3 py-1.5 bg-surface-inset text-[10px] uppercase tracking-[0.14em] text-ink-muted items-center">
               <div>Scanner</div>
               <div>Description</div>
               <div>Level</div>
+              <div class="text-right">s</div>
               <div class="text-right">Status</div>
             </div>
             {#each allScanners as s (s.kind)}
               <div
-                class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_90px] gap-3 px-3 py-1.5 items-center border-t border-line-hairline first:border-t-0"
+                class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_70px_90px] gap-3 px-3 py-1.5 items-center border-t border-line-hairline first:border-t-0"
                 title={s.error_message ?? ''}
               >
                 <span class="text-ink-primary truncate">{s.kind}</span>
                 <span class="text-ink-muted truncate">{SCANNER_DESCRIPTIONS[s.kind] ?? '·'}</span>
                 <span class="text-ink-muted">{scanLevel(s.kind)}</span>
+                <span class="text-right text-ink-muted tabular-nums">{s.duration_seconds ?? '·'}</span>
                 <span class="text-right" style="color: {scannerColor(s.status)}">{s.status}</span>
               </div>
             {/each}

@@ -25,6 +25,7 @@ export interface ScanSummary {
 export interface ScannerStatus {
   kind: string;
   status: string;
+  duration_seconds?: number | null;
   started_at: string | null;
   completed_at: string | null;
   error_message: string | null;

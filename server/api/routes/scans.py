@@ -132,6 +132,14 @@ async def get_scan(run_id: str, request: Request, session: AsyncSession = Sessio
         raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
 
     scanner_rows = await scanner_runs.list_for_run(run_id)
+    # Per-scanner wall-clock seconds live in the run payload (DB timestamps
+    # are unreliable for in-process steps like tribal).
+    durations: dict = {}
+    if run.findings_json:
+        try:
+            durations = json.loads(run.findings_json).get("durations") or {}
+        except ValueError:
+            durations = {}
     scanner_status = [
         ScannerStatus(
             kind=r.scanner_kind,
@@ -139,6 +147,7 @@ async def get_scan(run_id: str, request: Request, session: AsyncSession = Sessio
             started_at=r.started_at,
             completed_at=r.completed_at,
             error_message=r.error_message,
+            duration_seconds=durations.get(r.scanner_kind),
         )
         for r in scanner_rows
     ]
