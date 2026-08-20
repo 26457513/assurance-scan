@@ -18,8 +18,13 @@
   let confirmLogout = false;
 
   async function logout() {
-    await api.logout();
-    window.location.href = 'https://tapestry.barkleygen.com/';
+    // Cookie clear + redirect must never be skipped because of a fetch error.
+    try {
+      await api.logout();
+    } catch {
+      /* session cookie expires on its own */
+    }
+    window.location.replace('https://tapestry.barkleygen.com/');
   }
 
   $: path = $page.url.pathname;
