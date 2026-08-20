@@ -107,7 +107,7 @@
           </div>
         {/each}
       </div>
-      {#if projects.length > PAGE_SIZE}
+      {#if projects.length > 0}
         <div class="px-3 py-1.5 border-t border-line-hairline flex items-center justify-between text-[10px] font-mono text-ink-muted">
           <span>{pg * PAGE_SIZE + 1}–{Math.min((pg + 1) * PAGE_SIZE, projects.length)} of {projects.length}</span>
           <span class="flex gap-1">

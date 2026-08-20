@@ -206,7 +206,7 @@
           <div class="px-3 py-8 text-center text-[12px] text-ink-muted font-mono">no scans yet for this project</div>
         {/each}
       </div>
-      {#if recent.length > PAGE_SIZE}
+      {#if recent.length > 0}
         <div class="px-3 py-1.5 border-t border-line-hairline flex items-center justify-between text-[10px] font-mono text-ink-muted">
           <span>{pg * PAGE_SIZE + 1}–{Math.min((pg + 1) * PAGE_SIZE, recent.length)} of {recent.length}</span>
           <span class="flex gap-1">
