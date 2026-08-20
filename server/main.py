@@ -120,10 +120,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.middleware("http")
         async def _auth(request, call_next):  # type: ignore[no-untyped-def]
             path = request.url.path
-            # Healthcheck (container-internal), the login flow, and the
-            # runner tarball proxy (authenticated by its own shared token)
-            # stay outside session auth.
-            if path == "/health" or path.startswith("/auth/") or path.startswith("/api/internal/"):
+            # Healthcheck (container-internal) and the login flow stay open.
+            if path == "/health" or path.startswith("/auth/"):
                 return await call_next(request)
             if google_on and verify_session(request.cookies.get("as_session"), settings.session_secret):
                 return await call_next(request)

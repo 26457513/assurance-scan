@@ -1,11 +1,9 @@
 """Per-user GitHub tokens + remote scan dispatch + runner tarball proxy."""
 from __future__ import annotations
 
-import urllib.parse
 from typing import Any
 
-from fastapi import APIRouter, Body, Header, HTTPException, Query, Request
-from fastapi.responses import Response
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -172,9 +170,7 @@ async def delete_org(request: Request, session: AsyncSession = SessionDep, name:
     return {"status": "removed", "name": name}
 
 
-RUNNER_REPO = "26457513/assurance-scan"
 STUB_FILENAME = "assurance-scan.yml"
-RUNNER_FILENAME = "scan-remote.yml"
 
 
 @router.post("/scans/remote")
@@ -184,11 +180,11 @@ async def scan_remote(
     repo: str = Body(...),
     ref: str = Body(default=""),
 ) -> dict[str, Any]:
-    """Dispatch a scan of any repo the caller's (or org's) token can read.
+    """Dispatch a scan of a repo that carries the assurance-scan stub.
 
-    Repos with our stub dispatch it directly; everything else runs through
-    the scan-remote runner in the assurance-scan repo, which pulls the code
-    from this server's tarball proxy.
+    The run executes in the target repo on its own compute. Repos without
+    the stub are refused with setup guidance — this instance never runs
+    scans on behalf of repos that haven't adopted the workflow.
     """
     import asyncio
 
@@ -204,67 +200,19 @@ async def scan_remote(
     try:
         resolved_ref = ref.strip() or await asyncio.to_thread(client.repo_default_branch, repo)
         has_stub = await asyncio.to_thread(client.has_workflow, repo, STUB_FILENAME)
-        if has_stub:
-            await asyncio.to_thread(client.dispatch, repo, STUB_FILENAME, resolved_ref)
-            return {"status": "dispatched", "mode": "stub", "repo": repo, "ref": resolved_ref}
-        # Remote runner: code arrives via our tarball proxy, never as a token.
-        if not settings.runner_pull_token:
-            raise HTTPException(status_code=503, detail="server missing RUNNER_PULL_TOKEN")
-        await asyncio.to_thread(
-            client.dispatch,
-            RUNNER_REPO,
-            RUNNER_FILENAME,
-            "main",
-            {"repo": repo, "ref": resolved_ref, "account": _user_email(request) or "org"},
-        )
-        return {"status": "dispatched", "mode": "runner", "repo": repo, "ref": resolved_ref}
+        if not has_stub:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"{repo} has no assurance-scan workflow. Add the stub "
+                    "(templates/assurance-scan.yml) to the repo's "
+                    ".github/workflows/ to enable scanning."
+                ),
+            )
+        await asyncio.to_thread(client.dispatch, repo, STUB_FILENAME, resolved_ref)
+        return {"status": "dispatched", "mode": "stub", "repo": repo, "ref": resolved_ref}
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"GitHub dispatch failed: {exc}") from exc
 
-
-@router.get("/internal/tarball")
-async def tarball_proxy(
-    request: Request,
-    session: AsyncSession = SessionDep,
-    repo: str = "",
-    ref: str = "",
-    account: str = "",
-    x_runner_token: str = Header(default=""),
-) -> Response:
-    """Streams a repo tarball to the scan-remote runner.
-
-    Authenticated with RUNNER_PULL_TOKEN (shared between this server and the
-    runner workflow); user tokens never leave this server.
-    """
-    import asyncio
-
-    settings = request.app.state.settings
-    if not settings.runner_pull_token or x_runner_token != settings.runner_pull_token:
-        raise HTTPException(status_code=401, detail="bad runner token")
-    if not repo:
-        raise HTTPException(status_code=400, detail="repo required")
-
-    token = None
-    if account and account != "org":
-        row = (
-            await session.execute(sa_select(GithubAccount).where(GithubAccount.email == account))
-        ).scalars().first()
-        if row is not None and settings.token_encryption_key:
-            token = decrypt(row.token_encrypted, settings.token_encryption_key)
-    token = token or settings.github_poll_token
-    if not token:
-        raise HTTPException(status_code=422, detail="no token available for this repo")
-
-    client = GitHubClient(token)
-    try:
-        data = await asyncio.to_thread(client.tarball, repo, ref or "HEAD")
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"tarball fetch failed: {exc}") from exc
-    filename = f"{repo.replace('/', '_')}_{urllib.parse.quote(ref or 'HEAD')}.tar.gz"
-    return Response(
-        content=data,
-        media_type="application/gzip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )

@@ -29,7 +29,6 @@ log = logging.getLogger(__name__)
 
 API_ROOT = "https://api.github.com"
 WORKFLOW_NAME = "assurance-scan"
-WORKFLOW_NAMES = {WORKFLOW_NAME, "assurance-scan-remote"}
 ARTIFACT_NAME = "assurance-scan-results"
 
 
@@ -116,18 +115,11 @@ class GitHubClient:
         with self._opener.open(req, timeout=20):
             pass  # 204 No Content
 
-    def tarball(self, repo: str, ref: str) -> bytes:
-        """Repo tarball at ref (follows the signed CDN redirect)."""
-        return self._get_raw(
-            f"{API_ROOT}/repos/{repo}/tarball/{ref}",
-            accept="application/vnd.github+json",
-        )
-
     def list_runs(self, repo: str) -> list[dict[str, Any]]:
         doc = self._get(f"{API_ROOT}/repos/{repo}/actions/runs?per_page=15")
         return [
             r for r in doc.get("workflow_runs", [])
-            if r.get("name") in WORKFLOW_NAMES and r.get("status") == "completed"
+            if r.get("name") == WORKFLOW_NAME and r.get("status") == "completed"
         ]
 
     def download_artifact_zip(self, repo: str, github_run_id: int) -> dict[str, bytes] | None:
