@@ -108,3 +108,13 @@ def test_check_error_becomes_finding_not_crash(repo: Path) -> None:
     findings = run_checks(repo, parsed)
     assert len(findings) == 1
     assert "check errored" in findings[0].message
+
+
+def test_file_max_lines(repo: Path) -> None:
+    (repo / "big.py").write_text("x = 1\n" * 50)
+    (repo / "small.py").write_text("x = 1\n")
+    _write(repo, [{"id": "lines", "type": "file_max_lines", "glob": "**/*.py", "max_lines": 40}])
+    findings = run_checks(repo, load_checks(repo))
+    assert len(findings) == 1
+    assert findings[0].file_path == "big.py"
+    assert "50 lines" in findings[0].message

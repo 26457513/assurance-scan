@@ -28,6 +28,7 @@ VALID_TYPES = {
     "file_exists",
     "file_absent",
     "file_max_size",
+    "file_max_lines",
     "content_forbidden",
     "content_required",
     "file_count",
@@ -192,6 +193,22 @@ def _run_one(root: Path, check: Check) -> list[ParsedFinding]:
                 rel = f.relative_to(root).as_posix()
                 out.append(_finding(
                     check, f"{rel} is {size // 1024} KB (limit {limit // 1024} KB)", rel))
+
+    elif check.type == "file_max_lines":
+        glob = p.get("glob", "**/*")
+        if "max_lines" not in p:
+            raise TribalCheckError(f"{check.id}: 'max_lines' required")
+        limit = int(p["max_lines"])
+        exclude = p.get("exclude", [])
+        for f in _glob_files(root, glob, exclude):
+            text = _read_text(f)
+            if text is None:
+                continue
+            n = text.count("\n")
+            if n > limit:
+                rel = f.relative_to(root).as_posix()
+                out.append(_finding(
+                    check, f"{rel} has {n} lines (limit {limit})", rel))
 
     elif check.type in ("content_forbidden", "content_required"):
         glob = p.get("glob", "**/*")
