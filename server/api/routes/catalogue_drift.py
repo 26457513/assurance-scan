@@ -40,9 +40,11 @@ class UnresolvedPattern(BaseModel):
 
 class DriftResponse(BaseModel):
     project_path: str
-    catalogue_snapshot_id: str
-    catalogue_version: str | None
-    catalogue_content_hash: str
+    status: str = "ok"
+    reason: str | None = None
+    catalogue_snapshot_id: str | None = None
+    catalogue_version: str | None = None
+    catalogue_content_hash: str | None = None
     snapshot_commit: str | None
     current_commit: str | None
     code_moved: bool | None
@@ -95,6 +97,14 @@ async def get_catalogue_drift(
     session: AsyncSession = SessionDep,
 ) -> DriftResponse:
     root = Path(project_path).resolve()
+    if project_path.startswith("github:"):
+        # Remote identity: no local working tree to diff against — drift is
+        # undefined for projects whose code lives on GitHub only.
+        return DriftResponse(
+            project_path=project_path,
+            status="unavailable",
+            reason="remote project (no local working tree)",
+        )
     if not root.is_dir():
         raise HTTPException(status_code=400, detail=f"project path not found: {project_path}")
 
