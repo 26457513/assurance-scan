@@ -186,7 +186,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 mint_session(payload["email"], settings.session_secret),
                 max_age=30 * 24 * 3600,
                 httponly=True,
-                secure=True,
+                # Secure cookies are dropped by browsers (Safari notably) on
+                # plain http — set only when the instance is actually https.
+                secure=settings.public_base_url.startswith("https://"),
                 samesite="lax",
             )
             resp.delete_cookie("as_next")
