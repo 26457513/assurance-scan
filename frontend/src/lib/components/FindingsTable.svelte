@@ -111,10 +111,19 @@
       type="button"
       on:click={() => (groupMode = 'file')}
       class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors"
-      class:border-line-strong={!groupMode}
-      class:text-ink-primary={!groupMode}
-      class:border-line-hairline={groupMode}
-      class:text-ink-muted={groupMode}
+      class:border-line-strong={groupMode === 'file'}
+      class:text-ink-primary={groupMode === 'file'}
+      class:border-line-hairline={groupMode !== 'file'}
+      class:text-ink-muted={groupMode !== 'file'}
+    >File</button>
+    <button
+      type="button"
+      on:click={() => (groupMode = 'flat')}
+      class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors"
+      class:border-line-strong={groupMode === 'flat'}
+      class:text-ink-primary={groupMode === 'flat'}
+      class:border-line-hairline={groupMode !== 'flat'}
+      class:text-ink-muted={groupMode !== 'flat'}
     >Flat</button>
     <button
       type="button"
