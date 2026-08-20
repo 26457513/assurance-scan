@@ -49,7 +49,7 @@
   <span class="flex-1"></span>
   {#if me}
     <a
-      href="/settings"
+      href="/setup?tab=account"
       title="Settings"
       class="flex items-center gap-2 px-2.5 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors"
     >
