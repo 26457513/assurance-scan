@@ -11,19 +11,20 @@ built around the OWASP **ASVS** standard.
 org repos ──push──▶ GitHub Actions ──scan──▶ artifact (SARIF/SBOM/findings)
    (any org)             │                              │
    ▲ workflow_dispatch   │ reusable workflow (home org) │ poll (60s, all orgs)
-   │ or scan-remote      │ or vendored stub (any org)   ▼
+   │                     │ or vendored stub (any org)   ▼
    │                                             droplet (server+UI+SQLite)
   UI "Scan now"  ◀──────────────────────────────────────  poller
 ```
 
 One central instance serves multiple GitHub organisations. Each org
 registers once (a PAT in Settings); its repos add a stub; everything else
-is automatic.
+is automatic. **All scanning runs on the target org's own GitHub compute**
+— this instance never executes scans on behalf of a repo.
 
 - **CI tier** — repos with a stub scan every push and PR; results appear in
   GitHub (Step Summary, PR comment, deep link) *and* the UI.
-- **Instant tier** — *Scan now* in the UI scans any repo a resolved token
-  can read, with zero footprint on that repo.
+- **On demand** — *Scan now* dispatches the repo's own workflow (needs the
+  stub; repos without it are refused with setup guidance).
 
 ## Architecture
 
@@ -35,7 +36,6 @@ is automatic.
 | `Dockerfile` | Full app image (server + built frontend) |
 | `compose.yaml` | Local + cloud deployment (identical containers) |
 | `.github/workflows/scan.yml` | Reusable CI workflow used by org repos |
-| `.github/workflows/scan-remote.yml` | Runner for on-demand scans of external repos |
 | `scripts/ci-scan.py` | Standalone scanner CLI (no server, no DB) |
 | `templates/assurance-scan.yml` | Vendored stub for repos outside the home org |
 
@@ -99,7 +99,6 @@ GOOGLE_DOMAIN=yourdomain.com
 SESSION_SECRET=<random 32+ chars>
 PUBLIC_BASE_URL=https://scan.yourdomain.com
 TOKEN_ENCRYPTION_KEY=<random 32+ chars>   # encrypts user + org tokens
-RUNNER_PULL_TOKEN=<random 24+ chars>      # shared with scan-remote.yml
 # APP_AUTH_USER / APP_AUTH_PASSWORD      # optional Basic Auth fallback
 ```
 
@@ -189,12 +188,13 @@ stays private to the product owner.
 ## On-demand scans from the UI
 
 *Scan now* on any project page (repo prefilled, any `owner/repo` accepted,
-optional branch/SHA). Token resolution: the signed-in user's token
-(**Settings**, encrypted at rest) → the org's registered token → the
-home-org token. Repos with the stub dispatch it directly; everything else
-runs through `assurance-scan-remote` in the assurance-scan repo, which pulls
-the target's code from the server's tarball proxy — user tokens never enter
-GitHub Actions, and the target repo sees nothing.
+optional branch/SHA) dispatches the repo's own `assurance-scan` workflow —
+the run executes on that repo's compute. Token resolution: the signed-in
+user's token (**Settings**, encrypted at rest) → the org's registered
+token → the home-org token; dispatch needs Actions:Write. Repos without
+the stub are refused with setup guidance (copy
+`templates/assurance-scan.yml`; delete the `push`/`pull_request` triggers
+for a manual-only variant that costs nothing until clicked).
 
 ## Scanner set
 

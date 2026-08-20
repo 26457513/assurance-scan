@@ -4,6 +4,9 @@
 # Keep the workflow name exactly "assurance-scan" — the poller filters runs
 # by this name. ASSURANCE_SCAN_URL points at the central instance; deep
 # links in PR comments land there.
+#
+# Manual-only variant: delete the pull_request and push triggers to scan
+# exclusively via the UI's "Scan now" button (zero minutes until clicked).
 
 name: assurance-scan
 
