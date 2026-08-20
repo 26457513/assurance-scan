@@ -174,22 +174,13 @@
 
   {#if isAdmin}
   <div class="border border-line-hairline rounded-sm bg-surface-panel p-4 mb-4">
-    <div class="text-[12px] text-ink-primary font-mono mb-1">Organisation credentials — what the server uses</div>
-    <p class="text-[11px] text-ink-muted leading-relaxed mb-2">
-      The server needs its own read access to an organisation before it can do
-      anything with that org's repositories: <strong class="text-ink-secondary">ingesting scan
-      results automatically</strong> (polling every run, every repo — no user needs to
-      be logged in) and <strong class="text-ink-secondary">source peeks</strong> (showing code context
-      behind findings). Without an org credential, repos in that org never
-      appear in the dashboard regardless of who is signed in.
-    </p>
-    <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
-      Created by an org admin as a fine-grained PAT: resource owner = the
-      organisation, all repositories, <code class="text-ink-secondary">Contents: Read</code> +
-      <code class="text-ink-secondary">Actions: Read and write</code> (the write scope additionally
-      enables the Scan now button on that org's repos). Stored encrypted,
-      verified on save.
-    </p>
+    <div class="text-[12px] text-ink-primary font-mono mb-1">Organisation credentials</div>
+    <ul class="text-[11px] text-ink-muted leading-relaxed mb-3 list-disc pl-4">
+      <li><strong class="text-ink-secondary">What it enables:</strong> automatic result ingestion, source peeks, and Scan now for every repo in the organisation.</li>
+      <li><strong class="text-ink-secondary">Without it:</strong> the org's repos never appear in the dashboard.</li>
+      <li><strong class="text-ink-secondary">How:</strong> org admin creates a fine-grained PAT — resource owner = the org, all repositories, <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code>.</li>
+      <li><strong class="text-ink-secondary">Safety:</strong> stored encrypted, verified on save.</li>
+    </ul>
     {#if orgs.length > 0}
       <div class="mb-3">
         {#each orgs as o (o.name)}
@@ -252,20 +243,12 @@
     </div>
   {:else}
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-4">
-      <div class="text-[12px] text-ink-secondary mb-1 font-mono">Personal token — what you as a user add</div>
-      <p class="text-[11px] text-ink-muted leading-relaxed mb-2">
-        Your personal token extends scanning to repositories <strong class="text-ink-secondary">your
-        GitHub account can write to outside the registered organisations</strong> —
-        personal repos, another org you belong to. Scan now on those repos
-        dispatches their workflow under your identity.
-      </p>
-      <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
-        Create a fine-grained PAT (GitHub → Settings → Developer settings →
-        Fine-grained tokens) with <code class="text-ink-secondary">Contents: Read</code> and
-        <code class="text-ink-secondary">Actions: Read and write</code> on the repositories you want
-        to scan. Verified against GitHub, stored encrypted. Repos without the
-        assurance-scan workflow are refused with setup guidance.
-      </p>
+      <div class="text-[12px] text-ink-secondary mb-1 font-mono">Personal token</div>
+      <ul class="text-[11px] text-ink-muted leading-relaxed mb-3 list-disc pl-4">
+        <li><strong class="text-ink-secondary">What it enables:</strong> Scan now on repos you can write to outside the registered organisations — personal repos, another org.</li>
+        <li><strong class="text-ink-secondary">How:</strong> fine-grained PAT with <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code> on the repos you want to scan.</li>
+        <li><strong class="text-ink-secondary">Safety:</strong> verified, stored encrypted; repos without the workflow are refused with setup guidance.</li>
+      </ul>
       <div class="flex gap-2">
         <input
           type="password"
