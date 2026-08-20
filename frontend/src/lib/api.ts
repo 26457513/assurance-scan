@@ -142,7 +142,7 @@ export const api = {
     getJson<{ configured: boolean }>('/api/github/token', { method: 'DELETE' }),
 
   scanRemote: (repo: string, ref = '') =>
-    getJson<{ status: string; mode: string; repo: string; ref: string }>('/api/scans/remote', {
+    getJson<{ status: string; mode: string; repo: string; ref: string; warning?: string }>('/api/scans/remote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ repo, ref })

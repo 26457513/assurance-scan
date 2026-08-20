@@ -132,7 +132,11 @@
     dispatching = true;
     try {
       const res = await api.scanRemote(scanRepo.trim() || projectRepo, scanRef.trim());
-      pushToast('success', `Scan dispatched to ${res.repo}@${res.ref} — watch the scans table`);
+      if (res.warning) {
+        pushToast('error', `Dispatched to ${res.repo}@${res.ref}, but: ${res.warning}`);
+      } else {
+        pushToast('success', `Scan dispatched to ${res.repo}@${res.ref} — watch the scans table`);
+      }
       scanRepo = '';
       scanRef = '';
     } catch (e) {

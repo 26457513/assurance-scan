@@ -173,6 +173,24 @@ async def delete_org(request: Request, session: AsyncSession = SessionDep, name:
 STUB_FILENAME = "assurance-scan.yml"
 
 
+async def _org_registered(request: Request, session: AsyncSession, repo: str) -> bool:
+    """True if the repo's org is the home org or a registered organisation."""
+    from sqlalchemy import select as _select
+
+    from server.db.models import Organisation
+
+    settings = request.app.state.settings
+    owner = repo.split("/")[0] if "/" in repo else ""
+    if owner and owner == settings.github_org:
+        return True
+    row = (
+        await session.execute(
+            _select(Organisation).where(Organisation.name == owner)
+        )
+    ).scalars().first()
+    return row is not None
+
+
 @router.post("/scans/remote")
 async def scan_remote(
     request: Request,
@@ -210,7 +228,14 @@ async def scan_remote(
                 ),
             )
         await asyncio.to_thread(client.dispatch, repo, STUB_FILENAME, resolved_ref)
-        return {"status": "dispatched", "mode": "stub", "repo": repo, "ref": resolved_ref}
+        return {
+            "status": "dispatched",
+            "mode": "stub",
+            "repo": repo,
+            "ref": resolved_ref,
+            **({"warning": "organisation not registered — results will not appear in the dashboard; register it in Settings"}
+              if not await _org_registered(request, session, repo) else {}),
+        }
     except HTTPException:
         raise
     except Exception as exc:
