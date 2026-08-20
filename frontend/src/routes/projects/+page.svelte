@@ -36,13 +36,17 @@
     return m ? m[1] : (newRepo.includes('/') && !newRepo.includes(' ') ? newRepo.trim() : '');
   }
 
+  let branchesError = false;
+
   async function loadBranches() {
     const full = repoFullName();
+    branchesError = false;
     if (!full) { branches = []; return; }
     try {
       branches = (await api.githubBranches(full)).branches;
     } catch {
       branches = [];
+      branchesError = true;
     }
   }
 
@@ -409,9 +413,13 @@
               id="np-repo"
               type="text"
               bind:value={newRepo}
+              on:blur={loadBranches}
               placeholder="https://github.com/org/project"
               class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
             />
+            {#if branchesError}
+              <p class="text-[10px] mt-1 font-mono" style="color: var(--state-failed);">couldn't load branches — check the repo URL</p>
+            {/if}
             {#if branches.length > 0}
               <label class="block text-[11px] font-mono text-ink-secondary mt-2 mb-1" for="np-branch">Default branch to scan</label>
               <select

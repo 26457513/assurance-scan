@@ -116,9 +116,9 @@ class GitHubClient:
             pass  # 204 No Content
 
     def repo_branches(self, repo: str) -> list[str]:
-        """Branch names, newest-commit first."""
-        doc = self._get(f"{API_ROOT}/repos/{repo}/branches?per_page=50")
-        return [b["name"] for b in doc]
+        """Branch names (up to 100, case-insensitive order)."""
+        doc = self._get(f"{API_ROOT}/repos/{repo}/branches?per_page=100")
+        return sorted((b["name"] for b in doc), key=str.lower)
 
     def list_runs(self, repo: str) -> list[dict[str, Any]]:
         doc = self._get(f"{API_ROOT}/repos/{repo}/actions/runs?per_page=15")
