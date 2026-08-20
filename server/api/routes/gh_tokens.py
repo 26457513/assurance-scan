@@ -105,10 +105,10 @@ async def delete_token(request: Request, session: AsyncSession = SessionDep) -> 
     return {"configured": False}
 
 
-async def _await_or_run(fn):  # tiny helper: run sync client call in a thread
+async def _await_or_run(fn, *args):  # run a sync client call in a thread
     import asyncio
 
-    return await asyncio.to_thread(fn)
+    return await asyncio.to_thread(fn, *args)
 
 
 @router.get("/users/me")
