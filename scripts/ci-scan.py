@@ -52,6 +52,20 @@ async def run_scanners(
     findings: list[ParsedFinding] = []
     status: dict[str, str] = {}
     durations: dict[str, float] = {}
+
+    # Tribal checks: repo-defined declarative assertions, evaluated in-process.
+    from pathlib import Path as _P
+
+    t0 = time.monotonic()
+    try:
+        tribal = run_checks(_P(project_path), load_checks(_P(project_path)))
+        findings.extend(tribal)
+        status["tribal"] = "ok"
+        print(f"[tribal] ok ({len(tribal)} findings from {TRIBAL_FILENAME})")
+    except Exception as exc:
+        status["tribal"] = f"error: {exc}"
+        print(f"[tribal] ERROR {exc}", file=sys.stderr)
+    durations["tribal"] = round(time.monotonic() - t0, 1)
     for scanner in scanners:
         t0 = time.monotonic()
         try:
@@ -120,6 +134,7 @@ def main() -> int:
     sarif_path.with_name("findings.json").write_text(json.dumps(payload, indent=2))
     print(f"wrote {sarif_path}: {len(findings)} findings")
 
+    SCANNER_DESCRIPTIONS.setdefault("tribal", "repo-defined checks")
     md = summary_markdown(findings, status, durations)
     sarif_path.with_name("summary.md").write_text(md)
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
