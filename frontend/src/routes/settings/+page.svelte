@@ -9,7 +9,7 @@
   let newToken = '';
   let saving = false;
 
-  let orgs: { name: string; login: string | null; created_at: string }[] = [];
+  let orgs: { name: string; login: string | null; created_at: string | null; home?: boolean }[] = [];
   let me: { email: string; role: string } | null = null;
   let users: { email: string; role: string; last_login_at: string | null }[] = [];
   let roleSaving = '';
@@ -185,13 +185,22 @@
       <div class="mb-3">
         {#each orgs as o (o.name)}
           <div class="flex items-center justify-between py-1.5 border-b border-line-hairline last:border-0">
-            <span class="font-mono text-[12px] text-ink-primary">{o.name}</span>
-            <button
-              type="button"
-              on:click={() => removeOrg(o.name)}
-              class="text-[10px] font-mono uppercase tracking-[0.1em] px-2 py-0.5 border rounded-sm transition-colors"
-              style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent);"
-            >Remove</button>
+            <span class="font-mono text-[12px] text-ink-primary flex items-center gap-2">
+              {o.name}
+              {#if o.home}
+                <span class="text-[9px] uppercase tracking-[0.1em] px-1.5 py-0.5 rounded-sm border" style="color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent);">home</span>
+              {/if}
+            </span>
+            {#if o.home}
+              <span class="text-[10px] font-mono text-ink-muted">configured via server .env</span>
+            {:else}
+              <button
+                type="button"
+                on:click={() => removeOrg(o.name)}
+                class="text-[10px] font-mono uppercase tracking-[0.1em] px-2 py-0.5 border rounded-sm transition-colors"
+                style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent);"
+              >Remove</button>
+            {/if}
           </div>
         {/each}
       </div>

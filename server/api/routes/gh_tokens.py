@@ -168,7 +168,12 @@ async def list_orgs(request: Request, session: AsyncSession = SessionDep) -> dic
     from server.db.models import Organisation
 
     rows = (await session.execute(sa_select(Organisation).order_by(Organisation.name))).scalars().all()
-    return {"orgs": [{"name": r.name, "login": r.login, "created_at": r.created_at.isoformat()} for r in rows]}
+    orgs = []
+    home = request.app.state.settings.github_org
+    if home:
+        orgs.append({"name": home, "login": None, "created_at": None, "home": True})
+    orgs.extend({"name": r.name, "login": r.login, "created_at": r.created_at.isoformat()} for r in rows)
+    return {"orgs": orgs}
 
 
 @router.put("/orgs")
@@ -217,6 +222,8 @@ async def delete_org(
 ) -> dict[str, Any]:
     from server.db.models import Organisation
 
+    if name == request.app.state.settings.github_org:
+        raise HTTPException(status_code=403, detail="the home organisation is configured via the server .env and cannot be removed here")
     row = (await session.execute(sa_select(Organisation).where(Organisation.name == name))).scalars().first()
     if row is not None:
         await session.delete(row)

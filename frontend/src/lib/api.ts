@@ -128,7 +128,7 @@ export const api = {
       body: JSON.stringify({ email, role })
     }),
 
-  listOrgs: () => getJson<{ orgs: { name: string; login: string | null; created_at: string }[] }>('/api/orgs'),
+  listOrgs: () => getJson<{ orgs: { name: string; login: string | null; created_at: string | null; home?: boolean }[] }>('/api/orgs'),
 
   putOrg: (name: string, token: string) =>
     getJson<{ status: string; name: string; login: string; repos_visible: number }>('/api/orgs', {
