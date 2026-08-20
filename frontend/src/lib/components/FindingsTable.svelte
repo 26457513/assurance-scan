@@ -12,7 +12,7 @@
 
   let activeSeverity: string | null = null;
   let expandedId: number | null = null;
-  let groupMode = true;
+  let groupMode: 'file' | 'tribal' | 'flat' = 'file';
   // Groups render closed by default; users open the files they care about.
   let expandedGroups = new Set<string>();
 
@@ -34,10 +34,12 @@
 
   type Group = { key: string; fs: FindingResponse[]; worst: string };
   $: groups = (() => {
-    if (!groupMode) return null;
+    if (groupMode === 'flat') return null;
     const by = new Map<string, FindingResponse[]>();
     for (const f of filtered) {
-      const key = f.file_path || '(no location)';
+      const key = groupMode === 'tribal'
+        ? (f.rule_id ?? '(unclassified)')
+        : (f.file_path || '(no location)');
       const list = by.get(key);
       if (list) list.push(f);
       else by.set(key, [f]);
@@ -107,7 +109,7 @@
   <div class="flex items-center gap-1.5 mb-3 flex-wrap">
     <button
       type="button"
-      on:click={() => (groupMode = false)}
+      on:click={() => (groupMode = 'file')}
       class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors"
       class:border-line-strong={!groupMode}
       class:text-ink-primary={!groupMode}
@@ -116,13 +118,22 @@
     >Flat</button>
     <button
       type="button"
-      on:click={() => (groupMode = true)}
+      on:click={() => (groupMode = 'tribal')}
       class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors mr-2"
-      class:border-line-strong={groupMode}
-      class:text-ink-primary={groupMode}
-      class:border-line-hairline={!groupMode}
-      class:text-ink-muted={!groupMode}
-    >By file</button>
+      class:border-line-strong={groupMode === 'tribal'}
+      class:text-ink-primary={groupMode === 'tribal'}
+      class:border-line-hairline={groupMode !== 'tribal'}
+      class:text-ink-muted={groupMode !== 'tribal'}
+    >Tribal</button>
+    <button
+      type="button"
+      on:click={() => (groupMode = 'flat')}
+      class="font-mono text-[11px] px-2 py-1 rounded-sm border transition-colors mr-2"
+      class:border-line-strong={groupMode === 'flat'}
+      class:text-ink-primary={groupMode === 'flat'}
+      class:border-line-hairline={groupMode !== 'flat'}
+      class:text-ink-muted={groupMode !== 'flat'}
+    >Flat</button>
 
   {#if severities.length > 0}
     <div class="flex items-center gap-1.5 flex-wrap">
