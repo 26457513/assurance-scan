@@ -158,7 +158,7 @@
       scanRepo = '';
       scanRef = '';
     } catch (e) {
-      pushToast('error', `Dispatch failed: ${e}`);
+      pushToast('error', `${(e as Error).message ?? e}`);
     } finally {
       dispatching = false;
     }

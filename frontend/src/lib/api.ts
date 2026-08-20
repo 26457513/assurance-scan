@@ -25,6 +25,13 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.text();
+    try {
+      const detail = JSON.parse(body)?.detail;
+      if (typeof detail === 'string') throw new Error(detail);
+    } catch (e) {
+      if (e instanceof SyntaxError) { /* not JSON — fall through */ }
+      else throw e;
+    }
     throw new Error(`${res.status} ${res.statusText}: ${body}`);
   }
   return res.json() as Promise<T>;
@@ -162,7 +169,7 @@ export const api = {
     getJson<{ configured: boolean }>('/api/github/token', { method: 'DELETE' }),
 
   scanRemote: (repo: string, ref = '') =>
-    getJson<{ status: string; mode: string; repo: string; ref: string; warning?: string }>('/api/scans/remote', {
+    getJson<{ status: string; mode: string; repo: string; ref: string; warning?: string; detail?: string }>('/api/scans/remote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ repo, ref })
