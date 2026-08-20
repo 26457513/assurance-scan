@@ -101,8 +101,9 @@
   <div class="border border-line-hairline rounded-sm bg-surface-panel p-4 mb-4">
     <div class="text-[12px] text-ink-primary font-mono mb-1">GitHub organisations</div>
     <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
-      Registered organisations are polled for scan results. Each needs a fine-grained PAT
-      (org-owned, Actions+Contents read) — stored encrypted, verified on save.
+      Registered organisations are polled for scan results and their repos
+      support the Scan now button. Each needs a fine-grained PAT (org-owned,
+      Contents: Read, Actions: Read and Write) — stored encrypted, verified on save.
     </p>
     {#if orgs.length > 0}
       <div class="mb-3">
@@ -129,7 +130,7 @@
       <input
         type="password"
         bind:value={newOrgToken}
-        placeholder="org PAT (Actions+Contents read)"
+        placeholder="org PAT (Contents:Read, Actions:Read+Write)"
         class="flex-1 px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
       />
       <button
@@ -162,7 +163,9 @@
       <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
         Create a fine-grained PAT (Settings → Developer settings → Fine-grained tokens) with
         <code class="text-ink-secondary">Contents: Read-only</code> on the repositories you want to scan.
-        It is verified against GitHub, stored encrypted, and used only to fetch code for scans you start.
+        It is verified against GitHub, stored encrypted, and used to dispatch
+        scans (needs Actions: Read and write) — repos without the assurance-scan
+        workflow are refused with setup guidance.
       </p>
       <div class="flex gap-2">
         <input
