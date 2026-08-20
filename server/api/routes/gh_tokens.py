@@ -1,13 +1,17 @@
 """Per-user GitHub tokens + remote scan dispatch + runner tarball proxy."""
 from __future__ import annotations
 
-from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from typing import Any, Optional
+
+from fastapi import Depends
+
 from server.api.deps import SessionDep
+from server.api.deps_roles import get_current_user, require_admin
 from server.db.models import GithubAccount
 from server.github_poller import GitHubClient
 from server.secrets import decrypt, encrypt
@@ -107,6 +111,56 @@ async def _await_or_run(fn):  # tiny helper: run sync client call in a thread
     return await asyncio.to_thread(fn)
 
 
+@router.get("/users/me")
+async def who_am_i(user: Any = Depends(get_current_user)) -> dict[str, Any]:
+    if user is None:
+        raise HTTPException(status_code=401, detail="sign in")
+    return {"email": user.email, "role": user.role}
+
+
+@router.get("/users")
+async def list_users(
+    user: Any = Depends(require_admin),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    from sqlalchemy import select as _select
+
+    from server.db.models import User
+
+    rows = (await session.execute(_select(User).order_by(User.email))).scalars().all()
+    return {"users": [
+        {"email": r.email, "role": r.role, "last_login_at": r.last_login_at.isoformat() if r.last_login_at else None}
+        for r in rows
+    ]}
+
+
+@router.put("/users")
+async def set_user_role(
+    user: Any = Depends(require_admin),
+    session: AsyncSession = SessionDep,
+    email: str = Body(...),
+    role: str = Body(...),
+) -> dict[str, Any]:
+    """Set a user's role. Admin rows are immutable; only user/superuser
+    are assignable."""
+    from sqlalchemy import select as _select
+
+    from server.api.deps_roles import MUTABLE_ROLES
+    from server.db.models import User
+
+    role = role.strip().lower()
+    if role not in MUTABLE_ROLES:
+        raise HTTPException(status_code=422, detail=f"role must be one of {sorted(MUTABLE_ROLES)}")
+    row = (await session.execute(_select(User).where(User.email == email.strip()))).scalars().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="user not found (they must log in once first)")
+    if row.role == "admin":
+        raise HTTPException(status_code=403, detail="admin role is protected")
+    row.role = role
+    await session.commit()
+    return {"email": row.email, "role": row.role}
+
+
 @router.get("/orgs")
 async def list_orgs(request: Request, session: AsyncSession = SessionDep) -> dict[str, Any]:
     if not _user_email(request):
@@ -120,15 +174,13 @@ async def list_orgs(request: Request, session: AsyncSession = SessionDep) -> dic
 @router.put("/orgs")
 async def put_org(
     request: Request,
+    user: Any = Depends(require_admin),
     session: AsyncSession = SessionDep,
     name: str = Body(...),
     token: str = Body(...),
 ) -> dict[str, Any]:
     """Register a GitHub organisation: verify the token, store it encrypted."""
     import datetime as dt
-
-    if not _user_email(request):
-        raise HTTPException(status_code=401, detail="sign in")
     settings = request.app.state.settings
     if not settings.token_encryption_key:
         raise HTTPException(status_code=503, detail="server missing TOKEN_ENCRYPTION_KEY")
@@ -158,9 +210,11 @@ async def put_org(
 
 
 @router.delete("/orgs")
-async def delete_org(request: Request, session: AsyncSession = SessionDep, name: str = Query(...)) -> dict[str, Any]:
-    if not _user_email(request):
-        raise HTTPException(status_code=401, detail="sign in")
+async def delete_org(
+    user: Any = Depends(require_admin),
+    session: AsyncSession = SessionDep,
+    name: str = Query(...),
+) -> dict[str, Any]:
     from server.db.models import Organisation
 
     row = (await session.execute(sa_select(Organisation).where(Organisation.name == name))).scalars().first()

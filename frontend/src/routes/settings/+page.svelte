@@ -10,6 +10,37 @@
   let saving = false;
 
   let orgs: { name: string; login: string | null; created_at: string }[] = [];
+  let me: { email: string; role: string } | null = null;
+  let users: { email: string; role: string; last_login_at: string | null }[] = [];
+  let roleSaving = '';
+
+  $: isAdmin = me?.role === 'admin' || me?.role === 'superuser';
+
+  async function loadUsers() {
+    if (!isAdmin) return;
+    try {
+      users = (await api.listUsers()).users;
+    } catch {
+      users = [];
+    }
+  }
+
+  function onRoleChange(email: string, ev: Event) {
+    setRole(email, (ev.target as HTMLSelectElement).value);
+  }
+
+  async function setRole(email: string, role: string) {
+    roleSaving = email;
+    try {
+      await api.setUserRole(email, role);
+      pushToast('success', `${email} → ${role}`);
+      await loadUsers();
+    } catch (e) {
+      pushToast('error', `Role change failed: ${e}`);
+    } finally {
+      roleSaving = '';
+    }
+  }
   let newOrg = '';
   let newOrgToken = '';
   let orgSaving = false;
@@ -33,9 +64,15 @@
       loading = false;
     }
   }
-  onMount(() => {
+  onMount(async () => {
+    try {
+      me = await api.me();
+    } catch {
+      me = null;
+    }
     load();
     loadOrgs();
+    loadUsers();
   });
 
   async function addOrg() {
@@ -98,6 +135,42 @@
     </div>
   </div>
 
+  {#if isAdmin}
+  <div class="border border-line-hairline rounded-sm bg-surface-panel p-4 mb-4">
+    <div class="text-[12px] text-ink-primary font-mono mb-1">Users</div>
+    <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
+      Roles: <code class="text-ink-secondary">user</code> (default) ·
+      <code class="text-ink-secondary">superuser</code> (delegated admin, revocable) ·
+      <code class="text-ink-secondary">admin</code> (protected, cannot be changed here).
+      Users appear after their first login.
+    </p>
+    {#each users as u (u.email)}
+      <div class="flex items-center justify-between py-1.5 border-b border-line-hairline last:border-0 gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="font-mono text-[12px] text-ink-primary truncate">{u.email}</div>
+          <div class="text-[10px] text-ink-muted font-mono">
+            {u.last_login_at ? 'last login ' + u.last_login_at.slice(0, 10) : 'never logged in'}
+          </div>
+        </div>
+        {#if u.role === 'admin'}
+          <span class="font-mono text-[11px] text-ink-muted px-2 py-0.5 border border-line-hairline rounded-sm">admin (protected)</span>
+        {:else}
+          <select
+            value={u.role}
+            on:change={(e) => onRoleChange(u.email, e)}
+            disabled={roleSaving === u.email}
+            class="px-2 py-1 border border-line-strong rounded-sm bg-surface-elevated font-mono text-[11px] text-ink-primary"
+          >
+            <option value="user">user</option>
+            <option value="superuser">superuser</option>
+          </select>
+        {/if}
+      </div>
+    {/each}
+  </div>
+  {/if}
+
+  {#if isAdmin}
   <div class="border border-line-hairline rounded-sm bg-surface-panel p-4 mb-4">
     <div class="text-[12px] text-ink-primary font-mono mb-1">Organisation credentials — what the server uses</div>
     <p class="text-[11px] text-ink-muted leading-relaxed mb-2">
@@ -151,6 +224,14 @@
       >{orgSaving ? 'Verifying…' : 'Add org'}</button>
     </div>
   </div>
+  {:else}
+  <div class="border border-line-hairline rounded-sm bg-surface-panel p-4 mb-4 opacity-60">
+    <div class="text-[12px] text-ink-muted font-mono mb-1">Organisation credentials — admin only</div>
+    <p class="text-[11px] text-ink-muted leading-relaxed">
+      Organisation credentials are managed by administrators. Ask one to register an organisation.
+    </p>
+  </div>
+  {/if}
 
   {#if loading}
     <div class="text-[12px] text-ink-muted font-mono">Loading…</div>

@@ -117,6 +117,17 @@ export const api = {
       }
     ),
 
+  me: () => getJson<{ email: string; role: string }>('/api/users/me'),
+
+  listUsers: () => getJson<{ users: { email: string; role: string; last_login_at: string | null }[] }>('/api/users'),
+
+  setUserRole: (email: string, role: string) =>
+    getJson<{ email: string; role: string }>('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role })
+    }),
+
   listOrgs: () => getJson<{ orgs: { name: string; login: string | null; created_at: string }[] }>('/api/orgs'),
 
   putOrg: (name: string, token: string) =>

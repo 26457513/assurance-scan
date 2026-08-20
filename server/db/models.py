@@ -143,6 +143,20 @@ class Organisation(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 
+class User(Base):
+    """UI account. Provisioned on first Google login; role gates admin
+    surfaces. `admin` rows are immutable through the API (break-glass);
+    `superuser` is delegated admin, revocable."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_login_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class GithubAccount(Base):
     """A user's GitHub token, encrypted with TOKEN_ENCRYPTION_KEY."""
 
