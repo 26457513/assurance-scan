@@ -36,7 +36,13 @@
   }
 
   $: shortName = (path: string) => path.split('/').filter(Boolean).pop() ?? path;
-  $: projectLabel = projects.find((p) => p.project_path === $selectedProject)?.tag ?? shortName($selectedProject ?? '');
+
+  function fmtDate(iso: string | null): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
 </script>
 
 <div class="relative">
@@ -62,31 +68,40 @@
       aria-label="Close dropdown"
     ></button>
     <div
-      class="absolute top-full left-0 mt-1 w-[380px] max-h-[420px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
+      class="absolute top-full left-0 mt-1 w-[640px] max-h-[480px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
       style="box-shadow: 0 12px 32px rgba(0,0,0,0.4);"
     >
-      <div class="px-3 py-2 border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">
-        Projects
+      <div class="px-3 py-2 border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted flex items-center justify-between">
+        <span>Projects</span>
+        <span class="normal-case tracking-normal">click to focus</span>
+      </div>
+      <div class="grid grid-cols-[minmax(0,1fr)_70px_90px_90px] gap-3 px-3 py-1.5 border-b border-line-hairline text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted">
+        <div>Project</div>
+        <div class="text-right">Runs</div>
+        <div class="text-center">Catalogue</div>
+        <div class="text-right">Last scan</div>
       </div>
       <div class="overflow-auto">
         {#each projects as p (p.project_path)}
           <button
             type="button"
             on:click={() => pick(p)}
-            class="w-full text-left px-3 py-2 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 flex items-center justify-between gap-3"
+            class="w-full text-left px-3 py-2 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_70px_90px_90px] gap-3 items-center"
             class:bg-accent-subtle={$selectedProject === p.project_path}
           >
-            <div class="min-w-0 flex-1">
-              <div class="font-mono text-[12px] text-ink-primary truncate">{p.tag ?? p.project_path}</div>
+            <div class="min-w-0">
+              <div class="font-mono text-[12px] text-ink-primary truncate">{p.tag ?? shortName(p.project_path)}</div>
               <div class="text-[10px] text-ink-muted font-mono truncate">{p.project_path}</div>
-              <div class="text-[11px] text-ink-muted font-mono">
-                {p.run_count} runs{p.has_catalogue ? ' · catalogue' : ''}
-              </div>
             </div>
+            <div class="text-right font-mono text-[11px] text-ink-secondary tabular-nums">{p.run_count}</div>
+            <div class="text-center font-mono text-[10px] {p.has_catalogue ? 'text-ink-secondary' : 'text-ink-muted opacity-50'}">
+              {p.has_catalogue ? '✓' : '—'}
+            </div>
+            <div class="text-right font-mono text-[11px] text-ink-muted tabular-nums whitespace-nowrap">{fmtDate(p.last_scan_at)}</div>
           </button>
         {:else}
           <div class="px-3 py-10 text-center text-[12px] text-ink-muted font-mono">
-            no projects — run a scan first
+            no projects — add one on the Projects page
           </div>
         {/each}
       </div>

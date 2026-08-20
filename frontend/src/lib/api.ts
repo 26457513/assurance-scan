@@ -69,6 +69,19 @@ export const api = {
       `/api/mappings/versions?project_path=${encodeURIComponent(projectPath)}`
     ),
 
+  getMappingVersion: (snapshotId: string) =>
+    getJson<Record<string, unknown>>(`/api/mappings/versions/${encodeURIComponent(snapshotId)}`),
+
+  saveMapping: (projectPath: string, mappingJson: string) =>
+    getJson<{ status: string; project_path?: string; content_hash?: string; mapping_count?: number }>(
+      `/api/mappings?project_path=${encodeURIComponent(projectPath)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mapping_json: mappingJson })
+      }
+    ),
+
   listCompliancePacks: () =>
     getJson<{ packs: CompliancePack[] }>('/api/compliance/packs'),
 

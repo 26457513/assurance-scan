@@ -30,6 +30,8 @@
     if (path === '/regimes') return 'Regimes';
     if (path === '/projects' || path.startsWith('/projects/')) return 'Projects';
     if (path === '/scans' || path.startsWith('/scans/')) return 'Scans';
+    if (path === '/frs') return 'FRs';
+    if (path === '/compliance') return 'Compliance';
     if (path === '/fix') return 'Fix';
     if (path === '/trends') return 'Trends';
     return '';

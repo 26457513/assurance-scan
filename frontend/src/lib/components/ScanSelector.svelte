@@ -108,6 +108,12 @@
     return scan.run_id;
   }
 
+  function fmtWhen(iso: string): string {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   $: scanShort = $selectedScan
     ? $selectedScan.run_number != null
       ? `#${$selectedScan.run_number} ${$selectedScan.display_title ?? $selectedScan.run_id}`
@@ -120,7 +126,9 @@
   <button
     type="button"
     on:click={toggle}
-    class="flex items-center gap-2 px-2.5 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors"
+    disabled={!$selectedProject}
+    title={$selectedProject ? '' : 'select a project first'}
+    class="flex items-center gap-2 px-2.5 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
   >
     {#if isRunning}
       <span class="w-1.5 h-1.5 rounded-full bg-accent pulse-dot"></span>
@@ -142,34 +150,44 @@
       aria-label="Close dropdown"
     ></button>
     <div
-      class="absolute top-full left-0 mt-1 w-[440px] max-h-[480px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
+      class="absolute top-full left-0 mt-1 w-[720px] max-h-[480px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
       style="box-shadow: 0 12px 32px rgba(0,0,0,0.4);"
     >
       <div class="px-3 py-2 border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted flex items-center justify-between">
-        <span>Recent scans</span>
-        <span class="text-ink-muted normal-case tracking-normal">click to select</span>
+        <span>Scans</span>
+        <span class="normal-case tracking-normal">newest first · click to select</span>
+      </div>
+      <div class="grid grid-cols-[minmax(0,1fr)_110px_80px_70px_60px] gap-3 px-3 py-1.5 border-b border-line-hairline text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted">
+        <div>Scan</div>
+        <div>Branch</div>
+        <div>Status</div>
+        <div class="text-right">When</div>
+        <div class="text-right">Finds</div>
       </div>
       <div class="overflow-auto">
         {#each recent as scan (scan.run_id)}
           <button
             type="button"
             on:click={() => pick(scan)}
-            class="w-full text-left px-3 py-2 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 flex items-center justify-between gap-3"
+            class="w-full text-left px-3 py-2 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_110px_80px_70px_60px] gap-3 items-center"
             class:bg-accent-subtle={$selectedScan?.run_id === scan.run_id}
           >
-            <div class="min-w-0 flex-1">
-              <div class="font-mono text-[12px] text-ink-primary truncate" title={scan.run_id}>{scanLabel(scan)}</div>
-              <div class="text-[11px] text-ink-muted font-mono truncate">{scan.project_path}</div>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
+            <div class="font-mono text-[12px] text-ink-primary truncate" title={scan.run_id}>{scanLabel(scan)}</div>
+            <div class="font-mono text-[11px] text-ink-secondary truncate">{scan.git_branch ?? '—'}</div>
+            <div class="font-mono text-[10px] uppercase tracking-[0.08em] flex items-center gap-1.5">
               {#if scan.status === 'queued' || scan.status === 'running'}
-                <span class="w-1.5 h-1.5 rounded-full bg-accent pulse-dot"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-accent pulse-dot shrink-0"></span><span class="text-ink-secondary">{scan.status}</span>
+              {:else if scan.status === 'completed'}
+                <span class="text-ink-muted">done</span>
+              {:else}
+                <span class="text-ink-muted">{scan.status}</span>
               {/if}
-              <span class="font-mono text-[11px] text-ink-secondary tabular-nums">{scan.finding_count}</span>
             </div>
+            <div class="text-right font-mono text-[11px] text-ink-muted tabular-nums whitespace-nowrap">{fmtWhen(scan.started_at)}</div>
+            <div class="text-right font-mono text-[11px] text-ink-secondary tabular-nums">{scan.finding_count}</div>
           </button>
         {:else}
-          <div class="px-3 py-10 text-center text-[12px] text-ink-muted font-mono">no scans yet — click "New scan"</div>
+          <div class="px-3 py-10 text-center text-[12px] text-ink-muted font-mono">no scans yet for this project</div>
         {/each}
       </div>
     </div>

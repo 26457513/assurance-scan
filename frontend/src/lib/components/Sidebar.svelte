@@ -1,34 +1,26 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { selectedScan } from '$lib/stores/selectedScan';
   import { selectedProject, projectSlug } from '$lib/stores/selectedProject';
 
+  // Project-scoped items are disabled until a project is in focus (set by
+  // clicking a row in the Projects table or the header dropdown).
+  $: projectBase = $selectedProject ? `/projects/${projectSlug($selectedProject)}` : null;
+
   const nav = [
-    { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup' },
-    { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes' },
-    { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects' },
-    { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix' },
-    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends' }
+    { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup', scoped: false, divider: false },
+    { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes', scoped: false, divider: false },
+    { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects', scoped: false, divider: false },
+    { href: '', label: 'Scans', glyph: '⌗', match: '', scoped: true, divider: true },
+    { href: '/frs', label: 'FRs', glyph: '☰', match: '/frs', scoped: true, divider: false },
+    { href: '/compliance', label: 'Compliance', glyph: '⚖', match: '/compliance', scoped: true, divider: false },
+    { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix', scoped: false, divider: true },
+    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends', scoped: false, divider: false }
   ];
 
   $: path = $page.url.pathname;
   // Exact match: parent nav items highlight only on their own page, not on
-  // nested detail pages (e.g. /scans/[id] is owned by the per-scan sub-link).
+  // nested detail pages (e.g. /scans/[id] is owned by the scan selector).
   const isActive = (match: string) => path === match;
-
-  $: projectBase = $selectedProject ? `/projects/${projectSlug($selectedProject)}` : null;
-  $: projectActive = projectBase !== null && path.startsWith(projectBase);
-  $: projectShort = $selectedProject
-    ? $selectedProject.split('/').filter(Boolean).pop()
-    : null;
-
-  // Project sub-links: scans live under the project; FRs and Compliance
-  // are standalone pages.
-  const PROJECT_VIEWS = [
-    { view: 'scans', label: 'Scans', href: '' },
-    { view: 'frs', label: 'FRs', href: '/frs' },
-    { view: 'compliance', label: 'Compliance', href: '/compliance' }
-  ];
 </script>
 
 <aside class="bg-surface-panel border-r border-line-hairline flex flex-col h-full">
@@ -40,53 +32,36 @@
   </div>
 
   <nav class="flex-1 px-2 py-3 flex flex-col gap-0.5">
-    {#each nav as item (item.href)}
+    {#each nav as item (item.label)}
+      {@const disabled = item.scoped && !projectBase}
+      {@const href = item.label === 'Scans' ? projectBase : item.href}
+      {@const active = item.label === 'Scans'
+        ? projectBase !== null && path === projectBase
+        : isActive(item.match)}
       <a
-        href={item.href}
+        href={disabled ? undefined : href}
+        aria-disabled={disabled}
         class="relative flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors duration-150 rounded-sm"
-        class:bg-accent-subtle={isActive(item.match)}
-        class:text-accent={isActive(item.match)}
-        class:text-ink-secondary={!isActive(item.match)}
-        class:hover:bg-surface-elevated={!isActive(item.match)}
+        class:cursor-not-allowed={disabled}
+        class:opacity-40={disabled}
+        class:bg-accent-subtle={active}
+        class:text-accent={active}
+        class:text-ink-secondary={!active && !disabled}
+        class:hover:bg-surface-elevated={!active && !disabled}
       >
-        {#if isActive(item.match)}
+        {#if active}
           <span class="absolute left-0 top-1.5 bottom-1.5 w-[2px] bg-accent"></span>
         {/if}
         <span
           class="text-[14px] w-3 text-center transition-colors"
-          class:text-accent={isActive(item.match)}
-          class:text-ink-muted={!isActive(item.match)}
+          class:text-accent={active}
+          class:text-ink-muted={!active}
         >{item.glyph}</span>
         <span>{item.label}</span>
       </a>
 
-      {#if item.href === '/projects' && projectBase}
-        <a
-          href={projectBase}
-          class="relative ml-3 flex items-center gap-2 pl-7 pr-3 py-1.5 text-[11px] font-mono transition-colors duration-150 rounded-sm"
-          class:bg-accent-subtle={projectActive && path === projectBase}
-          class:text-accent={projectActive && path === projectBase}
-          class:text-ink-secondary={!(projectActive && path === projectBase)}
-          class:hover:bg-surface-elevated={!(projectActive && path === projectBase)}
-          title={$selectedProject ?? ''}
-        >
-          <span class="text-ink-muted select-none">└</span>
-          <span class="truncate flex-1">{projectShort}</span>
-        </a>
-        {#each PROJECT_VIEWS as v (v.view)}
-          {@const active = v.view === 'scans' ? projectActive && path === projectBase : isActive(v.href)}
-          <a
-            href={v.view === 'scans' ? projectBase : v.href}
-            class="relative ml-6 flex items-center gap-2 pl-7 pr-3 py-1.5 text-[11px] font-mono transition-colors duration-150 rounded-sm"
-            class:bg-accent-subtle={active}
-            class:text-accent={active}
-            class:text-ink-secondary={!active}
-            class:hover:bg-surface-elevated={!active}
-          >
-            <span class="text-ink-muted select-none">└</span>
-            <span class="truncate flex-1">{v.label}</span>
-          </a>
-        {/each}
+      {#if item.divider}
+        <div class="my-1 mx-3 border-t border-line-hairline"></div>
       {/if}
     {/each}
   </nav>

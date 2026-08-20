@@ -11,7 +11,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,8 +84,6 @@ async def get_catalogue_version(snapshot_id: str, session: AsyncSession = Sessio
     """The full catalogue JSON for one snapshot."""
     snapshot = await session.get(CatalogueSnapshot, snapshot_id)
     if snapshot is None:
-        from fastapi import HTTPException
-
         raise HTTPException(status_code=404, detail="snapshot not found")
     return json.loads(snapshot.snapshot_json)
 
@@ -107,6 +106,57 @@ async def list_mapping_versions(
             }
             for r in rows
         ]
+    }
+
+
+@router.get("/mappings/versions/{snapshot_id}")
+async def get_mapping_version(snapshot_id: str, session: AsyncSession = SessionDep) -> dict[str, Any]:
+    repo = ComplianceMappingRepository(session)
+    snapshot = await repo.get_snapshot(snapshot_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="snapshot not found")
+    return json.loads(snapshot.mapping_doc_json)
+
+
+class SaveMappingBody(BaseModel):
+    mapping_json: str
+
+
+@router.post("/mappings")
+async def save_mapping(
+    body: SaveMappingBody,
+    project_path: str = Query(...),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    """Validate and store a compliance mapping for a project.
+
+    REST mirror of the MCP save_mapping tool. Used by the Compliance
+    page's paste flow.
+    """
+    from server.mapping import load_mapping_from_dict
+
+    try:
+        doc = json.loads(body.mapping_json)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"invalid JSON: {exc}") from exc
+
+    try:
+        mapping = load_mapping_from_dict(doc, project_path)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"mapping validation failed: {exc}") from exc
+
+    repo = ComplianceMappingRepository(session)
+    await repo.upsert(
+        project_path=project_path,
+        content_hash=mapping.content_hash,
+        mapping_doc=mapping.doc,
+    )
+    await session.commit()
+    return {
+        "status": "saved",
+        "project_path": project_path,
+        "content_hash": mapping.content_hash,
+        "mapping_count": len(mapping.doc.get("mappings", [])),
     }
 
 
