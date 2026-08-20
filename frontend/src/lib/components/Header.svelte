@@ -1,8 +1,19 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { api } from '$lib/api';
   import ProjectSelector from './ProjectSelector.svelte';
   import CatalogueSelector from './CatalogueSelector.svelte';
   import ScanSelector from './ScanSelector.svelte';
+
+  let me: { email: string; role: string } | null = null;
+  onMount(async () => {
+    try {
+      me = await api.me();
+    } catch {
+      me = null;
+    }
+  });
 
   $: path = $page.url.pathname;
   $: section = (() => {
@@ -26,4 +37,19 @@
   <ScanSelector />
   <span class="text-ink-muted font-mono text-[11px]">·</span>
   <CatalogueSelector />
+  <span class="flex-1"></span>
+  {#if me}
+    <a
+      href="/settings"
+      title="Settings"
+      class="flex items-center gap-2 px-2.5 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors"
+    >
+      <span class="font-mono text-[11px] text-ink-primary">{me.email.split('@')[0]}</span>
+      <span
+        class="font-mono text-[9px] uppercase tracking-[0.1em] px-1.5 py-0.5 rounded-sm border"
+        style="color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent);"
+        title={me.email}
+      >{me.role}</span>
+    </a>
+  {/if}
 </header>
