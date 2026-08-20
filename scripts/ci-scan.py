@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from server.worker.parsers import parser_for
 from server.worker.parsers.base import ParsedFinding
 from server.worker.runner import DockerRunner
-from server.worker.sarif import build_sarif, ci_payload, github_run_url, summary_markdown
+from server.worker.sarif import SCANNER_DESCRIPTIONS, build_sarif, ci_payload, github_run_url, summary_markdown
 from server.worker.scanners import ci_scanner_set
 
 SBOM_FILENAME = "sbom.cyclonedx.json"
