@@ -17,7 +17,9 @@
   $: isAdmin = me?.role === 'admin' || me?.role === 'superuser';
 
   async function loadUsers() {
-    if (!isAdmin) return;
+    // Read me directly — the derived isAdmin may not have propagated yet
+    // when this is called imperatively right after the await in onMount.
+    if (me?.role !== 'admin' && me?.role !== 'superuser') return;
     try {
       users = (await api.listUsers()).users;
     } catch {
