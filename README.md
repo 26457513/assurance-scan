@@ -8,16 +8,21 @@ built around the OWASP **ASVS** standard.
 **The model in one picture:**
 
 ```
-GitHub repos  ──push──▶  GitHub Actions  ──scan──▶  artifact (SARIF/SBOM/findings)
-     ▲                                                    │
-     │ workflow_dispatch / scan-remote runner             │ poll (60s)
-     │                                                    ▼
-  UI "Scan now"  ◀────  droplet (server + UI + SQLite)  ── poller
+org repos ──push──▶ GitHub Actions ──scan──▶ artifact (SARIF/SBOM/findings)
+   (any org)             │                              │
+   ▲ workflow_dispatch   │ reusable workflow (home org) │ poll (60s, all orgs)
+   │ or scan-remote      │ or vendored stub (any org)   ▼
+   │                                             droplet (server+UI+SQLite)
+  UI "Scan now"  ◀──────────────────────────────────────  poller
 ```
 
-- **CI tier** — repos with a 6-line stub scan every push and PR; results
-  appear in GitHub (Step Summary, PR comment, deep link) *and* the UI.
-- **Instant tier** — *Scan now* in the UI scans any repo your GitHub token
+One central instance serves multiple GitHub organisations. Each org
+registers once (a PAT in Settings); its repos add a stub; everything else
+is automatic.
+
+- **CI tier** — repos with a stub scan every push and PR; results appear in
+  GitHub (Step Summary, PR comment, deep link) *and* the UI.
+- **Instant tier** — *Scan now* in the UI scans any repo a resolved token
   can read, with zero footprint on that repo.
 
 ## Architecture
@@ -32,6 +37,7 @@ GitHub repos  ──push──▶  GitHub Actions  ──scan──▶  artifact
 | `.github/workflows/scan.yml` | Reusable CI workflow used by org repos |
 | `.github/workflows/scan-remote.yml` | Runner for on-demand scans of external repos |
 | `scripts/ci-scan.py` | Standalone scanner CLI (no server, no DB) |
+| `templates/assurance-scan.yml` | Vendored stub for repos outside the home org |
 
 Design notes live in `docs/plan-*.md`.
 
@@ -84,15 +90,15 @@ One-time:
 ### Droplet `.env`
 
 ```
-GITHUB_POLL_TOKEN=<fine-grained PAT: org owner, Actions+Contents read>
-GITHUB_ORG=26457513
+GITHUB_POLL_TOKEN=<fine-grained PAT: home-org owner, Actions+Contents read>
+GITHUB_ORG=26457513            # home org; others are registered in the UI
 DOMAIN=scan.yourdomain.com
 GOOGLE_CLIENT_ID=<OAuth client>        # auth: Google Workspace login
 GOOGLE_CLIENT_SECRET=<...>
 GOOGLE_DOMAIN=yourdomain.com
 SESSION_SECRET=<random 32+ chars>
 PUBLIC_BASE_URL=https://scan.yourdomain.com
-TOKEN_ENCRYPTION_KEY=<random 32+ chars>   # encrypts user GitHub tokens
+TOKEN_ENCRYPTION_KEY=<random 32+ chars>   # encrypts user + org tokens
 RUNNER_PULL_TOKEN=<random 24+ chars>      # shared with scan-remote.yml
 # APP_AUTH_USER / APP_AUTH_PASSWORD      # optional Basic Auth fallback
 ```
@@ -145,6 +151,12 @@ jobs:
     uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
 ```
 
+Repos **outside the home org** can't reference the private reusable workflow —
+they use the vendored stub instead: copy `templates/assurance-scan.yml`
+(self-contained, pulls the public scanner image, needs no grants or secrets)
+and set the default branch in `push.branches`. Same workflow name, same
+results, same ingestion.
+
 Each run produces a Step Summary (per-tool severity matrix, runtimes, deep
 link to the hosted UI) and an `assurance-scan-results` artifact (SARIF,
 CycloneDX SBOM, `findings.json`). Repos with a root `Dockerfile` also get a
@@ -152,7 +164,9 @@ Trivy image scan of the build. Scans never fail the workflow.
 
 ## Adding another organisation
 
-One central instance serves all organisations. An org's complete onboarding:
+The instance polls the home org (`GITHUB_ORG`) plus every organisation
+registered in **Settings → GitHub organisations**. An org's complete
+onboarding:
 
 1. **Register the org** (Settings → GitHub organisations): org name + a
    fine-grained PAT owned by that org (Actions+Contents read on its repos).
@@ -175,11 +189,12 @@ stays private to the product owner.
 ## On-demand scans from the UI
 
 *Scan now* on any project page (repo prefilled, any `owner/repo` accepted,
-optional branch/SHA). Repos with the stub dispatch it directly; everything
-else runs through `assurance-scan-remote` in the assurance-scan repo, which
-pulls the target's code from the server's tarball proxy — user GitHub tokens
-(encrypted at rest, added in **Settings**) never enter GitHub Actions, and
-the target repo sees nothing.
+optional branch/SHA). Token resolution: the signed-in user's token
+(**Settings**, encrypted at rest) → the org's registered token → the
+home-org token. Repos with the stub dispatch it directly; everything else
+runs through `assurance-scan-remote` in the assurance-scan repo, which pulls
+the target's code from the server's tarball proxy — user tokens never enter
+GitHub Actions, and the target repo sees nothing.
 
 ## Scanner set
 
