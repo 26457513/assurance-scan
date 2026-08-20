@@ -117,6 +117,10 @@ export const api = {
       }
     ),
 
+  logout: async (): Promise<void> => {
+    await fetch('/auth/logout', { method: 'GET' });
+  },
+
   me: () => getJson<{ email: string; role: string }>('/api/users/me'),
 
   listUsers: () => getJson<{ users: { email: string; role: string; last_login_at: string | null }[] }>('/api/users'),

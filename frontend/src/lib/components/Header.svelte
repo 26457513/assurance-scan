@@ -6,6 +6,8 @@
   import CatalogueSelector from './CatalogueSelector.svelte';
   import ScanSelector from './ScanSelector.svelte';
 
+  import { goto } from '$app/navigation';
+
   let me: { email: string; role: string } | null = null;
   onMount(async () => {
     try {
@@ -14,6 +16,13 @@
       me = null;
     }
   });
+
+  async function logout() {
+    await api.logout();
+    me = null;
+    goto('/');
+    location.reload();
+  }
 
   $: path = $page.url.pathname;
   $: section = (() => {
@@ -51,5 +60,11 @@
         title={me.email}
       >{me.role}</span>
     </a>
+    <button
+      type="button"
+      on:click={logout}
+      title="Sign out"
+      class="px-2 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors text-[11px] font-mono text-ink-muted hover:text-ink-primary"
+    >⏻</button>
   {/if}
 </header>
