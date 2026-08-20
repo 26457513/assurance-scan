@@ -218,7 +218,10 @@
         class="w-44 px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
       />
       <input
-        type="password"
+        type="text"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
         bind:value={newOrgToken}
         placeholder="org PAT (Contents:Read, Actions:Read+Write)"
         class="flex-1 px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
@@ -271,7 +274,10 @@
       </ul>
       <div class="flex gap-2">
         <input
-          type="password"
+          type="text"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
           bind:value={newToken}
           placeholder="github_pat_…"
           class="flex-1 px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
