@@ -176,10 +176,8 @@
   <div class="border border-line-hairline rounded-sm bg-surface-panel p-4 mb-4">
     <div class="text-[12px] text-ink-primary font-mono mb-1">Organisation credentials</div>
     <ul class="text-[11px] text-ink-muted leading-relaxed mb-3 list-disc pl-4">
-      <li><strong class="text-ink-secondary">What it enables:</strong> automatic result ingestion, source peeks, and Scan now for every repo in the organisation.</li>
-      <li><strong class="text-ink-secondary">Without it:</strong> the org's repos never appear in the dashboard.</li>
-      <li><strong class="text-ink-secondary">How:</strong> org admin creates a fine-grained PAT — resource owner = the org, all repositories, <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code>.</li>
-      <li><strong class="text-ink-secondary">Safety:</strong> stored encrypted, verified on save.</li>
+      <li><strong class="text-ink-secondary">What it enables:</strong> automatic result ingestion, source peeks, and Scan now for every repo in the organisation — without it, the org's repos never appear.</li>
+      <li><strong class="text-ink-secondary">How:</strong> GitHub → your avatar → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate. Set resource owner = the org, all repositories, <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code>. Paste the token below — it is stored encrypted, verified on save. (The server's own home org uses the same kind of token via <code class="text-ink-secondary">GITHUB_POLL_TOKEN</code> in its <code class="text-ink-secondary">.env</code>.)</li>
     </ul>
     {#if orgs.length > 0}
       <div class="mb-3">
