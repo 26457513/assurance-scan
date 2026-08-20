@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
@@ -120,17 +119,22 @@
     }
   }
 
-  onMount(async () => {
+  // Reactive, not onMount: SvelteKit keeps this component alive across
+  // /projects/a → /projects/b param changes, so switching project in the
+  // header dropdown must reload the table.
+  $: if (projectPath) {
     selectProject(projectPath);
+    selectedRunId = '';
+    pg = 0;
+    loading = true;
     loadScans();
-    try {
-      const projects = (await api.listProjects()).projects;
-      const me = projects.find((p) => p.project_path === projectPath);
-      defaultScanRef = (me as { default_scan_ref?: string | null })?.default_scan_ref ?? null;
-    } catch {
-      defaultScanRef = null;
-    }
-  });
+    api.listProjects()
+      .then((r) => {
+        const me = r.projects.find((p) => p.project_path === projectPath);
+        defaultScanRef = (me as { default_scan_ref?: string | null })?.default_scan_ref ?? null;
+      })
+      .catch(() => (defaultScanRef = null));
+  }
 
   function switchView(id: string) {
     goto(`/projects/${$page.params.slug}?view=${id}`, { noScroll: true });
