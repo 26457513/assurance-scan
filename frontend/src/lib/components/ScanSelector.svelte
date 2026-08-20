@@ -85,11 +85,14 @@
     pushToast('info', `Selected ${shortLabel(scan.run_id)}`);
     const url = new URL(window.location.href);
     url.searchParams.set('run_id', scan.run_id);
-    // If currently on a scan detail page, navigate to the new scan's detail
-    // (preserving the current tab) so the URL path stays in sync with the selection.
+    // Keep the URL in sync with the selection: scan detail pages change
+    // path, project pages take the ?run= deep-link param.
     const scanPathMatch = url.pathname.match(/^\/scans\/[^/]+/);
     if (scanPathMatch) {
       url.pathname = `/scans/${scan.run_id}`;
+    }
+    if (url.pathname.match(/^\/projects\/[^/]+/)) {
+      url.searchParams.set('run', scan.run_id);
     }
     goto(`${url.pathname}?${url.searchParams.toString()}`, { noScroll: true });
   }

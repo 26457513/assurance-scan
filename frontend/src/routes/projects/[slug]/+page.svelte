@@ -5,6 +5,7 @@
   import { api } from '$lib/api';
   import { pushToast } from '$lib/stores/toasts';
   import { selectProject, slugToProject } from '$lib/stores/selectedProject';
+  import { selectedScan, selectScan } from '$lib/stores/selectedScan';
   import ScanDetail from '$lib/components/ScanDetail.svelte';
   import type { ScanSummary } from '$lib/types';
 
@@ -137,6 +138,18 @@
 
   function pickScan(runId: string) {
     selectedRunId = runId;
+    const s = scans.find((x) => x.run_id === runId);
+    if (s) selectScan(s);
+  }
+
+  // The header scan dropdown drives the table row + detail view; jump
+  // pagination so the highlighted row is visible.
+  $: if ($selectedScan && $selectedScan.run_id !== selectedRunId) {
+    const idx = scans.findIndex((s) => s.run_id === $selectedScan.run_id);
+    if (idx !== -1) {
+      selectedRunId = $selectedScan.run_id;
+      pg = Math.floor(idx / pageSize);
+    }
   }
 
   $: latestScan = projectScans.reduce(
