@@ -90,7 +90,7 @@ One-time:
 ### Droplet `.env`
 
 ```
-GITHUB_POLL_TOKEN=<fine-grained PAT: home-org owner, Actions+Contents read>
+GITHUB_POLL_TOKEN=<fine-grained PAT: home-org owner, Contents:Read, Actions:Read+Write>
 GITHUB_ORG=26457513            # home org; others are registered in the UI
 DOMAIN=scan.yourdomain.com
 GOOGLE_CLIENT_ID=<OAuth client>        # auth: Google Workspace login
@@ -160,17 +160,17 @@ registered in **Settings → GitHub organisations**. An org's complete
 onboarding:
 
 1. **Register the org** (Settings → GitHub organisations): org name + a
-   fine-grained PAT owned by that org (Actions+Contents read on its repos).
-   Verified and stored encrypted on save; the poller picks up its repos on
-   the next cycle.
+   fine-grained PAT owned by that org (Contents:Read; Actions:Read — plus
+   Actions:Write if the org's repos should support the UI's *Scan now*
+   button). Verified and stored encrypted on save; the poller picks up its
+   repos on the next cycle.
 2. **Per repo**: copy `templates/assurance-scan.yml` into
    `.github/workflows/`, keep `ASSURANCE_SCAN_URL` pointing at this
    instance, set the default branch in `push.branches`. The scanner image is
    public — no GHCR grants or secrets needed.
-3. Runs appear in the shared UI within a minute; deep links and *Scan now*
-   (via any user token that can write Actions there) work the same as for
-   the home org. Identity is org-qualified (`github:{owner}/{repo}`), so
-   projects never collide across orgs.
+3. Runs appear in the shared UI within a minute; deep links work the same
+   as for the home org. Identity is org-qualified (`github:{owner}/{repo}`),
+   so projects never collide across orgs.
 
 Auth today is the home org's Google Workspace; external users use the Basic
 Auth fallback until multi-tenant SSO arrives. The scanner image
@@ -181,12 +181,25 @@ stays private to the product owner.
 
 *Scan now* on any project page (repo prefilled, any `owner/repo` accepted,
 optional branch/SHA) dispatches the repo's own `assurance-scan` workflow —
-the run executes on that repo's compute. Token resolution: the signed-in
-user's token (**Settings**, encrypted at rest) → the org's registered
-token → the home-org token; dispatch needs Actions:Write. Repos without
-the stub are refused with setup guidance (copy
-`templates/assurance-scan.yml`; delete the `push`/`pull_request` triggers
-for a manual-only variant that costs nothing until clicked).
+the run executes on that repo's compute. Every scan runs on the target
+repo's own Actions minutes; this instance never executes scans.
+
+**Token requirements** — workflow dispatch needs a token with
+**Actions: Read and write** on the target repo. Resolution order:
+
+1. the signed-in user's personal token (**Settings**, encrypted at rest),
+2. the target org's registered token (if it was granted Actions:Write),
+3. the home-org token (`GITHUB_POLL_TOKEN` — grant it Actions:Read+Write
+   in the fine-grained token editor to make the button work org-wide).
+
+A `503/502 … 403 Forbidden` from the button means the resolved token is
+read-only: widen it per the list above (editing a PAT's permissions
+doesn't change its value — the server picks it up immediately).
+
+Repos without the stub are refused with setup guidance (copy
+`templates/assurance-scan.yml` from the public
+`assurance-scan-ci` repo; delete the `push`/`pull_request` triggers for a
+manual-only variant that costs nothing until clicked).
 
 ## Scanner set
 
