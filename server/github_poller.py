@@ -67,9 +67,18 @@ class GitHubClient:
             return resp.read()
 
     def org_repos(self, org: str) -> list[dict[str, Any]]:
-        """Full names of the org's non-archived repos."""
-        doc = self._get(f"{API_ROOT}/orgs/{org}/repos?per_page=100")
-        return [r for r in doc if not r.get("archived")]
+        """Full names of the org's non-archived repos, paginated to completion."""
+        repos: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            doc = self._get(f"{API_ROOT}/orgs/{org}/repos?per_page=100&page={page}")
+            batch = [r for r in doc if not r.get("archived")]
+            repos.extend(batch)
+            if len(doc) < 100:
+                return repos
+            page += 1
+            if page > 20:  # ponytail: 2000 repos is plenty; raise if an org exceeds it
+                return repos
 
     def file_contents(self, repo: str, commit: str, path: str) -> bytes:
         """Raw file bytes at a commit. Raises urllib.error.HTTPError on 404/403."""
