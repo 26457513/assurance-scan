@@ -45,12 +45,12 @@ class DriftResponse(BaseModel):
     catalogue_snapshot_id: str | None = None
     catalogue_version: str | None = None
     catalogue_content_hash: str | None = None
-    snapshot_commit: str | None
-    current_commit: str | None
-    code_moved: bool | None
-    missing_files: list[MissingFile]
-    unresolved_patterns: list[UnresolvedPattern]
-    drifted_fr_ids: list[str]
+    snapshot_commit: str | None = None
+    current_commit: str | None = None
+    code_moved: bool | None = None
+    missing_files: list[MissingFile] = []
+    unresolved_patterns: list[UnresolvedPattern] = []
+    drifted_fr_ids: list[str] = []
 
 
 def _module_resolves(root: Path, name_pattern: str) -> bool:
