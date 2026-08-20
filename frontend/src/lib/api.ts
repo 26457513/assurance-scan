@@ -143,7 +143,10 @@ export const api = {
     ),
 
   logout: async (): Promise<void> => {
-    await fetch('/auth/logout', { method: 'GET' });
+    // redirect:'manual' — the endpoint 307s to the login flow, and following
+    // it into the Google redirect chain fails fetch on CORS. The cookie is
+    // cleared by the first response either way.
+    await fetch('/auth/logout', { method: 'GET', redirect: 'manual' });
   },
 
   me: () => getJson<{ email: string; role: string }>('/api/users/me'),
