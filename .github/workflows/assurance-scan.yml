@@ -13,11 +13,10 @@ on:
 
 permissions:
   contents: read
-  packages: read       # pull the scanner image from org GHCR
   actions: write        # build layer cache
   pull-requests: write  # assurance-scan PR comment
 
 jobs:
   scan:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
+    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@main

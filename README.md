@@ -35,7 +35,7 @@ is automatic. **All scanning runs on the target org's own GitHub compute**
 | `Dockerfile.ci` | Slim scanner orchestrator (glue only; scanners run as stock public images) |
 | `Dockerfile` | Full app image (server + built frontend) |
 | `compose.yaml` | Local + cloud deployment (identical containers) |
-| `.github/workflows/scan.yml` | Reusable CI workflow used by org repos |
+| `assurance-scan-ci` (public repo) | Reusable CI workflow + vendored template for any org |
 | `scripts/ci-scan.py` | Standalone scanner CLI (no server, no DB) |
 | `templates/assurance-scan.yml` | Vendored stub for repos outside the home org |
 
@@ -124,13 +124,8 @@ off-box.
 
 ## Adding CI scanning to a repo
 
-One-time org setup: (1) `assurance-scan` repo → Settings → Actions → Access →
-"Accessible from repositories in \<org\>"; (2) Actions policy → allow all;
-(3) after the first `publish-ci-image` run, grant repos access to the
-`assurance-scan-ci` GHCR package (package settings → Manage Actions access →
-role Read).
-
-Then add `.github/workflows/assurance-scan.yml` to the repo:
+Add `.github/workflows/assurance-scan.yml` to the repo — the same stub for
+every org, home or external (the referenced repo and image are public):
 
 ```yaml
 name: assurance-scan
@@ -142,19 +137,16 @@ on:
     branches: [<default branch>]
 permissions:
   contents: read
-  packages: read       # scanner image from org GHCR
   actions: write
   pull-requests: write
 jobs:
   scan:
-    uses: 26457513/assurance-scan/.github/workflows/scan.yml@main
+    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@main
 ```
 
-Repos **outside the home org** can't reference the private reusable workflow —
-they use the vendored stub instead: copy `templates/assurance-scan.yml`
-(self-contained, pulls the public scanner image, needs no grants or secrets)
-and set the default branch in `push.branches`. Same workflow name, same
-results, same ingestion.
+Orgs whose Actions policy blocks external references use the self-contained
+copy at `github.com/26457513/assurance-scan-ci` → `templates/assurance-scan.yml`.
+No GHCR grants or secrets are needed — the scanner image is public.
 
 Each run produces a Step Summary (per-tool severity matrix, runtimes, deep
 link to the hosted UI) and an `assurance-scan-results` artifact (SARIF,
