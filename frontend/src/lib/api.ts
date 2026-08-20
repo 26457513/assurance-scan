@@ -71,9 +71,11 @@ export const api = {
   listProjects: () => getJson<{ projects: ProjectSummary[] }>('/api/projects'),
 
   githubRepos: () =>
-    getJson<{ org?: string; repos: { full_name: string; name?: string; pushed_at?: string; html_url?: string }[] }>(
-      '/api/github/repos'
-    ),
+    getJson<{
+      org?: string;
+      repos: { full_name: string; name?: string; org?: string; pushed_at?: string; html_url?: string }[];
+      errors?: string[];
+    }>('/api/github/repos'),
 
   githubSource: (repo: string, commit: string, path: string, line?: number | null) =>
     getJson<{

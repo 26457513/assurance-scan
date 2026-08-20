@@ -67,26 +67,29 @@ async def create_project(
 
     tag = tag.strip()
     local_path = _os.path.expanduser(local_path.strip())
-    if not tag or not local_path:
-        raise HTTPException(status_code=400, detail="tag and local_path are required")
-    if not _os.path.isdir(local_path):
-        raise HTTPException(status_code=422, detail=f"local path not found on this machine: {local_path}")
-
     repo = _parse_github_repo(github_url.strip())
+    if not tag:
+        raise HTTPException(status_code=400, detail="tag is required")
+    if not local_path and not repo:
+        raise HTTPException(status_code=400, detail="local_path or a GitHub repo URL is required")
+    if local_path and not repo and not _os.path.isdir(local_path):
+        raise HTTPException(status_code=422, detail=f"local path not found on this machine: {local_path}")
+    # GitHub-only projects anchor on the scan identity itself.
+    anchor = local_path if local_path else f"github:{repo}"
     from sqlalchemy import select as _select
 
     existing = (
         await session.execute(
-            _select(Project).where((Project.tag == tag) | (Project.local_path == local_path))
+            _select(Project).where((Project.tag == tag) | (Project.local_path == anchor))
         )
     ).scalars().first()
     if existing is not None:
         raise HTTPException(status_code=409, detail="a project with this tag or local path already exists")
 
-    project = Project(tag=tag, local_path=local_path, github_repo=repo)
+    project = Project(tag=tag, local_path=anchor, github_repo=repo)
     session.add(project)
     await session.commit()
-    return {"status": "created", "tag": tag, "local_path": local_path, "github_repo": repo}
+    return {"status": "created", "tag": tag, "local_path": anchor, "github_repo": repo}
 
 
 def _parse_github_repo(url: str) -> str | None:

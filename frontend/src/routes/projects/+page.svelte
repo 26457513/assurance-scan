@@ -17,6 +17,26 @@
   let newPath = '';
   let newRepo = '';
   let adding = false;
+  let availableRepos: { full_name: string; org?: string; pushed_at?: string }[] = [];
+  let repoFilter = '';
+
+  async function loadAvailableRepos() {
+    if (availableRepos.length > 0) return;
+    try {
+      availableRepos = (await api.githubRepos()).repos;
+    } catch {
+      availableRepos = [];
+    }
+  }
+
+  function pickRepo(fullName: string) {
+    newRepo = `https://github.com/${fullName}`;
+    if (!newTag.trim()) newTag = fullName.split('/').pop() ?? fullName;
+  }
+
+  $: filteredRepos = repoFilter.trim()
+    ? availableRepos.filter((r) => r.full_name.toLowerCase().includes(repoFilter.trim().toLowerCase()))
+    : availableRepos;
 
   let editOpen = false;
   let editId: number | null = null;
@@ -179,7 +199,7 @@
       {/if}
       <button
         type="button"
-        on:click={() => (addOpen = true)}
+        on:click={() => { addOpen = true; loadAvailableRepos(); }}
         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
       >
       <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none"><path d="M6 2v8M2 6h8" stroke-linecap="round" /></svg>
@@ -334,21 +354,49 @@
               class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
           </div>
           <div>
-            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-path">Local path (full path on this machine)</label>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-path">Local path (optional for GitHub-only)</label>
             <input id="np-path" type="text" bind:value={newPath} placeholder="/Users/you/Development/project"
               class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
           </div>
           <div>
-            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-repo">GitHub repo URL (org/repo or full URL)</label>
-            <input id="np-repo" type="text" bind:value={newRepo} placeholder="https://github.com/26457513/project"
-              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-repo">GitHub repo (optional — pick or type)</label>
+            <input
+              id="np-repo"
+              type="text"
+              bind:value={newRepo}
+              placeholder="https://github.com/org/project"
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+            />
+            {#if availableRepos.length > 0}
+              <input
+                type="text"
+                bind:value={repoFilter}
+                placeholder="filter repos…"
+                class="w-full mt-2 px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-secondary"
+              />
+              <div class="mt-2 max-h-40 overflow-y-auto border border-line-hairline rounded-sm">
+                {#each filteredRepos as r (r.full_name)}
+                  <button
+                    type="button"
+                    on:click={() => pickRepo(r.full_name)}
+                    class="w-full text-left px-2 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 font-mono text-[11px]"
+                    class:bg-accent-subtle={newRepo === `https://github.com/${r.full_name}`}
+                  >
+                    <span class="text-ink-primary">{r.full_name}</span>
+                    <span class="text-ink-muted ml-2">{r.org}</span>
+                  </button>
+                {/each}
+              </div>
+            {:else}
+              <p class="text-[10px] text-ink-muted font-mono mt-1">Loading available repos…</p>
+            {/if}
           </div>
-          <p class="text-[10px] text-ink-muted font-mono">GitHub access uses the org key already configured on the server (.env).</p>
+          <p class="text-[10px] text-ink-muted font-mono">Local path is optional for GitHub-only projects.</p>
         </div>
         <div class="flex justify-end gap-2">
           <button type="button" on:click={() => (addOpen = false)}
             class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
-          <button type="button" on:click={addProject} disabled={adding || !newTag.trim() || !newPath.trim()}
+          <button type="button" on:click={addProject} disabled={adding || !newTag.trim() || (!newPath.trim() && !newRepo.trim())}
             class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary disabled:opacity-50">{adding ? 'Saving…' : 'Register'}</button>
         </div>
       </div>

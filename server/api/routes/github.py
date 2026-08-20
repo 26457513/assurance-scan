@@ -7,8 +7,11 @@ import functools
 import urllib.error
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from server.api.deps import SessionDep
 from server.github_poller import GitHubClient
 
 
@@ -19,27 +22,41 @@ CONTEXT_PAD = 3  # lines above/below the flagged line
 
 
 @router.get("/repos")
-async def list_repos(request: Request) -> dict[str, Any]:
+async def list_repos(request: Request, session: AsyncSession = SessionDep) -> dict[str, Any]:
+    """All repos visible across the home org and every registered org."""
+    from sqlalchemy import select as sa_select
+
+    from server.db.models import Organisation
+    from server.secrets import decrypt
+
     settings = request.app.state.settings
-    if not settings.github_poll_token or not settings.github_org:
-        return {"org": settings.github_org, "repos": []}
-    client = GitHubClient(settings.github_poll_token)
-    try:
-        repos = await asyncio.to_thread(client.org_repos, settings.github_org)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"GitHub listing failed: {exc}") from exc
-    return {
-        "org": settings.github_org,
-        "repos": [
-            {
-                "full_name": r["full_name"],
-                "name": r.get("name"),
-                "pushed_at": r.get("pushed_at"),
-                "html_url": r.get("html_url"),
-            }
-            for r in repos
-        ]
-    }
+    org_tokens: list[tuple[str, str]] = []
+    if settings.github_poll_token and settings.github_org:
+        org_tokens.append((settings.github_org, settings.github_poll_token))
+    if settings.token_encryption_key:
+        rows = (await session.execute(sa_select(Organisation))).scalars().all()
+        for row in rows:
+            token = decrypt(row.token_encrypted, settings.token_encryption_key)
+            if token:
+                org_tokens.append((row.name, token))
+
+    repos: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for org, token in org_tokens:
+        try:
+            listed = await asyncio.to_thread(GitHubClient(token).org_repos, org)
+        except Exception as exc:
+            errors.append(f"{org}: {exc}")
+            continue
+        repos.extend({
+            "full_name": r["full_name"],
+            "name": r.get("name"),
+            "org": org,
+            "pushed_at": r.get("pushed_at"),
+            "html_url": r.get("html_url"),
+        } for r in listed)
+    repos.sort(key=lambda r: r["full_name"])
+    return {"org": settings.github_org, "repos": repos, "errors": errors}
 
 
 def _window(lines: list[str], line: int | None, pad: int = CONTEXT_PAD) -> dict[str, Any]:
