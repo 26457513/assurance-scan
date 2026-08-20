@@ -22,6 +22,8 @@ TRIBAL_FILENAME = "tribal-checks.json"
 # Guards against pathological content scans (also bounds ReDoS exposure).
 MAX_FILE_SCAN_BYTES = 2_000_000
 MAX_FILES_PER_GLOB = 20_000
+# Line counting is safe on big files; only I/O bounds it.
+MAX_LINECOUNT_BYTES = 20_000_000
 
 VALID_SEVERITIES = {"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"}
 VALID_TYPES = {
@@ -131,6 +133,23 @@ def _read_text(path: Path) -> str | None:
     return data.decode("utf-8", errors="replace")
 
 
+def _count_lines(path: Path) -> int | None:
+    """Line count on raw bytes; None for binaries or files past the ceiling."""
+    try:
+        with path.open("rb") as fh:
+            head = fh.read(8192)
+            if b"\0" in head:
+                return None
+            n = head.count(b"\n")
+            while chunk := fh.read(1 << 20):
+                n += chunk.count(b"\n")
+                if fh.tell() > MAX_LINECOUNT_BYTES:
+                    return None
+            return n
+    except OSError:
+        return None
+
+
 def _finding(check: Check, message: str, file_path: str | None = None,
              line: int | None = None) -> ParsedFinding:
     return ParsedFinding(
@@ -201,10 +220,9 @@ def _run_one(root: Path, check: Check) -> list[ParsedFinding]:
         limit = int(p["max_lines"])
         exclude = p.get("exclude", [])
         for f in _glob_files(root, glob, exclude):
-            text = _read_text(f)
-            if text is None:
+            n = _count_lines(f)
+            if n is None:
                 continue
-            n = text.count("\n")
             if n > limit:
                 rel = f.relative_to(root).as_posix()
                 out.append(_finding(

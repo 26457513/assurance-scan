@@ -118,3 +118,12 @@ def test_file_max_lines(repo: Path) -> None:
     assert len(findings) == 1
     assert findings[0].file_path == "big.py"
     assert "50 lines" in findings[0].message
+
+
+def test_file_max_lines_counts_files_past_content_scan_cap(repo: Path) -> None:
+    # 2.1MB of text: past _read_text's 2MB cap, still line-counted.
+    (repo / "huge.py").write_bytes(b"x" * 2097150 + b"\n\n\n")
+    _write(repo, [{"id": "lines", "type": "file_max_lines", "glob": "**/*.py", "max_lines": 2}])
+    findings = run_checks(repo, load_checks(repo))
+    assert len(findings) == 1
+    assert findings[0].file_path == "huge.py"
