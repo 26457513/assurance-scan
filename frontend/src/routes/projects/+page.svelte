@@ -362,10 +362,51 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
       <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (editOpen = false)} aria-label="Close"></button>
       <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
-        <div class="text-[13px] text-ink-primary mb-4 font-mono">{editId == null ? 'Register project' : 'Edit project'}</div>
+        <div class="text-[13px] text-ink-primary mb-4 font-mono">Edit project</div>
         <div class="space-y-3 mb-5">
           <div>
-            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-tag">Tag</label>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-tag">Tag</label>
+            <input id="ep-tag" type="text" bind:value={editTag}
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-path">Local path / anchor</label>
+            <input id="ep-path" type="text" bind:value={editPath}
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-repo">GitHub repo URL (empty clears)</label>
+            <input id="ep-repo" type="text" bind:value={editRepo} placeholder="https://github.com/org/project"
+              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
+          </div>
+        </div>
+        <div class="flex justify-between items-center gap-2">
+          <button
+            type="button"
+            on:click={() => editingProject && removeProject(editingProject)}
+            class="px-3 py-1.5 rounded-sm border text-[11px] font-mono uppercase tracking-[0.1em] transition-colors"
+            style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent);"
+            title="Removes the project registration from assurance-scan only — nothing is deleted from GitHub"
+          >Remove project</button>
+          <div class="flex gap-2">
+            <button type="button" on:click={() => (editOpen = false)}
+              class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
+            <button type="button" on:click={saveEdit} disabled={editing || !editTag.trim() || (!editPath.trim() && !editRepo.trim())}
+              class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary disabled:opacity-50">{editing ? 'Saving…' : 'Save'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if addOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (addOpen = false)} aria-label="Close"></button>
+      <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-lg w-full p-5">
+        <div class="text-[13px] text-ink-primary mb-4 font-mono">Add project</div>
+        <div class="space-y-3 mb-5">
+          <div>
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-tag">Tag (defaults to repo name)</label>
             <input id="np-tag" type="text" bind:value={newTag} placeholder="repo name is used if left blank"
               class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
           </div>
