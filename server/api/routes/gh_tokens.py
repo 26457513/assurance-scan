@@ -199,8 +199,16 @@ async def put_org(
     # The token must actually see the org's repos.
     try:
         repos = await _await_or_run(client.org_repos, name)
-    except Exception:
-        raise HTTPException(status_code=422, detail=f"token cannot read organisation '{name}'")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"token cannot read organisation '{name}': {exc}. "
+                "Check the token's Resource owner is the organisation itself "
+                "and that the org allows fine-grained PATs "
+                "(org Settings > Personal access tokens)."
+            ),
+        )
 
     from server.db.models import Organisation
 
