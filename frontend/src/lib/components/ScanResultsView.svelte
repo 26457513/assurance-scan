@@ -3,6 +3,7 @@
   import { api } from '$lib/api';
   import FindingsTable from './FindingsTable.svelte';
   import type { ScanStatus, FindingsListResponse, ScanSummary } from '$lib/types';
+  import { SCANNER_DESCRIPTIONS } from '$lib/scannerDescriptions';
 
   export let scan: ScanSummary;
   export let repo: string | null = null;
@@ -100,6 +101,7 @@
 
   $: codeScanners = detail?.scanner_status.filter((s) => scanLevel(s.kind) === 'code') ?? [];
   $: imageScanners = detail?.scanner_status.filter((s) => scanLevel(s.kind) === 'image') ?? [];
+  let scannersExpanded = false;
 </script>
 
 {#if loading}
@@ -124,8 +126,16 @@
           <div class="text-ink-muted">{fmtShort(detail.started_at)}</div>
           <div class="text-ink-muted tabular-nums">{fmtDuration()}</div>
         </div>
-        <div class="px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <button
+          type="button"
+          class="w-full px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-left hover:bg-surface-elevated transition-colors"
+          on:click={() => (scannersExpanded = !scannersExpanded)}
+          aria-expanded={scannersExpanded}
+        >
           <span class="text-[10px] uppercase tracking-[0.14em] text-ink-muted">Scanners</span>
+          <svg class="h-3 w-3 text-ink-muted transition-transform duration-150 {scannersExpanded ? '' : '-rotate-90'}" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 4.5l3 3 3-3" stroke-linecap="round" />
+          </svg>
           {#each codeScanners as s (s.kind)}
             <span
               class="truncate"
@@ -146,7 +156,29 @@
           {#if codeScanners.length === 0 && imageScanners.length === 0}
             <span class="text-ink-muted">no scanners yet</span>
           {/if}
-        </div>
+        </button>
+        {#if scannersExpanded && detail}
+          {@const allScanners = [...detail.scanner_status].sort((a, b) => a.kind.localeCompare(b.kind))}
+          <div class="border-t border-line-hairline">
+            <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_90px] gap-3 px-3 py-1.5 bg-surface-inset text-[10px] uppercase tracking-[0.14em] text-ink-muted items-center">
+              <div>Scanner</div>
+              <div>Description</div>
+              <div>Level</div>
+              <div class="text-right">Status</div>
+            </div>
+            {#each allScanners as s (s.kind)}
+              <div
+                class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_90px] gap-3 px-3 py-1.5 items-center border-t border-line-hairline first:border-t-0"
+                title={s.error_message ?? ''}
+              >
+                <span class="text-ink-primary truncate">{s.kind}</span>
+                <span class="text-ink-muted truncate">{SCANNER_DESCRIPTIONS[s.kind] ?? '·'}</span>
+                <span class="text-ink-muted">{scanLevel(s.kind)}</span>
+                <span class="text-right" style="color: {scannerColor(s.status)}">{s.status}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     </section>
 
