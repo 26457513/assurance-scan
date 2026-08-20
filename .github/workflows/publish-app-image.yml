@@ -45,6 +45,8 @@ jobs:
           ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/id_ed25519 root@165.232.106.224 '
             cd /root/assurance-scan &&
             git pull --ff-only --quiet &&
+            docker image prune -af >/dev/null &&
+            docker builder prune -af >/dev/null &&
             docker compose --profile public pull -q &&
             docker compose --profile public up -d --remove-orphans
           '
