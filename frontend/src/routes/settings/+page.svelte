@@ -180,8 +180,8 @@
       <li>
         <strong class="text-ink-secondary">How:</strong>
         <ul class="mt-1 list-disc pl-4">
-          <li>GitHub → your avatar → <strong class="text-ink-secondary">Settings</strong> → Developer settings → Personal access tokens → Fine-grained tokens → Generate (suggested name: <code class="text-ink-secondary">assurance-scan</code>)</li>
-          <li>Resource owner = the org · all repositories · <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code></li>
+          <li>GitHub → <strong class="text-ink-secondary">Settings</strong> → Developer settings → Personal access tokens → Fine-grained tokens → Generate <em>(tokens are always created under your personal GitHub settings — even org-owned ones; the org link comes from the next step)</em> (suggested name: <code class="text-ink-secondary">assurance-scan</code>)</li>
+          <li>Resource owner = <strong class="text-ink-secondary">the organisation</strong> (this is what makes it an org credential) · all repositories · <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code></li>
           <li>Paste the token below — stored encrypted, verified on save</li>
         </ul>
       </li>
