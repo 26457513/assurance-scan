@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import GuideSteps from '$lib/components/GuideSteps.svelte';
+  import CopyButton from '$lib/components/CopyButton.svelte';
   import { pushToast } from '$lib/stores/toasts';
 
   const ORG_STEPS = [
@@ -44,6 +45,48 @@
     }
   ];
 
+  const MCP_COMMANDS = [
+    { label: 'This instance (local)', url: 'claude mcp add assurance-scan --transport http http://localhost:8742/mcp' },
+    { label: 'Hosted (scan.squease.ai)', url: 'claude mcp add assurance-scan --transport http https://scan.squease.ai/mcp' }
+  ];
+
+  const AGENT_PROMPTS = [
+    'What are the critical findings in the latest scan on tapestry-mono?',
+    'Generate an FR catalogue for this project and save it.',
+    'Map our FRs against ASVS and save the compliance mapping.',
+    'Scan the current project and propose fixes for every gap.',
+    'Write a unit test for FR-003.'
+  ];
+
+  const WORKFLOWS = [
+    { name: 'setup-project', detail: 'Zero-to-dashboard for a new project: catalogue (created if missing), initial scan, compliance mapping, gap summary.' },
+    { name: 'scan-and-propose-fixes', detail: 'Scan the project, then propose a fix for every gap. The most common starting point.' },
+    { name: 'generate-fr-catalogue', detail: 'Explore the codebase, reverse-engineer its capabilities, draft the FR catalogue with test specs, save it.' },
+    { name: 'propose-compliance-mapping', detail: 'Read the FR catalogue and the regime pack, map every row (satisfied or not-applicable with rationale), save it.' },
+    { name: 'close-gap-via-test', detail: 'Write a unit test for an untested FR, matching the catalogue’s name_pattern.' },
+    { name: 'close-gap-via-config', detail: 'Fix a config or code issue so a scanner stops reporting a finding.' },
+    { name: 'prefetch-and-rescan', detail: 'Refresh scanner vulnerability DBs and re-scan — for scanners failing on missing databases.' }
+  ];
+
+  const AGENT_STEPS = [
+    {
+      title: 'Connect once per machine',
+      detail: 'Run the command above in your terminal. Claude Code (and any MCP-capable agent) then sees the assurance-scan tools.'
+    },
+    {
+      title: 'The agent starts with bootstrap',
+      detail: 'Given a project path, <code>bootstrap</code> reports its catalogues, mappings and recent scans — plus the recommended next steps.'
+    },
+    {
+      title: 'Ask in plain language',
+      detail: 'Questions route to tools (<code>get_findings</code>, <code>get_gap_analysis</code>, <code>list_scans</code>…); authoring tasks route to the workflows below.'
+    },
+    {
+      title: 'Artifacts land in this instance',
+      detail: 'Catalogues and mappings are saved straight to the DB via <code>save_catalogue</code> / <code>save_mapping</code> — no files to copy around.'
+    }
+  ];
+
   const PIPELINE_STEPS = [
     {
       title: 'A repo adopts the workflow',
@@ -66,6 +109,7 @@
   const TABS = [
     { id: 'admin', label: 'Admin' },
     { id: 'account', label: 'My account' },
+    { id: 'agent', label: 'Agent' },
     { id: 'about', label: 'About' }
   ] as const;
   $: tab = $page.url.searchParams.get('tab') ?? 'admin';
@@ -367,15 +411,61 @@
         </div>
       </div>
     {/if}
+  {:else if tab === 'agent'}
+    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">
+      <div class="text-[12px] text-ink-primary font-mono mb-1">Connect an agent</div>
+      <p class="text-[11px] text-ink-muted leading-relaxed mb-4">
+        Claude Code and other MCP-capable agents can drive scans, catalogues and mappings — and
+        answer questions about your scan history — straight from the terminal.
+      </p>
+      {#each MCP_COMMANDS as c (c.label)}
+        <div class="mb-2">
+          <div class="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-muted mb-1">{c.label}</div>
+          <div class="flex items-center gap-2">
+            <pre class="flex-1 text-[11px] font-mono text-ink-primary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-x-auto whitespace-pre">{c.url}</pre>
+            <CopyButton text={c.url} />
+          </div>
+        </div>
+      {/each}
+    </div>
+
+    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">
+      <div class="text-[12px] text-ink-primary font-mono mb-1">Ask it anything</div>
+      <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
+        Paste any of these into Claude Code with the agent connected:
+      </p>
+      {#each AGENT_PROMPTS as p (p)}
+        <div class="flex items-center gap-2 py-1 border-b border-line-hairline last:border-0">
+          <span class="flex-1 font-mono text-[11px] text-ink-secondary truncate">“{p}”</span>
+          <CopyButton text={p} label="Copy" />
+        </div>
+      {/each}
+    </div>
+
+    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">
+      <div class="text-[12px] text-ink-primary font-mono mb-4">How it works</div>
+      <GuideSteps steps={AGENT_STEPS} />
+    </div>
+
+    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5">
+      <div class="text-[12px] text-ink-primary font-mono mb-3">Workflows the agent can run</div>
+      <div class="as-table text-[11px]">
+        <div class="as-head grid grid-cols-[200px_minmax(0,1fr)] gap-3">
+          <div>Workflow</div>
+          <div>What it does</div>
+        </div>
+        {#each WORKFLOWS as w (w.name)}
+          <div class="as-row grid grid-cols-[200px_minmax(0,1fr)] gap-3 px-3 py-2 items-center">
+            <span class="font-mono text-ink-primary truncate">{w.name}</span>
+            <span class="text-ink-muted leading-relaxed">{w.detail}</span>
+          </div>
+        {/each}
+      </div>
+    </div>
   {:else if tab === 'about'}
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-5">
       <div class="text-[12px] text-ink-primary font-mono mb-4">How a scan happens</div>
       <GuideSteps steps={PIPELINE_STEPS} />
-      <div class="text-[12px] text-ink-primary font-mono mt-5 mb-2">Connecting an agent</div>
-      <p class="text-[11px] text-ink-muted leading-relaxed mb-1">
-        Claude Code and other agents can drive scans and catalogues via the MCP server:
-      </p>
-      <pre class="font-mono text-[11px] text-ink-primary bg-surface-inset border border-line-hairline rounded-sm p-2 mt-1 overflow-x-auto">claude mcp add assurance-scan --transport http http://localhost:8742/mcp</pre>
     </div>
   {/if}
 </div>
