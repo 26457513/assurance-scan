@@ -1,6 +1,5 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import { pushToast } from '$lib/stores/toasts';
   import { selectProject, slugToProject } from '$lib/stores/selectedProject';
@@ -9,12 +8,6 @@
   import type { ScanSummary } from '$lib/types';
 
   $: projectPath = slugToProject($page.params.slug ?? '');
-  // FR/compliance views live as sub-tabs inside each scan (ScanDetail);
-  // anything else normalizes to the scans view.
-  $: view = 'scans';
-
-  const VIEWS = [{ id: 'scans', label: 'Scans' }] as const;
-
   let scans: ScanSummary[] = [];
   let selectedRunId = '';
   let loading = true;
@@ -136,10 +129,6 @@
       .catch(() => (defaultScanRef = null));
   }
 
-  function switchView(id: string) {
-    goto(`/projects/${$page.params.slug}?view=${id}`, { noScroll: true });
-  }
-
   function pickScan(runId: string) {
     selectedRunId = runId;
     const s = scans.find((x) => x.run_id === runId);
@@ -248,28 +237,10 @@
   }
 </script>
 
-<div class="border-b border-line-hairline px-6 pt-3 flex items-center gap-0.5 overflow-x-auto">
-  {#each VIEWS as v (v.id)}
-    <button
-      type="button"
-      on:click={() => switchView(v.id)}
-      class="relative px-3.5 py-2.5 text-[11px] font-mono uppercase tracking-[0.12em] transition-colors whitespace-nowrap"
-      class:text-accent={view === v.id}
-      class:text-ink-muted={view !== v.id}
-      class:hover:text-ink-secondary={view !== v.id}
-    >
-      {v.label}
-      {#if view === v.id}
-        <span class="absolute left-0 right-0 -bottom-px h-[2px] bg-accent"></span>
-      {/if}
-    </button>
-  {/each}
-  <span class="flex-1"></span>
-  <span class="font-mono text-[11px] text-ink-muted truncate pr-1" title={projectPath}>{projectPath}</span>
-</div>
-
-{#if view === 'scans'}
-  <div class="p-6">
+<div class="p-6">
+  <div class="mb-5">
+      <div class="text-[15px] text-ink-primary mb-1">Scans</div>
+    </div>
     {#if latestFailed}
       <button
         type="button"
@@ -498,4 +469,3 @@
       </div>
     </div>
   {/if}
-{/if}
