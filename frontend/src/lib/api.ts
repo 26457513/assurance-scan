@@ -82,6 +82,13 @@ export const api = {
       }
     ),
 
+  complianceGrid: (projectPath: string) =>
+    getJson<{
+      versions: { snapshot_id: string; tag: string | null; version: string | null; source_branch: string | null; source_commit_sha: string | null; created_at: string }[];
+      branches: string[];
+      cells: Record<string, { run_id: string; started_at: string | null; ok: number; gaps: number; states: Record<string, number> }>;
+    }>(`/api/compliance/grid?project_path=${encodeURIComponent(projectPath)}`),
+
   listCompliancePacks: () =>
     getJson<{ packs: CompliancePack[] }>('/api/compliance/packs'),
 

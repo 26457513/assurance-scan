@@ -71,6 +71,111 @@ async def list_frameworks(
     }
 
 
+@router.get("/compliance/grid")
+async def branch_compliance_grid(
+    project_path: str = Query(...),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    """Catalogue-version x branch compliance grid.
+
+    Cell = the newest run of that branch pinned to that catalogue
+    snapshot, with its FR state counts. Blank cells (absent keys) mean
+    the pair has never been measured.
+    """
+    from pathlib import PurePath
+
+    from server.db.models import CatalogueSnapshot, FrState, Project, Run
+
+    identities = {project_path}
+    reg = (
+        await session.execute(
+            select(Project).where(
+                (Project.local_path == project_path)
+                | (
+                    Project.github_repo.isnot(None)
+                    & ("github:" + Project.github_repo == project_path)
+                )
+            )
+        )
+    ).scalars().first()
+    if reg is not None:
+        identities.add(reg.local_path)
+        if reg.github_repo:
+            identities.add(f"github:{reg.github_repo}")
+    from server.config import load_settings
+
+    org = load_settings().github_org
+    if org and not project_path.startswith("github:"):
+        identities.add(f"github:{org}/{PurePath(project_path).name}")
+
+    snaps = (
+        await session.execute(
+            select(CatalogueSnapshot)
+            .where(CatalogueSnapshot.project_path.in_(identities))
+            .order_by(CatalogueSnapshot.created_at.desc())
+        )
+    ).scalars().all()
+
+    runs = (
+        await session.execute(
+            select(Run)
+            .where(
+                Run.project_path.in_(identities),
+                Run.catalogue_snapshot_id.isnot(None),
+                Run.git_branch.isnot(None),
+            )
+            .order_by(Run.started_at.desc())
+        )
+    ).scalars().all()
+
+    newest: dict[str, Run] = {}
+    branches: set[str] = set()
+    for run in runs:  # newest first — first hit per pair wins
+        branches.add(run.git_branch)
+        key = f"{run.catalogue_snapshot_id}|{run.git_branch}"
+        newest.setdefault(key, run)
+
+    state_counts: dict[str, dict[str, int]] = {}
+    if newest:
+        from sqlalchemy import func as _func
+
+        rows = (
+            await session.execute(
+                select(FrState.run_id, FrState.state, _func.count())
+                .where(FrState.run_id.in_([r.run_id for r in newest.values()]))
+                .group_by(FrState.run_id, FrState.state)
+            )
+        ).all()
+        for run_id, state, n in rows:
+            state_counts.setdefault(run_id, {})[state] = n
+
+    cells = {}
+    for key, run in newest.items():
+        counts = state_counts.get(run.run_id, {})
+        cells[key] = {
+            "run_id": run.run_id,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "ok": sum(counts.get(st, 0) for st in ("passed", "accepted", "waived")),
+            "gaps": sum(counts.get(st, 0) for st in ("untested", "pending", "failed", "blocked")),
+            "states": counts,
+        }
+
+    return {
+        "versions": [
+            {
+                "snapshot_id": s.id,
+                "tag": s.tag,
+                "version": s.catalogue_version,
+                "source_branch": s.source_branch,
+                "source_commit_sha": s.source_commit_sha,
+                "created_at": s.created_at.isoformat(),
+            }
+            for s in snaps
+        ],
+        "branches": sorted(branches),
+        "cells": cells,
+    }
+
 @router.get("/compliance/{framework}")
 async def compliance_matrix(
     framework: str,

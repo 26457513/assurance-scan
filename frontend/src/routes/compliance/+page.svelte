@@ -5,6 +5,7 @@
   import type { MappingVersion } from '$lib/types';
 
   let versions: MappingVersion[] = [];
+  let grid: Awaited<ReturnType<typeof api.complianceGrid>> | null = null;
   let pastedJson = '';
   let framework = 'ASVS';
   let saving = false;
@@ -24,6 +25,11 @@
       versions = (await api.listMappingVersions(project)).versions;
     } catch {
       versions = [];
+    }
+    try {
+      grid = await api.complianceGrid(project);
+    } catch {
+      grid = null;
     }
   }
 
@@ -219,6 +225,48 @@
               class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
             >{saving ? 'Saving…' : 'Save mapping'}</button>
           </div>
+        </div>
+      </section>
+    {/if}
+
+    {#if grid && grid.versions.length > 0}
+      <section class="mt-6 mb-2">
+        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-1">Branch compliance matrix</div>
+        <p class="text-[11px] text-ink-muted leading-relaxed mb-2.5">
+          Each cell is the newest scan of that branch against that catalogue version — blank means
+          the pair has never been measured.
+        </p>
+        <div class="as-table text-[11px] overflow-x-auto">
+          <div class="as-head grid grid-cols-[minmax(180px,1fr)_repeat(auto-fit,minmax(110px,1fr))] gap-3">
+            <div>Catalogue version</div>
+            {#each grid.branches as b (b)}<div class="text-right">{b}</div>{/each}
+          </div>
+          {#each grid.versions as v (v.snapshot_id)}
+            <div class="as-row grid grid-cols-[minmax(180px,1fr)_repeat(auto-fit,minmax(110px,1fr))] gap-3 px-3 py-2 items-center">
+              <span class="font-mono text-ink-primary truncate" title={v.source_commit_sha ?? ''}>
+                {v.tag ?? v.version ?? v.snapshot_id.slice(0, 8)}
+                {#if v.source_branch}<span class="text-ink-muted"> · {v.source_branch}</span>{/if}
+              </span>
+              {#each grid.branches as b (b)}
+                {@const cell = grid.cells[`${v.snapshot_id}|${b}`]}
+                {#if cell}
+                  <span
+                    class="text-right font-mono tabular-nums whitespace-nowrap {cell.gaps > 0 ? 'text-ink-secondary' : ''}"
+                    style={cell.gaps > 0 ? '' : 'color: var(--state-passed);'}
+                    title={`${cell.run_id} · ${cell.started_at ?? ''}`}
+                  >
+                    {#if cell.gaps > 0}
+                      <span style="color: var(--state-passed)">✓{cell.ok}</span> <span style="color: var(--state-failed)">✗{cell.gaps}</span>
+                    {:else}
+                      ✓{cell.ok}
+                    {/if}
+                  </span>
+                {:else}
+                  <span class="text-right text-ink-muted opacity-50">—</span>
+                {/if}
+              {/each}
+            </div>
+          {/each}
         </div>
       </section>
     {/if}
