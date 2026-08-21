@@ -17,7 +17,7 @@
     },
     {
       title: 'Grant permissions',
-      detail: '<code>Contents: Read</code> and <code>Actions: Read and write</code>.'
+      detail: ['<code>Contents: Read</code>', '<code>Actions: Read and write</code>']
     },
     {
       title: 'Add it below',
@@ -36,7 +36,7 @@
     },
     {
       title: 'Grant permissions',
-      detail: '<code>Contents: Read</code> and <code>Actions: Read and write</code>.'
+      detail: ['<code>Contents: Read</code>', '<code>Actions: Read and write</code>']
     },
     {
       title: 'Paste it below',

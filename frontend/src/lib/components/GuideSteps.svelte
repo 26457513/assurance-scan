@@ -1,5 +1,8 @@
 <script lang="ts">
-  export let steps: { title: string; detail?: string }[] = [];
+  export let steps: { title: string; detail?: string | string[] }[] = [];
+
+  const lines = (d: string | string[] | undefined): string[] =>
+    d === undefined ? [] : Array.isArray(d) ? d : [d];
 </script>
 
 <ol class="space-y-3">
@@ -10,9 +13,9 @@
       >{i + 1}</span>
       <div class="min-w-0">
         <div class="text-[12px] text-ink-primary leading-snug">{s.title}</div>
-        {#if s.detail}
-          <div class="text-[11px] text-ink-muted leading-relaxed mt-0.5">{@html s.detail}</div>
-        {/if}
+        {#each lines(s.detail) as line (line)}
+          <div class="text-[11px] text-ink-muted leading-relaxed mt-0.5">{@html line}</div>
+        {/each}
       </div>
     </li>
   {/each}
