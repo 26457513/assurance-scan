@@ -112,7 +112,15 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     if deps is None:
         deps = McpDeps(app=app)
 
-    mcp = FastMCP("assurance-scan")
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    # DNS-rebind host check off: the app middleware already rejects every
+    # /mcp request without a valid bearer token, and the check 421s the
+    # public domain behind the proxy.
+    mcp = FastMCP(
+        "assurance-scan",
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    )
 
     @mcp.tool()
     async def load_fr_catalog(
