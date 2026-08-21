@@ -159,9 +159,16 @@ export const api = {
   getMcpTokenStatus: () =>
     getJson<{ has_token: boolean; generated_at: string | null }>('/api/users/me/mcp-token'),
 
-  rotateMcpToken: () =>
-    getJson<{ token: string; command: string; base_url: string }>('/api/users/me/mcp-token', {
+  previewMcpToken: () =>
+    getJson<{ token: string; command: string; base_url: string }>('/api/users/me/mcp-token/preview', {
       method: 'POST'
+    }),
+
+  applyMcpToken: (token: string) =>
+    getJson<{ status: string }>('/api/users/me/mcp-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
     }),
 
   revokeMcpToken: () =>

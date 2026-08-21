@@ -368,23 +368,20 @@ async def get_mcp_token_status(user: Any = Depends(get_current_user)) -> dict[st
     }
 
 
-@router.post("/users/me/mcp-token")
-async def rotate_mcp_token(
+@router.post("/users/me/mcp-token/preview")
+async def preview_mcp_token(
     request: Request,
     user: Any = Depends(get_current_user),
-    session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
-    """Generate (or rotate) the user's MCP token. Returned once, never again."""
+    """Generate a candidate token + command without activating it.
+
+    The candidate is inert until applied via POST /users/me/mcp-token.
+    """
     import secrets as _secrets
 
     if user is None:
         raise HTTPException(status_code=401, detail="sign in")
     token = _secrets.token_urlsafe(32)
-    user.mcp_token_hash = _hash_mcp_token(token)
-    user.mcp_token_generated_at = dt.datetime.now(dt.timezone.utc)
-    session.add(user)
-    await session.commit()
-
     netloc = request.url.netloc
     if isinstance(netloc, bytes):  # httpx URLs in tests; starlette gives str
         netloc = netloc.decode()
@@ -394,6 +391,22 @@ async def rotate_mcp_token(
         f'--header "Authorization: Bearer {token}"'
     )
     return {"token": token, "command": command, "base_url": base}
+
+
+@router.post("/users/me/mcp-token")
+async def apply_mcp_token(
+    user: Any = Depends(get_current_user),
+    session: AsyncSession = SessionDep,
+    token: str = Body(..., min_length=20),
+) -> dict[str, Any]:
+    """Activate a previewed token. Any previous token stops working."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="sign in")
+    user.mcp_token_hash = _hash_mcp_token(token)
+    user.mcp_token_generated_at = dt.datetime.now(dt.timezone.utc)
+    session.add(user)
+    await session.commit()
+    return {"status": "activated"}
 
 
 @router.delete("/users/me/mcp-token")

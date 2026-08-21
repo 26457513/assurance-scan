@@ -213,16 +213,35 @@
   let mcpHasToken = false;
   let mcpGeneratedAt: string | null = null;
   let mcpCommand = '';
+  let mcpModalOpen = false;
+  let mcpPendingCommand = '';
+  let mcpPendingToken = '';
+  let mcpApplying = false;
 
   async function rotateMcp() {
     try {
-      const res = await api.rotateMcpToken();
-      mcpHasToken = true;
-      mcpGeneratedAt = new Date().toISOString();
-      mcpCommand = res.command;
-      pushToast('success', 'MCP token generated — copy the command now, it is shown once');
+      const res = await api.previewMcpToken();
+      mcpPendingCommand = res.command;
+      mcpPendingToken = res.token;
+      mcpModalOpen = true;
     } catch (e) {
       pushToast('error', `Token generation failed: ${e}`);
+    }
+  }
+
+  async function applyMcp() {
+    mcpApplying = true;
+    try {
+      await api.applyMcpToken(mcpPendingToken);
+      mcpHasToken = true;
+      mcpGeneratedAt = new Date().toISOString();
+      mcpCommand = mcpPendingCommand;
+      mcpModalOpen = false;
+      pushToast('success', 'New token active — the old one no longer works');
+    } catch (e) {
+      pushToast('error', `Activation failed: ${e}`);
+    } finally {
+      mcpApplying = false;
     }
   }
 
@@ -560,6 +579,55 @@
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-5">
       <div class="text-[12px] text-ink-primary font-mono mb-4">How a scan happens</div>
       <GuideSteps steps={PIPELINE_STEPS} />
+    </div>
+  {/if}
+
+  {#if mcpModalOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center">
+      <button
+        type="button"
+        class="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
+        on:click={() => (mcpModalOpen = false)}
+        aria-label="Close"
+      ></button>
+      <div class="relative w-[560px] border border-line-strong rounded-md bg-surface-panel p-5" style="box-shadow: 0 12px 32px rgba(0,0,0,0.4);">
+        <div class="text-[13px] text-ink-primary mb-1.5">
+          {mcpHasToken ? 'Regenerate MCP token?' : 'Generate MCP token?'}
+        </div>
+        {#if mcpHasToken}
+          <p class="text-[12px] text-ink-secondary leading-relaxed mb-3">
+            Activating the new token <strong>immediately revokes the current one</strong> — any
+            machine still using it stops connecting until it runs the new command.
+          </p>
+        {:else}
+          <p class="text-[12px] text-ink-secondary leading-relaxed mb-3">
+            The token is shown once — copy the command now.
+          </p>
+        {/if}
+        <div class="mb-4">
+          <div class="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-muted mb-1">
+            Run this in a terminal — token shown once
+          </div>
+          <div class="flex items-center gap-2">
+            <pre class="flex-1 text-[10px] font-mono text-ink-primary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-x-auto whitespace-pre">{mcpPendingCommand}</pre>
+            <CopyButton text={mcpPendingCommand} />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            on:click={() => (mcpModalOpen = false)}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+          >Cancel — keep current token</button>
+          <button
+            type="button"
+            on:click={applyMcp}
+            disabled={mcpApplying}
+            class="px-3 py-1.5 rounded-sm border font-mono text-[11px] uppercase tracking-[0.1em] transition-colors disabled:opacity-50"
+            style="color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent);"
+          >{mcpApplying ? 'Activating…' : 'Activate new token'}</button>
+        </div>
+      </div>
     </div>
   {/if}
 </div>
