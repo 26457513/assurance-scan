@@ -46,8 +46,14 @@
   ];
 
   const MCP_COMMANDS = [
-    { label: 'This instance (local)', url: 'claude mcp add assurance-scan --transport http http://localhost:8742/mcp' },
-    { label: 'Hosted (scan.squease.ai)', url: 'claude mcp add assurance-scan --transport http https://scan.squease.ai/mcp' }
+    {
+      label: 'This instance (local)',
+      url: 'claude mcp add assurance-scan --transport http --header "Authorization: Bearer $MCP_TOKEN" http://localhost:8742/mcp'
+    },
+    {
+      label: 'Hosted (scan.squease.ai)',
+      url: 'claude mcp add assurance-scan --transport http --header "Authorization: Bearer $MCP_TOKEN" https://scan.squease.ai/mcp'
+    }
   ];
 
   const AGENT_PROMPTS = [
@@ -454,6 +460,11 @@
           </div>
         </div>
       {/each}
+      <p class="text-[11px] text-ink-muted leading-relaxed mt-3">
+        Replace <code class="text-ink-secondary">$MCP_TOKEN</code> with the <code class="text-ink-secondary">MCP_TOKEN</code>
+        from the server’s <code class="text-ink-secondary">.env</code> — MCP clients authenticate with it as a bearer
+        token; the browser login doesn’t apply to them.
+      </p>
     </div>
 
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">

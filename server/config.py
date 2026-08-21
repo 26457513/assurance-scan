@@ -61,6 +61,10 @@ class Settings:
     app_auth_user: str
     app_auth_password: str
 
+    # Bearer token for MCP clients (claude mcp add … --header). Required
+    # when auth is on — /mcp never accepts the browser login redirect.
+    mcp_token: str
+
     # Google Workspace login (takes precedence over Basic Auth when set,
     # which stays valid as a fallback for curl etc.).
     google_client_id: str
@@ -101,6 +105,7 @@ def load_settings() -> Settings:
         log_level=_env("ASSURANCE_SCAN_LOG_LEVEL", "INFO"),
         app_auth_user=_env("APP_AUTH_USER", ""),
         app_auth_password=_env("APP_AUTH_PASSWORD", ""),
+        mcp_token=_env("MCP_TOKEN", ""),
         google_client_id=_env("GOOGLE_CLIENT_ID", ""),
         google_client_secret=_env("GOOGLE_CLIENT_SECRET", ""),
         google_domain=_env("GOOGLE_DOMAIN", "barkleygen.com"),

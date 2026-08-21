@@ -123,6 +123,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # Healthcheck (container-internal) and the login flow stay open.
             if path == "/health" or path.startswith("/auth/"):
                 return await call_next(request)
+            # MCP clients authenticate with a bearer token; the browser
+            # login redirect is useless to them.
+            if path == "/mcp" or path.startswith("/mcp/"):
+                header = request.headers.get("authorization", "")
+                if settings.mcp_token and header == f"Bearer {settings.mcp_token}":
+                    return await call_next(request)
+                return JSONResponse(
+                    {"detail": "unauthorized: MCP requires 'Authorization: Bearer $MCP_TOKEN'"},
+                    status_code=401,
+                )
             if google_on and verify_session(request.cookies.get("as_session"), settings.session_secret):
                 return await call_next(request)
             if settings.app_auth_user and basic_auth_ok(
