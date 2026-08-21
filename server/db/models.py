@@ -164,6 +164,23 @@ class User(Base):
     mcp_token_generated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ProjectCheckout(Base):
+    """A user's local checkout path for a (possibly github:-anchored)
+    project. Agents confirm the mapping once, then bootstrap returns it."""
+
+    __tablename__ = "project_checkouts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_email: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    checkout_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    __table_args__ = (
+        UniqueConstraint("user_email", "project_path", name="uq_project_checkouts_user_project"),
+        Index("ix_project_checkouts_project", "project_path"),
+    )
+
+
 class GithubAccount(Base):
     """A user's GitHub token, encrypted with TOKEN_ENCRYPTION_KEY."""
 

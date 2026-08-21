@@ -107,6 +107,47 @@ async def _discover_dashboard_url() -> str:
     return "http://localhost:8000/frs"
 
 
+async def _mcp_email(ctx: Any) -> str:
+    """Email behind the per-user MCP token in ctx's request; '' otherwise."""
+    import hashlib
+
+    try:
+        header = ctx.request_context.request.headers.get("authorization", "")
+    except Exception:
+        return ""
+    if not header.startswith("Bearer "):
+        return ""
+    from server.db.models import User
+
+    h = hashlib.sha256(header[7:].encode()).hexdigest()
+    async with get_sessionmaker()() as session:
+        row = (
+            await session.execute(sa_select(User.email).where(User.mcp_token_hash == h))
+        ).scalars().first()
+        return row or ""
+
+
+async def _lookup_checkout(session, email: str, project_path: str) -> str | None:
+    """The user's own mapping first, then the shared ('') mapping."""
+    from server.db.models import ProjectCheckout
+
+    rows = (
+        await session.execute(
+            sa_select(ProjectCheckout).where(ProjectCheckout.project_path == project_path)
+        )
+    ).scalars().all()
+    for r in rows:
+        if r.user_email == email:
+            return r.checkout_path
+    for r in rows:
+        if r.user_email == "":
+            return r.checkout_path
+    return None
+
+
+from sqlalchemy import select as sa_select
+
+
 def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     """Construct the FastMCP server with all 9 tools registered."""
     if deps is None:
@@ -506,7 +547,44 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         return _get(name, parameters)
 
     @mcp.tool()
-    async def bootstrap(project_path: str | None = None) -> dict[str, Any]:
+    async def save_checkout_mapping(
+        project_path: str, checkout_path: str, ctx: Any = None
+    ) -> dict[str, Any]:
+        """Persist where a project lives on this machine, scoped to you.
+
+        Call this once the user confirms the local checkout path (verify the
+        folder exists first). bootstrap returns it as checkout_path from then
+        on, so the question is never asked twice. Re-call if the path moves.
+        """
+        from datetime import datetime, timezone
+
+        from server.db.models import ProjectCheckout
+
+        email = await _mcp_email(ctx)
+        async with get_sessionmaker()() as session:
+            existing = (
+                await session.execute(
+                    sa_select(ProjectCheckout).where(
+                        ProjectCheckout.user_email == email,
+                        ProjectCheckout.project_path == project_path,
+                    )
+                )
+            ).scalars().first()
+            if existing is not None:
+                existing.checkout_path = checkout_path
+                existing.updated_at = datetime.now(timezone.utc)
+            else:
+                session.add(ProjectCheckout(
+                    user_email=email,
+                    project_path=project_path,
+                    checkout_path=checkout_path,
+                    updated_at=datetime.now(timezone.utc),
+                ))
+            await session.commit()
+        return {"status": "saved", "project_path": project_path, "checkout_path": checkout_path}
+
+    @mcp.tool()
+    async def bootstrap(project_path: str | None = None, ctx: Any = None) -> dict[str, Any]:
         """Check project state and return step-by-step guidance.
 
         Call this FIRST in any new session. Pass `project_path` (absolute)
@@ -525,7 +603,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         from pathlib import Path
         from sqlalchemy import select as sa_select
         from server.db.models import (
-            CatalogueSnapshot, ComplianceMapping, Run,
+            CatalogueSnapshot, ComplianceMapping, ProjectCheckout, Run,
         )
 
         resolved_project = project_path or str(deps.settings.project_root)
@@ -572,6 +650,19 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             )).scalars().first()
             latest_run_id = run_row.run_id if run_row else None
             latest_run_status = run_row.status if run_row else None
+
+            checkout_path = await _lookup_checkout(
+                session, await _mcp_email(ctx), resolved_project
+            )
+
+        if checkout_path is None and resolved_project.startswith("github:"):
+            steps.append(
+                "No local checkout path is known for this GitHub project. If the user "
+                "has a local checkout, ask for its path, verify the folder exists, then "
+                "call save_checkout_mapping — it is remembered per user, so you only "
+                "ask once. If you are already running inside the project folder, save "
+                "that path."
+            )
 
         catalogue_on_disk = catalogue_path.exists()
         mapping_on_disk = mapping_path.exists()
@@ -642,6 +733,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             "mapping_count": mapping_count,
             "latest_run_id": latest_run_id,
             "latest_run_status": latest_run_status,
+            "checkout_path": checkout_path,
             "recommended_workflow": recommended_workflow,
             "next_steps": steps,
         }
