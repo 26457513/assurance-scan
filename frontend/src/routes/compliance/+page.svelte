@@ -229,13 +229,23 @@
       </section>
     {/if}
 
-    {#if grid && grid.versions.length > 0}
+    {#if grid}
       <section class="mt-6 mb-2">
         <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-1">Branch compliance matrix</div>
+        {#if grid.versions.length === 0}
+          <p class="text-[11px] text-ink-muted leading-relaxed">
+            No FR catalogue versions yet — the matrix fills in once a catalogue is authored (FRs
+            page, or the <span class="font-mono text-ink-secondary">author-fr-catalogue</span>
+            agent workflow) and the project is scanned. Each cell will show the newest scan of a
+            branch against a catalogue version.
+          </p>
+        {:else}
         <p class="text-[11px] text-ink-muted leading-relaxed mb-2.5">
           Each cell is the newest scan of that branch against that catalogue version — blank means
           the pair has never been measured.
         </p>
+        {/if}
+        {#if grid.versions.length > 0}
         <div class="as-table text-[11px] overflow-x-auto">
           <div class="as-head grid grid-cols-[minmax(180px,1fr)_repeat(auto-fit,minmax(110px,1fr))] gap-3">
             <div>Catalogue version</div>
@@ -268,6 +278,7 @@
             </div>
           {/each}
         </div>
+        {/if}
       </section>
     {/if}
 
