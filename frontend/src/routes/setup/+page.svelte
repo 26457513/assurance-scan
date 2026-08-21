@@ -45,17 +45,6 @@
     }
   ];
 
-  const MCP_COMMANDS = [
-    {
-      label: 'This instance (local)',
-      url: 'claude mcp add --transport http assurance-scan http://localhost:8742/mcp --header "Authorization: Bearer $MCP_TOKEN"'
-    },
-    {
-      label: 'Hosted (scan.squease.ai)',
-      url: 'claude mcp add --transport http assurance-scan https://scan.squease.ai/mcp --header "Authorization: Bearer $MCP_TOKEN"'
-    }
-  ];
-
   const AGENT_PROMPTS = [
     'What are the critical findings in the latest scan on tapestry-mono?',
     'What approaches do you recommend to address the critical issues in tapestry-mono?',
@@ -480,16 +469,18 @@
       </div>
     {/if}
 
-    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mt-4">
-      <div class="text-[12px] text-ink-primary font-mono mb-1">MCP token</div>
+  {:else if tab === 'agent'}
+    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">
+      <div class="text-[12px] text-ink-primary font-mono mb-1">Connect an agent</div>
       <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
-        Your personal bearer token for connecting agents (Claude Code) to this instance's MCP
-        server. Shown once at generation — regenerate if you lose it.
+        Claude Code and other MCP-capable agents can drive scans, catalogues and mappings — and
+        answer questions about your scan history — straight from the terminal. Generate a token,
+        run the command once on your machine, and start a fresh session.
       </p>
       {#if mcpCommand}
         <div class="mb-3">
           <div class="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-muted mb-1">
-            Run this locally — token shown once
+            Run this in a terminal — token shown once
           </div>
           <div class="flex items-center gap-2">
             <pre class="flex-1 text-[10px] font-mono text-ink-primary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-x-auto whitespace-pre">{mcpCommand}</pre>
@@ -522,28 +513,6 @@
           >Generate token</button>
         {/if}
       </div>
-    </div>
-  {:else if tab === 'agent'}
-    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">
-      <div class="text-[12px] text-ink-primary font-mono mb-1">Connect an agent</div>
-      <p class="text-[11px] text-ink-muted leading-relaxed mb-4">
-        Claude Code and other MCP-capable agents can drive scans, catalogues and mappings — and
-        answer questions about your scan history — straight from the terminal.
-      </p>
-      {#each MCP_COMMANDS as c (c.label)}
-        <div class="mb-2">
-          <div class="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-muted mb-1">{c.label}</div>
-          <div class="flex items-center gap-2">
-            <pre class="flex-1 text-[11px] font-mono text-ink-primary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-x-auto whitespace-pre">{c.url}</pre>
-            <CopyButton text={c.url} />
-          </div>
-        </div>
-      {/each}
-      <p class="text-[11px] text-ink-muted leading-relaxed mt-3">
-        Replace <code class="text-ink-secondary">$MCP_TOKEN</code> with the <code class="text-ink-secondary">MCP_TOKEN</code>
-        from the server’s <code class="text-ink-secondary">.env</code> — MCP clients authenticate with it as a bearer
-        token; the browser login doesn’t apply to them.
-      </p>
     </div>
 
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">
