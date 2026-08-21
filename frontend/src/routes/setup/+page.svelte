@@ -216,13 +216,23 @@
   let mcpModalOpen = false;
   let mcpPendingCommand = '';
   let mcpPendingToken = '';
+  let mcpPendingBase = '';
   let mcpApplying = false;
+
+  $: mcpUrl = mcpPendingBase ? `${mcpPendingBase}/mcp` : '';
+  $: cursorJson = mcpUrl
+    ? JSON.stringify({ mcpServers: { 'assurance-scan': { url: mcpUrl, headers: { Authorization: `Bearer ${mcpPendingToken}` } } } }, null, 2)
+    : '';
+  $: vscodeJson = mcpUrl
+    ? JSON.stringify({ servers: { 'assurance-scan': { type: 'http', url: mcpUrl, headers: { Authorization: `Bearer ${mcpPendingToken}` } } } }, null, 2)
+    : '';
 
   async function rotateMcp() {
     try {
       const res = await api.previewMcpToken();
       mcpPendingCommand = res.command;
       mcpPendingToken = res.token;
+      mcpPendingBase = res.base_url;
       mcpModalOpen = true;
     } catch (e) {
       pushToast('error', `Token generation failed: ${e}`);
@@ -604,15 +614,40 @@
             The token is shown once — copy the command now.
           </p>
         {/if}
-        <div class="mb-4">
+        <div class="mb-3">
           <div class="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-muted mb-1">
-            Run this in a terminal — token shown once
+            Claude Code — run this in a terminal
           </div>
           <div class="flex items-center gap-2">
             <pre class="flex-1 text-[10px] font-mono text-ink-primary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-x-auto whitespace-pre">{mcpPendingCommand}</pre>
             <CopyButton text={mcpPendingCommand} />
           </div>
         </div>
+        <details class="mb-4 border border-line-hairline rounded-sm bg-surface-base px-3 py-2">
+          <summary class="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-muted cursor-pointer select-none">
+            Other clients — Cursor · Windsurf · VS Code
+          </summary>
+          <div class="mt-2 space-y-2">
+            <div>
+              <div class="text-[10px] font-mono text-ink-muted mb-1">
+                Cursor <code class="text-ink-secondary">~/.cursor/mcp.json</code> · Windsurf <code class="text-ink-secondary">~/.codeium/windsurf/mcp_config.json</code>
+              </div>
+              <div class="flex items-center gap-2">
+                <pre class="flex-1 text-[10px] font-mono text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-auto whitespace-pre">{cursorJson}</pre>
+                <CopyButton text={cursorJson} />
+              </div>
+            </div>
+            <div>
+              <div class="text-[10px] font-mono text-ink-muted mb-1">
+                VS Code <code class="text-ink-secondary">.vscode/mcp.json</code> (workspace)
+              </div>
+              <div class="flex items-center gap-2">
+                <pre class="flex-1 text-[10px] font-mono text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-auto whitespace-pre">{vscodeJson}</pre>
+                <CopyButton text={vscodeJson} />
+              </div>
+            </div>
+          </div>
+        </details>
         <div class="flex justify-end gap-2">
           <button
             type="button"
