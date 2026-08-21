@@ -111,5 +111,15 @@ async def test_delete_project_cascades_and_stays_deleted(client) -> None:
         )).scalars().all()
         assert left == []
 
-    names = [p["project_path"] for p in (await client.get("/api/projects")).json()["projects"]]
-    assert "github:someone/gone" not in names
+    after = (await client.get("/api/projects")).json()
+    assert "github:someone/gone" not in [p["project_path"] for p in after["projects"]]
+    assert "github:someone/gone" in after.get("excluded", [])
+
+    # Tombstoned projects can be re-registered (revived).
+    res = await client.post(
+        "/api/projects",
+        json={"tag": "gone", "local_path": "", "github_url": "someone/gone"},
+    )
+    assert res.status_code == 200
+    after = (await client.get("/api/projects")).json()
+    assert "github:someone/gone" in [p["project_path"] for p in after["projects"]]

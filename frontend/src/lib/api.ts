@@ -88,7 +88,7 @@ export const api = {
   getCompliancePack: (file: string) =>
     getJson<Record<string, unknown>>(`/api/compliance/packs/${encodeURIComponent(file)}`),
 
-  listProjects: () => getJson<{ projects: ProjectSummary[] }>('/api/projects'),
+  listProjects: () => getJson<{ projects: ProjectSummary[]; excluded?: string[] }>('/api/projects'),
 
   githubBranches: (repo: string) =>
     getJson<{ repo: string; branches: string[] }>(`/api/github/branches?repo=${encodeURIComponent(repo)}`),
@@ -131,6 +131,13 @@ export const api = {
 
   deleteProject: (id: number) =>
     getJson<{ status: string }>(`/api/projects/${id}`, { method: 'DELETE' }),
+
+  hideProject: (projectPath: string) =>
+    getJson<{ status: string }>('/api/projects/hide', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project_path: projectPath })
+    }),
 
   saveCatalogue: (projectPath: string, catalogueJson: string, tag = '') =>
     getJson<{ status: string; project?: string; catalogue_version?: string; fr_count?: number; content_hash?: string }>(

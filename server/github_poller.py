@@ -211,7 +211,20 @@ async def poll_cycle(
 ) -> dict[str, Any]:
     """One poll pass. Per-repo/per-run failures are logged, never raised."""
     result: dict[str, Any] = {"repos": {}, "ingested": 0, "skipped": 0, "failed": 0}
+    # Deleted (tombstoned) projects are not re-ingested.
+    from server.db.models import Project
+
+    async with session_factory() as session:
+        hidden = (
+            await session.execute(
+                sa_select(Project.github_repo).where(Project.hidden, Project.github_repo.isnot(None))
+            )
+        ).scalars().all()
+    excluded = {f"github:{r}" for r in hidden}
     for repo in repos:
+        if f"github:{repo}" in excluded:
+            result["repos"][repo] = {"skipped_hidden": 1}
+            continue
         counts = {"ingested": 0, "skipped": 0, "failed": 0}
         try:
             runs = await asyncio.to_thread(client.list_runs, repo)

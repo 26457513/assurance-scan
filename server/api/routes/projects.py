@@ -94,8 +94,20 @@ async def create_project(
             _select(Project).where((Project.tag == tag) | (Project.local_path == anchor))
         )
     ).scalars().first()
-    if existing is not None:
+    if existing is not None and not existing.hidden:
         raise HTTPException(status_code=409, detail="a project with this tag or local path already exists")
+    if existing is not None:
+        # Re-registering a deleted (tombstoned) project revives it.
+        existing.hidden = False
+        existing.tag = tag
+        existing.github_repo = repo
+        await session.commit()
+        return {
+            "status": "registered",
+            "tag": existing.tag,
+            "local_path": existing.local_path,
+            "github_repo": existing.github_repo,
+        }
 
     project = Project(tag=tag, local_path=anchor, github_repo=repo,
                       default_scan_ref=default_scan_ref or None)
@@ -226,9 +238,37 @@ async def delete_project(project_id: int, session: AsyncSession = SessionDep) ->
     await session.execute(
         sa_delete(ComplianceMapping).where(ComplianceMapping.project_path.in_(identities))
     )
-    await session.delete(project)
+    # Tombstone: keep the row hidden so the org-repos merge and the poller
+    # don't resurrect the project on the next cycle.
+    project.hidden = True
     await session.commit()
     return {"status": "deleted", "tag": project.tag}
+
+
+class HideBody(BaseModel):
+    project_path: str
+
+
+@router.post("/hide")
+async def hide_project(body: HideBody, session: AsyncSession = SessionDep) -> dict[str, Any]:
+    """Tombstone an unregistered project path (no registry row to delete)."""
+    path = body.project_path.strip()
+    if not path:
+        raise HTTPException(status_code=400, detail="project_path required")
+    existing = (
+        await session.execute(sa_select(Project).where(Project.local_path == path))
+    ).scalars().first()
+    if existing is not None:
+        existing.hidden = True
+    else:
+        session.add(Project(
+            tag=PurePath(path.replace("github:", "")).name or path,
+            local_path=path,
+            github_repo=path[7:] if path.startswith("github:") else None,
+            hidden=True,
+        ))
+    await session.commit()
+    return {"status": "hidden", "project_path": path}
 
 
 @router.get("")
@@ -267,12 +307,18 @@ async def list_projects(request: Request, session: AsyncSession = SessionDep) ->
     registry = (await session.execute(sa_select(Project).order_by(Project.tag))).scalars().all()
     projects: list[dict[str, Any]] = []
     consumed: set[str] = set()
+    excluded: set[str] = set()
     for reg in registry:
         identities = [reg.local_path]
         gh = f"github:{reg.github_repo}" if reg.github_repo else None
         if gh:
             identities.append(gh)
         consumed.update(identities)
+        if reg.hidden:
+            # Tombstoned — not listed, and its identities don't resurface
+            # as leftovers or via the frontend's org-repos merge.
+            excluded.update(identities)
+            continue
         projects.append({
             "id": reg.id,
             "project_path": reg.local_path,
@@ -302,6 +348,7 @@ async def list_projects(request: Request, session: AsyncSession = SessionDep) ->
 
     org = request.app.state.settings.github_org
     leftovers = merge_github_aliases(leftovers, org)
+    leftovers = [p for p in leftovers if p["project_path"] not in excluded]
     projects.extend(leftovers)
     projects.sort(key=lambda p: p["last_scan_at"] or "", reverse=True)
-    return {"projects": projects}
+    return {"projects": projects, "excluded": sorted(excluded)}

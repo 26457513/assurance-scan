@@ -86,7 +86,12 @@
       try {
         await api.deleteAllScans(row.project_path);
         if (row.github_project) await api.deleteAllScans(row.github_project);
-        if (row.id) await api.deleteProject(row.id);
+        if (row.id) {
+          await api.deleteProject(row.id);
+        } else {
+          // No registry row to delete — tombstone so it stays gone.
+          await api.hideProject(row.project_path);
+        }
       } catch (e) {
         pushToast('error', `Delete failed for ${row.tag ?? row.project_path}: ${e}`);
       }
@@ -180,13 +185,15 @@
     try {
       // Local DB first — the table renders immediately; the GitHub org
       // listing is slow and only enriches rows with unscanned repos.
-      projects = (await api.listProjects()).projects;
+      const data = await api.listProjects();
+      projects = data.projects;
+      const excluded = new Set(data.excluded ?? []);
       loading = false;
       const gh = await api.githubRepos().catch(() => ({ repos: [] as { full_name: string; pushed_at?: string | null }[] }));
       // Org repos with no scans yet still belong in the list; ones already
       // scanned arrive via the projects API as github:{full_name}. A repo
       // matching a local project's folder name tags that row instead of
-      // adding a duplicate.
+      // adding a duplicate. Deleted (tombstoned) repos never resurface.
       const known = new Set(
         projects.flatMap((p) => [p.project_path, p.github_project].filter(Boolean) as string[])
       );
@@ -198,7 +205,7 @@
       const unscanned: typeof projects = [];
       for (const r of gh.repos) {
         const ghPath = `github:${r.full_name}`;
-        if (known.has(ghPath)) continue;
+        if (known.has(ghPath) || excluded.has(ghPath)) continue;
         const local = byBase.get(r.full_name.split('/').pop() ?? '');
         if (local && !local.github_project) {
           local.github_project = ghPath;
