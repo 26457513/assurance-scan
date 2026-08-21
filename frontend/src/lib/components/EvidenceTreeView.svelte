@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
+  import { workflowCallPrompt } from '$lib/agentPrompts';
+  import CopyButton from './CopyButton.svelte';
   import StatePill from './StatePill.svelte';
   import TestCard from './TestCard.svelte';
   import type {
@@ -11,6 +13,7 @@
   } from '$lib/types';
 
   export let scan: ScanSummary;
+  $: mappingPrompt = workflowCallPrompt('author-fr-compliance-map', { framework: 'ASVS' }, `Save with \`save_mapping\` against "${scan.project_path}".`);
 
   let groupBy: 'fr' | 'asvs' = 'fr';
   let frList: FrListResponse | null = null;
@@ -161,7 +164,11 @@
   {:else if asvsGrouped.length === 0}
     <div class="py-16 text-center">
       <div class="text-[13px] text-ink-primary mb-2">No compliance framework mapped</div>
-      <div class="text-[12px] text-ink-muted font-mono">Run the author-fr-compliance-map workflow to enable ASVS grouping.</div>
+      <div class="text-[12px] text-ink-muted font-mono">Run the author-fr-compliance-map workflow to enable ASVS grouping:</div>
+      <div class="flex items-center gap-2 mt-1">
+        <pre class="flex-1 text-[10px] font-mono text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-x-auto whitespace-pre">{mappingPrompt}</pre>
+        <CopyButton text={mappingPrompt} />
+      </div>
     </div>
   {:else}
     <div class="space-y-1.5">

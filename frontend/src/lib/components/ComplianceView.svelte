@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
+  import { workflowCallPrompt } from '$lib/agentPrompts';
   import ComplianceRow from './ComplianceRow.svelte';
   import SummaryStrip from './SummaryStrip.svelte';
   import CopyButton from './CopyButton.svelte';
@@ -15,6 +16,7 @@
 
   export let scan: ScanSummary;
   export let initialFramework: string | null = null;
+  $: mappingPrompt = workflowCallPrompt('author-fr-compliance-map', { framework: selectedFramework ?? 'ASVS' }, `Save with \`save_mapping\` against "${scan.project_path}".`);
 
   let frameworks: ComplianceFrameworkSummary[] = [];
   let matrix: ComplianceMatrixResponse | null = null;
@@ -120,11 +122,11 @@
     <div class="border border-line-hairline rounded-sm bg-surface-inset p-3 max-w-lg mx-auto text-left mb-3">
       <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1.5">Paste into Claude Code</div>
       <div class="font-mono text-[11px] text-ink-secondary leading-[1.6] break-words">
-        Run the author-fr-compliance-map workflow from the assurance-scan MCP server.
+        {mappingPrompt}
       </div>
     </div>
     <div class="flex items-center justify-center gap-2">
-      <CopyButton text="Run the author-fr-compliance-map workflow from the assurance-scan MCP server." label="Copy prompt" />
+      <CopyButton text={mappingPrompt} label="Copy prompt" />
     </div>
     <div class="mt-3 text-[11px] text-ink-muted font-mono">
       Requires an FR catalogue first — <a href="#" class="text-accent hover:underline">generate one on the FRs tab</a>

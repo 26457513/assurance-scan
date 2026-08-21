@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { workflowCallPrompt } from '$lib/agentPrompts';
   import { selectedProject } from '$lib/stores/selectedProject';
   import { pushToast } from '$lib/stores/toasts';
   import type { MappingVersion } from '$lib/types';
@@ -78,15 +79,12 @@
   }
 
   function buildPrompt(): string {
-    if (!project) {
-      return 'Select a project in the top bar first.';
-    }
-    return [
-      'Author a compliance mapping for this project using the assurance-scan MCP server:',
-      `1. Call \`bootstrap\` with project_path="${project}" — confirm an FR catalogue exists (if not, stop and tell the user to author one first via author-fr-catalogue).`,
-      `2. Call \`get_workflow\` with name="author-fr-compliance-map" and parameters={"framework": "${framework}"}.`,
-      '3. Follow the returned workflow prompt: map every regime row (satisfied rows with FR + test refs and rationale; unsuitable rows marked inappropriate with rationale), show the user, then save with \`save_mapping\` for this project.',
-    ].join('\n');
+    if (!project) return '';
+    return workflowCallPrompt(
+      'author-fr-compliance-map',
+      { framework: framework.trim() || 'ASVS' },
+      `Check \`bootstrap\` (project_path="${project}") first — if no FR catalogue exists, stop and tell the user to author one. Save the result with \`save_mapping\` against "${project}".`
+    );
   }
 
   async function copyPrompt() {

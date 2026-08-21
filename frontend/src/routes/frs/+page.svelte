@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { workflowCallPrompt } from '$lib/agentPrompts';
   import { selectedProject } from '$lib/stores/selectedProject';
   import { pushToast } from '$lib/stores/toasts';
   import type { CatalogueVersion } from '$lib/types';
@@ -94,13 +95,11 @@
 
   function buildPrompt(): string {
     if (!project) return '';
-    return [
-      `Author an FR catalogue for ${project} using the assurance-scan MCP server:`,
-      `1. Call \`bootstrap\` with project_path="${project}" and note the returned checkout_path. If it is null and your current directory is this project's checkout, use that (then call \`save_checkout_mapping\` so it is remembered); if not, ask the user once where the checkout lives.`,
-      '2. Call \`get_workflow\` with name="author-fr-catalogue" and parameters={"project_path": "<the checkout path>", "branch": "<branch>"} — set branch only if the user wants a specific one; otherwise author whatever is checked out.',
-      `3. Follow the workflow: explore the checkout, draft the v3 catalogue, show it to the user, then save with \`save_catalogue\` using project_path="${project}" and the checkout\u2019s git HEAD + branch as source_commit and source_branch.`,
-      '4. Confirm the final catalogue_version and FR count to the user.',
-    ].join('\n');
+    return workflowCallPrompt(
+      'author-fr-catalogue',
+      { project_path: project },
+      `Resolve the checkout with \`bootstrap\` (project_path="${project}") if needed — use the returned checkout_path or your current directory — and save via \`save_catalogue\` against "${project}" with the checkout\u2019s git HEAD and branch as source_commit and source_branch.`
+    );
   }
 
   async function copyPrompt() {
