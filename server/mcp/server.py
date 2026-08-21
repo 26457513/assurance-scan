@@ -359,6 +359,54 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             return payload
 
     @mcp.tool()
+    async def get_project_findings(project: str, severity: str | None = None) -> dict[str, Any]:
+        """Detailed findings for a project's latest completed scan.
+
+        `project` accepts any identity: a local path, `github:org/repo`, or a
+        bare `org/repo` / folder name. Returns the full findings payload —
+        file, line, rule, scanner, fix_strategy, compliance_tags — plus the
+        run's repo/branch/commit context. Use this (not get_findings) when
+        the user names a repository instead of a run id.
+        """
+        ident = project.strip()
+        base = ident.replace("github:", "").rstrip("/").split("/")[-1]
+        from sqlalchemy import select as sa_select
+
+        from server.db.models import Run
+
+        async with get_sessionmaker()() as session:
+            rows = (
+                await session.execute(
+                    sa_select(Run)
+                    .where(Run.status == "completed", Run.findings_json.isnot(None))
+                    .order_by(Run.started_at.desc())
+                    .limit(200)
+                )
+            ).scalars().all()
+            run = next(
+                (r for r in rows
+                 if r.project_path == ident
+                 or r.project_path.replace("github:", "").rstrip("/").split("/")[-1] == base),
+                None,
+            )
+            if run is None:
+                return {
+                    "error": "not_found",
+                    "project": ident,
+                    "hint": "no completed scan for this project — start one via start_scan or Scan now",
+                }
+            payload = json.loads(run.findings_json)
+            payload["run_id"] = run.run_id
+            payload["resolved_project_path"] = run.project_path
+            if severity:
+                payload["findings"] = [
+                    f for f in payload.get("findings", [])
+                    if f.get("severity") == severity.upper()
+                ]
+                payload["filtered_total"] = len(payload["findings"])
+            return payload
+
+    @mcp.tool()
     async def get_gap_analysis(run_id: str) -> dict[str, Any]:
         """Return FRs in 'gapped' states with their reasons."""
         async with get_sessionmaker()() as session:

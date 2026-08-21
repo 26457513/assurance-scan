@@ -52,6 +52,7 @@
 
   const AGENT_PROMPTS = [
     'What are the critical findings in the latest scan on tapestry-mono?',
+    'What approaches do you recommend to address the critical issues in tapestry-mono?',
     'Generate an FR catalogue for this project and save it.',
     'Map our FRs against ASVS and save the compliance mapping.',
     'Scan the current project and propose fixes for every gap.',
@@ -60,6 +61,7 @@
 
   const WORKFLOWS = [
     { name: 'setup-project', detail: 'Zero-to-dashboard for a new project: catalogue (created if missing), initial scan, compliance mapping, gap summary.' },
+    { name: 'recommend-remediation', detail: 'Pull a repository’s latest detailed findings and recommend prioritised approaches for the critical/high clusters.' },
     { name: 'scan-and-propose-fixes', detail: 'Scan the project, then propose a fix for every gap. The most common starting point.' },
     { name: 'generate-fr-catalogue', detail: 'Explore the codebase, reverse-engineer its capabilities, draft the FR catalogue with test specs, save it.' },
     { name: 'propose-compliance-mapping', detail: 'Read the FR catalogue and the regime pack, map every row (satisfied or not-applicable with rationale), save it.' },
@@ -79,7 +81,7 @@
     },
     {
       title: 'Ask in plain language',
-      detail: 'Questions route to tools (<code>get_findings</code>, <code>get_gap_analysis</code>, <code>list_scans</code>…); authoring tasks route to the workflows below.'
+      detail: 'Questions route to tools (<code>get_project_findings</code>, <code>get_gap_analysis</code>, <code>list_scans</code>…); authoring tasks route to the workflows below.'
     },
     {
       title: 'Artifacts land in this instance',
