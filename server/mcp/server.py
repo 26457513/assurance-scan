@@ -188,12 +188,18 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         catalogue_json: str,
         project_path: str,
         tag: str = "",
+        source_commit: str | None = None,
+        source_branch: str | None = None,
     ) -> dict[str, Any]:
         """Validate and store an FR catalogue in the DB. No file write needed.
 
         Pass the catalogue as a JSON string. The server validates it against
         the v3 schema, computes a content hash, and stores it as a snapshot.
         Subsequent scans for this project_path will use the stored snapshot.
+
+        Capture provenance from the local checkout (git rev-parse HEAD and
+        the branch name) and pass source_commit + source_branch — the server
+        cannot read the checkout itself on hosted instances.
         """
         import json as _json
         from server.db.connection import get_sessionmaker
@@ -650,6 +656,10 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             )).scalars().first()
             latest_run_id = run_row.run_id if run_row else None
             latest_run_status = run_row.status if run_row else None
+            latest_run_commit = run_row.commit_sha if run_row else None
+            latest_run_branch = run_row.git_branch if run_row else None
+            catalogue_commit = snap_row.source_commit_sha if snap_row else None
+            catalogue_branch = snap_row.source_branch if snap_row else None
 
             checkout_path = await _lookup_checkout(
                 session, await _mcp_email(ctx), resolved_project
@@ -668,6 +678,24 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         mapping_on_disk = mapping_path.exists()
         catalogue_exists = catalogue_in_db or catalogue_on_disk
         mapping_exists = mapping_in_db or mapping_on_disk
+
+        # Provenance mismatch: catalogue authored against a different
+        # branch/commit than the latest scan — surface it to the agent.
+        provenance_mismatch = bool(
+            catalogue_commit
+            and latest_run_commit
+            and (catalogue_commit != latest_run_commit
+                 or (catalogue_branch and latest_run_branch
+                     and catalogue_branch != latest_run_branch))
+        )
+        if provenance_mismatch:
+            steps.append(
+                f"Provenance mismatch: the catalogue was authored against "
+                f"{catalogue_branch or '?'}@{catalogue_commit[:10]} but the latest scan "
+                f"ran on {latest_run_branch or '?'}@{latest_run_commit[:10]}. "
+                "Tell the user before proceeding — the catalogue may not describe "
+                "the code that was scanned."
+            )
 
         dashboard_url = await _discover_dashboard_url()
 
@@ -734,6 +762,10 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             "latest_run_id": latest_run_id,
             "latest_run_status": latest_run_status,
             "checkout_path": checkout_path,
+            "catalogue_source_commit": catalogue_commit,
+            "catalogue_source_branch": catalogue_branch,
+            "latest_run_commit": latest_run_commit,
+            "latest_run_branch": latest_run_branch,
             "recommended_workflow": recommended_workflow,
             "next_steps": steps,
         }

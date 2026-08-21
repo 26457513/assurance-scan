@@ -27,18 +27,29 @@ class CatalogueSnapshotRepository(BaseRepository[CatalogueSnapshot]):
         catalogue: dict[str, Any],
         catalogue_version: str | None,
         tag: str | None = None,
+        source_commit: str | None = None,
+        source_branch: str | None = None,
     ) -> CatalogueSnapshot:
-        from server.vcs import git_head
+        from server.vcs import git_branch, git_head
 
         body = json.dumps(catalogue, sort_keys=True)
         content_hash = f"sha256:{hashlib.sha256(body.encode()).hexdigest()}"
         snapshot_id = _snapshot_id(project_path, content_hash)
-        commit = await git_head(project_path)
+        # Caller-supplied provenance (the agent read the checkout) wins;
+        # fall back to the server's own git view when it has the repo.
+        commit = source_commit or await git_head(project_path)
+        branch = source_branch or await git_branch(project_path)
 
         existing = await self.session.get(CatalogueSnapshot, snapshot_id)
         if existing is not None:
+            changed = False
             if existing.source_commit_sha is None and commit:
                 existing.source_commit_sha = commit
+                changed = True
+            if existing.source_branch is None and branch:
+                existing.source_branch = branch
+                changed = True
+            if changed:
                 await self._flush()
             return existing
 
@@ -50,6 +61,7 @@ class CatalogueSnapshotRepository(BaseRepository[CatalogueSnapshot]):
             snapshot_json=body,
             content_hash=content_hash,
             source_commit_sha=commit,
+            source_branch=branch,
         )
         self.session.add(snapshot)
         await self._flush()

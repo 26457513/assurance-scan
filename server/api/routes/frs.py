@@ -47,6 +47,8 @@ async def _derive_satisfies(session: AsyncSession, project_path: str, fr_id: str
 class SaveCatalogueBody(BaseModel):
     catalogue_json: str
     tag: str = ""
+    source_commit: str | None = None
+    source_branch: str | None = None
 
 
 @router.post("/catalogue")
@@ -81,6 +83,8 @@ async def save_catalogue(
         catalogue=catalogue.doc,
         catalogue_version=catalogue.doc.get("catalogue_version"),
         tag=body.tag,
+        source_commit=body.source_commit,
+        source_branch=body.source_branch,
     )
     await fr_repo.bulk_insert_for_snapshot(
         snapshot.id, project_path, catalogue.doc.get("frs", [])

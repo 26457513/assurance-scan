@@ -49,6 +49,7 @@ class CatalogueSnapshot(Base):
     snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     source_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_branch: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
 

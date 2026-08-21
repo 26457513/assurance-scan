@@ -66,6 +66,7 @@ export interface CatalogueVersion {
   version: string | null;
   content_hash: string;
   source_commit_sha: string | null;
+  source_branch: string | null;
   created_at: string;
   fr_count: number;
 }

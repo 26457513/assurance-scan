@@ -298,11 +298,12 @@
       <section class="mt-6">
         <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2.5">Versions</div>
         <div class="as-table text-[11px]">
-          <div class="as-head grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_90px_110px] gap-3">
+          <div class="as-head grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_70px_140px_110px] gap-3">
             <div>Tag</div>
             <div>Version</div>
             <div class="text-right">FRs</div>
             <div>Origin</div>
+            <div>Source</div>
             <div>Saved</div>
           </div>
           {#each versions as v (v.snapshot_id)}
@@ -311,7 +312,7 @@
               tabindex="0"
               on:click={() => toggleVersion(v)}
               on:keydown={(e) => e.key === 'Enter' && toggleVersion(v)}
-              class="as-row as-row-click grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_90px_110px] gap-3 px-3 py-2"
+              class="as-row as-row-click grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_70px_140px_110px] gap-3 px-3 py-2"
               class:as-row-sel={selectedVersionId === v.snapshot_id}
             >
               <span class="text-ink-primary truncate">{v.tag ?? '—'}</span>
@@ -319,6 +320,12 @@
               <span class="text-right text-ink-secondary tabular-nums">{v.fr_count}</span>
               <span class="text-ink-muted truncate" title={v.project_path ?? ''}>
                 {v.project_path?.startsWith('github:') ? 'repo' : 'local'}
+              </span>
+              <span
+                class="font-mono truncate {v.source_commit_sha ? 'text-ink-secondary' : 'text-ink-muted opacity-60'}"
+                title={v.source_commit_sha ?? 'provenance not captured'}
+              >
+                {v.source_commit_sha ? `${v.source_branch ?? '?'}@${v.source_commit_sha.slice(0, 8)}` : '—'}
               </span>
               <span class="text-ink-muted">{fmtDate(v.created_at)}</span>
             </div>

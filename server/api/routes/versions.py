@@ -69,6 +69,7 @@ async def list_catalogue_versions(
                 "version": r.catalogue_version,
                 "content_hash": r.content_hash,
                 "source_commit_sha": r.source_commit_sha,
+                "source_branch": r.source_branch,
                 "created_at": r.created_at.isoformat(),
                 "tag": r.tag,
                 "project_path": r.project_path,
