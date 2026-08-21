@@ -3,7 +3,65 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
+  import GuideSteps from '$lib/components/GuideSteps.svelte';
   import { pushToast } from '$lib/stores/toasts';
+
+  const ORG_STEPS = [
+    {
+      title: 'Create a fine-grained PAT',
+      detail: 'GitHub → your avatar → <em>Settings</em> → <em>Developer settings</em> → <em>Personal access tokens</em>. Tokens always live under your personal settings — even org-owned ones. Suggested name: <code>assurance-scan</code>.'
+    },
+    {
+      title: 'Scope it to the organisation',
+      detail: 'Resource owner = <strong>the organisation</strong> · All repositories. The resource owner is what makes this an org credential.'
+    },
+    {
+      title: 'Grant permissions',
+      detail: '<code>Contents: Read</code> and <code>Actions: Read and write</code>.'
+    },
+    {
+      title: 'Add it below',
+      detail: 'Stored encrypted. Verified against the org on save — repos appear once the token can read them.'
+    }
+  ];
+
+  const ACCOUNT_STEPS = [
+    {
+      title: 'Create a fine-grained PAT',
+      detail: 'GitHub → your avatar → <em>Settings</em> → <em>Developer settings</em> → <em>Personal access tokens</em>. Suggested name: <code>assurance-scan</code>.'
+    },
+    {
+      title: 'Scope it to your account',
+      detail: 'Resource owner = <strong>your account</strong> · select the repositories you want to scan.'
+    },
+    {
+      title: 'Grant permissions',
+      detail: '<code>Contents: Read</code> and <code>Actions: Read and write</code>.'
+    },
+    {
+      title: 'Paste it below',
+      detail: 'Stored encrypted. Verified on save.'
+    }
+  ];
+
+  const PIPELINE_STEPS = [
+    {
+      title: 'A repo adopts the workflow',
+      detail: 'The 6-line stub (from the public <code>assurance-scan-ci</code> repo) goes into <code>.github/workflows/</code> on the default branch. Every push and PR then scans automatically — on that repo’s own GitHub compute.'
+    },
+    {
+      title: 'The workflow runs the scanners',
+      detail: 'semgrep, gitleaks, trivy, grype, osv-scanner and syft, plus a Trivy image scan when a Dockerfile is present. Results land in the Actions summary, a PR comment, and an artifact. Scans never fail the workflow.'
+    },
+    {
+      title: 'This instance ingests the results',
+      detail: 'The poller fetches completed runs from every registered organisation every 60s — or instantly via <em>Retrieve from GitHub</em>.'
+    },
+    {
+      title: 'On demand from the UI',
+      detail: '<em>Scan now</em> dispatches the repo’s own workflow on any branch or SHA. Repos can also define <code>tribal-checks.json</code> — declarative assertions checked as part of every scan.'
+    }
+  ];
 
   const TABS = [
     { id: 'admin', label: 'Admin' },
@@ -202,19 +260,13 @@
         {/each}
       </div>
 
-      <div class="border border-line-hairline rounded-sm bg-surface-panel p-4 mb-4">
+      <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">
         <div class="text-[12px] text-ink-primary font-mono mb-1">Organisation credentials</div>
-        <ul class="text-[11px] text-ink-muted leading-relaxed mb-3 list-disc pl-4">
-          <li><strong class="text-ink-secondary">What it enables:</strong> automatic result ingestion, source peeks, and Scan now for every repo in the organisation — without it, the org's repos never appear.</li>
-          <li>
-            <strong class="text-ink-secondary">How:</strong>
-            <ul class="mt-1 list-disc pl-4">
-              <li>GitHub → your avatar → <strong class="text-ink-secondary">Settings</strong> → Developer settings → Personal access tokens → Fine-grained tokens → Generate <em>(tokens are always created under your personal GitHub settings — even org-owned ones; the org link comes from the next step)</em> (suggested name: <code class="text-ink-secondary">assurance-scan</code>)</li>
-              <li>Resource owner = <strong class="text-ink-secondary">the organisation</strong> <em>(this is what makes it an org credential)</em> · all repositories · <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code></li>
-              <li>Paste the token below — stored encrypted, verified on save</li>
-            </ul>
-          </li>
-        </ul>
+        <p class="text-[11px] text-ink-muted leading-relaxed mb-4">
+          Registers an organisation so every repo in it can be polled, scanned on demand, and
+          source-peeked. Without a credential, an org’s repos never appear.
+        </p>
+        <div class="mb-4"><GuideSteps steps={ORG_STEPS} /></div>
         {#if orgs.length > 0}
           <div class="mb-3">
             {#each orgs as o (o.name)}
@@ -288,19 +340,14 @@
         >Remove token</button>
       </div>
     {:else}
-      <div class="border border-line-hairline rounded-sm bg-surface-panel p-4">
+      <div class="border border-line-hairline rounded-sm bg-surface-panel p-5">
         <div class="text-[12px] text-ink-secondary mb-1 font-mono">Personal token</div>
-        <ul class="text-[11px] text-ink-muted leading-relaxed mb-3 list-disc pl-4">
-          <li><strong class="text-ink-secondary">What it enables:</strong> Scan now on repos you can write to outside the registered organisations — personal repos, another org. Repos without the workflow are refused with setup guidance.</li>
-          <li>
-            <strong class="text-ink-secondary">How:</strong>
-            <ul class="mt-1 list-disc pl-4">
-              <li>GitHub → your avatar → <strong class="text-ink-secondary">Settings</strong> → Developer settings → Personal access tokens → Fine-grained tokens → Generate (suggested name: <code class="text-ink-secondary">assurance-scan</code>)</li>
-              <li>Resource owner = your account · select the repositories you want to scan · <code class="text-ink-secondary">Contents: Read</code> + <code class="text-ink-secondary">Actions: Read and write</code></li>
-              <li>Paste the token below — stored encrypted, verified on save</li>
-            </ul>
-          </li>
-        </ul>
+        <p class="text-[11px] text-ink-muted leading-relaxed mb-4">
+          Enables <em>Scan now</em> on repos you can write to outside the registered
+          organisations — personal repos, another org. Repos without the workflow are refused
+          with setup guidance.
+        </p>
+        <div class="mb-4"><GuideSteps steps={ACCOUNT_STEPS} /></div>
         <div class="flex gap-2">
           <input
             type="text"
@@ -321,14 +368,9 @@
       </div>
     {/if}
   {:else if tab === 'about'}
-    <div class="border border-line-hairline rounded-sm bg-surface-panel p-4">
-      <div class="text-[12px] text-ink-primary font-mono mb-3">How a scan happens</div>
-      <ol class="text-[11px] text-ink-muted leading-relaxed list-decimal pl-4 space-y-2">
-        <li><strong class="text-ink-secondary">A repo adopts the workflow</strong> — the stub (6 lines, from the public <code class="text-ink-secondary">assurance-scan-ci</code> repo) is added to <code class="text-ink-secondary">.github/workflows/</code> on its default branch. From then on, every push and PR scans automatically on that repo's own GitHub compute.</li>
-        <li><strong class="text-ink-secondary">The workflow runs the scanners</strong> — the public orchestrator image drives semgrep, gitleaks, trivy, grype, osv-scanner and syft (plus a Trivy image scan when a Dockerfile is present). Results land in the repo's Actions summary, a PR comment, and an artifact (SARIF, SBOM, findings). Scans never fail the workflow.</li>
-        <li><strong class="text-ink-secondary">This instance ingests the results</strong> — the poller fetches completed runs from every registered organisation every 60s (or instantly via <em>Retrieve from GitHub</em>). Findings, FR catalogues and compliance views live here.</li>
-        <li><strong class="text-ink-secondary">On demand from the UI</strong> — <em>Scan now</em> dispatches the repo's own workflow on any branch or SHA, running on that repo's compute. Repos can also define <code class="text-ink-secondary">tribal-checks.json</code> (declarative assertions about files, sizes, content) which run as part of every scan.</li>
-      </ol>
+    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5">
+      <div class="text-[12px] text-ink-primary font-mono mb-4">How a scan happens</div>
+      <GuideSteps steps={PIPELINE_STEPS} />
       <div class="text-[12px] text-ink-primary font-mono mt-5 mb-2">Connecting an agent</div>
       <p class="text-[11px] text-ink-muted leading-relaxed mb-1">
         Claude Code and other agents can drive scans and catalogues via the MCP server:
