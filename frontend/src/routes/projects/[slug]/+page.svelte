@@ -270,15 +270,6 @@
 
 {#if view === 'scans'}
   <div class="p-6">
-    <div class="mb-5">
-      <div class="text-[15px] text-ink-primary mb-1">Scans</div>
-      <div class="text-[12px] text-ink-secondary">
-        <span class="font-mono">{projectPath.replace(/^github:/, '')}</span>
-        {#if scans.length}
-          <span class="text-ink-muted"> · {scans.length} scans · newest first</span>
-        {/if}
-      </div>
-    </div>
     {#if latestFailed}
       <button
         type="button"
