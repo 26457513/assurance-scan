@@ -5,11 +5,8 @@
   import type { CatalogueVersion } from '$lib/types';
 
   let versions: CatalogueVersion[] = [];
-  let org = '';
   // Registered/local projects carry their checkout path at setup; only
   // github:-only selections need the user to supply one.
-  let manualPath = '';
-  let authorBranch = '';
   let pastedJson = '';
   let catalogueTag = '';
   let loading = true;
@@ -55,25 +52,9 @@
     return 'var(--state-pending)';
   }
 
-  const LOCAL_PATH_KEY = 'assurance-scan:local-paths';
 
   $: project = $selectedProject ?? '';
 
-  function rememberManualPath(p: string, path: string) {
-    if (!p || !path) return;
-    const store = JSON.parse(localStorage.getItem(LOCAL_PATH_KEY) ?? '{}');
-    store[p] = path;
-    localStorage.setItem(LOCAL_PATH_KEY, JSON.stringify(store));
-  }
-
-  $: isGithubOnly = project.startsWith('github:');
-  $: agentPath = isGithubOnly ? manualPath.trim() : project;
-
-  function derivedGithubPath(): string | null {
-    const base = agentPath.replace(/\/$/, '').split('/').pop();
-    if (!org || !base) return null;
-    return `github:${org}/${base}`;
-  }
 
   async function loadVersions() {
     if (!project) {
@@ -90,10 +71,6 @@
 
   // Reload when the top-bar project selection changes.
   $: if (project) {
-    if (isGithubOnly) {
-      const store = JSON.parse(localStorage.getItem(LOCAL_PATH_KEY) ?? '{}');
-      manualPath = store[project] ?? '';
-    }
     flow = null;
     loadVersions();
   }
@@ -116,25 +93,18 @@
   }
 
   function buildPrompt(): string {
-    if (!agentPath) return '';
-    const branchParam = authorBranch.trim() ? `, "branch": "${authorBranch.trim()}"` : '';
+    if (!project) return '';
     return [
-      'Author an FR catalogue for this project using the assurance-scan MCP server:',
-      `1. Call \`get_workflow\` with name="author-fr-catalogue" and parameters={"project_path": "${agentPath}"${branchParam}}.`,
-      '2. Follow the returned workflow prompt: explore the checkout, draft the v3 catalogue, show it to the user, then save it with \`save_catalogue\` (passing the checkout\u2019s git HEAD and branch as source_commit and source_branch).',
-      '3. Confirm the final catalogue_version and FR count to the user.',
+      `Author an FR catalogue for ${project} using the assurance-scan MCP server:`,
+      `1. Call \`bootstrap\` with project_path="${project}" and note the returned checkout_path. If it is null and your current directory is this project's checkout, use that (then call \`save_checkout_mapping\` so it is remembered); if not, ask the user once where the checkout lives.`,
+      '2. Call \`get_workflow\` with name="author-fr-catalogue" and parameters={"project_path": "<the checkout path>", "branch": "<branch>"} — set branch only if the user wants a specific one; otherwise author whatever is checked out.',
+      `3. Follow the workflow: explore the checkout, draft the v3 catalogue, show it to the user, then save with \`save_catalogue\` using project_path="${project}" and the checkout\u2019s git HEAD + branch as source_commit and source_branch.`,
+      '4. Confirm the final catalogue_version and FR count to the user.',
     ].join('\n');
-  }
-
-  function frPromptHint(): string {
-    return authorBranch.trim()
-      ? ''
-      : 'No branch set \u2014 the agent will author against whatever is currently checked out.';
   }
 
   async function copyPrompt() {
     if (!project) return;
-    if (isGithubOnly) rememberManualPath(project, manualPath);
     try {
       await navigator.clipboard.writeText(buildPrompt());
       pushToast('success', 'Agent prompt copied — paste it into Claude Code');
@@ -161,16 +131,7 @@
     return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  async function init() {
-    try {
-      const gh = await api.githubRepos().catch(() => ({ org: '', repos: [] }));
-      org = gh.org ?? '';
-    } catch {
-      /* org stays empty — identity falls back to the selected project */
-    }
-    loading = false;
-  }
-  init();
+  loading = false;
 </script>
 
 <div class="p-6 max-w-6xl">
@@ -235,51 +196,18 @@
           <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">Author with an agent</div>
           <button type="button" on:click={() => (flow = null)} class="text-[11px] font-mono text-ink-muted hover:text-accent">✕ back</button>
         </div>
-        {#if isGithubOnly}
-          <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="local-path">Local checkout path</label>
-          <input
-            id="local-path"
-            type="text"
-            bind:value={manualPath}
-            on:blur={() => rememberManualPath(project, manualPath)}
-            placeholder="/Users/you/Development/project"
-            class="w-full max-w-xl px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-          />
-        {:else}
-          <div class="mb-3">
-            <div class="text-[11px] font-mono text-ink-secondary mb-1">Local checkout (from project setup)</div>
-            <div class="font-mono text-[11px] text-ink-primary border border-line-hairline rounded-sm bg-surface-base px-2 py-1 inline-block">{agentPath}</div>
-          </div>
-        {/if}
-        <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="author-branch">Branch (optional)</label>
-        <input
-          id="author-branch"
-          type="text"
-          bind:value={authorBranch}
-          placeholder="e.g. main — saved as the catalogue's provenance"
-          class="w-64 px-2 py-1 mb-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-        />
-        {#if frPromptHint()}
-          <div class="text-[10px] text-ink-muted font-mono mb-3">{frPromptHint()}</div>
-        {:else}
-          <div class="mb-3"></div>
-        {/if}
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
-          Delegates to the server-side <code class="text-ink-secondary">author-fr-catalogue</code> workflow.
+          The agent finds the checkout itself — it runs in the project folder, or uses the
+          remembered mapping — and only asks you if it genuinely doesn\u2019t know. Branch is chosen
+          in the conversation when it matters. Delegates to the
+          <code class="text-ink-secondary">author-fr-catalogue</code> workflow.
         </p>
-        {#if agentPath}
-          <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
-          <button
-            type="button"
-            on:click={copyPrompt}
-            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
-          >Copy prompt</button>
-        {:else}
-          <p class="text-[11px] text-ink-muted leading-relaxed max-w-xl mb-2">
-            Enter the local checkout path above first — the workflow needs it to explore the codebase.
-            The agent prompt will appear here once set.
-          </p>
-        {/if}
+        <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-64 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
+        <button
+          type="button"
+          on:click={copyPrompt}
+          class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+        >Copy prompt</button>
       </section>
     {:else if flow === 'paste'}
       <section class="border border-line-hairline rounded-sm bg-surface-panel p-5">
