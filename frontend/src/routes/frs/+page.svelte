@@ -116,9 +116,7 @@
   }
 
   function buildPrompt(): string {
-    if (!agentPath) {
-      return 'Enter the local checkout path first — the workflow needs it to explore the codebase.';
-    }
+    if (!agentPath) return '';
     const branchParam = authorBranch.trim() ? `, "branch": "${authorBranch.trim()}"` : '';
     return [
       'Author an FR catalogue for this project using the assurance-scan MCP server:',
@@ -269,12 +267,19 @@
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
           Delegates to the server-side <code class="text-ink-secondary">author-fr-catalogue</code> workflow.
         </p>
-        <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
-        <button
-          type="button"
-          on:click={copyPrompt}
-          class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
-        >Copy prompt</button>
+        {#if agentPath}
+          <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
+          <button
+            type="button"
+            on:click={copyPrompt}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+          >Copy prompt</button>
+        {:else}
+          <p class="text-[11px] text-ink-muted leading-relaxed max-w-xl mb-2">
+            Enter the local checkout path above first — the workflow needs it to explore the codebase.
+            The agent prompt will appear here once set.
+          </p>
+        {/if}
       </section>
     {:else if flow === 'paste'}
       <section class="border border-line-hairline rounded-sm bg-surface-panel p-5">
