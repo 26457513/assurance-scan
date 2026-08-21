@@ -63,6 +63,15 @@ def load_checks(project_root: Path) -> list[Check]:
     if not isinstance(raw, list):
         raise TribalCheckError(f"{TRIBAL_FILENAME}: 'checks' must be a list")
 
+    # Top-level ignore: patterns that apply to every check (repo-wide junk
+    # like archive folders or *.old/*.backup). Merged into each check's
+    # exclude so no rule needs to repeat them.
+    global_ignore = doc.get("ignore", [])
+    if not isinstance(global_ignore, list) or not all(
+        isinstance(p, str) and p for p in global_ignore
+    ):
+        raise TribalCheckError(f"{TRIBAL_FILENAME}: 'ignore' must be a list of glob patterns")
+
     checks: list[Check] = []
     seen: set[str] = set()
     for i, entry in enumerate(raw):
@@ -86,13 +95,16 @@ def load_checks(project_root: Path) -> list[Check]:
                 f"checks[{i}] ({cid}): bad severity {severity!r}; "
                 f"valid: {sorted(VALID_SEVERITIES)}"
             )
+        params = {k: v for k, v in entry.items()
+                  if k not in ("id", "title", "severity", "type")}
+        if global_ignore:
+            params["exclude"] = sorted(set(global_ignore) | set(params.get("exclude", [])))
         checks.append(Check(
             id=cid,
             title=str(entry.get("title", cid)),
             severity=severity,
             type=ctype,
-            params={k: v for k, v in entry.items()
-                    if k not in ("id", "title", "severity", "type")},
+            params=params,
         ))
     return checks
 

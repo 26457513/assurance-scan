@@ -22,8 +22,9 @@ def repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _write(root: Path, checks: list[dict]) -> Path:
-    (root / "tribal-checks.json").write_text(json.dumps({"checks": checks}))
+def _write(root: Path, checks: list[dict], doc_extra: dict | None = None) -> Path:
+    doc = {"checks": checks, **(doc_extra or {})}
+    (root / "tribal-checks.json").write_text(json.dumps(doc))
     return root
 
 
@@ -127,3 +128,16 @@ def test_file_max_lines_counts_files_past_content_scan_cap(repo: Path) -> None:
     findings = run_checks(repo, load_checks(repo))
     assert len(findings) == 1
     assert findings[0].file_path == "huge.py"
+
+
+def test_global_ignore_applies_to_every_check(repo: Path) -> None:
+    (repo / "archive").mkdir()
+    (repo / "archive" / "old.py").write_text("x = 1\n" * 100)
+    (repo / "app.py.bak").write_text("x = 1\n" * 100)
+    (repo / "keep.py").write_text("x = 1\n" * 100)
+    _write(repo, [
+        {"id": "lines", "type": "file_max_lines", "glob": "**/*.py*", "max_lines": 10},
+        {"id": "sz", "type": "file_max_size", "glob": "**/*.py*", "max_kb": 1},
+    ], doc_extra={"ignore": ["archive/**", "**/*.bak"]})
+    findings = run_checks(repo, load_checks(repo))
+    assert {f.file_path for f in findings} == {"keep.py"}

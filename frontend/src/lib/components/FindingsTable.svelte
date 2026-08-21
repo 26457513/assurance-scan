@@ -199,7 +199,7 @@
           <div class="font-mono text-[11px] text-ink-secondary truncate">{f.scanner_kind}</div>
           <div class="text-[12px] text-ink-primary truncate" title={f.message}>{f.message}</div>
           <div class="font-mono text-[11px] text-ink-muted truncate" title={f.file_path ?? ''}>
-            {#if f.file_path}{f.file_path}{#if f.line_start}:{f.line_start}{/if}{:else}—{/if}
+            {#if f.file_path}{f.file_path.split('/').pop()}{#if f.line_start}:{f.line_start}{/if}{:else}—{/if}
           </div>
           <div class="text-ink-muted flex items-center justify-center">
             <svg class="h-3 w-3 transition-transform duration-150 {expandedId === f.id ? 'rotate-180' : ''}" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -213,6 +213,10 @@
               {#if f.rule_id}
                 <dt class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted pt-[3px]">rule</dt>
                 <dd class="font-mono text-[11px] text-ink-secondary break-all">{f.rule_id}</dd>
+              {/if}
+              {#if f.file_path}
+                <dt class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted pt-[3px]">path</dt>
+                <dd class="font-mono text-[11px] text-ink-secondary break-all">{f.file_path}</dd>
               {/if}
               {#if f.theme}
                 <dt class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted pt-[3px]">theme</dt>
