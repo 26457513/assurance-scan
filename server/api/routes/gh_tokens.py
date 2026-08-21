@@ -387,7 +387,9 @@ async def preview_mcp_token(
     if isinstance(netloc, bytes):  # httpx URLs in tests; starlette gives str
         netloc = netloc.decode()
     base = f"{request.url.scheme}://{netloc}"
+    # Drop any stale registration first (non-fatal when absent), then add.
     command = (
+        f'claude mcp remove assurance-scan 2>/dev/null; '
         f'claude mcp add --transport http assurance-scan {base}/mcp '
         f'--header "Authorization: Bearer {token}"'
     )
