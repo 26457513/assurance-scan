@@ -390,8 +390,8 @@ async def rotate_mcp_token(
         netloc = netloc.decode()
     base = f"{request.url.scheme}://{netloc}"
     command = (
-        f'claude mcp add assurance-scan --transport http '
-        f'--header "Authorization: Bearer {token}" {base}/mcp'
+        f'claude mcp add --transport http assurance-scan {base}/mcp '
+        f'--header "Authorization: Bearer {token}"'
     )
     return {"token": token, "command": command, "base_url": base}
 

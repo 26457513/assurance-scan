@@ -48,11 +48,11 @@
   const MCP_COMMANDS = [
     {
       label: 'This instance (local)',
-      url: 'claude mcp add assurance-scan --transport http --header "Authorization: Bearer $MCP_TOKEN" http://localhost:8742/mcp'
+      url: 'claude mcp add --transport http assurance-scan http://localhost:8742/mcp --header "Authorization: Bearer $MCP_TOKEN"'
     },
     {
       label: 'Hosted (scan.squease.ai)',
-      url: 'claude mcp add assurance-scan --transport http --header "Authorization: Bearer $MCP_TOKEN" https://scan.squease.ai/mcp'
+      url: 'claude mcp add --transport http assurance-scan https://scan.squease.ai/mcp --header "Authorization: Bearer $MCP_TOKEN"'
     }
   ];
 
