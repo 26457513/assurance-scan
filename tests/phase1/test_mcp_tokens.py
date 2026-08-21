@@ -33,7 +33,7 @@ async def client():
 async def test_preview_then_apply_stores_hash_not_plaintext(client) -> None:
     from sqlalchemy import select
 
-    from server.api.routes.gh_tokens import apply_mcp_token, preview_mcp_token
+    from server.api.routes.gh_tokens import ApplyMcpTokenBody, apply_mcp_token, preview_mcp_token
     from server.db.connection import get_sessionmaker
     from server.db.models import User
 
@@ -53,7 +53,7 @@ async def test_preview_then_apply_stores_hash_not_plaintext(client) -> None:
         row = (await session.execute(select(User).where(User.email == user.email))).scalars().one()
         assert row.mcp_token_hash is None
 
-        await apply_mcp_token(user=user, session=session, token=res["token"])
+        await apply_mcp_token(user=user, session=session, body=ApplyMcpTokenBody(token=res["token"]))
 
         row = (await session.execute(select(User).where(User.email == user.email))).scalars().one()
         assert row.mcp_token_hash == hashlib.sha256(res["token"].encode()).hexdigest()

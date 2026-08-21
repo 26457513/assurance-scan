@@ -3,6 +3,7 @@ from __future__ import annotations
 
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
+from pydantic import BaseModel
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -393,16 +394,20 @@ async def preview_mcp_token(
     return {"token": token, "command": command, "base_url": base}
 
 
+class ApplyMcpTokenBody(BaseModel):
+    token: str
+
+
 @router.post("/users/me/mcp-token")
 async def apply_mcp_token(
     user: Any = Depends(get_current_user),
     session: AsyncSession = SessionDep,
-    token: str = Body(..., min_length=20),
+    body: ApplyMcpTokenBody = Body(...),
 ) -> dict[str, Any]:
     """Activate a previewed token. Any previous token stops working."""
     if user is None:
         raise HTTPException(status_code=401, detail="sign in")
-    user.mcp_token_hash = _hash_mcp_token(token)
+    user.mcp_token_hash = _hash_mcp_token(body.token)
     user.mcp_token_generated_at = dt.datetime.now(dt.timezone.utc)
     session.add(user)
     await session.commit()
