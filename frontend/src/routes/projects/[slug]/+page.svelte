@@ -239,8 +239,11 @@
 
 <div class="p-6">
   <div class="mb-5">
-      <div class="text-[15px] text-ink-primary mb-1">Scans</div>
+    <div class="text-[15px] text-ink-primary mb-1">Scans</div>
+    <div class="text-[12px] text-ink-secondary">
+      Every scan of this project, newest first — select a row for its findings, FRs and compliance.
     </div>
+  </div>
     {#if latestFailed}
       <button
         type="button"
