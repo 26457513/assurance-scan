@@ -10,7 +10,13 @@ from sqlalchemy import func, select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.api.deps import SessionDep
-from server.db.models import CatalogueSnapshot, Project, Run
+from server.db.models import (
+    CatalogueSnapshot,
+    ComplianceMapping,
+    ComplianceMappingSnapshot,
+    Project,
+    Run,
+)
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -188,15 +194,38 @@ async def update_project(
 
 @router.delete("/{project_id}")
 async def delete_project(project_id: int, session: AsyncSession = SessionDep) -> dict[str, Any]:
-    """Remove a project registration (scan data is deleted separately via
-    DELETE /api/scans?project_path=…, which fully resets a project)."""
-    from sqlalchemy import select as _select
+    """Remove a project and everything it produced locally.
+
+    GitHub is untouched; local runs, findings, FR catalogues and compliance
+    mappings for every identity of the project are deleted (child rows go
+    via FK cascades). Without this the list rebuilds the row from its runs.
+    """
+    from sqlalchemy import delete as sa_delete
 
     project = (
-        await session.execute(_select(Project).where(Project.id == project_id))
+        await session.execute(sa_select(Project).where(Project.id == project_id))
     ).scalars().first()
     if project is None:
         raise HTTPException(status_code=404, detail="project not found")
+    identities = {project.local_path}
+    if project.github_repo:
+        identities.add(f"github:{project.github_repo}")
+
+    for run in (
+        await session.execute(sa_select(Run).where(Run.project_path.in_(identities)))
+    ).scalars().all():
+        await session.delete(run)
+    await session.execute(
+        sa_delete(CatalogueSnapshot).where(CatalogueSnapshot.project_path.in_(identities))
+    )
+    await session.execute(
+        sa_delete(ComplianceMappingSnapshot).where(
+            ComplianceMappingSnapshot.project_path.in_(identities)
+        )
+    )
+    await session.execute(
+        sa_delete(ComplianceMapping).where(ComplianceMapping.project_path.in_(identities))
+    )
     await session.delete(project)
     await session.commit()
     return {"status": "deleted", "tag": project.tag}

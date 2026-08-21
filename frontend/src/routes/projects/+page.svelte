@@ -178,11 +178,11 @@
 
   async function load() {
     try {
-      const [data, gh] = await Promise.all([
-        api.listProjects(),
-        api.githubRepos().catch(() => ({ repos: [] }))
-      ]);
-      projects = data.projects;
+      // Local DB first — the table renders immediately; the GitHub org
+      // listing is slow and only enriches rows with unscanned repos.
+      projects = (await api.listProjects()).projects;
+      loading = false;
+      const gh = await api.githubRepos().catch(() => ({ repos: [] as { full_name: string; pushed_at?: string | null }[] }));
       // Org repos with no scans yet still belong in the list; ones already
       // scanned arrive via the projects API as github:{full_name}. A repo
       // matching a local project's folder name tags that row instead of
@@ -214,7 +214,6 @@
       projects = [...projects, ...unscanned];
     } catch (e) {
       error = String(e);
-    } finally {
       loading = false;
     }
   }

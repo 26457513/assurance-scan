@@ -81,3 +81,35 @@ async def test_pack_content_endpoint(client) -> None:
 
     missing = await client.get("/api/compliance/packs/nope-1.0.0.json")
     assert missing.status_code == 404
+
+
+async def test_delete_project_cascades_and_stays_deleted(client) -> None:
+    """Deleting must remove runs too — the list rebuilds rows from runs."""
+    from server.db.connection import get_sessionmaker
+    from server.db.models import Run
+
+    # GitHub-only registration anchors on github:someone/gone and needs
+    # no folder on disk.
+    res = await client.post(
+        "/api/projects",
+        json={"tag": "gone", "local_path": "", "github_url": "someone/gone"},
+    )
+    assert res.status_code == 200
+    pid = (await client.get("/api/projects")).json()["projects"]
+    row = next(p for p in pid if p["project_path"] == "github:someone/gone")
+    await _seed_runs("github:someone/gone", 3)
+
+    res = await client.delete(f"/api/projects/{row['id']}")
+    assert res.status_code == 200
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        left = (await session.execute(
+            __import__("sqlalchemy").select(Run).where(
+                Run.project_path.in_(["github:someone/gone"])
+            )
+        )).scalars().all()
+        assert left == []
+
+    names = [p["project_path"] for p in (await client.get("/api/projects")).json()["projects"]]
+    assert "github:someone/gone" not in names
