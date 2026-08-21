@@ -229,8 +229,11 @@
   $: cursorJson = mcpUrl
     ? JSON.stringify({ mcpServers: { 'assurance-scan': { url: mcpUrl, headers: { Authorization: `Bearer ${mcpPendingToken}` } } } }, null, 2)
     : '';
-  $: vscodeJson = mcpUrl
-    ? JSON.stringify({ servers: { 'assurance-scan': { type: 'http', url: mcpUrl, headers: { Authorization: `Bearer ${mcpPendingToken}` } } } }, null, 2)
+  $: cursorCmd = mcpUrl
+    ? `python3 - <<'PY'\nimport json, pathlib\np = pathlib.Path.home() / ".cursor/mcp.json"\ndoc = json.loads(p.read_text()) if p.exists() else {}\ndoc.setdefault("mcpServers", {})["assurance-scan"] = {\n  "url": "${mcpUrl}",\n  "headers": {"Authorization": "Bearer ${mcpPendingToken}"},\n}\np.parent.mkdir(parents=True, exist_ok=True)\np.write_text(json.dumps(doc, indent=2))\nprint("added to", p)\nPY`
+    : '';
+  $: copilotCmd = mcpUrl
+    ? `code --add-mcp '{"name":"assurance-scan","type":"http","url":"${mcpUrl}","headers":{"Authorization":"Bearer ${mcpPendingToken}"}}'`
     : '';
 
   async function rotateMcp() {
@@ -649,19 +652,19 @@
             </div>
           {:else if mcpClientTab === 'cursor'}
             <div class="text-[10px] font-mono text-ink-muted mb-1">
-              Cursor <code class="text-ink-secondary">~/.cursor/mcp.json</code> · also Windsurf <code class="text-ink-secondary">~/.codeium/windsurf/mcp_config.json</code>
+              Run in a terminal — merges into <code class="text-ink-secondary">~/.cursor/mcp.json</code> (for Windsurf, change the path to <code class="text-ink-secondary">.codeium/windsurf/mcp_config.json</code>)
             </div>
             <div class="flex items-center gap-2">
-              <pre class="flex-1 text-[10px] font-mono text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-auto whitespace-pre">{cursorJson}</pre>
-              <CopyButton text={cursorJson} />
+              <pre class="flex-1 text-[10px] font-mono text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-auto whitespace-pre max-h-56">{cursorCmd}</pre>
+              <CopyButton text={cursorCmd} />
             </div>
           {:else}
             <div class="text-[10px] font-mono text-ink-muted mb-1">
-              VS Code Copilot <code class="text-ink-secondary">.vscode/mcp.json</code> (workspace)
+              Run in a terminal (VS Code Copilot)
             </div>
             <div class="flex items-center gap-2">
-              <pre class="flex-1 text-[10px] font-mono text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-auto whitespace-pre">{vscodeJson}</pre>
-              <CopyButton text={vscodeJson} />
+              <pre class="flex-1 text-[10px] font-mono text-ink-secondary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-auto whitespace-pre">{copilotCmd}</pre>
+              <CopyButton text={copilotCmd} />
             </div>
           {/if}
         </div>
