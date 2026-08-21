@@ -59,15 +59,40 @@
     'Write a unit test for FR-003.'
   ];
 
-  const WORKFLOWS = [
-    { name: 'setup-project', detail: 'Zero-to-dashboard for a new project: catalogue (created if missing), initial scan, compliance mapping, gap summary.' },
-    { name: 'recommend-remediation', detail: 'Pull a repository’s latest detailed findings and recommend prioritised approaches for the critical/high clusters.' },
-    { name: 'scan-and-propose-fixes', detail: 'Scan the project, then propose a fix for every gap. The most common starting point.' },
-    { name: 'generate-fr-catalogue', detail: 'Explore the codebase, reverse-engineer its capabilities, draft the FR catalogue with test specs, save it.' },
-    { name: 'propose-compliance-mapping', detail: 'Read the FR catalogue and the regime pack, map every row (satisfied or not-applicable with rationale), save it.' },
-    { name: 'close-gap-via-test', detail: 'Write a unit test for an untested FR, matching the catalogue’s name_pattern.' },
-    { name: 'close-gap-via-config', detail: 'Fix a config or code issue so a scanner stops reporting a finding.' },
-    { name: 'prefetch-and-rescan', detail: 'Refresh scanner vulnerability DBs and re-scan — for scanners failing on missing databases.' }
+  const WORKFLOW_GROUPS = [
+    {
+      label: 'Setup',
+      workflows: [
+        { name: 'setup-project', detail: 'Zero-to-dashboard for a new project: catalogue (created if missing), initial scan, compliance mapping, gap summary.' }
+      ]
+    },
+    {
+      label: 'Scan',
+      workflows: [
+        { name: 'scan-project', detail: 'Scan the project, then propose a fix for every gap. The most common starting point.' },
+        { name: 'scan-refresh', detail: 'Refresh scanner vulnerability DBs and re-scan — for scanners failing on missing databases.' }
+      ]
+    },
+    {
+      label: 'Author',
+      workflows: [
+        { name: 'author-fr-catalogue', detail: 'Explore the codebase, reverse-engineer its capabilities, draft the FR catalogue with test specs, save it.' },
+        { name: 'author-fr-compliance-map', detail: 'Read the FR catalogue and the regime pack, map every row (satisfied or not-applicable with rationale), save it.' }
+      ]
+    },
+    {
+      label: 'Advise',
+      workflows: [
+        { name: 'advise-remediation', detail: 'Pull a repository’s latest detailed findings and recommend prioritised approaches for the critical/high clusters.' }
+      ]
+    },
+    {
+      label: 'Fix',
+      workflows: [
+        { name: 'code-fr-test', detail: 'Write a unit test for an untested FR, matching the catalogue’s name_pattern.' },
+        { name: 'code-finding-fix', detail: 'Fix a config or code issue so a scanner stops reporting a finding.' }
+      ]
+    }
   ];
 
   const AGENT_STEPS = [
@@ -452,15 +477,23 @@
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-5">
       <div class="text-[12px] text-ink-primary font-mono mb-3">Workflows the agent can run</div>
       <div class="as-table text-[11px]">
-        <div class="as-head grid grid-cols-[200px_minmax(0,1fr)] gap-3">
+        <div class="as-head grid grid-cols-[110px_210px_minmax(0,1fr)] gap-3">
+          <div>Category</div>
           <div>Workflow</div>
           <div>What it does</div>
         </div>
-        {#each WORKFLOWS as w (w.name)}
-          <div class="as-row grid grid-cols-[200px_minmax(0,1fr)] gap-3 px-3 py-2 items-center">
-            <span class="font-mono text-ink-primary truncate">{w.name}</span>
-            <span class="text-ink-muted leading-relaxed">{w.detail}</span>
-          </div>
+        {#each WORKFLOW_GROUPS as g (g.label)}
+          {#each g.workflows as w, i (w.name)}
+            <div class="as-row grid grid-cols-[110px_210px_minmax(0,1fr)] gap-3 px-3 py-2 items-center">
+              {#if i === 0}
+                <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-accent">{g.label}</span>
+              {:else}
+                <span></span>
+              {/if}
+              <span class="font-mono text-ink-primary truncate">{w.name}</span>
+              <span class="text-ink-muted leading-relaxed">{w.detail}</span>
+            </div>
+          {/each}
         {/each}
       </div>
     </div>

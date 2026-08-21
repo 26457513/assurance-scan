@@ -55,12 +55,25 @@ def list_workflows() -> list[dict[str, Any]]:
     return out
 
 
+# Pre-standardisation names, kept working so existing prompts don't break.
+_ALIASES = {
+    "scan-and-propose-fixes": "scan-project",
+    "prefetch-and-rescan": "scan-refresh",
+    "generate-fr-catalogue": "author-fr-catalogue",
+    "propose-compliance-mapping": "author-fr-compliance-map",
+    "recommend-remediation": "advise-remediation",
+    "close-gap-via-test": "code-fr-test",
+    "close-gap-via-config": "code-finding-fix",
+}
+
+
 def get_workflow(name: str, parameters: dict[str, str] | None = None) -> dict[str, Any]:
     """Return a single workflow with its prompt rendered with parameters.
 
     Missing parameters are left as `{{name}}` placeholders so the agent
     can fill them in by reading the conversation context.
     """
+    name = _ALIASES.get(name, name)
     path = WORKFLOWS_DIR / f"{name}.json"
     if not path.exists():
         return {"error": "not_found", "name": name, "available": [w["name"] for w in list_workflows()]}

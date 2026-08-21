@@ -584,7 +584,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
                 "catalogue JSON + this project_path. Do NOT write to disk — "
                 "save_catalogue stores it in the DB."
             )
-            recommended_workflow = "generate-fr-catalogue"
+            recommended_workflow = "author-fr-catalogue"
         else:
             if catalogue_in_db:
                 steps.append(
@@ -610,13 +610,13 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
                     "then call save_mapping with the mapping JSON + this project_path. "
                     "Do NOT write to disk."
                 )
-                recommended_workflow = "propose-compliance-mapping"
+                recommended_workflow = "author-fr-compliance-map"
             else:
                 steps.append(
                     f"Mapping stored ({mapping_count} entries). Call get_findings and "
                     "get_gap_analysis on the latest run to see the current state."
                 )
-                recommended_workflow = "scan-and-propose-fixes"
+                recommended_workflow = "scan-project"
 
         return {
             "project_path": resolved_project,

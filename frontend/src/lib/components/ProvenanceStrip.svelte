@@ -34,7 +34,7 @@
   });
 
   async function copyRegenerate() {
-    const cmd = `Run the generate-fr-catalogue workflow from the assurance-scan MCP server. Use project_path="${projectPath}".`;
+    const cmd = `Run the author-fr-catalogue workflow from the assurance-scan MCP server. Use project_path="${projectPath}".`;
     try {
       await navigator.clipboard.writeText(cmd);
       copied = true;

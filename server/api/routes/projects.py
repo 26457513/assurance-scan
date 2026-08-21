@@ -217,7 +217,7 @@ async def delete_project(project_id: int, session: AsyncSession = SessionDep) ->
     project = (
         await session.execute(sa_select(Project).where(Project.id == project_id))
     ).scalars().first()
-    if project is None:
+    if project is None or project.hidden:
         raise HTTPException(status_code=404, detail="project not found")
     identities = {project.local_path}
     if project.github_repo:

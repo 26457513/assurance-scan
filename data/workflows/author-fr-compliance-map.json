@@ -1,5 +1,5 @@
 {
-  "name": "propose-compliance-mapping",
+  "name": "author-fr-compliance-map",
   "description": "Read the project's FR catalogue (from the DB) + the compliance pack and draft a thorough compliance mapping. Maps EVERY compliance row \u2014 appropriate rows get satisfied_by + test_refs + rationale; inappropriate rows get appropriate: false with rationale explaining why they don't apply. Saved to the DB via save_mapping.",
   "parameters": [
     {

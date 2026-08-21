@@ -118,7 +118,7 @@
     if (!agentPath) {
       return 'Enter the local checkout path first — the workflow needs it to explore the codebase.';
     }
-    return `Call the assurance-scan MCP tool \`get_workflow\` with name="generate-fr-catalogue" and parameters={"project_path": "${agentPath}"} and follow the returned workflow prompt.`;
+    return `Call the assurance-scan MCP tool \`get_workflow\` with name="author-fr-catalogue" and parameters={"project_path": "${agentPath}"} and follow the returned workflow prompt.`;
   }
 
   async function copyPrompt() {
@@ -241,7 +241,7 @@
           </div>
         {/if}
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
-          Delegates to the server-side <code class="text-ink-secondary">generate-fr-catalogue</code> workflow.
+          Delegates to the server-side <code class="text-ink-secondary">author-fr-catalogue</code> workflow.
         </p>
         <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
         <button

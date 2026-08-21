@@ -75,7 +75,7 @@
     if (!project) {
       return 'Select a project in the top bar first.';
     }
-    return `Call the assurance-scan MCP tool \`get_workflow\` with name="propose-compliance-mapping" and parameters={"framework": "${framework}"} and follow the returned workflow prompt for this project: ${project}`;
+    return `Call the assurance-scan MCP tool \`get_workflow\` with name="author-fr-compliance-map" and parameters={"framework": "${framework}"} and follow the returned workflow prompt for this project: ${project}`;
   }
 
   async function copyPrompt() {
@@ -178,7 +178,7 @@
           class="w-48 px-2 py-1 mb-3 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
         />
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
-          Delegates to the server-side <code class="text-ink-secondary">propose-compliance-mapping</code> workflow.
+          Delegates to the server-side <code class="text-ink-secondary">author-fr-compliance-map</code> workflow.
         </p>
         <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-48 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
         <button

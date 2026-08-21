@@ -1,0 +1,20 @@
+{
+  "name": "code-fr-test",
+  "description": "Write a unit test for an untested FR. Reads the FR's test specs from the catalogue (via bootstrap), writes a test matching the name_pattern.",
+  "parameters": [
+    {
+      "name": "project_path",
+      "description": "Absolute path to the project",
+      "default": ""
+    },
+    {
+      "name": "fr_id",
+      "description": "The FR ID whose gap should be closed (e.g. FR-DOC-REGISTRY)"
+    },
+    {
+      "name": "test_file",
+      "description": "Optional: the test file path to add the test to. Defaults to tests/phase1/<fr_id_lower>.py or the project's existing test dir."
+    }
+  ],
+  "prompt": "Use the `assurance-scan` MCP server. Goal: write a unit test that satisfies FR {{fr_id}}.\n\n**project_path is {{project_path}}** \u2014 pass it to MCP tools that take it. If empty, ask the user.\n\nSteps:\n1. Call `bootstrap` with `project_path=\"{{project_path}}\"` to find the latest run_id.\n2. Call `get_gap_analysis` on that run to confirm FR {{fr_id}} is in a gap state (untested or pending).\n3. Call `get_findings` to inspect any scanner findings on the same run. To see FR {{fr_id}}'s `tests` array (with name_pattern and display metadata), read the catalogue snapshot via the dashboard's Config tab, or use `load_fr_catalog` if a file path is known. The catalogue is stored in the DB.\n4. Identify test specs with `type: \"unit-test\"` \u2014 their `name_pattern` tells you what test name pattern to match (e.g. `tests.phase1.test_workflows::*`).\n5. Look at existing tests in the project (especially tests/phase1/ or tests/unit/) to learn the conventions (fixtures, imports, async patterns).\n6. Read the FR's `implemented_by` code refs to understand what the FR actually does. Write tests that verify the real behaviour \u2014 not just that a function exists.\n7. Write the test file at {{test_file}} (or follow the project's existing test layout). The fully-qualified test names must match the `name_pattern`.\n8. Optionally, add a `display` key to the test spec (input, output, side_effect, input_example, output_example) for the evidence view by re-saving the catalogue via `save_catalogue` with the updated JSON. This is display-only metadata \u2014 not consumed by the matcher.\n9. Show me the test code. Don't apply without my approval.\n10. After approval, apply the test file, then call `start_scan` with `project_path=\"{{project_path}}\"` to verify FR {{fr_id}} transitions to `passed`.\n\nNote: the FR catalogue and compliance mapping are stored in the DB \u2014 never write ./fr-catalog.json or ./fr-compliance-mapping.json to disk."
+}

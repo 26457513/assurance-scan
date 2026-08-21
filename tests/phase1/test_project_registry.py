@@ -85,7 +85,7 @@ async def test_update_project_validates_path(session) -> None:
         assert exc.status_code == 404
 
 
-async def test_delete_project_removes_registry_row(session) -> None:
+async def test_delete_project_tombstones_registry_row(session) -> None:
     from fastapi import HTTPException
 
     from server.api.routes.projects import delete_project
@@ -96,7 +96,9 @@ async def test_delete_project_removes_registry_row(session) -> None:
 
     res = await delete_project(row_id, session=session)
     assert res["status"] == "deleted"
-    assert (await session.execute(sa_select(Project))).scalars().first() is None
+    # Tombstoned, not dropped — the row survives hidden.
+    row = (await session.execute(sa_select(Project))).scalars().one()
+    assert row.hidden is True
 
     try:
         await delete_project(row_id, session=session)

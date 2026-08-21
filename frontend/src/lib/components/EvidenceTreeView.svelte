@@ -161,7 +161,7 @@
   {:else if asvsGrouped.length === 0}
     <div class="py-16 text-center">
       <div class="text-[13px] text-ink-primary mb-2">No compliance framework mapped</div>
-      <div class="text-[12px] text-ink-muted font-mono">Run the propose-compliance-mapping workflow to enable ASVS grouping.</div>
+      <div class="text-[12px] text-ink-muted font-mono">Run the author-fr-compliance-map workflow to enable ASVS grouping.</div>
     </div>
   {:else}
     <div class="space-y-1.5">

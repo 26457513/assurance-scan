@@ -91,11 +91,11 @@
     <div class="border border-line-hairline rounded-sm bg-surface-inset p-3 max-w-lg mx-auto text-left mb-3">
       <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1.5">Paste into Claude Code</div>
       <div class="font-mono text-[11px] text-ink-secondary leading-[1.6] break-words">
-        Run the generate-fr-catalogue workflow from the assurance-scan MCP server. Use project_path="{scan.project_path}".
+        Run the author-fr-catalogue workflow from the assurance-scan MCP server. Use project_path="{scan.project_path}".
       </div>
     </div>
     <div class="flex items-center justify-center gap-2">
-      <CopyButton text={`Run the generate-fr-catalogue workflow from the assurance-scan MCP server. Use project_path="${scan.project_path}".`} label="Copy prompt" />
+      <CopyButton text={`Run the author-fr-catalogue workflow from the assurance-scan MCP server. Use project_path="${scan.project_path}".`} label="Copy prompt" />
     </div>
   </div>
 {:else}
