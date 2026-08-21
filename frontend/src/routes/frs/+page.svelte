@@ -9,6 +9,7 @@
   // Registered/local projects carry their checkout path at setup; only
   // github:-only selections need the user to supply one.
   let manualPath = '';
+  let authorBranch = '';
   let pastedJson = '';
   let catalogueTag = '';
   let loading = true;
@@ -118,7 +119,19 @@
     if (!agentPath) {
       return 'Enter the local checkout path first — the workflow needs it to explore the codebase.';
     }
-    return `Call the assurance-scan MCP tool \`get_workflow\` with name="author-fr-catalogue" and parameters={"project_path": "${agentPath}"} and follow the returned workflow prompt.`;
+    const branchParam = authorBranch.trim() ? `, "branch": "${authorBranch.trim()}"` : '';
+    return [
+      'Author an FR catalogue for this project using the assurance-scan MCP server:',
+      `1. Call \`get_workflow\` with name="author-fr-catalogue" and parameters={"project_path": "${agentPath}"${branchParam}}.`,
+      '2. Follow the returned workflow prompt: explore the checkout, draft the v3 catalogue, show it to the user, then save it with \`save_catalogue\` (passing the checkout\u2019s git HEAD and branch as source_commit and source_branch).',
+      '3. Confirm the final catalogue_version and FR count to the user.',
+    ].join('\n');
+  }
+
+  function frPromptHint(): string {
+    return authorBranch.trim()
+      ? ''
+      : 'No branch set \u2014 the agent will author against whatever is currently checked out.';
   }
 
   async function copyPrompt() {
@@ -239,6 +252,19 @@
             <div class="text-[11px] font-mono text-ink-secondary mb-1">Local checkout (from project setup)</div>
             <div class="font-mono text-[11px] text-ink-primary border border-line-hairline rounded-sm bg-surface-base px-2 py-1 inline-block">{agentPath}</div>
           </div>
+        {/if}
+        <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="author-branch">Branch (optional)</label>
+        <input
+          id="author-branch"
+          type="text"
+          bind:value={authorBranch}
+          placeholder="e.g. main — saved as the catalogue's provenance"
+          class="w-64 px-2 py-1 mb-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
+        />
+        {#if frPromptHint()}
+          <div class="text-[10px] text-ink-muted font-mono mb-3">{frPromptHint()}</div>
+        {:else}
+          <div class="mb-3"></div>
         {/if}
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
           Delegates to the server-side <code class="text-ink-secondary">author-fr-catalogue</code> workflow.
