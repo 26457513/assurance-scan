@@ -6,6 +6,7 @@ from fastapi import APIRouter, Body, HTTPException, Query, Request
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import datetime as dt
 import urllib.error
 from typing import Any, Optional
 
@@ -349,3 +350,61 @@ async def scan_remote(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"GitHub dispatch failed: {exc}") from exc
 
+
+
+def _hash_mcp_token(token: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+@router.get("/users/me/mcp-token")
+async def get_mcp_token_status(user: Any = Depends(get_current_user)) -> dict[str, Any]:
+    if user is None:
+        raise HTTPException(status_code=401, detail="sign in")
+    return {
+        "has_token": user.mcp_token_hash is not None,
+        "generated_at": user.mcp_token_generated_at.isoformat() if user.mcp_token_generated_at else None,
+    }
+
+
+@router.post("/users/me/mcp-token")
+async def rotate_mcp_token(
+    request: Request,
+    user: Any = Depends(get_current_user),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    """Generate (or rotate) the user's MCP token. Returned once, never again."""
+    import secrets as _secrets
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="sign in")
+    token = _secrets.token_urlsafe(32)
+    user.mcp_token_hash = _hash_mcp_token(token)
+    user.mcp_token_generated_at = dt.datetime.now(dt.timezone.utc)
+    session.add(user)
+    await session.commit()
+
+    netloc = request.url.netloc
+    if isinstance(netloc, bytes):  # httpx URLs in tests; starlette gives str
+        netloc = netloc.decode()
+    base = f"{request.url.scheme}://{netloc}"
+    command = (
+        f'claude mcp add assurance-scan --transport http '
+        f'--header "Authorization: Bearer {token}" {base}/mcp'
+    )
+    return {"token": token, "command": command, "base_url": base}
+
+
+@router.delete("/users/me/mcp-token")
+async def revoke_mcp_token(
+    user: Any = Depends(get_current_user),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    if user is None:
+        raise HTTPException(status_code=401, detail="sign in")
+    user.mcp_token_hash = None
+    user.mcp_token_generated_at = None
+    session.add(user)
+    await session.commit()
+    return {"status": "revoked"}

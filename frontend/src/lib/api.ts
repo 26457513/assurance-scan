@@ -156,6 +156,17 @@ export const api = {
     await fetch('/auth/logout', { method: 'GET', redirect: 'manual' });
   },
 
+  getMcpTokenStatus: () =>
+    getJson<{ has_token: boolean; generated_at: string | null }>('/api/users/me/mcp-token'),
+
+  rotateMcpToken: () =>
+    getJson<{ token: string; command: string; base_url: string }>('/api/users/me/mcp-token', {
+      method: 'POST'
+    }),
+
+  revokeMcpToken: () =>
+    getJson<{ status: string }>('/api/users/me/mcp-token', { method: 'DELETE' }),
+
   me: () => getJson<{ email: string; role: string }>('/api/users/me'),
 
   listUsers: () => getJson<{ users: { email: string; role: string; last_login_at: string | null }[] }>('/api/users'),

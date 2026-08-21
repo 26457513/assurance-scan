@@ -212,6 +212,41 @@
     } finally {
       loading = false;
     }
+    try {
+      const st = await api.getMcpTokenStatus();
+      mcpHasToken = st.has_token;
+      mcpGeneratedAt = st.generated_at;
+    } catch {
+      mcpHasToken = false;
+    }
+  }
+
+  let mcpHasToken = false;
+  let mcpGeneratedAt: string | null = null;
+  let mcpCommand = '';
+
+  async function rotateMcp() {
+    try {
+      const res = await api.rotateMcpToken();
+      mcpHasToken = true;
+      mcpGeneratedAt = new Date().toISOString();
+      mcpCommand = res.command;
+      pushToast('success', 'MCP token generated — copy the command now, it is shown once');
+    } catch (e) {
+      pushToast('error', `Token generation failed: ${e}`);
+    }
+  }
+
+  async function revokeMcp() {
+    try {
+      await api.revokeMcpToken();
+      mcpHasToken = false;
+      mcpGeneratedAt = null;
+      mcpCommand = '';
+      pushToast('success', 'MCP token revoked');
+    } catch (e) {
+      pushToast('error', `Revoke failed: ${e}`);
+    }
   }
 
   onMount(async () => {
@@ -444,6 +479,50 @@
         </div>
       </div>
     {/if}
+
+    <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mt-4">
+      <div class="text-[12px] text-ink-primary font-mono mb-1">MCP token</div>
+      <p class="text-[11px] text-ink-muted leading-relaxed mb-3">
+        Your personal bearer token for connecting agents (Claude Code) to this instance's MCP
+        server. Shown once at generation — regenerate if you lose it.
+      </p>
+      {#if mcpCommand}
+        <div class="mb-3">
+          <div class="text-[10px] font-mono uppercase tracking-[0.12em] text-ink-muted mb-1">
+            Run this locally — token shown once
+          </div>
+          <div class="flex items-center gap-2">
+            <pre class="flex-1 text-[10px] font-mono text-ink-primary bg-surface-inset border border-line-hairline rounded-sm px-2 py-1.5 overflow-x-auto whitespace-pre">{mcpCommand}</pre>
+            <CopyButton text={mcpCommand} />
+          </div>
+        </div>
+      {/if}
+      <div class="flex items-center gap-2">
+        {#if mcpHasToken}
+          <span class="text-[11px] font-mono text-ink-muted">
+            active{mcpGeneratedAt ? ` · generated ${mcpGeneratedAt.slice(0, 10)}` : ''}
+          </span>
+          <span class="flex-1"></span>
+          <button
+            type="button"
+            on:click={rotateMcp}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+          >Regenerate</button>
+          <button
+            type="button"
+            on:click={revokeMcp}
+            class="px-3 py-1.5 rounded-sm border transition-colors font-mono text-[11px] uppercase tracking-[0.1em]"
+            style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent);"
+          >Revoke</button>
+        {:else}
+          <button
+            type="button"
+            on:click={rotateMcp}
+            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
+          >Generate token</button>
+        {/if}
+      </div>
+    </div>
   {:else if tab === 'agent'}
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">
       <div class="text-[12px] text-ink-primary font-mono mb-1">Connect an agent</div>

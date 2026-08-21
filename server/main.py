@@ -117,6 +117,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             verify_session,
         )
 
+        async def _mcp_user_token_ok(header: str) -> bool:
+            """A per-user MCP token (Setup → My account) matches by hash."""
+            import hashlib
+
+            if not header.startswith("Bearer "):
+                return False
+            from server.db.connection import get_sessionmaker
+            from server.db.models import User
+
+            h = hashlib.sha256(header[7:].encode()).hexdigest()
+            sessionmaker = get_sessionmaker()
+            async with sessionmaker() as session:
+                from sqlalchemy import select as _select
+
+                row = (
+                    await session.execute(_select(User).where(User.mcp_token_hash == h))
+                ).scalars().first()
+                return row is not None
+
         @app.middleware("http")
         async def _auth(request, call_next):  # type: ignore[no-untyped-def]
             path = request.url.path
@@ -124,13 +143,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if path == "/health" or path.startswith("/auth/"):
                 return await call_next(request)
             # MCP clients authenticate with a bearer token; the browser
-            # login redirect is useless to them.
+            # login redirect is useless to them. The env MCP_TOKEN is the
+            # service path; per-user tokens come from the users table.
             if path == "/mcp" or path.startswith("/mcp/"):
                 header = request.headers.get("authorization", "")
                 if settings.mcp_token and header == f"Bearer {settings.mcp_token}":
                     return await call_next(request)
+                if await _mcp_user_token_ok(header):
+                    return await call_next(request)
                 return JSONResponse(
-                    {"detail": "unauthorized: MCP requires 'Authorization: Bearer $MCP_TOKEN'"},
+                    {"detail": "unauthorized: MCP requires a bearer token — generate one in Setup → My account"},
                     status_code=401,
                 )
             if google_on and verify_session(request.cookies.get("as_session"), settings.session_secret):

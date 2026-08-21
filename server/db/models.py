@@ -158,6 +158,10 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_login_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # SHA-256 of the user's MCP bearer token; the plaintext is shown once
+    # at generation/rotation and never stored.
+    mcp_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mcp_token_generated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class GithubAccount(Base):
