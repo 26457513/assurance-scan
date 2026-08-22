@@ -36,18 +36,18 @@ def _days_ago(iso: str | None) -> str:
     return "today" if n == 0 else (f"{n}d ago")
 
 
-async def _fetch_json(client, url: str):
+async def _fetch_json(client, url: str, attempts: int = 2):
     import asyncio as _a
 
-    for attempt in (1, 2):
+    for attempt in range(1, attempts + 1):
         try:
             return await _a.to_thread(client._get, url)
         except urllib.error.HTTPError:
             raise  # 403/404 are not transient
         except Exception:
-            if attempt == 2:
+            if attempt == attempts:
                 raise
-            await _a.sleep(1.5)
+            await _a.sleep(1.5 * attempt)
     raise RuntimeError("unreachable")
 
 
@@ -114,10 +114,13 @@ async def _repo_stats(session, projects: list[tuple[str, str]]) -> dict[str, dic
             for br in stats["branches"][:20]:
                 name = br.get("name", "")
                 try:
+                    # commit listings are the flakiest call from this box —
+                    # give them extra attempts
                     cms = await _fetch_json(
                         client,
                         f"https://api.github.com/repos/{full_name}/commits"
                         f"?sha={name}&since={since}&per_page=100",
+                        attempts=4,
                     )
                 except Exception:
                     continue
