@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { workflowCallPrompt } from '$lib/agentPrompts';
+  import { mcpPrompt } from '$lib/agentPrompts';
   import type { CatalogueDriftResponse, ScanProvenance } from '$lib/types';
 
   export let provenance: ScanProvenance;
@@ -35,7 +35,9 @@
   });
 
   async function copyRegenerate() {
-    const cmd = workflowCallPrompt('author-fr-catalogue', { project_path: projectPath });
+    const cmd = mcpPrompt([
+      { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_path: projectPath }) } },
+    ]);
     try {
       await navigator.clipboard.writeText(cmd);
       copied = true;

@@ -1,17 +1,13 @@
-// One shape for every copy-paste agent prompt in the UI: a concrete MCP
-// get_workflow call with the parameters the page already knows, plus an
-// optional one-line follow-up. Keep prompts to this form — no essays.
+// Every copy-paste agent prompt in the UI is the same machine-readable
+// shape: one lead line plus a JSON call plan against the MCP server.
 
-export function workflowCallPrompt(
-  name: string,
-  params: Record<string, string>,
-  followup = ''
-): string {
-  const json = JSON.stringify(params);
-  return [
-    `Call the assurance-scan MCP tool \`get_workflow\` with name="${name}" and parameters=${json}, then follow the returned workflow prompt.`,
-    followup
-  ]
-    .filter(Boolean)
-    .join(' ');
+export interface McpCall {
+  tool: string;
+  args: Record<string, string>;
+  note?: string;
+}
+
+export function mcpPrompt(calls: McpCall[]): string {
+  const plan = JSON.stringify({ mcp: 'assurance-scan', calls }, null, 2);
+  return `Run these calls against the assurance-scan MCP server, following each tool's returned guidance:\n${plan}`;
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { workflowCallPrompt } from '$lib/agentPrompts';
+  import { mcpPrompt } from '$lib/agentPrompts';
   import CopyButton from './CopyButton.svelte';
   import StatePill from './StatePill.svelte';
   import TestCard from './TestCard.svelte';
@@ -13,7 +13,10 @@
   } from '$lib/types';
 
   export let scan: ScanSummary;
-  $: mappingPrompt = workflowCallPrompt('author-fr-compliance-map', { framework: 'ASVS' }, `Save with \`save_mapping\` against "${scan.project_path}".`);
+  $: mappingPrompt = mcpPrompt([
+    { tool: 'get_workflow', args: { name: 'author-fr-compliance-map', parameters: JSON.stringify({ framework: 'ASVS' }) } },
+    { tool: 'save_mapping', args: { project_path: scan.project_path } },
+  ]);
 
   let groupBy: 'fr' | 'asvs' = 'fr';
   let frList: FrListResponse | null = null;

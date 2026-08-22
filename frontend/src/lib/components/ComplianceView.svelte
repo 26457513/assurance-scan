@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
-  import { workflowCallPrompt } from '$lib/agentPrompts';
+  import { mcpPrompt } from '$lib/agentPrompts';
   import ComplianceRow from './ComplianceRow.svelte';
   import SummaryStrip from './SummaryStrip.svelte';
   import CopyButton from './CopyButton.svelte';
@@ -16,7 +16,10 @@
 
   export let scan: ScanSummary;
   export let initialFramework: string | null = null;
-  $: mappingPrompt = workflowCallPrompt('author-fr-compliance-map', { framework: selectedFramework ?? 'ASVS' }, `Save with \`save_mapping\` against "${scan.project_path}".`);
+  $: mappingPrompt = mcpPrompt([
+    { tool: 'get_workflow', args: { name: 'author-fr-compliance-map', parameters: JSON.stringify({ framework: selectedFramework ?? 'ASVS' }) } },
+    { tool: 'save_mapping', args: { project_path: scan.project_path } },
+  ]);
 
   let frameworks: ComplianceFrameworkSummary[] = [];
   let matrix: ComplianceMatrixResponse | null = null;

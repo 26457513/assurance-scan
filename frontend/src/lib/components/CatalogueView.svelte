@@ -1,14 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
-  import { workflowCallPrompt } from '$lib/agentPrompts';
+  import { mcpPrompt } from '$lib/agentPrompts';
   import FrRow from './FrRow.svelte';
   import SummaryStrip from './SummaryStrip.svelte';
   import CopyButton from './CopyButton.svelte';
   import type { CatalogueVersion, FrListResponse, ScanSummary } from '$lib/types';
 
   export let scan: ScanSummary;
-  $: cataloguePrompt = workflowCallPrompt('author-fr-catalogue', { project_path: scan.project_path });
+  $: cataloguePrompt = mcpPrompt([
+    { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_path: scan.project_path }) } },
+  ]);
 
   let data: FrListResponse | null = null;
   let loading = true;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
-  import { workflowCallPrompt } from '$lib/agentPrompts';
+  import { mcpPrompt } from '$lib/agentPrompts';
   import { selectedProject } from '$lib/stores/selectedProject';
   import { pushToast } from '$lib/stores/toasts';
   import type { MappingVersion } from '$lib/types';
@@ -80,11 +80,11 @@
 
   function buildPrompt(): string {
     if (!project) return '';
-    return workflowCallPrompt(
-      'author-fr-compliance-map',
-      { framework: framework.trim() || 'ASVS' },
-      `Check \`bootstrap\` (project_path="${project}") first — if no FR catalogue exists, stop and tell the user to author one. Save the result with \`save_mapping\` against "${project}".`
-    );
+    return mcpPrompt([
+      { tool: 'bootstrap', args: { project_path: project }, note: 'confirm a catalogue exists — if not, stop and tell the user' },
+      { tool: 'get_workflow', args: { name: 'author-fr-compliance-map', parameters: JSON.stringify({ framework: framework.trim() || 'ASVS' }) } },
+      { tool: 'save_mapping', args: { project_path: project } },
+    ]);
   }
 
   async function copyPrompt() {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
-  import { workflowCallPrompt } from '$lib/agentPrompts';
+  import { mcpPrompt } from '$lib/agentPrompts';
   import { selectedProject } from '$lib/stores/selectedProject';
   import { pushToast } from '$lib/stores/toasts';
   import type { CatalogueVersion } from '$lib/types';
@@ -95,11 +95,11 @@
 
   function buildPrompt(): string {
     if (!project) return '';
-    return workflowCallPrompt(
-      'author-fr-catalogue',
-      { project_path: project },
-      `Resolve the checkout with \`bootstrap\` (project_path="${project}") if needed — use the returned checkout_path or your current directory — and save via \`save_catalogue\` against "${project}" with the checkout\u2019s git HEAD and branch as source_commit and source_branch.`
-    );
+    return mcpPrompt([
+      { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_path: project }) } },
+      { tool: 'bootstrap', args: { project_path: project }, note: 'only if the checkout is unknown — use checkout_path or the current directory' },
+      { tool: 'save_catalogue', args: { project_path: project, source_commit: '<checkout git HEAD>', source_branch: '<checkout git branch>' } },
+    ]);
   }
 
   async function copyPrompt() {
