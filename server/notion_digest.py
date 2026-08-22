@@ -51,7 +51,7 @@ async def _fetch_json(client, url: str, attempts: int = 2):
     raise RuntimeError("unreachable")
 
 
-async def _repo_stats(session, projects: list[tuple[str, str]]) -> dict[str, dict[str, Any]]:
+async def _repo_stats(session, projects: list[tuple[str, str, list[str]]]) -> dict[str, dict[str, Any]]:
     """Per-repo GitHub stats via the org token chain: branches, commits in
     the last 7 days, open PRs. One retry per call; errors are classified
     so the digest can say *why* something is missing."""
@@ -74,7 +74,7 @@ async def _repo_stats(session, projects: list[tuple[str, str]]) -> dict[str, dic
              ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     out: dict[str, dict[str, Any]] = {}
-    for base, full_name in projects:
+    for base, full_name, scan_branches in projects:
         owner = full_name.split("/")[0].lower()
         token = tokens.get(owner)
         if not token:
@@ -107,29 +107,32 @@ async def _repo_stats(session, projects: list[tuple[str, str]]) -> dict[str, dic
                 except Exception:
                     pass  # diff stats are optional garnish
 
-        # Commits per branch in the window — activity attributed to where it
-        # happened. Branches with no commits simply don't appear.
-        if isinstance(stats.get("branches"), list):
-            per_branch: dict[str, list[str]] = {}
-            for br in stats["branches"][:20]:
-                name = br.get("name", "")
-                try:
-                    # commit listings are the flakiest call from this box —
-                    # give them extra attempts
-                    cms = await _fetch_json(
-                        client,
-                        f"https://api.github.com/repos/{full_name}/commits"
-                        f"?sha={name}&since={since}&per_page=100",
-                        attempts=4,
-                    )
-                except Exception:
-                    continue
-                dates = [
-                    (c.get("commit", {}).get("author", {}).get("date") or "")[:10]
-                    for c in cms
-                ]
-                if dates:
-                    per_branch[name] = dates
+        # Commits per branch in the window, attributed to where they
+        # happened. Repos can carry 100+ stale branches, so we only look at
+        # branches this instance has actually scanned — the team-relevant
+        # set — fetched concurrently (commit listings are the flakiest
+        # call from this box).
+        import asyncio as _a
+
+        async def branch_dates(name: str) -> tuple[str, list[str]] | None:
+            try:
+                cms = await _fetch_json(
+                    client,
+                    f"https://api.github.com/repos/{full_name}/commits"
+                    f"?sha={name}&since={since}&per_page=100",
+                    attempts=3,
+                )
+            except Exception:
+                return None
+            return name, [
+                (c.get("commit", {}).get("author", {}).get("date") or "")[:10]
+                for c in cms
+            ]
+
+        interesting = list(dict.fromkeys(scan_branches))[:6]
+        results = await _a.gather(*(branch_dates(b) for b in interesting))
+        per_branch = {n: ds for r in results if r for n, ds in [(r[0], r[1])] if ds}
+        if per_branch:
             stats["per_branch"] = per_branch
         out[base] = stats
     return out
@@ -227,12 +230,12 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                     f"{base} · {br} — {len(brs)} scans, latest {when_br} {last.status}")
 
             if reg_row is not None and reg_row.github_repo:
-                pr_projects.append((base, reg_row.github_repo))
+                pr_projects.append((base, reg_row.github_repo, list(by_branch.keys())))
 
         repo_stats = await _repo_stats(session, pr_projects)
         activity_lines: list[str] = []
         pr_rows: list[list[str]] = []
-        for base, _full in pr_projects:
+        for base, _full, _brs in pr_projects:
             st = repo_stats.get(base, {})
             if "error" in st:
                 activity_lines.append(f"{base} — activity unavailable ({st['error']})")
@@ -277,7 +280,7 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 for i in range(7)}
     day_counts: dict[str, dict[str, int]] = {d: {} for d in days}
     commit_projects: list[str] = []
-    for base, _full in pr_projects:
+    for base, _full, _branches in pr_projects:
         st = repo_stats.get(base, {})
         per_br = st.get("per_branch") or {}
         if not per_br:
