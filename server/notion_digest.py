@@ -93,6 +93,28 @@ async def _repo_stats(session, projects: list[tuple[str, str]]) -> dict[str, dic
                 stats[key] = {"error": "permission" if exc.code == 403 else f"http {exc.code}"}
             except Exception:
                 stats[key] = {"error": "network"}
+
+        # Commits per branch in the window — activity attributed to where it
+        # happened. Branches with no commits simply don't appear.
+        if isinstance(stats.get("branches"), list):
+            per_branch: dict[str, list[str]] = {}
+            for br in stats["branches"][:20]:
+                name = br.get("name", "")
+                try:
+                    cms = await _fetch_json(
+                        client,
+                        f"https://api.github.com/repos/{full_name}/commits"
+                        f"?sha={name}&since={since}&per_page=100",
+                    )
+                except Exception:
+                    continue
+                dates = [
+                    (c.get("commit", {}).get("author", {}).get("date") or "")[:10]
+                    for c in cms
+                ]
+                if dates:
+                    per_branch[name] = dates
+            stats["per_branch"] = per_branch
         out[base] = stats
     return out
 
@@ -193,9 +215,15 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 if isinstance(entry, dict) and "error" in entry:
                     return f"{noun}: {entry['error']}"
                 return f"{noun}: {len(entry)}"
-            activity_lines.append(
-                f"{base} — {label(st.get('branches'), 'branches')} · "
-                f"{label(st.get('commits'), 'commits last 7d')}")
+            per_br = st.get("per_branch") or {}
+            if per_br:
+                parts = " · ".join(f"{b}: {len(d)}" for b, d in
+                                   sorted(per_br.items(), key=lambda kv: -len(kv[1])))
+                activity_lines.append(f"{base} — commits last 7d: {parts}")
+            else:
+                activity_lines.append(
+                    f"{base} — {label(st.get('branches'), 'branches')} · "
+                    f"{label(st.get('commits'), 'commits last 7d')}")
             prs = st.get("prs")
             if isinstance(prs, dict) and "error" in prs:
                 note = ("add Pull requests: Read to the org token"
@@ -206,6 +234,24 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                     pr_lines.append(
                         f"{base} #{pr['number']} — {pr['title']} "
                         f"({pr.get('head', {}).get('ref', '?')} · opened {_days_ago(pr.get('created_at'))})")
+
+    # Commits per day: rows = last 7 days, columns = projects.
+    days = [(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=i)).strftime("%a %d")
+            for i in range(6, -1, -1)]
+    day_keys = {(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=i)).strftime("%Y-%m-%d")
+                for i in range(7)}
+    day_counts: dict[str, dict[str, int]] = {d: {} for d in days}
+    commit_projects: list[str] = []
+    for base, _full in pr_projects:
+        st = repo_stats.get(base, {})
+        per_br = st.get("per_branch") or {}
+        if not per_br:
+            continue
+        commit_projects.append(base)
+        all_dates = [d for dates in per_br.values() for d in dates if d]
+        for i, day in enumerate(days):
+            key = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=6 - i)).strftime("%Y-%m-%d")
+            day_counts[day][base] = sum(1 for d in all_dates if d == key)
 
     def cells(values: list[str]) -> list[list[dict[str, Any]]]:
         # each Notion table cell is an array of rich-text objects
@@ -238,6 +284,21 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
          "heading_2": {"rich_text": _text("Activity")}},
         *(bullets(activity_lines or branch_lines) or [{"object": "block", "type": "paragraph",
             "paragraph": {"rich_text": _text("no activity data")}}]),
+        *( [{
+            "object": "block", "type": "heading_2",
+            "heading_2": {"rich_text": _text("Commits per day")}},
+            {"object": "block", "type": "table", "table": {
+                "table_width": 1 + len(commit_projects),
+                "has_column_header": True, "has_row_header": True,
+                "children": [
+                    {"object": "block", "type": "table_row", "table_row": {"cells": cells(
+                        ["Day", *commit_projects])}},
+                    *({"object": "block", "type": "table_row", "table_row": {"cells": cells(
+                        [day] + [str(day_counts[day].get(p, 0)) for p in commit_projects]
+                    )}} for day in days),
+                ],
+            }},
+        ] if commit_projects else []),
         {"object": "block", "type": "heading_2",
          "heading_2": {"rich_text": _text("Open PRs")}},
         *(bullets(pr_lines) or [{"object": "block", "type": "paragraph",
