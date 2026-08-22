@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from server.api.routes import catalogue_drift, compliance, config, findings, folders, frs, frs_list, gh_tokens, github, health, poller, projects, scans, stream, test_source, trends, versions
+from server.api.routes import catalogue_drift, compliance, config, findings, folders, frs, frs_list, gh_tokens, github, health, notion, poller, projects, scans, stream, test_source, trends, versions
 from server.config import Settings, load_settings
 from server.db.connection import dispose_engine
 from server.mcp import build_mcp_server, mount_mcp_on_app
@@ -248,6 +248,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(github.router, prefix="/api")
     app.include_router(gh_tokens.router, prefix="/api")
     app.include_router(versions.router, prefix="/api")
+    app.include_router(notion.router, prefix="/api")
     app.include_router(compliance.router, prefix="/api")
 
     # MCP Streamable HTTP endpoint at /mcp. Build the server first so we can

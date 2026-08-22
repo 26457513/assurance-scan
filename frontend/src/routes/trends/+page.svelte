@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
+  import { pushToast } from '$lib/stores/toasts';
   import { severityMeta } from '$lib/state';
   import type { TrendsResponse } from '$lib/types';
 
@@ -36,10 +37,33 @@
     if (d > 0) return `+${d}`;
     return String(d);
   }
+
+  let posting = false;
+
+  async function postDigest() {
+    posting = true;
+    try {
+      const res = await api.postNotionDigest();
+      pushToast('success', `Notion updated — ${res.projects} projects, ${res.critical} critical, ${res.high} high`);
+    } catch (e) {
+      pushToast('error', `Notion post failed: ${e}`);
+    } finally {
+      posting = false;
+    }
+  }
 </script>
 
 <div class="p-6 max-w-5xl">
-  <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-4">Trends</div>
+  <div class="flex items-center justify-between mb-4">
+    <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">Trends</div>
+    <button
+      type="button"
+      on:click={postDigest}
+      disabled={posting}
+      title="Repaint the configured Notion page with the standup digest"
+      class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
+    >{posting ? 'Posting…' : 'Post standup digest to Notion'}</button>
+  </div>
 
   {#if loading}
     <div class="text-[12px] text-ink-muted font-mono">Loading…</div>

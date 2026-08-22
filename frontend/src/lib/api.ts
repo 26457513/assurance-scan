@@ -47,6 +47,9 @@ export const api = {
 
   listScansForSelector: () => getJson<ScanSummary[]>('/api/scans?limit=15'),
 
+  postNotionDigest: () =>
+    getJson<{ status: string; projects: number; critical: number; high: number; failed_runs: number; blocks: number }>('/api/notion/digest', { method: 'POST' }),
+
   getTrendsForScanList: () => getJson<TrendsResponse>('/api/trends?limit=30'),
 
   getScan: (runId: string) => getJson<ScanStatus>(`/api/scans/${runId}`),
