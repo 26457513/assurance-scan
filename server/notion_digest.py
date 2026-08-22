@@ -269,17 +269,16 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     day_keys = {(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=i)).strftime("%Y-%m-%d")
                 for i in range(7)}
     day_counts: dict[str, dict[str, int]] = {d: {} for d in days}
-    commit_projects: list[str] = []
+    commit_columns: list[tuple[str, list[str]]] = []  # header, commit dates
     for base, _full, _branches in pr_projects:
         st = repo_stats.get(base, {})
-        per_br = st.get("per_branch") or {}
-        if not per_br:
-            continue
-        commit_projects.append(base)
-        all_dates = [d for dates in per_br.values() for d in dates if d]
-        for i, day in enumerate(days):
-            key = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=6 - i)).strftime("%Y-%m-%d")
-            day_counts[day][base] = sum(1 for d in all_dates if d == key)
+        for branch, dates in sorted((st.get("per_branch") or {}).items(),
+                                    key=lambda kv: -len(kv[1])):
+            commit_columns.append((f"{base} ({_short_branch(branch)})", [d for d in dates if d]))
+    for i, day in enumerate(days):
+        key = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=6 - i)).strftime("%Y-%m-%d")
+        for header, dates in commit_columns:
+            day_counts[day][header] = sum(1 for d in dates if d == key)
 
     def cells(values: list[str]) -> list[list[dict[str, Any]]]:
         # each Notion table cell is an array of rich-text objects
