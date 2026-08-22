@@ -176,7 +176,6 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
         summary = {"projects": 0, "critical": 0, "high": 0, "failed_runs": 0}
         table_rows: list[list[str]] = []
-        branch_lines: list[str] = []
         pr_projects: list[tuple[str, str]] = []
 
         for path, runs_ in sorted(recent.items()):
@@ -234,28 +233,16 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             for r in runs_:
                 if r.git_branch:
                     by_branch.setdefault(r.git_branch, []).append(r)
-            for br, brs in sorted(by_branch.items(),
-                                  key=lambda kv: kv[1][0].started_at, reverse=True):
-                last = brs[0]
-                when_br = last.started_at.strftime("%d %b") if last.started_at else "?"
-                branch_lines.append(
-                    f"{base} · {br} — {len(brs)} scans, latest {when_br} {last.status}")
-
             if reg_row is not None and reg_row.github_repo:
                 pr_projects.append((base, reg_row.github_repo, list(by_branch.keys())))
 
         repo_stats = await _repo_stats(session, pr_projects)
-        activity_lines: list[str] = []
         pr_rows: list[list[str]] = []
         for base, _full, _brs in pr_projects:
             st = repo_stats.get(base, {})
             if "error" in st:
-                activity_lines.append(f"{base} — activity unavailable ({st['error']})")
+                pr_rows.append([f"{base} — GitHub unavailable ({st['error']})", "", "", "", ""])
                 continue
-            def label(entry: Any, noun: str) -> str:
-                if isinstance(entry, dict) and "error" in entry:
-                    return f"{noun}: {entry['error']}"
-                return f"{noun}: {len(entry)}"
             per_br = st.get("per_branch") or {}
             if per_br:
                 parts = " · ".join(f"{b}: {len(d)}" for b, d in
@@ -330,21 +317,17 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         {"object": "block", "type": "paragraph",
          "paragraph": {"rich_text": _text(f"generated {now.strftime('%Y-%m-%d %H:%M UTC')}")}},
         table_block,
-        {"object": "block", "type": "heading_2",
-         "heading_2": {"rich_text": _text("Activity")}},
-        *(bullets(activity_lines or branch_lines) or [{"object": "block", "type": "paragraph",
-            "paragraph": {"rich_text": _text("no activity data")}}]),
         *( [{
             "object": "block", "type": "heading_2",
             "heading_2": {"rich_text": _text("Commits per day")}},
             {"object": "block", "type": "table", "table": {
-                "table_width": 1 + len(commit_projects),
+                "table_width": 1 + len(commit_columns),
                 "has_column_header": True, "has_row_header": True,
                 "children": [
                     {"object": "block", "type": "table_row", "table_row": {"cells": cells(
-                        ["Day", *commit_projects])}},
+                        ["Day"] + [h for h, _ in commit_columns])}},
                     *({"object": "block", "type": "table_row", "table_row": {"cells": cells(
-                        [day] + [str(day_counts[day].get(p, 0)) for p in commit_projects]
+                        [day] + [str(day_counts[day].get(h, 0)) for h, _ in commit_columns]
                     )}} for day in days),
                 ],
             }},

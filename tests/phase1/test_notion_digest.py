@@ -56,8 +56,11 @@ async def test_digest_blocks(seeded) -> None:
     assert not any(b["type"] == "code" for b in blocks)  # chart removed
     headings = [b["heading_2"]["rich_text"][0]["text"]["content"]
                 for b in blocks if b["type"] == "heading_2"]
-    assert headings == ["Activity", "Open PRs"]
+    assert headings == ["Open PRs"]
     bullets_text = [b["bulleted_list_item"]["rich_text"][0]["text"]["content"]
                     for b in blocks if b["type"] == "bulleted_list_item"]
-    # no GitHub token for the test org -> classified unavailable line
-    assert any("p1 — activity unavailable (no token" in t for t in bullets_text)
+    # no GitHub token for the test org -> classified unavailable PR row
+    pr_table = next(b for b in blocks if b["type"] == "table"
+                    and b["table"]["children"][0]["table_row"]["cells"][0][0]["text"]["content"] == "PR")
+    assert any("p1 — GitHub unavailable" in r["table_row"]["cells"][0][0]["text"]["content"]
+               for r in pr_table["table"]["children"][1:])
