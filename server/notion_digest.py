@@ -36,8 +36,25 @@ def _days_ago(iso: str | None) -> str:
     return "today" if n == 0 else (f"{n}d ago")
 
 
-async def _open_prs(session, projects: list[tuple[str, str]]) -> list[str]:
-    """One line per open PR, via the org token chain. Silent on failure."""
+async def _fetch_json(client, url: str):
+    import asyncio as _a
+
+    for attempt in (1, 2):
+        try:
+            return await _a.to_thread(client._get, url)
+        except urllib.error.HTTPError:
+            raise  # 403/404 are not transient
+        except Exception:
+            if attempt == 2:
+                raise
+            await _a.sleep(1.5)
+    raise RuntimeError("unreachable")
+
+
+async def _repo_stats(session, projects: list[tuple[str, str]]) -> dict[str, dict[str, Any]]:
+    """Per-repo GitHub stats via the org token chain: branches, commits in
+    the last 7 days, open PRs. One retry per call; errors are classified
+    so the digest can say *why* something is missing."""
     from server.config import load_settings
     from server.db.models import Organisation
     from server.github_poller import GitHubClient
@@ -53,28 +70,31 @@ async def _open_prs(session, projects: list[tuple[str, str]]) -> list[str]:
             if tok:
                 tokens[row.name.lower()] = tok
 
-    lines: list[str] = []
-    import asyncio as _a
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=7)
+             ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    out: dict[str, dict[str, Any]] = {}
     for base, full_name in projects:
         owner = full_name.split("/")[0].lower()
         token = tokens.get(owner)
         if not token:
+            out[base] = {"error": "no token for this org"}
             continue
-        try:
-            prs = await _a.to_thread(
-                GitHubClient(token)._get,
-                f"https://api.github.com/repos/{full_name}/pulls?state=open&per_page=10",
-            )
-        except Exception:
-            lines.append(f"{base}: PR list unavailable")
-            continue
-        for pr in prs:
-            lines.append(
-                f"{base} #{pr['number']} — {pr['title']} "
-                f"({pr.get('head', {}).get('ref', '?')} · opened {_days_ago(pr.get('created_at'))})"
-            )
-    return lines
+        client = GitHubClient(token)
+        stats: dict[str, Any] = {}
+        for key, url in (
+            ("branches", f"https://api.github.com/repos/{full_name}/branches?per_page=100"),
+            ("commits", f"https://api.github.com/repos/{full_name}/commits?since={since}&per_page=100"),
+            ("prs", f"https://api.github.com/repos/{full_name}/pulls?state=open&per_page=10"),
+        ):
+            try:
+                stats[key] = await _fetch_json(client, url)
+            except urllib.error.HTTPError as exc:
+                stats[key] = {"error": "permission" if exc.code == 403 else f"http {exc.code}"}
+            except Exception:
+                stats[key] = {"error": "network"}
+        out[base] = stats
+    return out
 
 
 async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -161,7 +181,31 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             if reg is not None and reg.github_repo:
                 pr_projects.append((base, reg.github_repo))
 
-        pr_lines = await _open_prs(session, pr_projects)
+        repo_stats = await _repo_stats(session, pr_projects)
+        activity_lines: list[str] = []
+        pr_lines: list[str] = []
+        for base, _full in pr_projects:
+            st = repo_stats.get(base, {})
+            if "error" in st:
+                activity_lines.append(f"{base} — activity unavailable ({st['error']})")
+                continue
+            def label(entry: Any, noun: str) -> str:
+                if isinstance(entry, dict) and "error" in entry:
+                    return f"{noun}: {entry['error']}"
+                return f"{noun}: {len(entry)}"
+            activity_lines.append(
+                f"{base} — {label(st.get('branches'), 'branches')} · "
+                f"{label(st.get('commits'), 'commits last 7d')}")
+            prs = st.get("prs")
+            if isinstance(prs, dict) and "error" in prs:
+                note = ("add Pull requests: Read to the org token"
+                        if prs["error"] == "permission" else prs["error"])
+                pr_lines.append(f"{base} — PRs unavailable ({note})")
+            else:
+                for pr in prs or []:
+                    pr_lines.append(
+                        f"{base} #{pr['number']} — {pr['title']} "
+                        f"({pr.get('head', {}).get('ref', '?')} · opened {_days_ago(pr.get('created_at'))})")
 
     def cells(values: list[str]) -> list[list[dict[str, Any]]]:
         # each Notion table cell is an array of rich-text objects
@@ -191,9 +235,9 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
          "paragraph": {"rich_text": _text(f"generated {now.strftime('%Y-%m-%d %H:%M UTC')}")}},
         table_block,
         {"object": "block", "type": "heading_2",
-         "heading_2": {"rich_text": _text("Branches")}},
-        *(bullets(branch_lines) or [{"object": "block", "type": "paragraph",
-            "paragraph": {"rich_text": _text("no branch history")}}]),
+         "heading_2": {"rich_text": _text("Activity")}},
+        *(bullets(activity_lines or branch_lines) or [{"object": "block", "type": "paragraph",
+            "paragraph": {"rich_text": _text("no activity data")}}]),
         {"object": "block", "type": "heading_2",
          "heading_2": {"rich_text": _text("Open PRs")}},
         *(bullets(pr_lines) or [{"object": "block", "type": "paragraph",
