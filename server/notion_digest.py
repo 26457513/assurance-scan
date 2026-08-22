@@ -28,33 +28,53 @@ def _text(content: str) -> list[dict[str, Any]]:
     return [{"type": "text", "text": {"content": content}}]
 
 
-SEV_ORDER = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
-BAR_CHARS = {"CRITICAL": "█", "HIGH": "▓", "MEDIUM": "▒", "LOW": "░", "UNKNOWN": "·"}
-BAR_WIDTH = 32
+def _days_ago(iso: str | None) -> str:
+    if not iso:
+        return "?"
+    d = dt.datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    n = max(0, (dt.datetime.now(dt.timezone.utc) - d).days)
+    return "today" if n == 0 else (f"{n}d ago")
 
 
-def _bar(counts: dict[str, int]) -> str:
-    """Proportional stacked bar: shading gets lighter as severity drops."""
-    total = sum(counts.values())
-    if total == 0:
-        return ""
-    out = []
-    remaining = BAR_WIDTH
-    for i, sev in enumerate(SEV_ORDER):
-        n = counts.get(sev, 0)
-        if n == 0:
+async def _open_prs(session, projects: list[tuple[str, str]]) -> list[str]:
+    """One line per open PR, via the org token chain. Silent on failure."""
+    from server.config import load_settings
+    from server.db.models import Organisation
+    from server.github_poller import GitHubClient
+    from server.secrets import decrypt
+
+    settings = load_settings()
+    tokens: dict[str, str] = {}
+    if settings.github_poll_token and settings.github_org:
+        tokens[settings.github_org.lower()] = settings.github_poll_token
+    if settings.token_encryption_key:
+        for row in (await session.execute(sa_select(Organisation))).scalars().all():
+            tok = decrypt(row.token_encrypted, settings.token_encryption_key)
+            if tok:
+                tokens[row.name.lower()] = tok
+
+    lines: list[str] = []
+    import asyncio as _a
+
+    for base, full_name in projects:
+        owner = full_name.split("/")[0].lower()
+        token = tokens.get(owner)
+        if not token:
             continue
-        if i == len(SEV_ORDER) - 1 or sum(counts.get(x, 0) for x in SEV_ORDER[i:]) <= remaining:
-            w = round(BAR_WIDTH * n / total)
-        else:
-            w = max(1, min(remaining, round(BAR_WIDTH * n / total)))
-        out.append(BAR_CHARS[sev] * w)
-        remaining -= w
-        if remaining <= 0:
-            break
-    # keep the last segment honest about the width
-    line = "".join(out)
-    return line[:BAR_WIDTH].ljust(BAR_WIDTH, BAR_CHARS["LOW"])
+        try:
+            prs = await _a.to_thread(
+                GitHubClient(token)._get,
+                f"https://api.github.com/repos/{full_name}/pulls?state=open&per_page=10",
+            )
+        except Exception:
+            lines.append(f"{base}: PR list unavailable")
+            continue
+        for pr in prs:
+            lines.append(
+                f"{base} #{pr['number']} — {pr['title']} "
+                f"({pr.get('head', {}).get('ref', '?')} · opened {_days_ago(pr.get('created_at'))})"
+            )
+    return lines
 
 
 async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -67,21 +87,27 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 sa_select(Project.local_path).where(Project.hidden.is_(False))
             )).order_by(Run.started_at.desc())
         )).scalars().all()
-        latest: dict[str, Run] = {}
-        for run in rows:  # newest first; first hit per project wins
-            latest.setdefault(run.project_path, run)
-        hidden_names = {r[0] for r in (await session.execute(
+        # two newest runs per project: latest for the table, previous for delta
+        recent: dict[str, list[Run]] = {}
+        for run in rows:
+            recent.setdefault(run.project_path, []).append(run)
+        registry = {r.local_path: r for r in (await session.execute(
+            sa_select(Project).where(Project.hidden.is_(False))
+        )).scalars().all()}
+        hidden_names = {p.split("/")[-1] for p in (await session.execute(
             sa_select(Project.local_path).where(Project.hidden.is_(True))
-        )).all()}
+        )).scalars().all()}
 
         summary = {"projects": 0, "critical": 0, "high": 0, "failed_runs": 0}
         table_rows: list[list[str]] = []
-        bars: list[tuple[str, dict[str, int]]] = []
+        branch_lines: list[str] = []
+        pr_projects: list[tuple[str, str]] = []
 
-        for path, run in sorted(latest.items()):
+        for path, runs_ in sorted(recent.items()):
             base = path.replace("github:", "").split("/")[-1]
             if base in hidden_names:
                 continue
+            run, prev = runs_[0], (runs_[1] if len(runs_) > 1 else None)
             counts = dict((await session.execute(
                 sa_select(Finding.severity, func.count()).where(Finding.run_id == run.run_id)
                 .group_by(Finding.severity)
@@ -104,23 +130,44 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 gaps = sum(states.get(x, 0) for x in ("untested", "pending", "failed", "blocked"))
                 fr_cell = f"✓{ok} ✗{gaps}"
 
+            delta = "—"
+            if prev is not None:
+                prev_total = (await session.execute(
+                    sa_select(func.count()).select_from(Finding).where(Finding.run_id == prev.run_id)
+                )).scalar()
+                d = sum(counts.values()) - prev_total
+                delta = ("+" if d > 0 else "") + str(d) if d else "±0"
+
             table_rows.append([
-                base,
-                f"{run.git_branch or '?'} · {when}",
-                run.status,
-                str(crit) if crit else "—",
-                str(high) if high else "—",
-                str(counts.get("MEDIUM", 0)),
-                str(counts.get("LOW", 0)),
-                fr_cell,
+                base, f"{run.git_branch or '?'} · {when}", run.status,
+                str(crit) if crit else "—", str(high) if high else "—",
+                str(counts.get("MEDIUM", 0)), str(counts.get("LOW", 0)),
+                delta, fr_cell,
             ])
-            bars.append((base, counts))
+
+            # branch stats: scan count + latest result per branch
+            by_branch: dict[str, list[Run]] = {}
+            for r in runs_:
+                if r.git_branch:
+                    by_branch.setdefault(r.git_branch, []).append(r)
+            for br, brs in sorted(by_branch.items(),
+                                  key=lambda kv: kv[1][0].started_at, reverse=True):
+                last = brs[0]
+                when_br = last.started_at.strftime("%d %b") if last.started_at else "?"
+                branch_lines.append(
+                    f"{base} · {br} — {len(brs)} scans, latest {when_br} {last.status}")
+
+            reg = registry.get(path)
+            if reg is not None and reg.github_repo:
+                pr_projects.append((base, reg.github_repo))
+
+        pr_lines = await _open_prs(session, pr_projects)
 
     def cells(values: list[str]) -> list[list[dict[str, Any]]]:
         # each Notion table cell is an array of rich-text objects
         return [[{"type": "text", "text": {"content": v}}] for v in values]
 
-    header = ["Project", "Latest scan", "Status", "CRIT", "HIGH", "MED", "LOW", "FRs"]
+    header = ["Project", "Latest scan", "Status", "CRIT", "HIGH", "MED", "LOW", "Δ", "FRs"]
     table_block = {"object": "block", "type": "table", "table": {
         "table_width": len(header),
         "has_column_header": True,
@@ -133,17 +180,9 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         ],
     }}
 
-    chart_lines = []
-    for name, counts in bars:
-        chart_lines.append(f"{name}  (total {sum(counts.values())})")
-        chart_lines.append(f"  {_bar(counts)}")
-        chart_lines.append(
-            "  " + "  ".join(f"{BAR_CHARS[s]} {counts.get(s, 0)}" for s in SEV_ORDER)
-        )
-        chart_lines.append("")
-    chart_text = "\n".join(chart_lines).rstrip() or "no scans yet"
-    chart_block = {"object": "block", "type": "code", "code": {
-        "rich_text": _text(chart_text), "language": "plain text"}}
+    def bullets(lines: list[str]) -> list[dict[str, Any]]:
+        return [{"object": "block", "type": "bulleted_list_item",
+                 "bulleted_list_item": {"rich_text": _text(l)}} for l in lines]
 
     blocks = [
         {"object": "block", "type": "heading_1",
@@ -152,8 +191,13 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
          "paragraph": {"rich_text": _text(f"generated {now.strftime('%Y-%m-%d %H:%M UTC')}")}},
         table_block,
         {"object": "block", "type": "heading_2",
-         "heading_2": {"rich_text": _text("Severity distribution")}},
-        chart_block,
+         "heading_2": {"rich_text": _text("Branches")}},
+        *(bullets(branch_lines) or [{"object": "block", "type": "paragraph",
+            "paragraph": {"rich_text": _text("no branch history")}}]),
+        {"object": "block", "type": "heading_2",
+         "heading_2": {"rich_text": _text("Open PRs")}},
+        *(bullets(pr_lines) or [{"object": "block", "type": "paragraph",
+            "paragraph": {"rich_text": _text("none open")}}]),
     ]
     return blocks, summary
 

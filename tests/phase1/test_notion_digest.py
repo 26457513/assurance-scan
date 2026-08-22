@@ -39,23 +39,24 @@ async def seeded():
 
 @pytest.mark.asyncio
 async def test_digest_blocks(seeded) -> None:
-    from server.notion_digest import _bar, build_digest
+    from server.notion_digest import build_digest
 
     blocks, summary = await build_digest()
     assert summary == {"projects": 1, "critical": 1, "high": 2, "failed_runs": 0}
 
     table = next(b for b in blocks if b["type"] == "table")
-    assert table["table"]["table_width"] == 8
+    assert table["table"]["table_width"] == 9
     assert table["table"]["has_column_header"] is True
     body = table["table"]["children"][1]["table_row"]["cells"]
     cell_vals = [c[0]["text"]["content"] for c in body]
     assert cell_vals[0] == "p1" and cell_vals[1].startswith("main · ")
-    assert cell_vals[2:7] == ["completed", "1", "2", "0", "1"] and cell_vals[7] == "—"
+    assert cell_vals[2:7] == ["completed", "1", "2", "0", "1"]
+    assert cell_vals[7] == "—" and cell_vals[8] == "—"
 
-    chart = next(b for b in blocks if b["type"] == "code")
-    text = chart["code"]["rich_text"][0]["text"]["content"]
-    assert "█ 1" in text and "▓ 2" in text
-
-    bar = _bar({"CRITICAL": 1, "HIGH": 2, "LOW": 1})
-    assert len(bar) == 32
-    assert set(bar) <= set("█▓▒░·")
+    assert not any(b["type"] == "code" for b in blocks)  # chart removed
+    headings = [b["heading_2"]["rich_text"][0]["text"]["content"]
+                for b in blocks if b["type"] == "heading_2"]
+    assert headings == ["Branches", "Open PRs"]
+    branch_bullets = [b for b in blocks if b["type"] == "bulleted_list_item"]
+    assert any("p1 · main — 1 scans" in b["bulleted_list_item"]["rich_text"][0]["text"]["content"]
+               for b in branch_bullets)
