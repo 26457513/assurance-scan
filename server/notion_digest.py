@@ -243,15 +243,6 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             if "error" in st:
                 pr_rows.append([f"{base} — GitHub unavailable ({st['error']})", "", "", "", ""])
                 continue
-            per_br = st.get("per_branch") or {}
-            if per_br:
-                parts = " · ".join(f"{b}: {len(d)}" for b, d in
-                                   sorted(per_br.items(), key=lambda kv: -len(kv[1])))
-                activity_lines.append(f"{base} — commits last 7d: {parts}")
-            else:
-                activity_lines.append(
-                    f"{base} — {label(st.get('branches'), 'branches')} · "
-                    f"{label(st.get('commits'), 'commits last 7d')}")
             prs = st.get("prs")
             if isinstance(prs, dict) and "error" in prs:
                 note = ("add Pull requests: Read to the org token"
