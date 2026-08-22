@@ -275,6 +275,7 @@
     load();
     loadOrgs();
     loadUsers();
+    loadWorkflows();
   });
 
   async function addOrg() {
