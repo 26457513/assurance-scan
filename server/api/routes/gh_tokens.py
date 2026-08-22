@@ -325,6 +325,26 @@ async def scan_remote(
                     ".github/workflows/ to enable scanning."
                 ),
             )
+        # GitHub dispatches the workflow as it exists ON the target ref —
+        # branches that predate the stub 422 with a confusing message.
+        default_branch = await asyncio.to_thread(client.repo_default_branch, repo)
+        if resolved_ref != default_branch:
+            try:
+                await asyncio.to_thread(
+                    client.file_contents, repo, resolved_ref,
+                    f".github/workflows/{STUB_FILENAME}",
+                )
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=(
+                            f"branch '{resolved_ref}' does not include the assurance-scan "
+                            f"workflow — merge {default_branch} into it (or add the stub) "
+                            "and scan again."
+                        ),
+                    ) from exc
+                raise
         await asyncio.to_thread(client.dispatch, repo, STUB_FILENAME, resolved_ref)
         return {
             "status": "dispatched",
@@ -345,6 +365,14 @@ async def scan_remote(
                     "or has no assurance-scan workflow. Add the stub "
                     "(templates/assurance-scan.yml) or register the organisation "
                     "in Settings."
+                ),
+            ) from exc
+        if exc.code == 422:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"branch '{resolved_ref}' has an assurance-scan workflow without the "
+                    f"workflow_dispatch trigger — merge {default_branch} into it and retry."
                 ),
             ) from exc
         raise HTTPException(status_code=502, detail=f"GitHub dispatch failed: {exc}") from exc
