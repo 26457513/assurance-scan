@@ -54,41 +54,30 @@
     'Write a unit test for FR-003.'
   ];
 
-  const WORKFLOW_GROUPS = [
-    {
-      label: 'Setup',
-      workflows: [
-        { name: 'setup-project', detail: 'Zero-to-dashboard for a new project: catalogue (created if missing), initial scan, compliance mapping, gap summary.' }
-      ]
-    },
-    {
-      label: 'Scan',
-      workflows: [
-        { name: 'scan-project', detail: 'Scan the project, then propose a fix for every gap. The most common starting point.' },
-        { name: 'scan-refresh', detail: 'Refresh scanner vulnerability DBs and re-scan — for scanners failing on missing databases.' }
-      ]
-    },
-    {
-      label: 'Author',
-      workflows: [
-        { name: 'author-fr-catalogue', detail: 'Explore the codebase, reverse-engineer its capabilities, draft the FR catalogue with test specs, save it.' },
-        { name: 'author-fr-compliance-map', detail: 'Read the FR catalogue and the regime pack, map every row (satisfied or not-applicable with rationale), save it.' }
-      ]
-    },
-    {
-      label: 'Advise',
-      workflows: [
-        { name: 'advise-remediation', detail: 'Pull a repository’s latest detailed findings and recommend prioritised approaches for the critical/high clusters.' }
-      ]
-    },
-    {
-      label: 'Fix',
-      workflows: [
-        { name: 'code-fr-test', detail: 'Write a unit test for an untested FR, matching the catalogue’s name_pattern.' },
-        { name: 'code-finding-fix', detail: 'Fix a config or code issue so a scanner stops reporting a finding.' }
-      ]
+  const CATEGORY_ORDER = ['setup', 'scan', 'author', 'advise', 'code'];
+  let workflowGroups: { label: string; workflows: { name: string; detail: string }[] }[] = [];
+
+  async function loadWorkflows() {
+    try {
+      const res = await api.listWorkflows();
+      const byCat = new Map<string, { name: string; detail: string }[]>();
+      for (const w of res.workflows) {
+        const cat = w.name.split('-')[0];
+        if (!byCat.has(cat)) byCat.set(cat, []);
+        byCat.get(cat)!.push({ name: w.name, detail: w.description });
+      }
+      const ordered = [
+        ...CATEGORY_ORDER.filter((c) => byCat.has(c)),
+        ...[...byCat.keys()].filter((c) => !CATEGORY_ORDER.includes(c)).sort()
+      ];
+      workflowGroups = ordered.map((c) => ({
+        label: c.charAt(0).toUpperCase() + c.slice(1),
+        workflows: byCat.get(c)!
+      }));
+    } catch {
+      workflowGroups = [];
     }
-  ];
+  }
 
   const AGENT_STEPS = [
     {
@@ -580,7 +569,7 @@
           <div>Workflow</div>
           <div>What it does</div>
         </div>
-        {#each WORKFLOW_GROUPS as g (g.label)}
+        {#each workflowGroups as g (g.label)}
           {#each g.workflows as w, i (w.name)}
             <div class="as-row grid grid-cols-[110px_210px_minmax(0,1fr)] gap-3 px-3 py-2 items-center">
               {#if i === 0}

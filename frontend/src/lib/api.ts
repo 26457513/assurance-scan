@@ -47,6 +47,9 @@ export const api = {
 
   listScansForSelector: () => getJson<ScanSummary[]>('/api/scans?limit=15'),
 
+  listWorkflows: () =>
+    getJson<{ workflows: { name: string; description: string; parameters: { name: string; description?: string }[] }[] }>('/api/workflows'),
+
   postNotionDigest: () =>
     getJson<{ status: string; projects: number; critical: number; high: number; failed_runs: number; blocks: number }>('/api/notion/digest', { method: 'POST' }),
 
