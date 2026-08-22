@@ -94,6 +94,19 @@ async def _repo_stats(session, projects: list[tuple[str, str]]) -> dict[str, dic
             except Exception:
                 stats[key] = {"error": "network"}
 
+        if isinstance(stats.get("prs"), list):
+            for pr in stats["prs"]:
+                try:
+                    detail = await _fetch_json(
+                        client,
+                        f"https://api.github.com/repos/{full_name}/pulls/{pr['number']}",
+                    )
+                    pr["changed_files"] = detail.get("changed_files")
+                    pr["additions"] = detail.get("additions")
+                    pr["deletions"] = detail.get("deletions")
+                except Exception:
+                    pass  # diff stats are optional garnish
+
         # Commits per branch in the window — activity attributed to where it
         # happened. Branches with no commits simply don't appear.
         if isinstance(stats.get("branches"), list):
@@ -215,7 +228,7 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
         repo_stats = await _repo_stats(session, pr_projects)
         activity_lines: list[str] = []
-        pr_lines: list[str] = []
+        pr_rows: list[list[str]] = []
         for base, _full in pr_projects:
             st = repo_stats.get(base, {})
             if "error" in st:
@@ -238,12 +251,21 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             if isinstance(prs, dict) and "error" in prs:
                 note = ("add Pull requests: Read to the org token"
                         if prs["error"] == "permission" else prs["error"])
-                pr_lines.append(f"{base} — PRs unavailable ({note})")
+                pr_rows.append([f"{base} — PRs unavailable ({note})", "", "", "", ""])
             else:
                 for pr in prs or []:
-                    pr_lines.append(
-                        f"{base} #{pr['number']} — {pr['title']} "
-                        f"({pr.get('head', {}).get('ref', '?')} · opened {_days_ago(pr.get('created_at'))})")
+                    head = pr.get("head", {}).get("ref", "?")
+                    pr_base = pr.get("base", {}).get("ref", "?")
+                    files = pr.get("changed_files")
+                    adds, dels = pr.get("additions"), pr.get("deletions")
+                    lines = (f"+{adds} −{dels}" if adds is not None else "—")
+                    pr_rows.append([
+                        f"#{pr['number']} {pr['title'][:48]}",
+                        f"{pr_base}…{head}",
+                        str(files) if files is not None else "—",
+                        lines,
+                        _days_ago(pr.get("created_at")),
+                    ])
 
     # Commits per day: rows = last 7 days, columns = projects.
     days = [(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=i)).strftime("%a %d")
@@ -311,7 +333,15 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         ] if commit_projects else []),
         {"object": "block", "type": "heading_2",
          "heading_2": {"rich_text": _text("Open PRs")}},
-        *(bullets(pr_lines) or [{"object": "block", "type": "paragraph",
+        *([{"object": "block", "type": "table", "table": {
+            "table_width": 5, "has_column_header": True, "has_row_header": False,
+            "children": [
+                {"object": "block", "type": "table_row", "table_row": {"cells": cells(
+                    ["PR", "branches", "files", "lines", "opened"])}},
+                *({"object": "block", "type": "table_row", "table_row": {"cells": cells(r)}}
+                  for r in pr_rows),
+            ],
+        }}] if pr_rows else [{"object": "block", "type": "paragraph",
             "paragraph": {"rich_text": _text("none open")}}]),
     ]
     return blocks, summary
