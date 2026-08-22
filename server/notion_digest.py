@@ -28,6 +28,17 @@ def _text(content: str) -> list[dict[str, Any]]:
     return [{"type": "text", "text": {"content": content}}]
 
 
+def _short_branch(name: str, limit: int = 22) -> str:
+    """Keep branch names table-friendly: deep paths collapse to
+    prefix/…tail, preserving the distinguishing hash suffix."""
+    if len(name) <= limit:
+        return name
+    prefix = name.split("/", 1)[0]
+    tail = name.rsplit("/", 1)[-1]
+    keep = tail[-10:] if len(tail) > 10 else tail
+    return f"{prefix}/…{keep}"
+
+
 def _days_ago(iso: str | None) -> str:
     if not iso:
         return "?"
@@ -192,6 +203,7 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 summary["failed_runs"] += 1
 
             when = run.started_at.strftime("%d %b %H:%M") if run.started_at else "?"
+            scan_cell = f"{_short_branch(run.git_branch or '?')} · {when}"
             fr_cell = "—"
             if run.catalogue_snapshot_id:
                 states = dict((await session.execute(
@@ -211,7 +223,7 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 delta = ("+" if d > 0 else "") + str(d) if d else "±0"
 
             table_rows.append([
-                base, f"{run.git_branch or '?'} · {when}", run.status,
+                base, scan_cell, run.status,
                 str(crit) if crit else "—", str(high) if high else "—",
                 str(counts.get("MEDIUM", 0)), str(counts.get("LOW", 0)),
                 delta, fr_cell,
@@ -260,14 +272,14 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 pr_rows.append([f"{base} — PRs unavailable ({note})", "", "", "", ""])
             else:
                 for pr in prs or []:
-                    head = pr.get("head", {}).get("ref", "?")
-                    pr_base = pr.get("base", {}).get("ref", "?")
+                    head = _short_branch(pr.get("head", {}).get("ref", "?"))
+                    pr_base = _short_branch(pr.get("base", {}).get("ref", "?"))
                     files = pr.get("changed_files")
                     adds, dels = pr.get("additions"), pr.get("deletions")
                     lines = (f"+{adds} −{dels}" if adds is not None else "—")
                     pr_rows.append([
-                        f"#{pr['number']} {pr['title'][:48]}",
-                        f"{pr_base}…{head}",
+                        f"#{pr['number']} {pr['title'][:40]}",
+                        f"{pr_base} ← {head}",
                         str(files) if files is not None else "—",
                         lines,
                         _days_ago(pr.get("created_at")),
