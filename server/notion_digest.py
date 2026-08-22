@@ -321,7 +321,7 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                     )}} for day in days),
                 ],
             }},
-        ] if commit_projects else []),
+        ] if commit_columns else []),
         {"object": "block", "type": "heading_2",
          "heading_2": {"rich_text": _text("Open PRs")}},
         *([{"object": "block", "type": "table", "table": {
