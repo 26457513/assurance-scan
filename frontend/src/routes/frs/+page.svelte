@@ -197,7 +197,7 @@
         </div>
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
           Copy the prompt and run it in Claude Code from inside the project folder. The agent
-          works out where the code is, asks you once if it can\u2019t, and remembers for next time.
+          works out where the code is, asks you once if it can’t, and remembers for next time.
           The finished catalogue is saved straight into this project.
         </p>
         <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-64 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
