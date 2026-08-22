@@ -64,6 +64,7 @@ class Settings:
     # Notion standup digest
     notion_token: str
     notion_page_id: str
+    notion_orgs: str
 
     # Bearer token for MCP clients (claude mcp add … --header). Required
     # when auth is on — /mcp never accepts the browser login redirect.
@@ -112,6 +113,7 @@ def load_settings() -> Settings:
         mcp_token=_env("MCP_TOKEN", ""),
         notion_token=_env("NOTION_TOKEN", ""),
         notion_page_id=_env("NOTION_PAGE_ID", ""),
+        notion_orgs=_env("NOTION_ORGS", ""),
         google_client_id=_env("GOOGLE_CLIENT_ID", ""),
         google_client_secret=_env("GOOGLE_CLIENT_SECRET", ""),
         google_domain=_env("GOOGLE_DOMAIN", "barkleygen.com"),

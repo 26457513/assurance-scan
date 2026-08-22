@@ -123,6 +123,10 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Render the digest blocks + a small summary for the toast."""
     now = dt.datetime.now(dt.timezone.utc)
 
+    from server.config import load_settings
+
+    allowed_orgs = {o.strip().lower() for o in load_settings().notion_orgs.split(",") if o.strip()}
+
     async with get_sessionmaker()() as session:
         rows = (await session.execute(
             sa_select(Run).where(Run.project_path.in_(
@@ -148,6 +152,13 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         for path, runs_ in sorted(recent.items()):
             base = path.replace("github:", "").split("/")[-1]
             if base in hidden_names:
+                continue
+            # Org scoping (NOTION_ORGS): empty = every org.
+            reg_row = registry.get(path)
+            owner = (reg_row.github_repo if reg_row is not None and reg_row.github_repo
+                     else (path.split(":")[1] if path.startswith("github:") else ""))
+            org = owner.split("/")[0] if "/" in owner else ""
+            if allowed_orgs and org.lower() not in allowed_orgs:
                 continue
             run, prev = runs_[0], (runs_[1] if len(runs_) > 1 else None)
             counts = dict((await session.execute(
@@ -199,9 +210,8 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 branch_lines.append(
                     f"{base} · {br} — {len(brs)} scans, latest {when_br} {last.status}")
 
-            reg = registry.get(path)
-            if reg is not None and reg.github_repo:
-                pr_projects.append((base, reg.github_repo))
+            if reg_row is not None and reg_row.github_repo:
+                pr_projects.append((base, reg_row.github_repo))
 
         repo_stats = await _repo_stats(session, pr_projects)
         activity_lines: list[str] = []
