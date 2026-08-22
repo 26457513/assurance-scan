@@ -196,10 +196,9 @@
           <button type="button" on:click={() => (flow = null)} class="text-[11px] font-mono text-ink-muted hover:text-accent">✕ back</button>
         </div>
         <p class="text-[11px] text-ink-muted leading-relaxed mb-3 max-w-xl">
-          The agent finds the checkout itself — it runs in the project folder, or uses the
-          remembered mapping — and only asks you if it genuinely doesn\u2019t know. Branch is chosen
-          in the conversation when it matters. Delegates to the
-          <code class="text-ink-secondary">author-fr-catalogue</code> workflow.
+          Copy the prompt and run it in Claude Code from inside the project folder. The agent
+          works out where the code is, asks you once if it can\u2019t, and remembers for next time.
+          The finished catalogue is saved straight into this project.
         </p>
         <pre class="text-[10px] font-mono text-ink-muted whitespace-pre-wrap max-h-64 overflow-y-auto border border-line-hairline rounded-sm bg-surface-base p-2 mb-3 max-w-xl">{buildPrompt()}</pre>
         <button
