@@ -28,20 +28,40 @@ def _text(content: str) -> list[dict[str, Any]]:
     return [{"type": "text", "text": {"content": content}}]
 
 
+SEV_ORDER = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
+BAR_CHARS = {"CRITICAL": "█", "HIGH": "▓", "MEDIUM": "▒", "LOW": "░", "UNKNOWN": "·"}
+BAR_WIDTH = 32
+
+
+def _bar(counts: dict[str, int]) -> str:
+    """Proportional stacked bar: shading gets lighter as severity drops."""
+    total = sum(counts.values())
+    if total == 0:
+        return ""
+    out = []
+    remaining = BAR_WIDTH
+    for i, sev in enumerate(SEV_ORDER):
+        n = counts.get(sev, 0)
+        if n == 0:
+            continue
+        if i == len(SEV_ORDER) - 1 or sum(counts.get(x, 0) for x in SEV_ORDER[i:]) <= remaining:
+            w = round(BAR_WIDTH * n / total)
+        else:
+            w = max(1, min(remaining, round(BAR_WIDTH * n / total)))
+        out.append(BAR_CHARS[sev] * w)
+        remaining -= w
+        if remaining <= 0:
+            break
+    # keep the last segment honest about the width
+    line = "".join(out)
+    return line[:BAR_WIDTH].ljust(BAR_WIDTH, BAR_CHARS["LOW"])
+
+
 async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Render the digest blocks + a small summary for the toast."""
-    import asyncio
-
     now = dt.datetime.now(dt.timezone.utc)
-    blocks: list[dict[str, Any]] = [
-        {"object": "block", "type": "heading_1",
-         "heading_1": {"rich_text": _text("Assurance Scan — standup digest")}},
-        {"object": "block", "type": "paragraph",
-         "paragraph": {"rich_text": _text(f"generated {now.strftime('%Y-%m-%d %H:%M UTC')}")}},
-    ]
 
     async with get_sessionmaker()() as session:
-        # Latest run per visible project.
         rows = (await session.execute(
             sa_select(Run).where(Run.project_path.in_(
                 sa_select(Project.local_path).where(Project.hidden.is_(False))
@@ -55,15 +75,18 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         )).all()}
 
         summary = {"projects": 0, "critical": 0, "high": 0, "failed_runs": 0}
+        table_rows: list[list[str]] = []
+        bars: list[tuple[str, dict[str, int]]] = []
+
         for path, run in sorted(latest.items()):
             base = path.replace("github:", "").split("/")[-1]
             if base in hidden_names:
                 continue
-            sev = dict((await session.execute(
+            counts = dict((await session.execute(
                 sa_select(Finding.severity, func.count()).where(Finding.run_id == run.run_id)
                 .group_by(Finding.severity)
             )).all())
-            crit, high = sev.get("CRITICAL", 0), sev.get("HIGH", 0)
+            crit, high = counts.get("CRITICAL", 0), counts.get("HIGH", 0)
             summary["projects"] += 1
             summary["critical"] += crit
             summary["high"] += high
@@ -71,31 +94,67 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 summary["failed_runs"] += 1
 
             when = run.started_at.strftime("%d %b %H:%M") if run.started_at else "?"
-            line = f"latest scan: {run.git_branch or '?'} · {when} · {run.status}"
-            badge = " 🔴" if crit else (" 🟠" if high else "")
-            blocks.append({"object": "block", "type": "heading_2", "heading_2": {
-                "rich_text": _text(base + badge)}})
-            blocks.append({"object": "block", "type": "bulleted_list_item",
-                           "bulleted_list_item": {"rich_text": _text(line)}})
-            counts = f"findings: {sum(sev.values())} total · CRITICAL {crit} · HIGH {high}"
-            blocks.append({"object": "block", "type": "bulleted_list_item",
-                           "bulleted_list_item": {"rich_text": _text(counts)}})
-
+            fr_cell = "—"
             if run.catalogue_snapshot_id:
                 states = dict((await session.execute(
                     sa_select(FrState.state, func.count())
                     .where(FrState.run_id == run.run_id).group_by(FrState.state)
                 )).all())
-                ok = sum(states.get(s, 0) for s in ("passed", "accepted", "waived"))
-                gaps = sum(states.get(s, 0) for s in ("untested", "pending", "failed", "blocked"))
-                blocks.append({"object": "block", "type": "bulleted_list_item",
-                               "bulleted_list_item": {"rich_text": _text(
-                                   f"FR compliance: ✓{ok} · ✗{gaps}")}})
+                ok = sum(states.get(x, 0) for x in ("passed", "accepted", "waived"))
+                gaps = sum(states.get(x, 0) for x in ("untested", "pending", "failed", "blocked"))
+                fr_cell = f"✓{ok} ✗{gaps}"
 
-        if summary["projects"] == 0:
-            blocks.append({"object": "block", "type": "paragraph", "paragraph": {
-                "rich_text": _text("No scanned projects to report.")}})
+            table_rows.append([
+                base,
+                f"{run.git_branch or '?'} · {when}",
+                run.status,
+                str(crit) if crit else "—",
+                str(high) if high else "—",
+                str(counts.get("MEDIUM", 0)),
+                str(counts.get("LOW", 0)),
+                fr_cell,
+            ])
+            bars.append((base, counts))
 
+    def cells(values: list[str]) -> list[list[dict[str, Any]]]:
+        # each Notion table cell is an array of rich-text objects
+        return [[{"type": "text", "text": {"content": v}}] for v in values]
+
+    header = ["Project", "Latest scan", "Status", "CRIT", "HIGH", "MED", "LOW", "FRs"]
+    table_block = {"object": "block", "type": "table", "table": {
+        "table_width": len(header),
+        "has_column_header": True,
+        "has_row_header": False,
+        "children": [
+            {"object": "block", "type": "table_row",
+             "table_row": {"cells": cells(header)}},
+            *({"object": "block", "type": "table_row",
+               "table_row": {"cells": cells(r)}} for r in table_rows),
+        ],
+    }}
+
+    chart_lines = []
+    for name, counts in bars:
+        chart_lines.append(f"{name}  (total {sum(counts.values())})")
+        chart_lines.append(f"  {_bar(counts)}")
+        chart_lines.append(
+            "  " + "  ".join(f"{BAR_CHARS[s]} {counts.get(s, 0)}" for s in SEV_ORDER)
+        )
+        chart_lines.append("")
+    chart_text = "\n".join(chart_lines).rstrip() or "no scans yet"
+    chart_block = {"object": "block", "type": "code", "code": {
+        "rich_text": _text(chart_text), "language": "plain text"}}
+
+    blocks = [
+        {"object": "block", "type": "heading_1",
+         "heading_1": {"rich_text": _text("Assurance Scan — standup digest")}},
+        {"object": "block", "type": "paragraph",
+         "paragraph": {"rich_text": _text(f"generated {now.strftime('%Y-%m-%d %H:%M UTC')}")}},
+        table_block,
+        {"object": "block", "type": "heading_2",
+         "heading_2": {"rich_text": _text("Severity distribution")}},
+        chart_block,
+    ]
     return blocks, summary
 
 
