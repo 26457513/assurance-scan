@@ -49,9 +49,10 @@ async def test_digest_blocks(seeded) -> None:
     assert table["table"]["has_column_header"] is True
     body = table["table"]["children"][1]["table_row"]["cells"]
     cell_vals = [c[0]["text"]["content"] for c in body]
-    assert cell_vals[0] == "p1" and cell_vals[1].startswith("main · ")
-    assert cell_vals[2:7] == ["completed", "1", "2", "0", "1"]
-    assert cell_vals[7] == "—" and cell_vals[8] == "—"
+    assert cell_vals[0] == "p1" and cell_vals[1] == "main"
+    assert "(completed)" in cell_vals[2]
+    assert cell_vals[3:8] == ["1", "2", "0", "1", "—"]
+    assert cell_vals[8] == "—"
 
     assert not any(b["type"] == "code" for b in blocks)  # chart removed
     headings = [b["heading_2"]["rich_text"][0]["text"]["content"]

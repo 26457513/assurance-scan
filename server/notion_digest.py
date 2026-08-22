@@ -163,10 +163,15 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 sa_select(Project.local_path).where(Project.hidden.is_(False))
             )).order_by(Run.started_at.desc())
         )).scalars().all()
-        # two newest runs per project: latest for the table, previous for delta
+        # runs grouped per project (for PR/branch context) and per
+        # (project, branch) — the top table shows one row per branch that
+        # has been scanned in the last 7 days.
         recent: dict[str, list[Run]] = {}
-        for run in rows:
+        branch_runs: dict[tuple[str, str], list[Run]] = {}
+        for run in rows:  # newest first
             recent.setdefault(run.project_path, []).append(run)
+            if run.git_branch:
+                branch_runs.setdefault((run.project_path, run.git_branch), []).append(run)
         registry = {r.local_path: r for r in (await session.execute(
             sa_select(Project).where(Project.hidden.is_(False))
         )).scalars().all()}
@@ -174,35 +179,47 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             sa_select(Project.local_path).where(Project.hidden.is_(True))
         )).scalars().all()}
 
-        summary = {"projects": 0, "critical": 0, "high": 0, "failed_runs": 0}
-        table_rows: list[list[str]] = []
-        pr_projects: list[tuple[str, str]] = []
-
-        for path, runs_ in sorted(recent.items()):
-            base = path.replace("github:", "").split("/")[-1]
-            if base in hidden_names:
-                continue
-            # Org scoping (NOTION_ORGS): empty = every org.
+        def scoped(path: str) -> bool:
+            if path.replace("github:", "").split("/")[-1] in hidden_names:
+                return False
             reg_row = registry.get(path)
             owner = (reg_row.github_repo if reg_row is not None and reg_row.github_repo
                      else (path.split(":")[1] if path.startswith("github:") else ""))
             org = owner.split("/")[0] if "/" in owner else ""
-            if allowed_orgs and org.lower() not in allowed_orgs:
+            return not allowed_orgs or org.lower() in allowed_orgs
+
+        summary = {"projects": 0, "critical": 0, "high": 0, "failed_runs": 0}
+        table_rows: list[list[str]] = []
+        pr_projects: list[tuple[str, str, list[str]]] = []
+        seen_projects: set[str] = set()
+        cutoff = now - dt.timedelta(days=7)
+
+        for (path, branch), brs in sorted(
+                branch_runs.items(),
+                key=lambda kv: (kv[0][0], kv[1][0].started_at or now), reverse=True):
+            if not scoped(path):
                 continue
-            run, prev = runs_[0], (runs_[1] if len(runs_) > 1 else None)
+            run, prev = brs[0], (brs[1] if len(brs) > 1 else None)
+            started = run.started_at
+            if started is not None and started.tzinfo is None:  # sqlite gives naive
+                started = started.replace(tzinfo=dt.timezone.utc)
+            if started is None or started < cutoff:
+                continue  # only branches scanned in the last 7 days
+            base = path.replace("github:", "").split("/")[-1]
             counts = dict((await session.execute(
                 sa_select(Finding.severity, func.count()).where(Finding.run_id == run.run_id)
                 .group_by(Finding.severity)
             )).all())
             crit, high = counts.get("CRITICAL", 0), counts.get("HIGH", 0)
-            summary["projects"] += 1
             summary["critical"] += crit
             summary["high"] += high
             if run.status == "failed":
                 summary["failed_runs"] += 1
+            if path not in seen_projects:
+                seen_projects.add(path)
+                summary["projects"] += 1
 
-            when = run.started_at.strftime("%d %b %H:%M") if run.started_at else "?"
-            scan_cell = f"{_short_branch(run.git_branch or '?')} · {when}"
+            scan_cell = f"{run.started_at.strftime('%d %b %H:%M')} ({run.status})"
             fr_cell = "—"
             if run.catalogue_snapshot_id:
                 states = dict((await session.execute(
@@ -216,25 +233,27 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             delta = "—"
             if prev is not None:
                 prev_total = (await session.execute(
-                    sa_select(func.count()).select_from(Finding).where(Finding.run_id == prev.run_id)
+                    sa_select(func.count()).select_from(Finding)
+                    .where(Finding.run_id == prev.run_id)
                 )).scalar()
                 d = sum(counts.values()) - prev_total
                 delta = ("+" if d > 0 else "") + str(d) if d else "±0"
 
             table_rows.append([
-                base, scan_cell, run.status,
+                base, _short_branch(branch), scan_cell,
                 str(crit) if crit else "—", str(high) if high else "—",
                 str(counts.get("MEDIUM", 0)), str(counts.get("LOW", 0)),
                 delta, fr_cell,
             ])
 
-            # branch stats: scan count + latest result per branch
-            by_branch: dict[str, list[Run]] = {}
-            for r in runs_:
-                if r.git_branch:
-                    by_branch.setdefault(r.git_branch, []).append(r)
+        for path, runs_ in recent.items():
+            if not scoped(path):
+                continue
+            reg_row = registry.get(path)
             if reg_row is not None and reg_row.github_repo:
-                pr_projects.append((base, reg_row.github_repo, list(by_branch.keys())))
+                base = path.replace("github:", "").split("/")[-1]
+                pr_projects.append((base, reg_row.github_repo,
+                                    [r.git_branch for r in runs_ if r.git_branch]))
 
         repo_stats = await _repo_stats(session, pr_projects)
         pr_rows: list[list[str]] = []
@@ -284,7 +303,7 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
         # each Notion table cell is an array of rich-text objects
         return [[{"type": "text", "text": {"content": v}}] for v in values]
 
-    header = ["Project", "Latest scan", "Status", "CRIT", "HIGH", "MED", "LOW", "Δ", "FRs"]
+    header = ["Project", "Branch", "Last scan", "CRIT", "HIGH", "MED", "LOW", "Δ", "FRs"]
     table_block = {"object": "block", "type": "table", "table": {
         "table_width": len(header),
         "has_column_header": True,
@@ -303,7 +322,7 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
     blocks = [
         {"object": "block", "type": "heading_1",
-         "heading_1": {"rich_text": _text("Assurance Scan — standup digest")}},
+         "heading_1": {"rich_text": _text("Stand-up digest")}},
         {"object": "block", "type": "paragraph",
          "paragraph": {"rich_text": _text(f"generated {now.strftime('%Y-%m-%d %H:%M UTC')}")}},
         table_block,
