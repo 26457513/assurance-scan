@@ -46,9 +46,20 @@ async def trends(
         Finding.run_id.in_([r.run_id for r in runs])
     ).group_by(Finding.run_id, Finding.severity)
 
+    tribal_stmt = select(
+        Finding.run_id,
+        func.count(Finding.id).label("count"),
+    ).where(
+        Finding.run_id.in_([r.run_id for r in runs]),
+        Finding.scanner_kind == "tribal",
+    ).group_by(Finding.run_id)
+
     severity_by_run: dict[str, Counter] = defaultdict(Counter)
     for run_id, sev, count in (await session.execute(finding_stmt)).all():
         severity_by_run[run_id][sev] = count
+    tribal_by_run = {
+        run_id: count for run_id, count in (await session.execute(tribal_stmt)).all()
+    }
 
     entries: list[dict[str, Any]] = []
     for run in runs:
@@ -61,6 +72,8 @@ async def trends(
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "total_findings": total,
             "by_severity": dict(counts),
+            "git_branch": run.git_branch,
+            "tribal": tribal_by_run.get(run.run_id, 0),
         })
 
     delta = _compute_delta(entries)
@@ -86,3 +99,72 @@ def _compute_delta(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
         "total_delta": latest["total_findings"] - prev["total_findings"],
         "by_severity": severity_delta,
     }
+
+
+@router.get("/trends/commits")
+async def trend_commits(
+    project_path: str = Query(...),
+    branch: str = Query(default=""),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    """Commits per day for the project's repo (default: last 30 days),
+    for the activity strip under the trends chart."""
+    import datetime as dt
+
+    from server.db.models import Organisation, Project
+    from server.github_poller import GitHubClient
+    from server.secrets import decrypt
+
+    reg = (await session.execute(
+        select(Project).where(Project.local_path == project_path)
+    )).scalars().first()
+    repo = reg.github_repo if reg is not None and reg.github_repo else (
+        project_path.split(":")[1] if project_path.startswith("github:") else ""
+    )
+    if not repo:
+        return {"repo": "", "days": []}
+
+    from server.config import load_settings
+
+    settings = load_settings()
+    tokens: dict[str, str] = {}
+    if settings.github_poll_token and settings.github_org:
+        tokens[settings.github_org.lower()] = settings.github_poll_token
+    if settings.token_encryption_key:
+        for row in (await session.execute(select(Organisation))).scalars().all():
+            tok = decrypt(row.token_encrypted, settings.token_encryption_key)
+            if tok:
+                tokens[row.name.lower()] = tok
+    owner = repo.split("/")[0].lower()
+    token = tokens.get(owner)
+    if not token:
+        return {"repo": repo, "days": [], "error": "no token for this org"}
+
+    ref = branch or (reg.default_scan_ref or "")
+    if not ref:
+        try:
+            ref = await asyncio.to_thread(GitHubClient(token).repo_default_branch, repo)
+        except Exception:
+            ref = "main"
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)
+             ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        commits = await asyncio.to_thread(
+            GitHubClient(token)._get,
+            f"https://api.github.com/repos/{repo}/commits?sha={ref}&since={since}&per_page=100",
+        )
+    except Exception:
+        return {"repo": repo, "days": [], "error": "commit history unavailable"}
+
+    by_day: dict[str, int] = {}
+    for c in commits:
+        d = (c.get("commit", {}).get("author", {}).get("date") or "")[:10]
+        if d:
+            by_day[d] = by_day.get(d, 0) + 1
+    days = [
+        {"date": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=i)).strftime("%Y-%m-%d")}
+        for i in range(29, -1, -1)
+    ]
+    for d in days:
+        d["count"] = by_day.get(d["date"], 0)
+    return {"repo": repo, "branch": ref, "days": days}

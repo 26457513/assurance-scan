@@ -279,6 +279,15 @@ export interface TrendEntry {
   started_at: string | null;
   total_findings: number;
   by_severity: Record<string, number>;
+  git_branch?: string | null;
+  tribal?: number;
+}
+
+export interface TrendCommits {
+  repo: string;
+  branch?: string;
+  days: { date: string; count: number }[];
+  error?: string;
 }
 
 export interface TrendDelta {

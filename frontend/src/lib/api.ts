@@ -18,7 +18,8 @@ import type {
   ScanStatus,
   ScanSummary,
   TestSourceResponse,
-  TrendsResponse
+  TrendCommits,
+  TrendsResponse,
 } from './types';
 
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -54,6 +55,9 @@ export const api = {
     getJson<{ status: string; projects: number; critical: number; high: number; failed_runs: number; blocks: number }>('/api/notion/digest', { method: 'POST' }),
 
   getTrendsForScanList: () => getJson<TrendsResponse>('/api/trends?limit=30'),
+
+  getTrendCommits: (projectPath: string, branch = '') =>
+    getJson<TrendCommits>(`/api/trends/commits?project_path=${encodeURIComponent(projectPath)}&branch=${encodeURIComponent(branch)}`),
 
   getScan: (runId: string) => getJson<ScanStatus>(`/api/scans/${runId}`),
 
