@@ -10,11 +10,11 @@
     { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup', scoped: false, divider: false },
     { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects', scoped: false, divider: false },
     { href: '', label: 'Scans', glyph: '⌗', match: '', scoped: true, divider: true },
+    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends', scoped: true, divider: false },
     { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes', scoped: false, divider: false },
     { href: '/frs', label: 'FRs', glyph: '☰', match: '/frs', scoped: true, divider: false },
     { href: '/compliance', label: 'Compliance', glyph: '⚖', match: '/compliance', scoped: true, divider: false },
-    { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix', scoped: false, divider: true },
-    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends', scoped: false, divider: false }
+    { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix', scoped: false, divider: true }
   ];
 
   $: path = $page.url.pathname;
