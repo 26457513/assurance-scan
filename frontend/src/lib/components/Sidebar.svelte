@@ -7,7 +7,7 @@
   $: projectBase = $selectedProject ? `/projects/${projectSlug($selectedProject)}` : null;
 
   const nav = [
-    { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup', scoped: false, divider: false },
+    { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup', scoped: false, divider: true },
     { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects', scoped: false, divider: false },
     { href: '', label: 'Scans', glyph: '⌗', match: '', scoped: true, divider: false },
     { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends', scoped: true, divider: true },
