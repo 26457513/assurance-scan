@@ -5,6 +5,8 @@
   import { selectedProject } from '$lib/stores/selectedProject';
   import { pushToast } from '$lib/stores/toasts';
   import { api } from '$lib/api';
+  import { createRequestGate } from '$lib/requestGate';
+  import { urlForSelectedRun } from '$lib/scanSelectionUrl';
   import type { ScanSummary } from '$lib/types';
   import ScanOriginBadge from './ScanOriginBadge.svelte';
 
@@ -13,20 +15,25 @@
   let pg = 0;
   const PAGE_SIZE = 10;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const recentGate = createRequestGate<number | null>();
 
-  async function loadRecent() {
+  async function loadRecent(projectId: number | null, force = false) {
+    const ticket = recentGate.begin(projectId, { force });
+    if (!ticket) return;
     try {
       // Fetch a deep window so quieter projects still have scans after the
       // project filter (the global top-15 often has none).
-      if ($selectedProject != null) {
-        recent = await api.listScans($selectedProject, 200);
+      const next = projectId != null
+        ? await api.listScans(projectId, 200)
+        : await api.listScans(undefined, 15);
+      if (!recentGate.isCurrent(ticket)) return;
+      recent = next;
+      if (projectId != null) {
         // Follow the project: adopt its newest scan when the current
         // selection doesn't belong to it.
-        if (!$selectedScan || $selectedScan.project_id !== $selectedProject) {
+        if (!$selectedScan || $selectedScan.project_id !== projectId) {
           selectScan(recent[0] ?? null);
         }
-      } else {
-        recent = await api.listScans(undefined, 15);
       }
     } catch (e) {
       /* silent */
@@ -34,9 +41,7 @@
   }
 
   // Refilter when the project selection changes.
-  $: if ($selectedProject !== undefined) {
-    loadRecent();
-  }
+  $: void loadRecent($selectedProject);
 
   async function tickPoll() {
     const s = $selectedScan;
@@ -56,7 +61,7 @@
         display_title: s.display_title
       });
       if (fresh.status === 'completed' || fresh.status === 'failed' || fresh.status === 'cancelled') {
-        await loadRecent();
+        await loadRecent($selectedProject, true);
       }
     } catch (e) {
       /* silent */
@@ -64,7 +69,6 @@
   }
 
   onMount(() => {
-    loadRecent();
     pollTimer = setInterval(tickPoll, 4000);
   });
 
@@ -74,7 +78,7 @@
 
   function toggle() {
     open = !open;
-    if (open) loadRecent();
+    if (open) loadRecent($selectedProject, true);
   }
 
   function pick(scan: ScanSummary) {
@@ -82,17 +86,7 @@
     selectScan(scan);
     pushToast('info', `Selected ${shortLabel(scan.run_id)}`);
     const url = new URL(window.location.href);
-    url.searchParams.set('run_id', scan.run_id);
-    // Keep the URL in sync with the selection: scan detail pages change
-    // path, project pages take the ?run= deep-link param.
-    const scanPathMatch = url.pathname.match(/^\/scans\/[^/]+/);
-    if (scanPathMatch) {
-      url.pathname = `/scans/${scan.run_id}`;
-    }
-    if (url.pathname.match(/^\/projects\/[^/]+/)) {
-      url.searchParams.set('run', scan.run_id);
-    }
-    goto(`${url.pathname}?${url.searchParams.toString()}`, { noScroll: true });
+    goto(urlForSelectedRun(url, scan.run_id), { noScroll: true });
   }
 
   function shortLabel(id: string): string {

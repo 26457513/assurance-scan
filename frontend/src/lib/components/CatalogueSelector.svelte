@@ -1,27 +1,34 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { createRequestGate } from '$lib/requestGate';
   import { selectedProject } from '$lib/stores/selectedProject';
   import { selectCatalogue, selectedCatalogue } from '$lib/stores/selectedCatalogue';
   import type { CatalogueVersion } from '$lib/types';
 
   let open = false;
   let versions: CatalogueVersion[] = [];
+  const versionsGate = createRequestGate<number | null>();
 
-  $: if ($selectedProject) {
+  $: void loadVersions($selectedProject);
+
+  async function loadVersions(projectId: number | null) {
+    const ticket = versionsGate.begin(projectId);
+    if (!ticket) return;
     selectCatalogue(null);
-    loadVersions();
-  }
-
-  async function loadVersions() {
+    if (projectId == null) {
+      versions = [];
+      return;
+    }
     try {
-      const data = await api.listCatalogueVersions($selectedProject!);
+      const data = await api.listCatalogueVersions(projectId);
+      if (!versionsGate.isCurrent(ticket)) return;
       versions = data.versions;
       if (versions.length) {
         const v = versions[0];
         selectCatalogue({ snapshot_id: v.snapshot_id, version: v.version ?? null, tag: v.tag ?? null, fr_count: v.fr_count });
       }
     } catch {
-      versions = [];
+      if (versionsGate.isCurrent(ticket)) versions = [];
     }
   }
 

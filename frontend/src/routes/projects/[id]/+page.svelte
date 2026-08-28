@@ -4,6 +4,8 @@
   import { pushToast } from '$lib/stores/toasts';
   import { selectProject } from '$lib/stores/selectedProject';
   import { selectedScan, selectScan } from '$lib/stores/selectedScan';
+  import { createRequestGate, type RequestTicket } from '$lib/requestGate';
+  import { selectedRunFromUrl } from '$lib/scanSelectionUrl';
   import ScanDetail from '$lib/components/ScanDetail.svelte';
   import ScanCommitComparison from '$lib/components/ScanCommitComparison.svelte';
   import ScanOriginBadge from '$lib/components/ScanOriginBadge.svelte';
@@ -29,6 +31,8 @@
   let scanBranchError = false;
   let originFilter: ScanOriginFilter = 'all';
   let comparisonRunId = '';
+  const routeGate = createRequestGate<number>();
+  const scansGate = createRequestGate<number>();
 
   $: if (!Number.isInteger(projectId) || projectId <= 0) {
     loading = false;
@@ -87,35 +91,70 @@
     : null;
   $: comparison = comparisonScan ? sameCommitComparison(scans, comparisonScan) : null;
 
-  async function loadScans() {
+  async function loadScans(targetProjectId = projectId, showLoading = false) {
+    const ticket = scansGate.begin(targetProjectId, { force: true });
+    if (!ticket) return;
+    if (showLoading) loading = true;
+    const wanted = selectedRunFromUrl($page.url);
     try {
-      scans = await api.listScans(projectId, 200);
+      let nextScans = await api.listScans(targetProjectId, 200);
       // A ?run= deep link selects its run; if it isn't ingested yet, one
       // getScan triggers the server's lazy pull, then we reload.
-      const wanted = $page.url.searchParams.get('run');
+      let nextSelectedRunId = selectedRunId;
+      let nextPage = pg;
       if (wanted) {
         const selectWanted = () => {
-          const idx = scans.findIndex((s) => s.run_id === wanted);
+          const idx = nextScans.findIndex((s) => s.run_id === wanted);
           if (idx === -1) return false;
-          selectedRunId = wanted;
-          pg = Math.floor(idx / pageSize);  // jump pagination to the row
+          nextSelectedRunId = wanted;
+          nextPage = Math.floor(idx / pageSize);  // jump pagination to the row
           return true;
         };
         if (!selectWanted()) {
           try {
             await api.getScan(wanted);  // lazy pull for un-ingested runs
-            scans = await api.listScans(projectId, 200);
+            nextScans = await api.listScans(targetProjectId, 200);
             selectWanted();
           } catch {
             /* unknown run id — fall through to default selection */
           }
         }
       }
-      if (!selectedRunId && scans.length) selectedRunId = scans[0].run_id;
+      if (!nextScans.some((scan) => scan.run_id === nextSelectedRunId)) {
+        nextSelectedRunId = nextScans[0]?.run_id ?? '';
+        nextPage = 0;
+      }
+      if (!scansGate.isCurrent(ticket)) return;
+      scans = nextScans;
+      selectedRunId = nextSelectedRunId;
+      pg = nextPage;
+      error = null;
     } catch (e) {
-      error = String(e);
+      if (scansGate.isCurrent(ticket)) error = String(e);
     } finally {
-      loading = false;
+      if (scansGate.isCurrent(ticket)) loading = false;
+    }
+  }
+
+  async function activateProject(targetProjectId: number, ticket: RequestTicket<number>) {
+    selectedRunId = '';
+    comparisonRunId = '';
+    originFilter = 'all';
+    pg = 0;
+    scans = [];
+    project = null;
+    defaultScanRef = null;
+    error = null;
+    loading = true;
+    selectProject(targetProjectId);
+    void loadScans(targetProjectId, true);
+    try {
+      const projects = await api.listProjects();
+      if (!routeGate.isCurrent(ticket)) return;
+      project = projects.projects.find((item) => item.id === targetProjectId) ?? null;
+      defaultScanRef = project?.default_scan_ref ?? null;
+    } catch {
+      if (routeGate.isCurrent(ticket)) defaultScanRef = null;
     }
   }
 
@@ -123,19 +162,8 @@
   // /projects/1 → /projects/2 param changes, so switching project in the
   // header dropdown must reload the table.
   $: if (Number.isInteger(projectId) && projectId > 0) {
-    selectProject(projectId);
-    selectedRunId = '';
-    comparisonRunId = '';
-    originFilter = 'all';
-    pg = 0;
-    loading = true;
-    loadScans();
-    api.listProjects()
-      .then((r) => {
-        project = r.projects.find((p) => p.id === projectId) ?? null;
-        defaultScanRef = project?.default_scan_ref ?? null;
-      })
-      .catch(() => (defaultScanRef = null));
+    const ticket = routeGate.begin(projectId);
+    if (ticket) void activateProject(projectId, ticket);
   }
 
   function pickScan(runId: string) {

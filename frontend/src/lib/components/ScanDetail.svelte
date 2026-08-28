@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { createRequestGate } from '$lib/requestGate';
   import { selectScan } from '$lib/stores/selectedScan';
   import ScanResultsView from './ScanResultsView.svelte';
   import ProvenanceStrip from './ProvenanceStrip.svelte';
@@ -12,13 +13,19 @@
   let project: ProjectSummary | null = null;
   let loading = true;
   let error: string | null = null;
+  const scanGate = createRequestGate<string>();
 
-  async function loadScan() {
+  async function loadScan(targetRunId: string) {
+    const ticket = scanGate.begin(targetRunId);
+    if (!ticket) return;
+    loading = true;
     try {
-      const fetched: ScanStatus = await api.getScan(runId);
-      status = fetched;
-      project = (await api.listProjects()).projects.find((item) => item.id === fetched.project_id) ?? null;
-      scan = {
+      const fetched: ScanStatus = await api.getScan(targetRunId);
+      const fetchedProject = (await api.listProjects()).projects.find(
+        (item) => item.id === fetched.project_id
+      ) ?? null;
+      if (!scanGate.isCurrent(ticket)) return;
+      const fetchedScan: ScanSummary = {
         run_id: fetched.run_id,
         project_id: fetched.project_id,
         origin: fetched.origin,
@@ -29,12 +36,15 @@
         run_number: (fetched.options as Record<string, unknown>)?.run_number as number | undefined ?? undefined,
         display_title: (fetched.options as Record<string, unknown>)?.display_title as string | undefined ?? undefined
       };
-      selectScan(scan);
+      status = fetched;
+      project = fetchedProject;
+      scan = fetchedScan;
+      selectScan(fetchedScan);
       error = null;
     } catch (e) {
-      error = String(e);
+      if (scanGate.isCurrent(ticket)) error = String(e);
     } finally {
-      loading = false;
+      if (scanGate.isCurrent(ticket)) loading = false;
     }
   }
 
@@ -48,7 +58,7 @@
 
   // Reactive so switching rows in the scans list reloads the detail view
   // (the component is not remounted between selections).
-  $: if (runId) loadScan();
+  $: if (runId) void loadScan(runId);
 
 </script>
 

@@ -9,15 +9,21 @@
   import { selectedScan, selectScan } from '$lib/stores/selectedScan';
   import { pushToast } from '$lib/stores/toasts';
   import { api } from '$lib/api';
+  import { createRequestGate } from '$lib/requestGate';
+  import { selectedRunFromUrl, urlForSelectedRun } from '$lib/scanSelectionUrl';
 
   let bootstrapped = false;
   let lastUrlRunId: string | null = null;
+  const syncGate = createRequestGate<string>();
 
   async function syncFromUrl(runId: string | null) {
     if (!runId) return;
     if ($selectedScan?.run_id === runId) return;
+    const ticket = syncGate.begin(runId);
+    if (!ticket) return;
     try {
       const status = await api.getScan(runId);
+      if (!syncGate.isCurrent(ticket)) return;
       selectScan({
         run_id: status.run_id,
         project_id: status.project_id,
@@ -40,8 +46,7 @@
         const scan = scans[0];
         selectScan(scan);
         const url = new URL(window.location.href);
-        url.searchParams.set('run_id', scan.run_id);
-        goto(`${url.pathname}?${url.searchParams.toString()}`, { replaceState: true, noScroll: true });
+        goto(urlForSelectedRun(url, scan.run_id), { replaceState: true, noScroll: true });
         pushToast('info', `Auto-selected latest scan: ${scan.run_id.slice(-8)}`);
       }
     } catch (e) {
@@ -50,11 +55,11 @@
   }
 
   onMount(async () => {
-    const initialRunId = $page.url.searchParams.get('run_id');
+    const initialRunId = selectedRunFromUrl($page.url);
     lastUrlRunId = initialRunId;
     if (initialRunId) {
       await syncFromUrl(initialRunId);
-    } else {
+    } else if (!$page.url.pathname.match(/^\/projects\/[^/]+$/)) {
       await autoSelectLatest();
     }
     bootstrapped = true;
@@ -65,7 +70,7 @@
   });
 
   // React to URL changes (back/forward, dropdown picks, deep links)
-  $: currentUrlRunId = $page.url.searchParams.get('run_id');
+  $: currentUrlRunId = selectedRunFromUrl($page.url);
   $: if (bootstrapped && currentUrlRunId !== lastUrlRunId) {
     lastUrlRunId = currentUrlRunId;
     syncFromUrl(currentUrlRunId);
