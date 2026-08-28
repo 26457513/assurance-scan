@@ -17,7 +17,7 @@ services:
   server:
     # Dual mode: local `up --build` builds and tags; memory-constrained
     # hosts `docker compose pull` the CI-published image instead
-    # (publish-app-image workflow pushes it on every app change).
+    # (publish-app-image publishes an immutable candidate for reviewed rollout).
     build: .
     image: ghcr.io/26457513/assurance-scan-app:latest
     restart: unless-stopped

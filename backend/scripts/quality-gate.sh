@@ -75,6 +75,36 @@ run_step "Application image build" docker build --tag "$APP_IMAGE" -f Dockerfile
 run_step "Application entrypoint smoke" docker run --rm "$APP_IMAGE" help
 run_step "Application import smoke" docker run --rm --entrypoint python "$APP_IMAGE" -c \
   'import app.main; assert app.main.app is not None'
+printf '\n==> Application serve smoke\n'
+SERVE_SMOKE_CONTAINER="assurance-scan-serve-smoke-$$"
+cleanup_serve_smoke() {
+  docker stop "$SERVE_SMOKE_CONTAINER" >/dev/null 2>&1 || true
+}
+trap cleanup_serve_smoke EXIT
+docker run --rm --detach \
+  --name "$SERVE_SMOKE_CONTAINER" \
+  --env ASSURANCE_SCAN_DB_PATH=/tmp/serve-smoke.sqlite \
+  --health-interval 1s \
+  --health-start-period 1s \
+  "$APP_IMAGE" serve >/dev/null
+serve_smoke_status=""
+for _attempt in 1 2 3 4 5 6 7 8 9 10; do
+  serve_smoke_status="$(docker inspect "$SERVE_SMOKE_CONTAINER" \
+    --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}')"
+  if [ "$serve_smoke_status" = "healthy" ]; then
+    break
+  fi
+  if [ "$serve_smoke_status" = "exited" ] || [ "$serve_smoke_status" = "dead" ]; then
+    break
+  fi
+  sleep 2
+done
+if [ "$serve_smoke_status" != "healthy" ]; then
+  docker logs "$SERVE_SMOKE_CONTAINER" >&2 || true
+  exit 1
+fi
+cleanup_serve_smoke
+trap - EXIT
 run_step "CI image build" docker build --tag "$CI_IMAGE" -f backend/Dockerfile.ci .
 run_step "CI entrypoint smoke" docker run --rm "$CI_IMAGE" --help
 run_step "CLI image build" docker build \

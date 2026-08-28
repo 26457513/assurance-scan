@@ -11,7 +11,7 @@
 set -euo pipefail
 
 VENV=/opt/venv
-APP_DIR=/opt/assurance-scan
+APP_DIR=/opt/assurance-scan/backend
 ALEMBIC="${VENV}/bin/alembic"
 UVICORN="${VENV}/bin/uvicorn"
 
