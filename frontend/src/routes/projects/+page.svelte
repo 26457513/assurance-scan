@@ -434,6 +434,12 @@
                 {/each}
               </select>
             </div>
+            <div class="border border-line-hairline bg-surface-inset rounded-sm px-3 py-2 text-[10px] text-ink-muted leading-relaxed">
+              Registering <span class="font-mono text-ink-secondary">{repoFullName()}</span> gives
+              GitHub Actions and local scans one shared project identity. To scan a checkout from
+              your machine, finish the copyable steps under
+              <a href="/setup?tab=account#local-scanner-setup" class="text-accent hover:underline">Setup → My account</a>.
+            </div>
           {/if}
         </div>
         <div class="flex items-center justify-between gap-2">

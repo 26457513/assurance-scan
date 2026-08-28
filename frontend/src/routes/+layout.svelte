@@ -73,8 +73,7 @@
 </script>
 
 <div
-  class="grid h-screen overflow-hidden bg-surface-base"
-  style="grid-template-columns: 220px 1fr; grid-template-rows: 56px 1fr;"
+  class="app-shell grid h-screen overflow-hidden bg-surface-base"
 >
   <div class="col-start-1 col-end-2 row-start-1 row-end-3 min-h-0">
     <Sidebar />
@@ -88,3 +87,16 @@
 </div>
 
 <Toaster />
+
+<style>
+  .app-shell {
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: 56px minmax(0, 1fr);
+  }
+
+  @media (max-width: 640px) {
+    .app-shell {
+      grid-template-columns: 52px minmax(0, 1fr);
+    }
+  }
+</style>

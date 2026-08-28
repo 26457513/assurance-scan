@@ -5,7 +5,14 @@
   import { selectProject } from '$lib/stores/selectedProject';
   import { selectedScan, selectScan } from '$lib/stores/selectedScan';
   import ScanDetail from '$lib/components/ScanDetail.svelte';
+  import ScanCommitComparison from '$lib/components/ScanCommitComparison.svelte';
   import ScanOriginBadge from '$lib/components/ScanOriginBadge.svelte';
+  import {
+    filterScansByOrigin,
+    sameCommitComparison,
+    shortCommit,
+    type ScanOriginFilter
+  } from '$lib/scanProvenance';
   import type { ProjectSummary, ScanSummary } from '$lib/types';
 
   $: projectId = Number($page.params.id);
@@ -20,6 +27,8 @@
   let scanConfirmOpen = false;
   let scanBranches: string[] = [];
   let scanBranchError = false;
+  let originFilter: ScanOriginFilter = 'all';
+  let comparisonRunId = '';
 
   $: if (!Number.isInteger(projectId) || projectId <= 0) {
     loading = false;
@@ -70,9 +79,13 @@
   let pageSize = 10;
   let pg = 0;
 
-  $: projectScans = scans; // already filtered by project on load
+  $: projectScans = filterScansByOrigin(scans, originFilter); // already scoped to one project by the API
   $: pageCount = Math.max(1, Math.ceil(projectScans.length / pageSize));
   $: visible = projectScans.slice(pg * pageSize, (pg + 1) * pageSize);
+  $: comparisonScan = comparisonRunId
+    ? scans.find((scan) => scan.run_id === comparisonRunId) ?? null
+    : null;
+  $: comparison = comparisonScan ? sameCommitComparison(scans, comparisonScan) : null;
 
   async function loadScans() {
     try {
@@ -112,6 +125,8 @@
   $: if (Number.isInteger(projectId) && projectId > 0) {
     selectProject(projectId);
     selectedRunId = '';
+    comparisonRunId = '';
+    originFilter = 'all';
     pg = 0;
     loading = true;
     loadScans();
@@ -129,17 +144,38 @@
     if (s) selectScan(s);
   }
 
+  function setOriginFilter(value: ScanOriginFilter) {
+    originFilter = value;
+    pg = 0;
+    const filtered = filterScansByOrigin(scans, value);
+    if (selectedRunId && !filtered.some((scan) => scan.run_id === selectedRunId)) {
+      selectedRunId = filtered[0]?.run_id ?? '';
+      selectScan(filtered[0] ?? null);
+    }
+  }
+
+  function openComparison(scan: ScanSummary) {
+    comparisonRunId = scan.run_id;
+  }
+
+  function openComparedRun(runId: string) {
+    pickScan(runId);
+    const index = projectScans.findIndex((scan) => scan.run_id === runId);
+    if (index >= 0) pg = Math.floor(index / pageSize);
+  }
+
   // The header scan dropdown drives the table row + detail view; jump
   // pagination so the highlighted row is visible.
   $: if ($selectedScan && $selectedScan.run_id !== selectedRunId) {
     const idx = scans.findIndex((s) => s.run_id === $selectedScan.run_id);
     if (idx !== -1) {
+      if (originFilter !== 'all' && scans[idx].origin !== originFilter) originFilter = 'all';
       selectedRunId = $selectedScan.run_id;
       pg = Math.floor(idx / pageSize);
     }
   }
 
-  $: latestScan = projectScans.reduce(
+  $: latestScan = scans.reduce(
     (a, b) => ((a?.started_at ?? '') >= (b.started_at ?? '') ? a : b),
     null as ScanSummary | null
   );
@@ -238,7 +274,22 @@
         <span class="text-ink-muted">— needs investigation, click to open</span>
       </button>
     {/if}
-    <div class="flex justify-end items-center gap-2 mb-3">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-3">
+      <div class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-ink-muted">
+        <label for="scan-origin-filter">Origin</label>
+        <select
+          id="scan-origin-filter"
+          value={originFilter}
+          on:change={(event) => setOriginFilter(event.currentTarget.value as ScanOriginFilter)}
+          class="rounded-sm border border-line-hairline bg-surface-inset px-2 py-1.5 font-mono text-[11px] normal-case tracking-normal text-ink-primary"
+        >
+          <option value="all">All</option>
+          <option value="local">Local</option>
+          <option value="github-actions">GitHub Actions</option>
+        </select>
+        <span aria-live="polite" class="normal-case tracking-normal">{projectScans.length} shown</span>
+      </div>
+      <div class="flex flex-wrap justify-end items-center gap-2">
       <button
         type="button"
         on:click={confirmScan}
@@ -271,22 +322,28 @@
         </svg>
         <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{polling ? 'Retrieving…' : 'Retrieve from GitHub'}</span>
       </button>
+      </div>
     </div>
     {#if loading}
       <div class="text-[12px] text-ink-muted font-mono">Loading…</div>
     {:else if error}
       <div class="text-[12px] text-state-failed font-mono">{error}</div>
-    {:else if projectScans.length === 0}
+    {:else if scans.length === 0}
       <div class="py-10 text-center text-[12px] text-ink-muted font-mono">
         No scans for this project yet.
       </div>
+    {:else if projectScans.length === 0}
+      <div class="py-10 text-center text-[12px] text-ink-muted font-mono">
+        No {originFilter === 'local' ? 'local' : 'GitHub Actions'} scans match this origin filter.
+      </div>
     {:else}
-      <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel mb-5">
-        <div class="grid grid-cols-[26px_minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+      <div class="border border-line-hairline rounded-sm overflow-x-auto bg-surface-panel mb-5">
+        <div class="grid min-w-[1120px] grid-cols-[26px_minmax(180px,1.6fr)_120px_120px_150px_1.2fr_80px_100px_70px_70px] gap-4 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
           <div></div>
           <div>Run</div>
           <div>Origin</div>
           <div>Branch</div>
+          <div>Commit</div>
           <div>Trigger</div>
           <div>Status</div>
           <div>Started</div>
@@ -299,7 +356,7 @@
             tabindex="0"
             on:click={() => pickScan(s.run_id)}
             on:keydown={(e) => e.key === 'Enter' && pickScan(s.run_id)}
-            class="w-full text-left grid grid-cols-[26px_minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
+            class="w-full min-w-[1120px] text-left grid grid-cols-[26px_minmax(180px,1.6fr)_120px_120px_150px_1.2fr_80px_100px_70px_70px] gap-4 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
             class:bg-accent-subtle={selectedRunId === s.run_id}
           >
             <input
@@ -314,6 +371,27 @@
             </span>
             <ScanOriginBadge origin={s.origin} />
             <span class="font-mono text-[11px] text-ink-secondary truncate" title={s.git_branch ?? ''}>{s.git_branch ?? '—'}</span>
+            <span class="flex min-w-0 flex-col items-start gap-1">
+              <span class="flex max-w-full items-center gap-1.5">
+                <span class="truncate font-mono text-[11px] text-ink-secondary" title={s.commit_sha ?? 'Commit provenance unavailable'}>
+                  {shortCommit(s.commit_sha)}
+                </span>
+                {#if s.working_tree_dirty === true}
+                  <span
+                    class="rounded-sm border border-state-pending/40 px-1 py-0.5 text-[8px] uppercase tracking-[0.08em] text-state-pending"
+                    title="Dirty working tree — this local scan includes uncommitted source changes"
+                  >Dirty</span>
+                {/if}
+              </span>
+              {#if sameCommitComparison(scans, s)}
+                <button
+                  type="button"
+                  on:click|stopPropagation={() => openComparison(s)}
+                  class="text-left font-mono text-[9px] text-accent hover:text-accent-hover"
+                  aria-label={`Compare ${s.run_id} with the ${s.origin === 'local' ? 'GitHub Actions' : 'local'} scan of commit ${shortCommit(s.commit_sha)}`}
+                >Compare origins</button>
+              {/if}
+            </span>
             <span class="text-[11px] text-ink-muted truncate">{eventLabel(s) || '—'}</span>
             <span class={s.status === 'completed'
               ? 'text-state-passed'
@@ -360,6 +438,14 @@
           </div>
         {/if}
       </div>
+
+      {#if comparison}
+        <ScanCommitComparison
+          {comparison}
+          onOpen={openComparedRun}
+          onClose={() => (comparisonRunId = '')}
+        />
+      {/if}
 
       {#if selectedRunId}
         <div class="border border-line-hairline rounded-sm overflow-hidden">

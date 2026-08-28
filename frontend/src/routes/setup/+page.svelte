@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import GuideSteps from '$lib/components/GuideSteps.svelte';
+  import LocalScanSetupPanel from '$lib/components/LocalScanSetupPanel.svelte';
   import CopyButton from '$lib/components/CopyButton.svelte';
   import ScanTokensPanel from '$lib/components/ScanTokensPanel.svelte';
   import { pushToast } from '$lib/stores/toasts';
@@ -500,6 +501,7 @@
     {/if}
 
     <ScanTokensPanel />
+    <LocalScanSetupPanel />
 
   {:else if tab === 'agent'}
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">

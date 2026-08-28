@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
 
   import { api } from '$lib/api';
   import type { ScanToken, ScanTokenExpiryDays } from '$lib/types';
@@ -35,14 +35,28 @@
     return new Intl.DateTimeFormat(undefined, {
       year: 'numeric',
       month: 'short',
-      day: 'numeric'
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     }).format(date);
   }
 
-  function tokenState(token: ScanToken): 'active' | 'expired' | 'revoked' {
-    if (token.revoked_at) return 'revoked';
-    if (new Date(token.expires_at).getTime() <= Date.now()) return 'expired';
+  type TokenState = 'active' | 'expires soon' | 'expired' | 'revoked';
+
+  function tokenState(token: ScanToken): TokenState {
+    if (token.status === 'revoked') return 'revoked';
+    if (token.status === 'expired') return 'expired';
+    const remaining = new Date(token.expires_at).getTime() - Date.now();
+    if (remaining <= 14 * 24 * 60 * 60 * 1000) return 'expires soon';
     return 'active';
+  }
+
+  function expiryHint(token: ScanToken): string {
+    const remaining = new Date(token.expires_at).getTime() - Date.now();
+    if (remaining <= 0) return 'Expired';
+    const days = Math.ceil(remaining / (24 * 60 * 60 * 1000));
+    if (days === 1) return 'Expires in 1 day';
+    return `Expires in ${days} days`;
   }
 
   async function loadTokens() {
@@ -94,6 +108,9 @@
   }
 
   onMount(loadTokens);
+  onDestroy(() => {
+    revealedToken = '';
+  });
 </script>
 
 <section class="border border-line-hairline rounded-sm bg-surface-panel p-5 mt-4" aria-labelledby="scan-token-heading">
@@ -197,54 +214,69 @@
         No local scan tokens yet. Create one for the machine that will run scans.
       </p>
     {:else}
-      <div class="as-table">
-        <div class="as-head grid grid-cols-[minmax(0,1fr)_88px_110px_100px_150px] gap-3">
-          <div>Label</div>
-          <div>Status</div>
-          <div>Expires</div>
-          <div>Last used</div>
-          <div class="text-right">Action</div>
+      <div class="as-table" role="table" aria-label="Issued local scan tokens">
+        <div class="as-head token-grid" role="row">
+          <div role="columnheader">Machine</div>
+          <div role="columnheader">Status</div>
+          <div role="columnheader">Validity</div>
+          <div role="columnheader">Activity</div>
+          <div role="columnheader" class="text-right">Action</div>
         </div>
         {#each tokens as token (token.id)}
           {@const state = tokenState(token)}
-          <div class="as-row grid grid-cols-[minmax(0,1fr)_88px_110px_100px_150px] gap-3 px-3 py-2.5 text-[11px]">
-            <div class="min-w-0">
+          <div class="as-row token-grid px-3 py-3 text-[11px]" role="row">
+            <div class="token-cell min-w-0" role="cell" data-label="Machine">
               <div class="text-ink-primary truncate">{token.label}</div>
-              <div class="text-[9px] text-ink-muted mt-0.5">created {formatDate(token.created_at)}</div>
+              <div class="text-[9px] text-ink-muted mt-0.5 font-mono">{token.scope}</div>
             </div>
-            <div>
+            <div class="token-cell" role="cell" data-label="Status">
               <span
                 class="inline-flex px-1.5 py-0.5 border rounded-sm text-[9px] uppercase tracking-[0.1em]"
                 class:text-accent={state === 'active'}
-                class:text-ink-muted={state !== 'active'}
-                class:border-line-strong={state !== 'active'}
+                class:text-ink-muted={state === 'expired' || state === 'revoked'}
+                class:border-line-strong={state === 'expired' || state === 'revoked'}
+                class:expiry-warning={state === 'expires soon'}
                 style:border-color={state === 'active' ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : undefined}
               >{state}</span>
             </div>
-            <div class="text-ink-secondary">{formatDate(token.expires_at)}</div>
-            <div class="text-ink-muted">{token.last_used_at ? formatDate(token.last_used_at) : 'Never'}</div>
-            <div class="flex items-center justify-end gap-2">
-              {#if state === 'active' && revokeCandidate === token.id}
+            <div class="token-cell text-ink-secondary" role="cell" data-label="Validity">
+              <div><span class="audit-label">Created</span> <time datetime={token.created_at}>{formatDate(token.created_at)}</time></div>
+              <div class="mt-1"><span class="audit-label">Expires</span> <time datetime={token.expires_at}>{formatDate(token.expires_at)}</time></div>
+              {#if state === 'active' || state === 'expires soon'}
+                <div class="text-[9px] text-ink-muted mt-1">{expiryHint(token)}</div>
+              {/if}
+            </div>
+            <div class="token-cell text-ink-muted" role="cell" data-label="Activity">
+              <div><span class="audit-label">Last used</span> {token.last_used_at ? formatDate(token.last_used_at) : 'Never'}</div>
+              {#if token.revoked_at}
+                <div class="mt-1"><span class="audit-label">Revoked</span> <time datetime={token.revoked_at}>{formatDate(token.revoked_at)}</time></div>
+              {:else}
+                <div class="text-[9px] mt-1">Not revoked</div>
+              {/if}
+            </div>
+            <div class="token-cell flex items-center justify-end gap-2" role="cell" data-label="Action">
+              {#if (state === 'active' || state === 'expires soon') && revokeCandidate === token.id}
                 <button
                   type="button"
                   on:click={() => (revokeCandidate = '')}
+                  aria-label={`Cancel revoking ${token.label}`}
                   class="text-[9px] uppercase tracking-[0.08em] text-ink-muted hover:text-ink-primary"
                 >Cancel</button>
                 <button
                   type="button"
                   on:click={() => revokeToken(token.id)}
                   disabled={revoking === token.id}
+                  aria-label={`Confirm revoke ${token.label}`}
                   class="text-[9px] uppercase tracking-[0.08em] disabled:opacity-50"
                   style="color: var(--state-failed);"
                 >{revoking === token.id ? 'Revoking…' : 'Confirm revoke'}</button>
-              {:else if state === 'active'}
+              {:else if state === 'active' || state === 'expires soon'}
                 <button
                   type="button"
                   on:click={() => (revokeCandidate = token.id)}
+                  aria-label={`Revoke ${token.label}`}
                   class="text-[9px] uppercase tracking-[0.08em] text-ink-muted hover:text-ink-primary"
                 >Revoke</button>
-              {:else if token.revoked_at}
-                <span class="text-[9px] text-ink-muted">{formatDate(token.revoked_at)}</span>
               {:else}
                 <span class="text-[9px] text-ink-muted">—</span>
               {/if}
@@ -270,18 +302,69 @@
       var(--bg-panel);
   }
 
+  .token-grid {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) 96px minmax(185px, 1.25fr) minmax(150px, 1fr) 145px;
+    gap: 0.75rem;
+    align-items: start;
+  }
+
+  .audit-label {
+    color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .expiry-warning {
+    color: var(--state-pending);
+    border-color: color-mix(in srgb, var(--state-pending) 45%, transparent);
+    background: color-mix(in srgb, var(--state-pending) 8%, transparent);
+  }
+
   @media (max-width: 720px) {
     form {
       grid-template-columns: 1fr;
     }
 
-    .as-table {
-      overflow-x: auto;
+    .as-head {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
-    .as-head,
-    .as-row {
-      min-width: 640px;
+    .as-row.token-grid {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.75rem 1rem;
+    }
+
+    .token-cell {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 76px minmax(0, 1fr);
+      gap: 0.5rem;
+      justify-content: initial;
+      text-align: left;
+    }
+
+    .token-cell::before {
+      content: attr(data-label);
+      color: var(--text-muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .token-cell > :global(*) {
+      grid-column: 2;
     }
   }
 </style>

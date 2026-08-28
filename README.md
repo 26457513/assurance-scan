@@ -204,6 +204,11 @@ docker run --rm -it --pull=always --init \
   ghcr.io/26457513/assurance-scan-cli:stable scan
 ```
 
+The same command works on supported macOS and Linux hosts. Native Windows and
+WSL 2 are not v1 targets; use a supported host rather than adapting the command.
+The exact copyable commands are also available under
+**Setup → My account → Local scanner**.
+
 `--pull=always` is the update check; unchanged layers are reused. For controlled
 environments, replace `stable` with an immutable version or registry digest.
 Use `scan --no-upload` to retain a bundle locally, `upload --retry REQUEST_ID`
@@ -211,6 +216,16 @@ to retry without rescanning, and `cache list`/`cache prune` to manage retained
 bundles. The default outbox policy is seven days and 1 GiB. Revoking the token
 in Settings prevents future uploads; `auth logout` removes local credentials
 while preserving the non-secret installation ID.
+
+The CLI uploads repository metadata, normalized findings, SARIF, and the
+CycloneDX SBOM—not the source snapshot or absolute host paths. The upload token
+stays in the outer CLI and is never passed to scanner containers. Semgrep,
+Gitleaks, and Syft run with Docker networking disabled; Trivy, Grype, and
+OSV-Scanner use bridge networking so they can refresh vulnerability databases.
+The server retains raw artifacts for
+30 days, normalized runs/findings for 365 days, and inactive-token audit data
+for 400 days. Deleting a run or project removes its scan data; a content-free
+request tombstone may remain for 30 days to prevent unsafe idempotency-key reuse.
 
 ## Adding another organisation
 

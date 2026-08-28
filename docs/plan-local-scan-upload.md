@@ -1,6 +1,6 @@
 # Plan: local scan runner and authenticated result upload
 
-Status: clean-cutover plan; WSQ/WS0/WS1/WS2/WS3 complete, ready for WS4 — 2026-08-28
+Status: clean-cutover plan; WSQ/WS0/WS1/WS2/WS3/WS4 complete, ready for WS5 — 2026-08-28
 
 The repository-readiness gate in **WSQ** passed before feature implementation
 began. The structural refactor and initial quality cleanup exposed the remaining
@@ -1474,6 +1474,29 @@ Acceptance: a new user can go from the project page to a visible local scan
 without manually constructing Docker or HTTP commands. In the scans table they
 can immediately distinguish Local from GitHub Actions, filter by origin, and
 compare runs for the same branch/commit without seeing duplicate project rows.
+
+Completed on 2026-08-28. The project scan view now presents explicit Local and
+GitHub Actions origin badges and filtering, branch and short/full commit
+provenance, dirty-working-tree state, and an accessible same-commit comparison
+that opens either run while remaining scoped to the existing numeric project.
+Token management presents the server audit contract, including upload scope,
+created/expiry/last-used/revoked timestamps, authoritative lifecycle state and
+a near-expiry warning, with owner-confirmed revocation and one-time secret
+handling.
+
+Setup now contains a copyable token-to-first-scan runbook using the current
+instance origin and exact hardened public-container commands for supported
+macOS and Linux hosts. It also covers automatic image update checks, retry and
+outbox cleanup, revocation/logout, upload boundaries, scanner networking and
+the 30/365/400-day server retention policy; project registration links directly
+to that flow and explains the shared local/Actions identity. A visual breakpoint
+check exposed and fixed the application shell at phone width by collapsing the
+sidebar without losing navigation labels. The final VibeGuide gate passed Ruff,
+Mypy (220 source files), 500 backend tests, schema/compile/shell checks, Semgrep
+(15 rules, 377 targets, zero findings), frontend dependency audit, zero Svelte
+diagnostics, 23 frontend tests and production build, Dockerfile/Compose
+validation, all three image builds/smokes, diff whitespace and source hygiene
+(628 text files).
 
 ### WS5 — staged rollout and operations
 

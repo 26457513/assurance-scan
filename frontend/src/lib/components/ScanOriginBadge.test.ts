@@ -5,7 +5,7 @@ import ScanOriginBadge from './ScanOriginBadge.svelte';
 
 describe('ScanOriginBadge', () => {
   it.each([
-    ['github-actions', 'GitHub'],
+    ['github-actions', 'GitHub Actions'],
     ['local', 'Local'],
     ['server', 'Server']
   ] as const)('labels the %s origin explicitly', (origin, label) => {

@@ -24,10 +24,10 @@
 </script>
 
 <aside class="bg-surface-panel border-r border-line-hairline flex flex-col h-full">
-  <div class="px-5 h-14 flex items-center border-b border-line-hairline">
+  <div class="brand px-5 h-14 flex items-center border-b border-line-hairline">
     <div class="flex items-center gap-2">
       <span class="text-accent text-base leading-none">⬡</span>
-      <span class="text-[13px] font-medium tracking-tight text-ink-primary">Assurance Scan</span>
+      <span class="brand-label text-[13px] font-medium tracking-tight text-ink-primary">Assurance Scan</span>
     </div>
   </div>
 
@@ -41,6 +41,7 @@
       <a
         href={disabled ? undefined : href}
         aria-disabled={disabled}
+        aria-label={item.label}
         class="relative flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors duration-150 rounded-sm"
         class:cursor-not-allowed={disabled}
         class:opacity-40={disabled}
@@ -57,12 +58,39 @@
           class:text-accent={active}
           class:text-ink-muted={!active}
         >{item.glyph}</span>
-        <span>{item.label}</span>
+        <span class="nav-label">{item.label}</span>
       </a>
 
       {#if item.divider}
-        <div class="my-1 mx-3 border-t border-line-hairline"></div>
+        <div class="nav-divider my-1 mx-3 border-t border-line-hairline"></div>
       {/if}
     {/each}
   </nav>
 </aside>
+
+<style>
+  @media (max-width: 640px) {
+    .brand {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    .brand-label,
+    .nav-label {
+      display: none;
+    }
+
+    nav {
+      padding-inline: 0.375rem;
+    }
+
+    nav a {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    .nav-divider {
+      margin-inline: 0.25rem;
+    }
+  }
+</style>

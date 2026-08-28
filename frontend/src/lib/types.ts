@@ -9,10 +9,13 @@ export interface HealthResponse {
 }
 
 export type ScanTokenExpiryDays = 30 | 90 | 180;
+export type ScanTokenStatus = 'active' | 'expired' | 'revoked';
 
 export interface ScanToken {
   id: string;
   label: string;
+  scope: 'scans:upload';
+  status: ScanTokenStatus;
   created_at: string;
   expires_at: string;
   last_used_at: string | null;

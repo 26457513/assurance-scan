@@ -4,7 +4,7 @@
   export let origin: ScanOrigin;
 
   const labels: Record<ScanOrigin, string> = {
-    'github-actions': 'GitHub',
+    'github-actions': 'GitHub Actions',
     local: 'Local',
     server: 'Server'
   };

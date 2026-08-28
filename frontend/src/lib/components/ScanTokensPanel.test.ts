@@ -16,6 +16,8 @@ vi.mock('$lib/api', () => ({ api: apiMocks }));
 const activeToken: ScanToken = {
   id: 'token-active',
   label: 'Work laptop',
+  scope: 'scans:upload',
+  status: 'active',
   created_at: '2026-08-01T09:00:00Z',
   expires_at: '2026-11-01T09:00:00Z',
   last_used_at: null,
@@ -42,10 +44,10 @@ describe('ScanTokensPanel', () => {
     expect(screen.getByText('active')).toBeInTheDocument();
     expect(screen.getByText('Never')).toBeInTheDocument();
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Revoke Work laptop' }));
     expect(apiMocks.revokeScanToken).not.toHaveBeenCalled();
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke Work laptop' }));
     await waitFor(() => {
       expect(apiMocks.revokeScanToken).toHaveBeenCalledWith('token-active', 'csrf-value');
     });
@@ -76,5 +78,47 @@ describe('ScanTokensPanel', () => {
 
     await fireEvent.click(screen.getByRole('button', { name: 'I have saved it' }));
     expect(screen.queryByText('asu_v1_selector.one-time-secret')).not.toBeInTheDocument();
+  });
+
+  it('shows nearing-expiry, last-used, expired, and revoked audit states', async () => {
+    apiMocks.listScanTokens.mockResolvedValue({
+      csrf_token: 'csrf-value',
+      tokens: [
+        {
+          ...activeToken,
+          id: 'token-soon',
+          label: 'Travel laptop',
+          expires_at: '2026-09-04T10:00:00Z',
+          last_used_at: '2026-08-27T14:30:00Z'
+        },
+        {
+          ...activeToken,
+          id: 'token-expired',
+          label: 'Old workstation',
+          status: 'expired',
+          expires_at: '2026-08-20T10:00:00Z'
+        },
+        {
+          ...activeToken,
+          id: 'token-revoked',
+          label: 'Retired laptop',
+          status: 'revoked',
+          revoked_at: '2026-08-25T08:00:00Z'
+        }
+      ]
+    });
+
+    render(ScanTokensPanel);
+
+    expect(await screen.findByText('Travel laptop')).toBeInTheDocument();
+    expect(screen.getByText('expires soon')).toBeInTheDocument();
+    expect(screen.getByText('Expires in 7 days')).toBeInTheDocument();
+    expect(screen.getByText('expired')).toBeInTheDocument();
+    expect(screen.getByText('revoked')).toBeInTheDocument();
+    expect(screen.getAllByText('Last used')).toHaveLength(3);
+    expect(screen.getByRole('table', { name: 'Issued local scan tokens' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke Travel laptop' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revoke Old workstation' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revoke Retired laptop' })).not.toBeInTheDocument();
   });
 });
