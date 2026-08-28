@@ -1,0 +1,11 @@
+# Assurance Scan reviewed Semgrep policy bundle v1.
+# Changes to this file require scanner release-set review and a new digest.
+rules:
+  - id: assurance.python.dynamic-eval
+    languages: [python]
+    severity: ERROR
+    message: Dynamic eval executes untrusted code and requires explicit review.
+    pattern: eval(...)
+    metadata:
+      assurance_policy_version: "1"
+      category: code-injection

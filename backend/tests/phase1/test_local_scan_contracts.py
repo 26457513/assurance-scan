@@ -30,7 +30,7 @@ BACKEND_ROOT = Path(__file__).parents[2]
 SCHEMA_ROOT = BACKEND_ROOT / "resources" / "schemas"
 FIXTURE_ROOT = BACKEND_ROOT / "tests" / "fixtures" / "local-scan"
 SCANNER_MANIFEST = BACKEND_ROOT / "resources" / "scanners" / "release-set.v1.json"
-SEMGREP_POLICY = BACKEND_ROOT / "semgrep.yml"
+SEMGREP_POLICY = BACKEND_ROOT / "resources" / "scanners" / "semgrep-reviewed.yml"
 
 
 def _json(path: Path) -> Any:

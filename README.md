@@ -1,19 +1,19 @@
 # Assurance Scan
 
 Security scanning and compliance assurance for codebases, centred on a hosted
-dashboard. Scans run on GitHub Actions compute; the server polls results in
-and serves a team UI with findings, FR catalogues, and compliance workflows
+dashboard. Scans run on GitHub Actions or through the public local CLI; the
+server receives their results and serves a team UI with findings, FR catalogues, and compliance workflows
 built around the OWASP **ASVS** standard.
 
 **The model in one picture:**
 
 ```
-org repos ──push──▶ GitHub Actions ──scan──▶ artifact (SARIF/SBOM/findings)
-   (any org)             │                              │
-   ▲ workflow_dispatch   │ reusable workflow (home org) │ poll (60s, all orgs)
-   │                     │ or vendored stub (any org)   ▼
-   │                                             droplet (server+UI+SQLite)
-  UI "Scan now"  ◀──────────────────────────────────────  poller
+org repos ──push──▶ GitHub Actions ──scan──▶ artifact ──poll──┐
+   ▲ workflow_dispatch                                       │
+   │                                                         ▼
+  UI "Scan now" ◀────────────────────────────── hosted server + UI
+                                                             ▲
+local checkout ──public container CLI──scan + token upload───┘
 ```
 
 One central instance serves multiple GitHub organisations. Each org
@@ -34,6 +34,7 @@ is automatic. **All scanning runs on the target org's own GitHub compute**
 | `frontend/` | SvelteKit UI (served by the server container) |
 | `backend/app/modules/` | VibeGuide modules grouped under `atomic/`, `workflows/`, and `shared/` |
 | `backend/Dockerfile.ci` | Slim scanner orchestrator (glue only; scanners run as stock public images) |
+| `backend/Dockerfile.cli` | Public local-scan container CLI; no hosted server or frontend |
 | `Dockerfile` | Full app image (server + built frontend) |
 | `compose.yaml` | Local + cloud deployment (identical containers) |
 | `assurance-scan-ci` (public repo) | Reusable CI workflow + vendored template for any org |
@@ -165,6 +166,52 @@ link to the hosted UI) and an `assurance-scan-results` artifact (SARIF,
 CycloneDX SBOM, `findings.json`). Repos with a root `Dockerfile` also get a
 Trivy image scan of the build. Scans never fail the workflow.
 
+## Running a local scan
+
+Local and GitHub Actions scans use the same canonical `owner/repo` project.
+Branch, commit, dirty-working-tree state and origin remain separate run
+provenance, so a local feature-branch scan does not create a duplicate project.
+
+Create a token in **Settings → Scan tokens** and enroll this installation once.
+The hidden prompt keeps the token out of shell history and Docker environment
+metadata. The CLI validates the account and label before atomically saving an
+owner-only `0600` config file:
+
+```bash
+mkdir -p "$HOME/.config/assurance-scan" "$HOME/.cache/assurance-scan" && \
+  chmod 700 "$HOME/.config/assurance-scan" "$HOME/.cache/assurance-scan"
+docker run --rm -it --pull=always \
+  --user "$(id -u):$(id -g)" \
+  -v "$HOME/.config/assurance-scan:/config" \
+  ghcr.io/26457513/assurance-scan-cli:stable \
+  auth login --url https://scan.example.com
+```
+
+Then run this from the Git repository root:
+
+```bash
+docker run --rm -it --pull=always --init \
+  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+  --cap-drop ALL --security-opt no-new-privileges \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$PWD:$PWD:ro" \
+  -v "$HOME/.config/assurance-scan:/config:ro" \
+  -v "$HOME/.cache/assurance-scan:$HOME/.cache/assurance-scan" \
+  -e ASSURANCE_SCAN_CACHE_DIR="$HOME/.cache/assurance-scan" \
+  -e ASSURANCE_SCAN_HOST_UID="$(id -u)" \
+  -e ASSURANCE_SCAN_HOST_GID="$(id -g)" \
+  -w "$PWD" \
+  ghcr.io/26457513/assurance-scan-cli:stable scan
+```
+
+`--pull=always` is the update check; unchanged layers are reused. For controlled
+environments, replace `stable` with an immutable version or registry digest.
+Use `scan --no-upload` to retain a bundle locally, `upload --retry REQUEST_ID`
+to retry without rescanning, and `cache list`/`cache prune` to manage retained
+bundles. The default outbox policy is seven days and 1 GiB. Revoking the token
+in Settings prevents future uploads; `auth logout` removes local credentials
+while preserving the non-secret installation ID.
+
 ## Adding another organisation
 
 The instance polls the home org (`GITHUB_ORG`) plus every organisation
@@ -220,9 +267,9 @@ manual-only variant that costs nothing until clicked).
 | Always | semgrep (code), gitleaks (secrets), trivy-fs + grype + osv-scanner (dependencies), trivy-config (IaC/Dockerfile), syft (SBOM) |
 | With a Dockerfile | trivy-image (built image) |
 
-All run as their stock public images via the docker socket — always current
-at run time. Local equivalent: `python3 backend/scripts/ci-scan.py <path> --sarif
-out.sarif [--image app:local]` (needs Docker; no server, no DB).
+All run as reviewed stock public images pinned by immutable multi-architecture
+digests. GitHub Actions and the public local CLI consume the same scanner
+release-set manifest; a promoted CLI release advances the tested set.
 
 ## MCP server
 

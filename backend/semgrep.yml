@@ -132,6 +132,7 @@ rules:
       include:
         - /Dockerfile
         - /backend/Dockerfile.ci
+        - /backend/Dockerfile.cli
     pattern-regex: '(?mi)^\s*FROM\s+[^\s]+:latest(?:\s|$)'
 
   - id: assurance-scan.embedded-private-key

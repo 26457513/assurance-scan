@@ -1,6 +1,6 @@
 # Plan: local scan runner and authenticated result upload
 
-Status: clean-cutover plan; WSQ/WS0/WS1/WS2 complete, ready for WS3 — 2026-08-28
+Status: clean-cutover plan; WSQ/WS0/WS1/WS2/WS3 complete, ready for WS4 — 2026-08-28
 
 The repository-readiness gate in **WSQ** passed before feature implementation
 began. The structural refactor and initial quality cleanup exposed the remaining
@@ -1439,6 +1439,28 @@ GitHub project with correct provenance. Re-running without a new release reuses
 the local image layers; publishing a new stable release updates on the next
 run. Killing the CLI after server commit and before response can be recovered
 from the outbox without rescanning or duplicating the run.
+
+Completed on 2026-08-28. The public CLI is composed from atomic config,
+enrollment, Git metadata, immutable snapshot, scanner runtime, outbox and HTTP
+upload capabilities plus the `local_scan_execution` workflow and a thin
+container entrypoint. It validates a copied token before an owner-only atomic
+save; preserves a non-secret installation ID; normalizes GitHub SSH/HTTPS
+remotes; handles detached/dirty branches; creates bounded mutation-checked
+snapshots; executes request-labelled pinned scanners with bounded files and
+signal-safe cleanup; redacts before outbox persistence; and retries the exact
+request bundle with request-status recovery after response loss.
+
+The CLI and Actions paths consume one content-addressed six-scanner release
+manifest and vendored Semgrep policy. `backend/Dockerfile.cli` builds the
+server-free public image. The release workflow gates version tags, verifies
+both scanner and CLI architectures, produces SBOM/provenance attestations,
+keyless-signs the tested digest, verifies anonymous pull and promotes `stable`
+by digest retag without rebuilding. User login, scan, retry and cache commands
+are documented in the README. The final VibeGuide gate passed Ruff, Mypy (220
+source files), 500 backend tests, schema/compile/shell checks, Semgrep (15 rules,
+371 targets, zero findings), frontend audit/check/15 tests/build, Dockerfile and
+Compose validation, all three image builds/smokes, diff whitespace and
+source hygiene (622 text files).
 
 ### WS4 — UI and onboarding
 

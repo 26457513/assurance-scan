@@ -9,6 +9,7 @@ COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
 WORKDIR /opt/assurance-scan/backend
 COPY backend/scripts/ci-scan.py ./scripts/ci-scan.py
 COPY backend/app/ ./app/
+COPY backend/resources/scanners/ ./resources/scanners/
 
 ENV PYTHONPATH=/opt/assurance-scan/backend
 ENTRYPOINT ["python3", "/opt/assurance-scan/backend/scripts/ci-scan.py"]

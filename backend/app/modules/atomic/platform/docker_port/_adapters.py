@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import shlex
 from collections.abc import Iterable
 
-from app.modules.atomic.scanning.scanner_catalog import ScannerConfig
+from app.modules.atomic.scanning.scanner_catalog import (
+    SCANNER_MANIFEST_PATH,
+    SCANNER_RELEASE_SET,
+    ScannerConfig,
+)
 
 from .models import ScannerResult
 from .service import build_docker_argv, named_volumes
@@ -40,11 +45,13 @@ class DockerRunner:
 
         proc = await asyncio.create_subprocess_exec(
             *argv,
+            stdin=asyncio.subprocess.PIPE if scanner.kind == "semgrep" else asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        policy = _reviewed_policy() if scanner.kind == "semgrep" else None
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(policy), timeout=timeout)
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
@@ -52,6 +59,13 @@ class DockerRunner:
 
         returncode = proc.returncode if proc.returncode is not None else -1
         return ScannerResult(returncode=returncode, stdout=stdout or b"", stderr=stderr or b"")
+
+
+def _reviewed_policy() -> bytes:
+    payload = (SCANNER_MANIFEST_PATH.parent / "semgrep-reviewed.yml").read_bytes()
+    if hashlib.sha256(payload).hexdigest() != SCANNER_RELEASE_SET.semgrep_policy_sha256:
+        raise RuntimeError("reviewed Semgrep policy digest does not match the release set")
+    return payload
 
 
 async def _volume_exists(name: str) -> bool:

@@ -72,7 +72,7 @@ async def _run_one(
     sbom_path: Path | None,
 ) -> None:
     try:
-        result = await runner.run(scanner, timeout=900)
+        result = await runner.run(scanner, timeout=scanner.timeout_seconds)
     except Exception as exc:  # timeout, docker missing, etc.
         status[scanner.kind] = f"error: {exc}"
         print(f"[{scanner.kind}] ERROR {exc}", file=sys.stderr)

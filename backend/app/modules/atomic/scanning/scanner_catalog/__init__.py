@@ -1,6 +1,6 @@
 """Public API for the declarative scanner catalogue."""
 
-from .models import ScannerConfig
+from .models import ScannerConfig, ScannerReleaseSet
 from .service import (
     ALL_CACHE_VOLUMES,
     CLAMAV_DB_VOLUME,
@@ -11,6 +11,8 @@ from .service import (
     OSV_SCANNER,
     OSV_SCANNER_DB_VOLUME,
     PROJECT_MOUNT_TARGET,
+    SCANNER_MANIFEST_PATH,
+    SCANNER_RELEASE_SET,
     SEMGREP,
     SYFT,
     TRIVY_CACHE_VOLUME,
@@ -30,9 +32,12 @@ __all__ = [
     "OSV_SCANNER",
     "OSV_SCANNER_DB_VOLUME",
     "PROJECT_MOUNT_TARGET",
+    "SCANNER_MANIFEST_PATH",
+    "SCANNER_RELEASE_SET",
     "SEMGREP",
     "SYFT",
     "ScannerConfig",
+    "ScannerReleaseSet",
     "TRIVY_CACHE_VOLUME",
     "TRIVY_CONFIG",
     "TRIVY_FS",

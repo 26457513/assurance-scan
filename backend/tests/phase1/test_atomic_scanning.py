@@ -27,7 +27,7 @@ def test_docker_argv_preserves_mount_environment_and_command_order() -> None:
         "-w", "/src",
         "-e", "GRYPE_DB_AUTO_UPDATE=true",
         "-v", "assurance-grype-db:/.cache/grype",
-        "anchore/grype:latest",
+        "anchore/grype@sha256:8a93fc48da96bd6ec5981279d099b69de11541dc68fdf222fb9161f8ff284af7",
         "dir:/src", "-o", "json",
         "--exclude", "**/node_modules/**",
         "--exclude", "**/frontend/build/**",

@@ -3,9 +3,20 @@
   "release_set": "initial-2026-08-28",
   "required_platforms": ["linux/amd64", "linux/arm64"],
   "vulnerability_database_max_age_hours": 24,
+  "cli_release": {
+    "image": "ghcr.io/26457513/assurance-scan-cli",
+    "immutable_tag_pattern": "v<semver>",
+    "promotion_tag": "stable",
+    "promotion_semantics": "retag-tested-digest-only",
+    "public_package_required": true,
+    "sbom": "spdx-json-attestation",
+    "provenance": "slsa-build-provenance",
+    "signing": "cosign-keyless"
+  },
   "semgrep_policy": {
-    "path": "backend/semgrep.yml",
-    "sha256": "c2bafa053ffaa87245bb209ce01a7c7bc993d60b3e721eb732925b2701b78d7a"
+    "path": "backend/resources/scanners/semgrep-reviewed.yml",
+    "container_path": "-",
+    "sha256": "4d564385eae92a019c06b08d4838239908bb96fb13a0e6e543e618742068a126"
   },
   "scanners": [
     {
@@ -16,6 +27,14 @@
       "output_contract": "sarif-2.1.0",
       "success_exit_codes": [0],
       "network": "none",
+      "environment": {
+        "HOME": "/tmp",
+        "SEMGREP_SETTINGS_FILE": "/tmp/semgrep-settings.yml",
+        "SEMGREP_SEND_METRICS": "off"
+      },
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,size=256m"
+      ],
       "timeout_seconds": 1800,
       "memory_mib": 2048,
       "cpus": 2
