@@ -206,7 +206,11 @@ def _estimate(source: Path, paths: list[str], limits: SnapshotLimits) -> tuple[d
         elif stat.S_ISLNK(info.st_mode):
             size = len(os.fsencode(os.readlink(source_path)))
         elif stat.S_ISDIR(info.st_mode):
-            size = info.st_size
+            # A listed directory is a gitlink/submodule marker. It is not
+            # copied into the payload, and directory st_size is filesystem-
+            # dependent (commonly 4096 on Linux), so it must not consume the
+            # byte quota or free-space estimate.
+            size = 0
         else:
             raise SourceSnapshotError("special files are not supported in snapshots")
         estimates[relative] = info.st_size

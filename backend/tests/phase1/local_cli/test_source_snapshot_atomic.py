@@ -79,6 +79,30 @@ def test_snapshot_records_lfs_state_and_submodule_warning(tmp_path: Path) -> Non
     assert result.warnings == ("unexpanded_submodule:missing-submodule",)
 
 
+def test_unexpanded_submodule_directory_does_not_consume_payload_byte_quota(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "repo"
+    source.mkdir()
+    (source / "one-byte.txt").write_bytes(b"x")
+    (source / "missing-submodule").mkdir()
+
+    result = create_source_snapshot(
+        source,
+        tmp_path / "snapshot",
+        FakeIndex(["one-byte.txt", "missing-submodule"]),
+        limits=SnapshotLimits(
+            max_entries=2,
+            max_file_bytes=1,
+            max_total_bytes=1,
+            free_space_reserve_bytes=0,
+        ),
+    )
+
+    assert result.total_bytes == 1
+    assert result.warnings == ("unexpanded_submodule:missing-submodule",)
+
+
 def test_snapshot_rejects_traversal_duplicates_size_and_cleans_partial(tmp_path: Path) -> None:
     source = tmp_path / "repo"
     source.mkdir()

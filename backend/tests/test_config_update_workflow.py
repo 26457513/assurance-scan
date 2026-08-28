@@ -676,7 +676,7 @@ class ConfigUpdateWorkflowTests(unittest.TestCase):
                         "type": "integration",
                         "lifecycle_status": "planned",
                         "proves": [catalog["frs"][0]["id"]],
-                        "evidence_policy": {"required": True, "minimum_strength": "strong"},
+                        "evidence_policy": "automated_required",
                     },
                     "review_status": "proposed",
                     "source_basis": [{"type": "source", "ref": "tests/fixture"}],
