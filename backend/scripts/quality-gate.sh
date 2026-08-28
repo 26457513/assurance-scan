@@ -66,7 +66,9 @@ run_step "Frontend build" npm --prefix frontend run build
 run_step "Application Dockerfile validation" docker build --check -f Dockerfile .
 run_step "CI Dockerfile validation" docker build --check -f backend/Dockerfile.ci .
 run_step "CLI Dockerfile validation" docker build --check -f backend/Dockerfile.cli .
-run_step "Application Compose validation" docker compose -f compose.yaml config --quiet
+run_step "Application Compose validation" env \
+  ASSURANCE_SCAN_ENV_FILE=.env.example \
+  docker compose -f compose.yaml config --quiet
 run_step "Scanner Compose validation" env \
   SCAN_SOURCE_DIR="$REPOSITORY_ROOT" \
   RUN_ID=quality-gate \
