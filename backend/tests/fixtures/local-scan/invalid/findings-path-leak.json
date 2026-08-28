@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "scanners": [],
+  "findings": [
+    {
+      "scanner": "semgrep",
+      "rule_id": "path.leak",
+      "severity": "HIGH",
+      "file_path": "/Users/alice/private/project/app.py",
+      "line_start": 1,
+      "line_end": 1,
+      "message": "Absolute paths must not cross the ingest boundary",
+      "theme": null,
+      "fix_strategy": null,
+      "compliance_tags": []
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assurance-scan.dev/schemas/local-scan-metadata.v1.schema.json",
+  "title": "Assurance Scan local upload metadata v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "repository",
+    "branch",
+    "commit",
+    "git_object_format",
+    "working_tree_dirty",
+    "source_content_hash",
+    "source_manifest_version",
+    "installation_id",
+    "cli_version",
+    "cli_build_revision",
+    "cli_image_id",
+    "cli_image_digest",
+    "project_override",
+    "scanner_manifest_version",
+    "scanner_manifest_digest",
+    "scanner_image_digests"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "repository": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38}[A-Za-z0-9])?/[A-Za-z0-9_.-]{1,100}$"
+    },
+    "branch": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "minLength": 1, "maxLength": 512}
+      ]
+    },
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+    "git_object_format": {"enum": ["sha1", "sha256"]},
+    "working_tree_dirty": {"type": "boolean"},
+    "source_content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_manifest_version": {"const": "assurance-snapshot-v1"},
+    "installation_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "cli_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "cli_build_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "cli_image_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "cli_image_digest": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "maxLength": 512, "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"}
+      ]
+    },
+    "project_override": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38}[A-Za-z0-9])?/[A-Za-z0-9_.-]{1,100}$"
+        }
+      ]
+    },
+    "scanner_manifest_version": {"const": 1},
+    "scanner_manifest_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "scanner_image_digests": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "semgrep": {"$ref": "#/$defs/imageDigest"},
+        "gitleaks": {"$ref": "#/$defs/imageDigest"},
+        "trivy-fs": {"$ref": "#/$defs/imageDigest"},
+        "trivy-config": {"$ref": "#/$defs/imageDigest"},
+        "trivy-image": {"$ref": "#/$defs/imageDigest"},
+        "syft": {"$ref": "#/$defs/imageDigest"},
+        "grype": {"$ref": "#/$defs/imageDigest"},
+        "osv-scanner": {"$ref": "#/$defs/imageDigest"}
+      }
+    },
+    "lfs_state": {"enum": ["none", "pointers", "hydrated", "mixed"]},
+    "submodules": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "commit", "initialized"],
+        "properties": {
+          "path": {"$ref": "#/$defs/repositoryPath"},
+          "commit": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+          "initialized": {"type": "boolean"}
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"git_object_format": {"const": "sha1"}}},
+      "then": {"properties": {"commit": {"pattern": "^[0-9a-f]{40}$"}}}
+    },
+    {
+      "if": {"properties": {"git_object_format": {"const": "sha256"}}},
+      "then": {"properties": {"commit": {"pattern": "^[0-9a-f]{64}$"}}}
+    }
+  ],
+  "$defs": {
+    "imageDigest": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"
+    },
+    "repositoryPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\u0000).+$"
+    }
+  }
+}

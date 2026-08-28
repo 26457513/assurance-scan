@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "request_id": "018f47a2-4c72-4c9e-9f60-780cb70b8fe4",
+  "repository": "26457513/assurance-scan",
+  "branch": "feature/local-scan",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "git_object_format": "sha1",
+  "working_tree_dirty": true,
+  "source_content_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_manifest_version": "assurance-snapshot-v1",
+  "installation_id": "4da9a678-ae9e-49f9-8177-a1786af7207d",
+  "cli_version": "0.1.0",
+  "cli_build_revision": "89abcdef0123456789abcdef0123456789abcdef",
+  "cli_image_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "cli_image_digest": "ghcr.io/26457513/assurance-scan-cli@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "project_override": null,
+  "scanner_manifest_version": 1,
+  "scanner_manifest_digest": "dc767e1e5971e57fe564d23736a117bb19e2a0aad7727eaa178e30dd7ca61e8d",
+  "scanner_image_digests": {
+    "semgrep": "semgrep/semgrep@sha256:f1f7b71861c7b28b6e0f661225a2c4f58a484f5d0f182465c6d6b3b22f972ade",
+    "gitleaks": "zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f"
+  },
+  "lfs_state": "none",
+  "submodules": []
+}

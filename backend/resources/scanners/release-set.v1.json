@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "release_set": "initial-2026-08-28",
+  "required_platforms": ["linux/amd64", "linux/arm64"],
+  "vulnerability_database_max_age_hours": 24,
+  "semgrep_policy": {
+    "path": "backend/semgrep.yml",
+    "sha256": "c2bafa053ffaa87245bb209ce01a7c7bc993d60b3e721eb732925b2701b78d7a"
+  },
+  "scanners": [
+    {
+      "kind": "semgrep",
+      "tool_version": "1.174.0",
+      "image": "semgrep/semgrep@sha256:f1f7b71861c7b28b6e0f661225a2c4f58a484f5d0f182465c6d6b3b22f972ade",
+      "platform_digests": {"linux/amd64": "sha256:155f999d01d02b33aa5a8db9186eb20dcd0154ce1a0ac6fce8d80674d0ace235", "linux/arm64": "sha256:b44cd943138883115080fe0916a423927906ece77a9b0530fab534bd3c77e8af"},
+      "output_contract": "sarif-2.1.0",
+      "success_exit_codes": [0],
+      "network": "none",
+      "timeout_seconds": 1800,
+      "memory_mib": 2048,
+      "cpus": 2
+    },
+    {
+      "kind": "gitleaks",
+      "tool_version": "8.30.1",
+      "image": "zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f",
+      "platform_digests": {"linux/amd64": "sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb", "linux/arm64": "sha256:6b2d52241f9d176fc59e6e3b026ea52c98f390070587d9475d6ee2bc64941815"},
+      "output_contract": "gitleaks-json-v8",
+      "success_exit_codes": [0],
+      "network": "none",
+      "timeout_seconds": 900,
+      "memory_mib": 1024,
+      "cpus": 2
+    },
+    {
+      "kind": "trivy-fs",
+      "tool_version": "0.74.0",
+      "image": "aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969",
+      "platform_digests": {"linux/amd64": "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9", "linux/arm64": "sha256:55ad20f8a239a3e95427e60b8aaea38788550c18a3f1772976bebf732e6ae166"},
+      "output_contract": "trivy-json-v0",
+      "success_exit_codes": [0],
+      "network": "database-refresh-only",
+      "timeout_seconds": 1800,
+      "memory_mib": 2048,
+      "cpus": 2
+    },
+    {
+      "kind": "trivy-config",
+      "tool_version": "0.74.0",
+      "image": "aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969",
+      "platform_digests": {"linux/amd64": "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9", "linux/arm64": "sha256:55ad20f8a239a3e95427e60b8aaea38788550c18a3f1772976bebf732e6ae166"},
+      "output_contract": "trivy-json-v0",
+      "success_exit_codes": [0],
+      "network": "database-refresh-only",
+      "timeout_seconds": 1800,
+      "memory_mib": 2048,
+      "cpus": 2
+    },
+    {
+      "kind": "trivy-image",
+      "tool_version": "0.74.0",
+      "image": "aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969",
+      "platform_digests": {"linux/amd64": "sha256:ee940acbf1f58ebadb42d01434ce4609530bf1b52536afbd1eee66cd7123c5c9", "linux/arm64": "sha256:55ad20f8a239a3e95427e60b8aaea38788550c18a3f1772976bebf732e6ae166"},
+      "output_contract": "trivy-json-v0",
+      "success_exit_codes": [0],
+      "network": "database-refresh-only",
+      "timeout_seconds": 1800,
+      "memory_mib": 2048,
+      "cpus": 2
+    },
+    {
+      "kind": "syft",
+      "tool_version": "1.51.1",
+      "image": "anchore/syft@sha256:95fe0835e5bebc6f8b1f8acef68d47d63d594ef4c0f25c097ff853b23cbac74c",
+      "platform_digests": {"linux/amd64": "sha256:600896ff278677fb13b16dc35999452f4e79636fc098c9fee6ce3cffef9858e2", "linux/arm64": "sha256:0d7d157c1fc16d924c6b2c9667f9f8bfde3e2aa3c0e61c9223125e4c02e756ca"},
+      "output_contract": "cyclonedx-json",
+      "success_exit_codes": [0],
+      "network": "none",
+      "timeout_seconds": 1800,
+      "memory_mib": 2048,
+      "cpus": 2
+    },
+    {
+      "kind": "grype",
+      "tool_version": "0.118.0",
+      "image": "anchore/grype@sha256:8a93fc48da96bd6ec5981279d099b69de11541dc68fdf222fb9161f8ff284af7",
+      "platform_digests": {"linux/amd64": "sha256:461c87fefcd20d133f4d99db4623608637eecb439045f9fc8d6eebbb4149e766", "linux/arm64": "sha256:84a1e5435228172a0e56e8bfda49fa7ca62159f5eefcf7ae4b7851952e72315f"},
+      "output_contract": "grype-json-v0",
+      "success_exit_codes": [0],
+      "network": "database-refresh-only",
+      "timeout_seconds": 1800,
+      "memory_mib": 2048,
+      "cpus": 2
+    },
+    {
+      "kind": "osv-scanner",
+      "tool_version": "2.5.1",
+      "image": "ghcr.io/google/osv-scanner@sha256:8108ae94eadea5a02c9bec6e646909d5b790b44bd62d7f5b7f0b1d6d0ffc7734",
+      "platform_digests": {"linux/amd64": "sha256:1547b7c2783d4f266b24fe86ab4dfc18d058588244c58384ac9f56dddb304511", "linux/arm64": "sha256:55293a7f370fc9d2241ae3b92a76b687e1b5a5c01e6b4df139bf27cc382fbab4"},
+      "output_contract": "osv-json-v2",
+      "success_exit_codes": [0, 1],
+      "network": "database-refresh-only",
+      "timeout_seconds": 1800,
+      "memory_mib": 2048,
+      "cpus": 2
+    }
+  ]
+}

@@ -70,6 +70,8 @@ EXPECTED_SCHEMA_FILES = {
     "fr-catalog.v3.schema.json",
     "fr-compliance-mapping.schema.json",
     "graph-manifest.schema.json",
+    "local-scan-findings.v1.schema.json",
+    "local-scan-metadata.v1.schema.json",
     "project-fr-board-state.schema.json",
     "glossary.schema.json",
     "compliance-mapping-pack.schema.json",

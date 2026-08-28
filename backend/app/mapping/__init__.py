@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import jsonschema  # type: ignore[import-untyped]
+import jsonschema
 
 from app.catalogue.loader import _sha256_json
 from app.modules.shared.paths import RESOURCES_ROOT

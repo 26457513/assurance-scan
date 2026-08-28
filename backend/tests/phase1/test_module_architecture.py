@@ -9,6 +9,7 @@ from pathlib import Path
 MODULES_ROOT = Path(__file__).parents[2] / "app" / "modules"
 APP_ROOT = MODULES_ROOT.parent
 REMOVED_IMPORT_ROOTS = (
+    "app.auth",
     "app.ci_ingest",
     "app.worker.parsers",
     "app.worker.runner",

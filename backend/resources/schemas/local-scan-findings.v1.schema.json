@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assurance-scan.dev/schemas/local-scan-findings.v1.schema.json",
+  "title": "Assurance Scan source-neutral findings v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scanners", "findings"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "scanners": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {"$ref": "#/$defs/scannerResult"}
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": {"$ref": "#/$defs/finding"}
+    }
+  },
+  "$defs": {
+    "scannerKind": {
+      "enum": [
+        "semgrep",
+        "gitleaks",
+        "trivy-fs",
+        "trivy-config",
+        "trivy-image",
+        "syft",
+        "grype",
+        "osv-scanner",
+        "tribal"
+      ]
+    },
+    "imageDigest": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"
+    },
+    "scannerResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "status", "duration_ms", "image", "tool_version"],
+      "properties": {
+        "kind": {"$ref": "#/$defs/scannerKind"},
+        "status": {"enum": ["completed", "failed", "skipped"]},
+        "duration_ms": {"type": "integer", "minimum": 0, "maximum": 86400000},
+        "image": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/imageDigest"}
+          ]
+        },
+        "tool_version": {"type": ["string", "null"], "maxLength": 128},
+        "database_version": {"type": ["string", "null"], "maxLength": 256},
+        "error_code": {"type": ["string", "null"], "maxLength": 128}
+      }
+    },
+    "repositoryPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\u0000).+$"
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scanner",
+        "rule_id",
+        "severity",
+        "file_path",
+        "line_start",
+        "line_end",
+        "message",
+        "theme",
+        "fix_strategy",
+        "compliance_tags"
+      ],
+      "properties": {
+        "scanner": {"$ref": "#/$defs/scannerKind"},
+        "rule_id": {"type": ["string", "null"], "maxLength": 256},
+        "severity": {"enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", "UNKNOWN"]},
+        "file_path": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/repositoryPath"}
+          ]
+        },
+        "line_start": {"type": ["integer", "null"], "minimum": 1},
+        "line_end": {"type": ["integer", "null"], "minimum": 1},
+        "message": {"type": "string", "maxLength": 8192},
+        "theme": {"type": ["string", "null"], "maxLength": 64},
+        "fix_strategy": {"type": ["string", "null"], "maxLength": 64},
+        "compliance_tags": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {"type": "string", "maxLength": 128}
+        }
+      }
+    }
+  }
+}

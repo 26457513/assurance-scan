@@ -3,7 +3,12 @@ from __future__ import annotations
 
 import base64
 
-from app.auth import basic_auth_ok
+from app.modules.atomic.access.browser_auth import (
+    allowed_google_account,
+    basic_auth_ok,
+    mint_session,
+    verify_session,
+)
 
 
 def _header(user: str, password: str) -> str:
@@ -31,8 +36,6 @@ def test_password_containing_colon() -> None:
 
 
 def test_session_roundtrip_and_tamper() -> None:
-    from app.auth import mint_session, verify_session
-
     token = mint_session("user@barkleygen.com", "sekrit")
     assert verify_session(token, "sekrit") == "user@barkleygen.com"
     # Wrong secret / tampered token rejected.
@@ -45,21 +48,9 @@ def test_session_roundtrip_and_tamper() -> None:
 
 
 def test_google_account_domain_gate() -> None:
-    from app.auth import allowed_google_account
-
     assert allowed_google_account({"email": "a@barkleygen.com", "hd": "barkleygen.com"}, "barkleygen.com")
     assert not allowed_google_account({"email": "a@gmail.com", "hd": None}, "barkleygen.com")
     assert not allowed_google_account({"email": "a@other.com", "hd": "other.com"}, "barkleygen.com")
-
-
-def test_compatibility_exports_are_atomic_capability() -> None:
-    import app.auth as compatibility
-    from app.modules.atomic.access import browser_auth
-
-    assert compatibility.basic_auth_ok is browser_auth.basic_auth_ok
-    assert compatibility.verify_session is browser_auth.verify_session
-    assert compatibility.exchange_google_code is browser_auth.exchange_google_code
-
 
 def test_secret_box_roundtrip_and_tamper() -> None:
     from app.secrets import decrypt, encrypt

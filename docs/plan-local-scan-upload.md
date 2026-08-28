@@ -1,6 +1,6 @@
 # Plan: local scan runner and authenticated result upload
 
-Status: clean-cutover plan; WSQ gate complete, checkpoint commit pending — 2026-08-28
+Status: clean-cutover plan; WSQ/WS0 complete, ready for WS1 — 2026-08-28
 
 Implementation must not begin until the repository-readiness gate in **WSQ**
 passes. The structural refactor and initial quality cleanup are complete enough
@@ -146,7 +146,7 @@ This maps to `~/.config/assurance-scan/config.json` on the host and contains:
 ```json
 {
   "api_url": "https://scan.example.com",
-  "token": "asu_...",
+  "token": "asu_v1_...",
   "token_label": "laptop",
   "installation_id": "random-local-uuid"
 }
@@ -160,6 +160,10 @@ Mode `0600` means only the owning host user can read or replace the file. The
 file itself should not be forced to mode `0400`: login, logout, server changes,
 and token rotation need to replace it. During normal scans the directory is
 mounted into the container with `:ro`, which is the useful read-only boundary.
+Login refuses symlinked, wrongly owned or group/world-writable config paths and
+uses a same-directory `0600` temporary file, `fsync` and atomic rename.
+`installation_id` survives token rotation and logout; logout removes credentials
+without pretending the installation itself changed.
 
 Environment variables can override configuration for automation, but the
 documented interactive flow does not put the token in shell history, a project
@@ -169,6 +173,10 @@ file, or Docker container environment metadata:
 export ASSURANCE_SCAN_URL=https://scan.example.com
 export ASSURANCE_SCAN_TOKEN=asu_xxxxxxxxxxxxxxxxx
 ```
+
+This override is automation-only and prints a warning in interactive use:
+process and container inspection may expose environment variables. It is not
+presented as equivalent to the owner-only configuration-file flow.
 
 The CLI accepts HTTPS API origins only. Plain HTTP is rejected except for an
 explicit development opt-in limited to loopback hosts. The upload client does
@@ -201,17 +209,31 @@ docker run --rm -it --pull=always \
 ```
 
 This is one command and requires no language runtime or locally installed CLI.
-The first release supports macOS and Linux and requires invocation from the
-Git repository root. Windows/WSL support needs a separate tested command because
-`$PWD`, UID/GID handling and the Docker socket path differ.
+The first release requires invocation from the Git repository root. Its
+qualified matrix is Ubuntu 22.04/24.04 rootful Docker on `linux/amd64`, Ubuntu
+24.04 rootful Docker on `linux/arm64`, and the two current Docker Desktop
+releases on Intel and Apple-silicon macOS. Each signed release descriptor lists
+the exact versions exercised. Native Windows, WSL2, rootless Docker,
+SELinux-enforcing bind mounts, Podman and remote Docker contexts are explicitly
+unsupported in v1 rather than implied to work.
 `--pull=always` asks the registry whether `stable` changed on every run. Docker
 reuses existing layers, so an unchanged version is effectively a metadata
 check and an update downloads only changed layers.
 
 For frequent use, the Setup page can also provide a copyable shell function
-named `assurance-scan` which expands to this exact `docker run` command. The
-function is convenience only; the container remains the entire distributed
-CLI.
+named `assurance-scan`. It pulls `stable`, resolves the returned repository
+digest, and runs that exact digest with `--pull=never`, eliminating a tag race
+and recording precise CLI provenance. When the registry is unavailable it may
+use the last resolved digest with a visible warning unless
+`ASSURANCE_SCAN_REQUIRE_FRESH=1`. The function is convenience/update glue only;
+the public container remains the entire application and the raw `docker run`
+form remains supported with nullable registry-digest provenance.
+
+The outer container runs with `--init`, a read-only root filesystem, a
+`nosuid,nodev,noexec` temporary filesystem, all capabilities dropped and
+`no-new-privileges`. These flags reduce ordinary container attack surface but
+do not neutralize the Docker socket: the CLI remains root-equivalent to the
+Docker host and is treated as a signed high-trust release.
 
 Useful initial flags:
 
@@ -240,6 +262,12 @@ It reuses the stored payload and request ID and never rescans source.
 The command prints the hosted run URL after a successful upload and exits
 non-zero for runner or upload failures. Findings themselves do not make the
 command fail in the first release, matching GitHub Actions behavior.
+
+Stable exit codes are `0` success/valid bundle (including findings and partial
+scanner warnings), `2` usage/configuration, `3` Docker/Git/snapshot/platform
+preflight, `4` no valid scanner result, `5` permanent upload rejection with
+bundle retained, `6` retryable queued upload, and `130` interruption after
+best-effort cleanup.
 
 ## Local runner design
 
@@ -327,6 +355,29 @@ Scanner images. The CLI pulls missing pinned images before the scan; moving the
 `stable` CLI tag is what advances the scanner set. This avoids a locally cached
 `:latest` image producing different results from a fresh Actions runner.
 
+The initial release-set inputs inspected on 2026-08-28 are locked as follows;
+implementation consumes the index digest, not the discovery tag:
+
+| Scanner | Tool version | Multi-architecture index digest |
+|---|---:|---|
+| Semgrep | 1.174.0 | `semgrep/semgrep@sha256:f1f7b71861c7b28b6e0f661225a2c4f58a484f5d0f182465c6d6b3b22f972ade` |
+| Gitleaks | 8.30.1 | `zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f` |
+| Trivy | 0.74.0 | `aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969` |
+| Syft | 1.51.1 | `anchore/syft@sha256:95fe0835e5bebc6f8b1f8acef68d47d63d594ef4c0f25c097ff853b23cbac74c` |
+| Grype | 0.118.0 | `anchore/grype@sha256:8a93fc48da96bd6ec5981279d099b69de11541dc68fdf222fb9161f8ff284af7` |
+| OSV-Scanner | 2.5.1 | `ghcr.io/google/osv-scanner@sha256:8108ae94eadea5a02c9bec6e646909d5b790b44bd62d7f5b7f0b1d6d0ffc7734` |
+
+All six indexes contain `linux/amd64` and `linux/arm64` manifests. Release
+qualification still pulls and smokes both platform manifests before promotion.
+The manifest also pins a vendored, reviewed Semgrep rules bundle; `--config
+auto` is removed because an immutable executable with mutable remote rules is
+not reproducible. Vulnerability databases remain intentionally time-sensitive:
+the scan refreshes them when older than 24 hours and records database
+version/timestamp/digest, so comparisons disclose rather than hide data drift.
+The same orchestration path applies `.scannerignore` for Actions and local
+scans and uploads its content hash plus retained/removed counts; it filters
+source/config findings without silently removing dependency inventory.
+
 The reusable workflow in `26457513/assurance-scan-ci` currently controls the
 Actions execution path. The release contract must therefore make the manifest
 in this repository the source of truth and make that workflow consume an
@@ -368,11 +419,18 @@ were observed. The CLI records a pre/post repository fingerprint and aborts
 with a retryable source-changed error if files mutate while the snapshot is
 being assembled. It checks free space before copying, bounds individual and
 aggregate snapshot growth, and removes partial snapshots after failure.
+The v1 bounds are 500,000 entries, 1 GiB per regular file and 5 GiB total,
+with estimated free space plus a 1 GiB reserve. Sockets, devices, FIFOs,
+absolute/traversal/NUL paths, duplicate normalized paths and hardlink surprises
+are rejected. `.git`, `.assurance-scan` and configured cache/outbox paths are
+always excluded; scanner-specific dependency exclusions live in the shared
+manifest so Actions and local execution remain aligned.
 
 `source_content_hash` is required for local uploads and is SHA-256 over a
 canonical, path-sorted sequence of snapshot entries containing relative path,
 file mode/type, symlink target where applicable, and file-content hash. The
-algorithm is versioned in upload metadata so it can evolve without changing the
+canonical manifest format is versioned as `source_manifest_version` in upload
+metadata so it can evolve without changing the
 meaning of historical runs.
 
 Results and request metadata are written to an owner-only outbox before upload.
@@ -380,8 +438,10 @@ The source snapshot is deleted as soon as scanning finishes. After confirmed
 upload the outbox bundle is also deleted. If upload fails or the response is
 interrupted, only the result bundle remains and `upload --retry REQUEST_ID` reuses the
 same request ID without rescanning. The default configurable retention is seven
-days; `scan cache list` and `scan cache prune` make retained sensitive data
-visible and removable.
+days with a 1 GiB total outbox quota; every command performs a safe prune that
+skips active request locks. `cache list` and `cache prune` make retained
+sensitive data visible and removable. Successful uploads retain only a small
+receipt; no background daemon is introduced in v1.
 
 Scanner stdout/stderr is streamed to bounded files rather than accumulated
 without limit in process memory. Sibling scanner containers are read-only with
@@ -389,6 +449,14 @@ respect to the snapshot, carry a request-specific label/name, and are removed
 on normal exit, signal handling and the next cache-prune/recovery pass. CLI
 logs never print the host snapshot bind source, bearer token or unredacted
 scanner output.
+
+The shared scanner manifest supplies per-scanner user, read-only filesystem,
+temporary filesystem, capability, `no-new-privileges`, network, timeout, CPU,
+memory and cache/database policy. Cleanup selects the exact request label/name,
+never a broad Compose label. Target-image scanning does not give the Docker
+socket to the third-party Trivy container: the trusted outer orchestrator saves
+the selected image to a bounded temporary archive and mounts that archive
+read-only, recording the target image ID/digest.
 
 Both SSH and HTTPS remotes normalize to the same `owner/repo` value:
 
@@ -400,11 +468,10 @@ https://github.com/26457513/assurance-scan.git
 
 Do not upload the developer's absolute local filesystem path.
 
-The supported-platform statement must be narrower than “macOS and Linux” until
-tested. WS0 records the Docker Desktop versions and Linux distributions used
-for release qualification. Rootless Docker socket paths and SELinux bind-mount
-labels are either implemented and tested or explicitly marked unsupported in
-v1; Podman is a non-goal unless a dedicated compatibility test is added.
+Release qualification records the exact Docker Desktop/Engine, OS and
+architecture combinations exercised against the matrix above. An unqualified
+combination fails `doctor` with an explicit unsupported/best-effort message;
+it is never silently represented as tested.
 
 ## Project identity
 
@@ -443,6 +510,16 @@ GitHub ingest performs the same resolution. A locally executed scan must not be
 stored under `/Users/alice/code/repo`, because that creates a second logical
 project and leaks machine-specific information.
 
+The GitHub poller preserves the API repository's immutable numeric `id` and
+current `full_name`, resolves a visible registered project before downloading
+artifacts, and treats GitHub API run/revision data as authoritative. The shared
+result bundle contains scanner status/findings/durations/artifacts only;
+GitHub-specific repository, run URL, actor, event and revision fields move out
+of the current `ci_payload()` body into a versioned GitHub provenance envelope.
+Payload copies are validated against authoritative API data, never preferred
+silently. The matching Actions workflow/image and server are promoted in the
+same cutover.
+
 The migration populates `Run.project_id` where a registered project's
 `local_path` or `github_repo` matches. For existing derived `github:` runs, it
 creates or resolves a non-hidden registry row using a collision-safe tag.
@@ -455,6 +532,15 @@ abort the cutover for explicit operator resolution/export/drop rather than
 silently selecting a project. Migration tests cover GitHub repository
 rename/transfer, same-basename repositories, hidden tombstones and backup/
 restore recovery.
+
+The projection covers every project-scoped legacy path, not only the tables
+named above: `Fr` derives its project through `CatalogueSnapshot`; `TestResult`,
+`Evidence` and `FrState` derive it through `Run`; `Waiver` and
+`FindingAcceptance` receive mandatory project IDs; `AgentAction` receives a
+nullable project ID; and `ProjectCheckout` replaces `user_email/project_path`
+with mandatory `user_id/project_id`. A run cannot reference a catalogue
+snapshot owned by another project. The preflight also aborts on unmapped
+checkout emails, hidden tombstones and conflicting current mappings.
 
 Resolution rules:
 
@@ -479,12 +565,17 @@ override is included in audit metadata.
 Authentication alone is insufficient. After resolving the project, the ingest
 endpoint must verify that the token's user can upload to it. The current
 application has no tenant, membership or user-active model. The v1 rule is
-therefore precise: any authenticated `User` row holding a non-expired,
+therefore precise and explicitly single-tenant: any active authenticated `User`
+row holding a non-expired,
 non-revoked token with `scans:upload` may upload to any non-hidden, registered
 project in this Assurance Scan instance. Hidden and unknown projects are
 rejected. This rule lives in one authorization helper so a future tenant,
 `ProjectMembership` or account-state policy can replace it without changing the
 ingest contract.
+
+`User.disabled_at` provides the v1 offboarding switch. A disabled user cannot
+authenticate a scan token or create new tokens; disabling does not erase the
+historical submitter audit reference.
 
 ## Run identity and provenance
 
@@ -493,13 +584,15 @@ The recommended migration adds these fields to `runs`:
 
 ```text
 project_id              integer not null FK projects.id
-origin                 varchar(24) not null default 'server'
-working_tree_dirty     boolean not null default false
-source_content_hash    varchar(80) null
-source_hash_algorithm  varchar(64) null
+origin                  varchar(24) not null
+repository_full_name_at_scan varchar(256) null
+git_object_format       varchar(8) null
+working_tree_dirty      boolean null
+source_content_hash     char(64) null
+source_manifest_version varchar(64) null
 submitted_by_user_id   integer null FK users.id
 submitting_token_id    integer null FK api_tokens.id
-payload_hash           varchar(80) null
+payload_hash            char(64) null
 client_provenance_json text null
 ```
 
@@ -512,9 +605,9 @@ fields are returned only where the API/UI needs them; `options_json` is not the
 new provenance system of record.
 
 Branch storage is widened from the current 64 characters to 512 and the API
-applies the same bound. Commit validation accepts only the Git object formats
-approved in WS0 (40 hexadecimal characters for SHA-1, with 64-character SHA-256
-support enabled only when the object-format field is present and tested).
+applies the same bound. Commit validation accepts lowercase SHA-1 only as 40
+hexadecimal characters and SHA-256 only as 64 hexadecimal characters with the
+matching `git_object_format` value.
 
 Allowed origins initially are:
 
@@ -534,7 +627,7 @@ mislabel history:
 
 ```text
 run_id gh-* or options.source=github-actions -> github-actions
-existing server queue/orchestrator runs      -> server
+existing server queue/orchestrator runs      -> server, dirty state null unless proven
 new authenticated uploads                    -> local
 ```
 
@@ -560,13 +653,21 @@ UNIQUE(submitted_by_user_id, client_request_id)
 After streaming validation and payload hashing, ingestion atomically claims
 this key. A completed matching claim returns the existing run; repository or
 payload mismatch returns `409 idempotency_conflict`; an in-progress claim
-returns a retryable response; and an expired processing lease can be reclaimed.
+with different repository/revision data does likewise. A matching in-progress
+claim returns `202 idempotency_in_progress`, a status URL and `Retry-After`;
+the five-minute lease is heartbeated and may be reclaimed only when no run was
+committed.
 The run ID is a separate server-generated `local-{uuid}` so two accounts using
 the same client UUID cannot collide. Token rotation works because the claim is
 bound to the user, while `submitting_token_id` remains immutable audit
 provenance. Run, scanner rows, artifacts and findings commit together; no claim
 is marked completed until that transaction succeeds. The outbox retains the
 client request ID across restarts.
+
+The header is an unquoted canonical lowercase UUIDv4 and must equal
+`metadata.request_id`. A completed matching replay returns the original run
+with `replayed: true`. Completed claims live with their run; after run deletion
+a content-free tombstone rejects reuse with `410` for 30 days.
 
 `payload_hash` is SHA-256 over canonical validated metadata plus the ordered
 name/size/byte-hash tuple of every uploaded artifact and is stored on both the
@@ -577,6 +678,11 @@ Branch is metadata, not identity. The commit SHA identifies committed source;
 modifications. A detached HEAD is valid and stores a null branch unless the
 user supplies `--branch`.
 
+GitHub provenance stores both the API-reported head SHA and the checkout SHA
+actually scanned, since pull-request merge runs can legitimately differ.
+Historical server runs display working-tree state as `Unknown`; they are never
+backfilled to clean merely because the legacy schema lacked the field.
+
 ## API
 
 ### Authentication
@@ -585,12 +691,13 @@ Introduce scan-upload tokens rather than treating Basic Auth or browser
 cookies as CLI credentials. Add an `api_tokens` table containing:
 
 ```text
-id, user_id FK users.id, name, token_selector, token_hash, scopes_json, expires_at,
-created_at, last_used_at, revoked_at
+id UUID, user_id FK users.id, label, token_selector, token_hash BLOB(32),
+scope, token_version, expires_at, created_at, last_used_at, revoked_at
 ```
 
-Tokens have the form `asu_<selector>.<random-secret>`. The unique indexed
-selector locates one row without scanning all token hashes; only a SHA-256 hash
+Tokens have the form `asu_v1_<selector>.<random-secret>`. The selector is 12
+random bytes and the secret is 32 random bytes, both unpadded base64url. The
+unique indexed selector locates one row without scanning all token hashes; only a SHA-256 hash
 of the high-entropy secret is stored and comparison is constant-time. The
 plaintext is displayed once. The initial required scope is
 `scans:upload`. The Settings UI lists token label, creation, expiry, last use,
@@ -603,10 +710,17 @@ source; the selector is independently random and non-secret. Authentication
 uses the same generic `401` response for unknown selectors and invalid,
 expired or revoked secrets, never logs the Authorization header, and applies a
 per-origin/per-selector failure rate limit. Token creation returns
-`Cache-Control: no-store`, enforces a configurable active-token quota and uses a
-finite default expiry chosen in WS0. `last_used_at` updates are throttled and
+`Cache-Control: no-store`, `Pragma: no-cache` and `Referrer-Policy: no-referrer`.
+Labels are NFKC-normalized, control-free, 1–64 characters and case-insensitively
+unique among a user's active tokens. Expiry defaults to 90 days, the UI offers
+30/90/180 days, the hard maximum is 365 days, and each user may hold five
+active tokens. `last_used_at` updates are throttled to once per hour and
 best-effort so every upload does not create unnecessary SQLite write
 contention.
+
+Unknown selectors perform the same dummy digest comparison as known selectors.
+Malformed, unknown, expired, revoked and disabled-user credentials all receive
+the same generic `401` with `WWW-Authenticate: Bearer`.
 
 The label `laptop` is descriptive metadata, not proof that the bearer token is
 being used by one physical machine. Anyone who copies a bearer token can use
@@ -623,22 +737,25 @@ binding.
 Add a small validation endpoint used before local storage:
 
 ```http
-GET /api/ingest/whoami
-Authorization: Bearer asu_...
+GET /api/v1/ingest/whoami
+Authorization: Bearer asu_v1_...
 ```
 
 It returns the account, token label, scopes and expiry. This prevents a typo,
 wrong server URL or revoked token from being persisted as a successful login.
 
-Use a FastAPI authentication dependency on every `/api/ingest/*` route so token
+Use a FastAPI authentication dependency on every `/api/v1/ingest/*` route so token
 validation is enforced even when browser/Basic Auth middleware is disabled.
 Where global middleware would otherwise reject the request, it may allow an
 ingest bearer request to reach the route, but the route dependency remains
 authoritative. It validates format, hash, expiry, revocation and scope, updates
 `last_used_at`, and supplies the user/token principal to project authorization.
-Do not broaden the existing MCP token to every API endpoint. Existing MCP
-tokens may be migrated into the new table, but scan upload receives its own
-token in the UI.
+The upload route accepts only this bearer dependency and never falls back to a
+browser cookie, Basic credential, GitHub token, MCP token or global service
+token. CORS remains same-origin/exact-allowlist and never combines wildcard
+origins with credentials.
+Do not broaden or migrate the existing MCP token. Scan upload receives its own
+new token in the UI, and MCP/global tokens are never accepted by ingest.
 
 Initial token management endpoints are required before CLI delivery:
 
@@ -653,9 +770,12 @@ are supported in v1. Basic-Auth-only deployments must either map the Basic user
 to a real `User` row or explicitly disable account-bound token creation until
 that mapping exists.
 
-WS0 must choose one of those Basic-Auth behaviors; it cannot remain an
-implementation-time ambiguity. Browser token-management requests retain the
-existing session/role boundary and add CSRF protection for creation and
+The v1 choice is to disable local-scan token management and local ingest in a
+Basic-Auth-only or auth-off deployment. Basic Auth is an outer deployment gate,
+not an account identity; it is never synthesized into a shared `User`. Enabling
+the feature therefore requires Google-session account identity and a session
+secret. Browser token-management requests use exact-origin validation plus a
+signed double-submit `X-CSRF-Token` bound to the session for creation and
 revocation. API-token foreign keys use restrictive/soft-delete semantics so
 historical submitter and token audit records cannot be orphaned.
 
@@ -664,8 +784,8 @@ historical submitter and token audit records cannot be orphaned.
 Add:
 
 ```http
-POST /api/ingest/local-scans
-Authorization: Bearer asu_...
+POST /api/v1/ingest/local-scans
+Authorization: Bearer asu_v1_...
 Idempotency-Key: <request UUID>
 Content-Type: multipart/form-data
 
@@ -675,18 +795,26 @@ sarif=<assurance.sarif, optional>
 sbom=<sbom.cyclonedx.json, optional>
 ```
 
+The request contains exactly one `metadata` and one `findings` part and at most
+one `sarif` and `sbom` part. Unknown or duplicate parts, duplicate JSON keys,
+unknown schema fields, excessive nesting and archives are rejected. Filenames
+are ignored as authority; validated part names/content determine meaning.
+Every limit is enforced while streaming/spooling, not only from
+`Content-Length`.
+
 Metadata:
 
 ```json
 {
-  "ingest_schema_version": 1,
+  "schema_version": 1,
+  "request_id": "canonical-uuid-v4",
   "repository": "26457513/assurance-scan",
   "branch": "feature/local-scan",
   "commit": "0123456789abcdef...",
   "git_object_format": "sha1",
   "working_tree_dirty": true,
-  "source_content_hash": "sha256:...",
-  "source_hash_algorithm": "assurance-snapshot-v1",
+  "source_content_hash": "lowercase-sha256-hex",
+  "source_manifest_version": "assurance-snapshot-v1",
   "installation_id": "random-local-uuid",
   "cli_version": "0.1.0",
   "cli_build_revision": "git-sha",
@@ -706,29 +834,37 @@ Success returns `201`; an idempotent retry returns `200`:
 {
   "run_id": "local-...",
   "project_id": 123,
-  "project_path": "github:26457513/assurance-scan",
+  "repository": {
+    "provider": "github",
+    "full_name": "26457513/assurance-scan"
+  },
   "run_url": "https://scan.example.com/scans/local-...",
   "status": "completed"
 }
 ```
 
 `metadata` and `findings.json` each have a checked-in JSON Schema identified by
-`ingest_schema_version`. The contract defines required/optional fields,
+`schema_version`. The contract defines required/optional fields,
 permitted scanner kinds and statuses, artifact-to-scanner relationships,
 maximum string/path lengths, normalized repository-relative paths, duplicate
 scanner handling and whether unknown fields are rejected. JSON parsing rejects
 duplicate object keys and excessive nesting. Multipart filenames are ignored;
 the protocol part name and validated content determine meaning.
 
-All ingest failures use one machine-readable envelope:
+All ingest failures use `application/problem+json` with the RFC 9457 fields
+plus stable application extensions:
 
 ```json
 {
+  "type": "https://scan.example.com/problems/project-not-registered",
+  "title": "Project is not registered",
+  "status": 409,
+  "detail": "Human-readable summary",
+  "instance": "/api/v1/ingest/local-scans",
   "code": "project_not_registered",
-  "message": "Human-readable summary",
   "retryable": false,
   "request_id": "server-correlation-id",
-  "details": {}
+  "limits": {}
 }
 ```
 
@@ -738,6 +874,13 @@ authorization, project and idempotency conflicts remain in the outbox but are
 not automatically retried. Unsupported payload schema returns `422
 unsupported_schema_version` with supported versions; `426` is reserved for a
 server policy that requires a newer CLI release.
+
+The stable status mapping is: `400` malformed/duplicate/missing idempotency;
+`401` invalid, expired, revoked or disabled principal; `403` valid principal
+without scope; `404` hidden/unauthorized project; `409` authorized but
+unregistered repository or idempotency conflict; `413` byte limit; `415` media
+type; `422` schema; `429` rate/concurrency; `507` retained storage; and `503`
+feature disabled/capacity. Error bodies never echo token or payload content.
 
 Set explicit upload limits and validate before inserting:
 
@@ -750,14 +893,23 @@ Set explicit upload limits and validate before inserting:
   `local`;
 - scanner kinds and statuses must use the same constraints as CI ingest.
 
-Initial configurable ceilings are 64 MiB total request size, 64 KiB metadata,
-10 MiB `findings.json`, 32 MiB SARIF, 32 MiB SBOM, and 100,000 normalized
-findings. WS0 may lower these after measuring real artifacts, but implementation
-must not ship with unbounded defaults.
+Shipping configurable ceilings are 32 MiB total wire size, 64 KiB metadata,
+10 MiB `findings.json`, 16 MiB SARIF, 16 MiB SBOM, 64 MiB parsed/decompressed
+aggregate, 20,000 normalized findings, 32 scanner results and JSON depth 20.
+Paths are at most 1,024 characters and messages 8,192; source snippets are not
+accepted in v1. The 4.7 KiB checked-in scanner fixture is deliberately small,
+so release qualification additionally records real-project p50/p95/max bundle
+sizes without weakening these ceilings.
 
-WS0 records measured bundle sizes and chooses the shipping values. The server
-also enforces per-token request rate, concurrent-ingest and retained-storage
-quotas. Database indexes cover token selectors, ingest request claims,
+The server permits 10 upload attempts per token per hour and 100 per user per
+day, with one in-flight request per token, two per user and four per instance.
+Authentication failures are limited to 20 per IP and 10 per selector in ten
+minutes; token creation is limited to five per user per hour. Retained raw
+artifacts are capped at 1 GiB per user and 5 GiB per instance, with 500 MiB of
+accepted upload bytes per user per day. `429` carries `Retry-After`; a request
+that exceeds its byte ceiling returns `413`, while retained-storage exhaustion
+returns `507 storage_quota_exceeded`. Database indexes cover token selectors,
+ingest request claims,
 `Run.project_id`, and scan-list access patterns `(project_id, started_at)`,
 `(project_id, origin, started_at)` and `(project_id, commit_sha)`. Scan APIs use
 stable cursor pagination rather than increasing the existing recent-run query
@@ -766,12 +918,12 @@ indefinitely.
 Enforce total request size at the TLS proxy and application boundary, then
 enforce per-part limits while streaming/spooling multipart data. A
 `Content-Length` check alone is insufficient. Reject unsupported
-`ingest_schema_version` with the machine-readable response above and advertise
+`schema_version` with the machine-readable response above and advertise
 supported versions from a small capabilities endpoint. Pinned CLI releases
 therefore fail clearly rather than corrupting or silently dropping new fields.
 
 ```http
-GET /api/ingest/capabilities
+GET /api/v1/ingest/capabilities
 ```
 
 Server-supplied metadata is authoritative: assign `local`, use the authenticated
@@ -819,11 +971,15 @@ must never enter results, logs or scanner-container environments. Tests should
 scan fixtures containing canary secrets and assert that neither API payloads nor
 logs contain the canaries.
 
-WS0 chooses and documents the server retention period for raw SARIF/SBOM and
-normalized findings, the deletion behavior for a tombstoned project, and any
-administrator override. A scheduled cleanup job is idempotent, observable and
-tested; “stored indefinitely because SQLite already does so” is not an implicit
-v1 policy.
+Raw uploaded SARIF/SBOM/findings blobs are retained for 30 days; normalized
+runs/findings for 365 days; and token audit metadata for 400 days after
+revocation/expiry. Completed idempotency claims live with their run, followed
+by the 30-day content-free tombstone described above. A run or project deletion
+immediately hides it and rejects new access/upload, then purges blobs and
+normalized findings within 24 hours while retaining only the minimal audit and
+idempotency tombstone. Retention overrides are explicit, time-bounded and
+audited—there is no implicit indefinite SQLite policy or unaudited legal hold
+in v1. The scheduled cleanup job is idempotent, observable and tested.
 
 ## VibeGuide module architecture
 
@@ -1121,7 +1277,7 @@ Mandatory gate:
 ```text
 Ruff                              0 findings
 Mypy                              0 errors
-Backend pytest                    all tests pass (currently 324)
+Backend pytest                    all tests pass (currently 330)
 Architecture tests                all dependency rules pass
 Schema/fixture validators         pass
 Migration dry-run/upgrade          pass on empty and representative copied DBs
@@ -1151,26 +1307,38 @@ clean, Mypy clean across 158 files, 324 backend tests, 15 Semgrep rules across
 301 targets with zero findings, seven frontend tests, zero frontend diagnostics
 or dependency advisories, clean production and container builds, both image
 smokes, migration/backup/restore checks, and source hygiene across 520 files.
-The structural checkpoint remains intentionally uncommitted until reviewed.
+The structural checkpoint was reviewed and committed as `7fc8e40` before WS0
+contract work began.
 
 ### WS0 — contracts and threat model
 
-1. Approve the versioned ingest schemas, measured upload/snapshot limits,
-   server/outbox retention, redaction rules and deletion behavior.
-2. Choose the Basic-Auth user mapping/disable policy, token default/max expiry,
-   active-token quota, upload rate/concurrency/storage quotas and CSRF behavior.
-3. Approve the precise project authorization rule and supported Docker
-   Desktop/Linux environments, including rootless/SELinux decisions.
-4. Decide the initial scanner manifest, CI/reusable-workflow digest contract,
-   CLI/API version cutover policy and public release/signing process.
-5. Approve error/retry/idempotency contracts and add canary-secret, oversized,
-   duplicate-key and path-leak fixtures before changing ingestion.
+1. Check in the locked v1 metadata/findings schemas and exact multipart/error
+   contract described above.
+2. Add canary-secret, oversized, duplicate-key, path-leak, idempotency and
+   incompatible-version fixtures before changing persistence.
+3. Encode the selected token, Basic/Auth-off, CSRF, rate, concurrency, quota,
+   retention, deletion and single-tenant project authorization decisions as
+   constants/config contracts with boundary tests.
+4. Check in the initial scanner release-set manifest and validate both required
+   platform manifests, tool versions, vendored policy digest and database-age
+   policy.
+5. Record real-project bundle measurements and the exact release qualification
+   OS/Docker versions without relaxing the approved ceilings.
 
 Acceptance: security, product and engineering agree what leaves the laptop,
 who may upload it, how long it persists, how abuse is bounded, which platforms
 are supported, and how old clients are rejected with an upgrade path. Decisions
 are checked into this plan; none remain as “implementation must choose”
 branches.
+
+WS0 verification on 2026-08-28: the v1 metadata and source-neutral findings
+schemas, valid/adversarial fixtures, shared limits/retention/token constants and
+the initial scanner release-set (including both platform digests) are checked
+in. Contract, duplicate-key, oversized, incompatible-version and path-leak
+tests pass. The canary-secret fixture is intentionally schema-valid and becomes
+the mandatory redaction test vector in WS2. Release promotion remains gated on
+recording exact qualified OS/Docker versions and real-project bundle
+measurements; those observations cannot change the locked ceilings silently.
 
 ### WS1 — identity, provenance and token lifecycle
 
@@ -1197,11 +1365,12 @@ branch independently visible.
 1. Generalize the existing port-driven `github_result_ingest` composition into
    a source-neutral ingest workflow shared by explicit GitHub and local
    adapters; replace the GitHub-specific workflow name in the same cutover.
-2. Add `/api/ingest/local-scans`, capabilities and whoami endpoints with strict
+2. Add `/api/v1/ingest/local-scans`, capabilities and whoami endpoints with strict
    versioned schemas, uniform errors and streaming application/proxy limits.
 3. Add durable leased idempotency claims, client/server redaction, rate/storage
    quotas, schema negotiation and atomic rollback tests.
-4. Keep the existing GitHub poller behavior unchanged through its adapter.
+4. Cut the GitHub poller over to registered-project resolution, immutable
+   repository IDs and the source-neutral bundle plus GitHub provenance envelope.
 
 Acceptance: an authenticated fixture bundle creates one local run, scanner
 runs, artifacts, and findings; resubmitting the same idempotency key creates

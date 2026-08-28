@@ -7,4 +7,5 @@ pytest==8.4.2
 pytest-asyncio==1.1.0
 httpx==0.28.1
 types-PyYAML==6.0.12.20250822
+types-jsonschema==4.26.0.20260518
 types-requests==2.32.4.20250809
