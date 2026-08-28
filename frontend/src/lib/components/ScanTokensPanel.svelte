@@ -115,7 +115,7 @@
   });
 </script>
 
-<section class="border border-line-hairline rounded-sm bg-surface-panel p-5 mt-4" aria-labelledby="scan-token-heading">
+<section class="token-panel border border-line-hairline rounded-sm bg-surface-panel p-5 mt-4" aria-labelledby="scan-token-heading">
   <div class="flex items-start justify-between gap-4 mb-4">
     <div>
       <h2 id="scan-token-heading" class="text-[12px] text-ink-primary font-mono mb-1">
@@ -306,6 +306,11 @@
 </section>
 
 <style>
+  .token-panel {
+    container-name: token-panel;
+    container-type: inline-size;
+  }
+
   .credential-strip {
     border-color: color-mix(in srgb, var(--state-pending) 38%, transparent);
     background:
@@ -334,7 +339,7 @@
     background: color-mix(in srgb, var(--state-pending) 8%, transparent);
   }
 
-  @media (max-width: 720px) {
+  @container token-panel (max-width: 760px) {
     form {
       grid-template-columns: 1fr;
     }
@@ -376,6 +381,12 @@
 
     .token-cell > :global(*) {
       grid-column: 2;
+    }
+  }
+
+  @media (max-width: 720px) {
+    form {
+      grid-template-columns: 1fr;
     }
   }
 </style>
