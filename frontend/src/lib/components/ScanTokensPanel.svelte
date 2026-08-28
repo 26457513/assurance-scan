@@ -42,6 +42,26 @@
     }).format(date);
   }
 
+  function formatCompactDate(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat(undefined, {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }).format(date);
+  }
+
+  function auditTitle(token: ScanToken): string {
+    const details = [
+      `Created ${formatDate(token.created_at)}`,
+      `Expires ${formatDate(token.expires_at)}`,
+      `Last used ${token.last_used_at ? formatDate(token.last_used_at) : 'Never'}`
+    ];
+    if (token.revoked_at) details.push(`Revoked ${formatDate(token.revoked_at)}`);
+    return details.join(' · ');
+  }
+
   type TokenState = 'active' | 'expires soon' | 'expired' | 'revoked';
 
   function tokenState(token: ScanToken): TokenState {
@@ -229,16 +249,15 @@
         <div class="as-head token-grid" role="row">
           <div role="columnheader">Machine</div>
           <div role="columnheader">Status</div>
-          <div role="columnheader">Validity</div>
-          <div role="columnheader">Activity</div>
+          <div role="columnheader">Expires</div>
+          <div role="columnheader">Last used</div>
           <div role="columnheader" class="text-right">Action</div>
         </div>
         {#each tokens as token (token.id)}
           {@const state = tokenState(token)}
-          <div class="as-row token-grid px-3 py-3 text-[11px]" role="row">
+          <div class="as-row token-grid px-3 py-2 text-[11px]" role="row" title={auditTitle(token)}>
             <div class="token-cell min-w-0" role="cell" data-label="Machine">
               <div class="text-ink-primary truncate">{token.label}</div>
-              <div class="text-[9px] text-ink-muted mt-0.5 font-mono">{token.scope}</div>
             </div>
             <div class="token-cell" role="cell" data-label="Status">
               <span
@@ -248,21 +267,17 @@
                 class:border-line-strong={state === 'expired' || state === 'revoked'}
                 class:expiry-warning={state === 'expires soon'}
                 style:border-color={state === 'active' ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : undefined}
+                title={state === 'expires soon' ? expiryHint(token) : undefined}
               >{state}</span>
             </div>
-            <div class="token-cell text-ink-secondary" role="cell" data-label="Validity">
-              <div><span class="audit-label">Created</span> <time datetime={token.created_at}>{formatDate(token.created_at)}</time></div>
-              <div class="mt-1"><span class="audit-label">Expires</span> <time datetime={token.expires_at}>{formatDate(token.expires_at)}</time></div>
-              {#if state === 'active' || state === 'expires soon'}
-                <div class="text-[9px] text-ink-muted mt-1">{expiryHint(token)}</div>
-              {/if}
+            <div class="token-cell text-ink-secondary whitespace-nowrap" role="cell" data-label="Expires">
+              <time datetime={token.expires_at}>{formatCompactDate(token.expires_at)}</time>
             </div>
-            <div class="token-cell text-ink-muted" role="cell" data-label="Activity">
-              <div><span class="audit-label">Last used</span> {token.last_used_at ? formatDate(token.last_used_at) : 'Never'}</div>
-              {#if token.revoked_at}
-                <div class="mt-1"><span class="audit-label">Revoked</span> <time datetime={token.revoked_at}>{formatDate(token.revoked_at)}</time></div>
+            <div class="token-cell text-ink-muted whitespace-nowrap" role="cell" data-label="Last used">
+              {#if token.last_used_at}
+                <time datetime={token.last_used_at}>{formatCompactDate(token.last_used_at)}</time>
               {:else}
-                <div class="text-[9px] mt-1">Not revoked</div>
+                Never
               {/if}
             </div>
             <div class="token-cell flex items-center justify-end gap-2" role="cell" data-label="Action">
@@ -320,17 +335,9 @@
 
   .token-grid {
     display: grid;
-    grid-template-columns: minmax(140px, 1fr) 96px minmax(185px, 1.25fr) minmax(150px, 1fr) 145px;
-    gap: 0.75rem;
-    align-items: start;
-  }
-
-  .audit-label {
-    color: var(--text-muted);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    grid-template-columns: minmax(90px, 1fr) 80px 110px 92px 116px;
+    gap: 0.5rem;
+    align-items: center;
   }
 
   .expiry-warning {
@@ -343,7 +350,9 @@
     form {
       grid-template-columns: 1fr;
     }
+  }
 
+  @container token-panel (max-width: 480px) {
     .as-head {
       position: absolute;
       width: 1px;

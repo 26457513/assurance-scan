@@ -113,12 +113,13 @@ describe('ScanTokensPanel', () => {
     render(ScanTokensPanel);
 
     expect(await screen.findByText('Travel laptop')).toBeInTheDocument();
-    expect(screen.getByText('expires soon')).toBeInTheDocument();
-    expect(screen.getByText('Expires in 7 days')).toBeInTheDocument();
+    expect(screen.getByText('expires soon')).toHaveAttribute('title', 'Expires in 7 days');
     expect(screen.getByText('expired')).toBeInTheDocument();
     expect(screen.getByText('revoked')).toBeInTheDocument();
-    expect(screen.getAllByText('Last used')).toHaveLength(3);
+    expect(screen.getByRole('columnheader', { name: 'Last used' })).toBeInTheDocument();
+    expect(screen.queryByText('scans:upload')).not.toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Issued local scan tokens' })).toBeInTheDocument();
+    expect(screen.getAllByRole('row')).toHaveLength(4);
     expect(screen.getByRole('button', { name: 'Revoke Travel laptop' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Revoke Old workstation' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Revoke Retired laptop' })).not.toBeInTheDocument();
