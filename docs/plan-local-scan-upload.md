@@ -1,12 +1,12 @@
 # Plan: local scan runner and authenticated result upload
 
-Status: clean-cutover plan; WSQ/WS0/WS1 complete, ready for WS2 — 2026-08-28
+Status: clean-cutover plan; WSQ/WS0/WS1/WS2 complete, ready for WS3 — 2026-08-28
 
-Implementation must not begin until the repository-readiness gate in **WSQ**
-passes. The structural refactor and initial quality cleanup are complete enough
-to expose the remaining boundaries, but the documented adapter rules, release
-reproducibility and end-to-end quality automation still need to be made true in
-code rather than treated as intentions.
+The repository-readiness gate in **WSQ** passed before feature implementation
+began. The structural refactor and initial quality cleanup exposed the remaining
+boundaries; the documented adapter rules, release reproducibility and
+end-to-end quality automation are enforced in code throughout the remaining
+workstreams rather than treated as intentions.
 
 ## Objective
 
@@ -1372,7 +1372,7 @@ origin plus signed double-submit CSRF for browser mutation, and a Settings UI.
 The scan table renders explicit GitHub Actions, Local and Server origins and
 branch provenance. A boundary test proves synthetic local and GitHub runs for
 the same repository share one project ID. `LOCAL_INGEST_ENABLED` defaults to
-false pending WS2. The complete quality gate passed: Ruff, Mypy (169 files),
+false. The WS1 quality gate passed: Ruff, Mypy (169 files),
 396 backend tests, schema fixtures, compilation, shell syntax, Semgrep (15
 rules, 317 targets, zero findings), frontend audit/check/15 tests/build,
 Dockerfile/Compose validation, both image builds and entrypoint/import smokes,
@@ -1393,6 +1393,29 @@ diff whitespace and source hygiene.
 Acceptance: an authenticated fixture bundle creates one local run, scanner
 runs, artifacts, and findings; resubmitting the same idempotency key creates
 nothing new.
+
+Completed in WS2. GitHub and local adapters now share the source-neutral
+`result_ingest` workflow, while `local_scan_ingest` coordinates registered
+project resolution, the explicit single-tenant authorization rule, serialized
+quota reservation, fenced leased claims and one-transaction graph/claim
+persistence. The authenticated capabilities, whoami, multipart upload and
+request-status endpoints use uniform problem details, streamed application
+limits and a validated Caddy hard cap. Payload, rate, concurrency and retained
+storage ceilings can only be configured downward. Failed bearer attempts and
+token creation are bounded; redaction runs before either GitHub or local data
+is persisted; Gitleaks secret prefixes are no longer copied into findings.
+
+Migration `0022_local_ingest_claims` adds token/byte attribution, random lease
+fencing and 30-day content-free tombstones. Manual deletion and the observable
+six-hour cleanup loop share the tombstone transition; raw artifacts retain for
+30 days, normalized runs for 365 days, and unreferenced inactive token audits
+for 400 days. End-to-end tests prove that a valid authenticated fixture creates
+exactly one local run, claim, scanner graph, artifact and finding, while replay
+returns that run without duplicates. The complete WS2 gate passed: Ruff, Mypy
+(188 files), 446 backend tests, schema fixtures, compilation, shell syntax,
+Semgrep (15 rules, 336 targets, zero findings), frontend audit/check/15 tests/
+build, Dockerfile/Compose/Caddy validation, both image builds and smokes,
+tracked-diff whitespace and source hygiene (575 text files).
 
 ### WS3 — public container CLI
 

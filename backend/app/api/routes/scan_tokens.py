@@ -29,6 +29,7 @@ from app.modules.atomic.access.browser_csrf import (
 from app.modules.atomic.access.scan_token import (
     CreateScanTokenCommand,
     ScanTokenActiveLimitError,
+    ScanTokenCreationRateLimitError,
     ScanTokenLabelConflictError,
     ScanTokenRecord,
     ScanTokenValidationError,
@@ -143,6 +144,12 @@ async def issue_scan_token(
             clock=clock,
             random=SecureScanTokenRandom(),
         )
+    except ScanTokenCreationRateLimitError as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": "3600"},
+        ) from exc
     except (ScanTokenActiveLimitError, ScanTokenLabelConflictError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ScanTokenValidationError as exc:

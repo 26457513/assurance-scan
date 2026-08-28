@@ -22,6 +22,7 @@ from app.api.schemas.scan import (
 from app.infrastructure.db.repositories.findings import FindingRepository
 from app.infrastructure.db.repositories.runs import RunRepository
 from app.infrastructure.db.models import Project, Run
+from app.infrastructure.db.retention import prepare_runs_for_deletion
 from app.infrastructure.db.repositories.scanner_runs import ScannerRunRepository
 from app.worker.queue import ScanQueue
 
@@ -236,6 +237,7 @@ async def delete_scan(run_id: str, session: AsyncSession = SessionDep) -> dict:
     run = await session.get(Run, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
+    await prepare_runs_for_deletion(session, [run_id])
     await session.delete(run)
     await session.commit()
     return {"status": "deleted", "run_id": run_id}
@@ -269,6 +271,7 @@ async def delete_all_scans(
     stmt = sa_select(Run).where(Run.project_id == project_id)
     rows = (await session.execute(stmt)).scalars().all()
     scan_count = len(rows)
+    await prepare_runs_for_deletion(session, [run.run_id for run in rows])
     for run in rows:
         await session.delete(run)
 

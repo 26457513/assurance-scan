@@ -33,6 +33,7 @@ class ScanTokenRepositoryPort(Protocol):
         *,
         now: datetime,
         active_limit: int,
+        creation_hourly_limit: int,
     ) -> ScanTokenCreateStorageDecision: ...
 
     async def find_for_authentication(

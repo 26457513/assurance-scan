@@ -5,9 +5,13 @@ from .ingest import (
     ARTIFACT_SPECS,
     BLOB_ARTIFACTS,
     ArtifactSpec,
+    GitHubIngestEnvelope,
+    LocalIngestEnvelope,
     IngestStatus,
+    ResolvedProject,
     ResultBundle,
     RunRecord,
+    ScannerResult,
 )
 
 __all__ = [
@@ -15,10 +19,14 @@ __all__ = [
     "BLOB_ARTIFACTS",
     "ArtifactSpec",
     "FindingPayload",
+    "GitHubIngestEnvelope",
     "IngestStatus",
+    "LocalIngestEnvelope",
     "NormalizedFinding",
+    "ResolvedProject",
     "ResultBundle",
     "RunRecord",
+    "ScannerResult",
 ]
 from .local_scan import (
     API_PREFIX,

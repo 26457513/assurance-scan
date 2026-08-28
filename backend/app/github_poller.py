@@ -31,7 +31,11 @@ from app.modules.atomic.provenance.repository_identity import (
     normalize_github_repository_key,
     parse_github_repository,
 )
-from app.modules.workflows.github_result_ingest import ingest_ci_run
+from app.modules.workflows.result_ingest import (
+    ResolvedProject,
+    build_github_inputs,
+    ingest_result_bundle,
+)
 
 
 log = logging.getLogger(__name__)
@@ -329,7 +333,7 @@ async def poll_cycle(
     for repository in repos:
         try:
             async with session_factory() as session:
-                repo, repository_id, _project_id, resolution = (
+                repo, repository_id, project_id, resolution = (
                     await resolve_registered_repository(session, repository)
                 )
         except (KeyError, TypeError, ValueError, InvalidRepositoryIdentityError) as exc:
@@ -340,6 +344,8 @@ async def poll_cycle(
             result["repos"][repo] = {f"skipped_{resolution}": 1}
             result["failed" if resolution == "identity_conflict" else "skipped"] += 1
             continue
+        if project_id is None:
+            raise RuntimeError("registered GitHub repository has no project ID")
         counts = {"ingested": 0, "skipped": 0, "failed": 0}
         try:
             runs = await asyncio.to_thread(client.list_runs, repo)
@@ -365,13 +371,16 @@ async def poll_cycle(
                         log.warning("poll %s run %s: artifact download failed: %s", repo, run_id, exc)
                     if blobs and "findings.json" in blobs:
                         payload = json.loads(blobs["findings.json"])
-                        payload.setdefault("github_run_id", run["id"])
-                        payload.setdefault("repo", repo)
-                    status = await ingest_ci_run(
-                        SqlAlchemyIngestPersistence(session),
-                        payload,
+                    envelope, bundle = build_github_inputs(
+                        ResolvedProject(project_id, repo, repository_id),
                         _meta_from_run(repo, repository_id, run),
+                        payload,
                         blobs,
+                    )
+                    status = await ingest_result_bundle(
+                        SqlAlchemyIngestPersistence(session),
+                        envelope,
+                        bundle,
                     )
                     counts["ingested" if status == "ingested" else "skipped"] += 1
                 except Exception:

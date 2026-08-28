@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_REVISION = "0016_project_scan_ref"
-HEAD_REVISION = "0021_project_identity_provenance"
+HEAD_REVISION = "0022_local_ingest_claims"
 
 
 def _alembic(database: Path, *arguments: str) -> subprocess.CompletedProcess[str]:

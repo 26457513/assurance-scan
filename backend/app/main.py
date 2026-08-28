@@ -4,6 +4,7 @@ The app is assembled at import time so uvicorn can target it directly via
 `uvicorn app.main:app`. Routes are registered by including routers from
 `app.api.routes`.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,10 +16,33 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import catalogue_drift, compliance, config, findings, folders, frs, frs_list, gh_tokens, github, health, notion, poller, projects, scan_tokens, scans, stream, test_source, trends, versions, workflows
+from app.api.routes import (
+    catalogue_drift,
+    compliance,
+    config,
+    findings,
+    folders,
+    frs,
+    frs_list,
+    gh_tokens,
+    github,
+    health,
+    local_ingest,
+    notion,
+    poller,
+    projects,
+    scan_tokens,
+    scans,
+    stream,
+    test_source,
+    trends,
+    versions,
+    workflows,
+)
 from app.config import Settings, load_settings
 from app.infrastructure.db.connection import dispose_engine
 from app.mcp import build_mcp_server, mount_mcp_on_app
+from app.modules.atomic.access.auth_failure_limiter import AuthenticationFailureLimiter
 from app.worker.queue import ScanQueue
 
 
@@ -59,17 +83,34 @@ async def _lifespan(app: FastAPI):
     app.state.scan_queue = queue
     await queue.start()
 
+    async def _retention_loop() -> None:
+        from app.infrastructure.db.connection import get_sessionmaker
+        from app.infrastructure.db.retention import run_retention_cleanup
+
+        while True:
+            try:
+                async with get_sessionmaker(settings)() as session:
+                    result = await run_retention_cleanup(session)
+                logging.getLogger(__name__).info("local-ingest retention cleanup: %s", result)
+            except Exception:
+                logging.getLogger(__name__).exception("local-ingest retention cleanup failed")
+            await asyncio.sleep(6 * 60 * 60)
+
+    retention_task = asyncio.create_task(_retention_loop())
+
     poller_task = None
     if settings.github_poll_token and (settings.poll_repos or settings.github_org):
         from app.infrastructure.db.connection import get_sessionmaker
         from app.github_poller import poller_loop
 
-        poller_task = asyncio.create_task(poller_loop(
-            get_sessionmaker(settings),
-            settings.github_poll_token,
-            settings.github_org,
-            settings.poll_interval_seconds,
-        ))
+        poller_task = asyncio.create_task(
+            poller_loop(
+                get_sessionmaker(settings),
+                settings.github_poll_token,
+                settings.github_org,
+                settings.poll_interval_seconds,
+            )
+        )
 
     # The MCP server's session manager needs lifespan initialization.
     mcp_server = app.state.mcp_server
@@ -81,6 +122,9 @@ async def _lifespan(app: FastAPI):
                 poller_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await poller_task
+            retention_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await retention_task
             await queue.stop()
             await dispose_engine()
 
@@ -96,10 +140,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=_lifespan,
     )
     app.state.settings = settings
+    app.state.scan_token_failure_limiter = AuthenticationFailureLimiter()
 
     google_on = bool(
-        settings.google_client_id and settings.google_client_secret
-        and settings.session_secret and settings.public_base_url
+        settings.google_client_id
+        and settings.google_client_secret
+        and settings.session_secret
+        and settings.public_base_url
     )
 
     if google_on or (settings.app_auth_user and settings.app_auth_password):
@@ -131,9 +178,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             async with sessionmaker() as session:
                 from sqlalchemy import select as _select
 
-                row = (
-                    await session.execute(_select(User).where(User.mcp_token_hash == h))
-                ).scalars().first()
+                row = (await session.execute(_select(User).where(User.mcp_token_hash == h))).scalars().first()
                 return row is not None
 
         @app.middleware("http")
@@ -141,6 +186,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             path = request.url.path
             # Healthcheck (container-internal) and the login flow stay open.
             if path == "/health" or path.startswith("/auth/"):
+                return await call_next(request)
+            # Local-ingest routes authenticate their dedicated scan token in a
+            # route dependency. Browser Basic/session and MCP credentials are
+            # deliberately not alternatives for this API.
+            if path == "/api/v1/ingest" or path.startswith("/api/v1/ingest/"):
                 return await call_next(request)
             # MCP clients authenticate with a bearer token; the browser
             # login redirect is useless to them. The env MCP_TOKEN is the
@@ -175,14 +225,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         @app.get("/auth/login")
         async def auth_login(next: str = "/"):
-            params = _urlparse.urlencode({
-                "client_id": settings.google_client_id,
-                "redirect_uri": f"{settings.public_base_url}/auth/callback",
-                "response_type": "code",
-                "scope": "openid email",
-                "access_type": "online",
-                "prompt": "select_account",
-            })
+            params = _urlparse.urlencode(
+                {
+                    "client_id": settings.google_client_id,
+                    "redirect_uri": f"{settings.public_base_url}/auth/callback",
+                    "response_type": "code",
+                    "scope": "openid email",
+                    "access_type": "online",
+                    "prompt": "select_account",
+                }
+            )
             resp = RedirectResponse(f"{GOOGLE_AUTH_URL}?{params}")
             resp.set_cookie("as_next", next, max_age=600, httponly=True, samesite="lax")
             return resp
@@ -199,7 +251,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             try:
                 payload = await asyncio.to_thread(
                     exchange_google_code,
-                    code, settings.google_client_id, settings.google_client_secret,
+                    code,
+                    settings.google_client_id,
+                    settings.google_client_secret,
                     f"{settings.public_base_url}/auth/callback",
                 )
             except Exception:
@@ -248,6 +302,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(github.router, prefix="/api")
     app.include_router(gh_tokens.router, prefix="/api")
     app.include_router(scan_tokens.router, prefix="/api")
+    app.include_router(local_ingest.router, prefix="/api")
     app.include_router(versions.router, prefix="/api")
     app.include_router(notion.router, prefix="/api")
     app.include_router(workflows.router, prefix="/api")

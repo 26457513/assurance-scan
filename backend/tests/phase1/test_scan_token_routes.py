@@ -204,6 +204,41 @@ async def test_label_conflict_and_active_limit_are_enforced(harness: RouteHarnes
     assert "limit" in limited.json()["detail"]
 
 
+async def test_token_creation_rate_limit_counts_recently_revoked_tokens(
+    harness: RouteHarness,
+) -> None:
+    harness.sign_in("alice@example.test")
+    for index in range(5):
+        issued = await harness.issue(f"device-{index}")
+        assert issued.status_code == 201
+        csrf = await harness.csrf()
+        revoked = await harness.client.delete(
+            f"/api/users/me/scan-tokens/{issued.json()['audit']['id']}",
+            headers={"Origin": PUBLIC_ORIGIN, "X-CSRF-Token": csrf},
+        )
+        assert revoked.status_code == 200
+
+    limited = await harness.issue("device-six")
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "3600"
+
+
+async def test_invalid_bearer_attempts_are_rate_limited(harness: RouteHarness) -> None:
+    for _attempt in range(10):
+        response = await harness.client.get(
+            "/api/test/bearer",
+            headers={"Authorization": "Bearer malformed"},
+        )
+        assert response.status_code == 401
+
+    limited = await harness.client.get(
+        "/api/test/bearer",
+        headers={"Authorization": "Bearer malformed"},
+    )
+    assert limited.status_code == 429
+    assert 1 <= int(limited.headers["retry-after"]) <= 600
+
+
 async def test_revoke_is_owned_and_idempotent(harness: RouteHarness) -> None:
     harness.sign_in("alice@example.test")
     issued = await harness.issue()
@@ -266,13 +301,9 @@ async def test_bearer_dependency_uniformly_maps_invalid_token_states(
     plaintext = issued.json()["token"]
     token_id = issued.json()["audit"]["id"]
 
-    valid = await harness.client.get(
-        "/api/test/bearer", headers={"Authorization": f"Bearer {plaintext}"}
-    )
+    valid = await harness.client.get("/api/test/bearer", headers={"Authorization": f"Bearer {plaintext}"})
     assert valid.status_code == 200
-    wrong = await harness.client.get(
-        "/api/test/bearer", headers={"Authorization": "Bearer malformed"}
-    )
+    wrong = await harness.client.get("/api/test/bearer", headers={"Authorization": "Bearer malformed"})
     assert wrong.status_code == 401
     assert wrong.headers["www-authenticate"] == "Bearer"
 
@@ -280,9 +311,7 @@ async def test_bearer_dependency_uniformly_maps_invalid_token_states(
         row = await session.get(ApiToken, token_id)
         row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         await session.commit()
-    expired = await harness.client.get(
-        "/api/test/bearer", headers={"Authorization": f"Bearer {plaintext}"}
-    )
+    expired = await harness.client.get("/api/test/bearer", headers={"Authorization": f"Bearer {plaintext}"})
     assert expired.status_code == 401
 
     async with harness.sessions() as session:
@@ -290,9 +319,7 @@ async def test_bearer_dependency_uniformly_maps_invalid_token_states(
         row.expires_at = datetime.now(timezone.utc) + timedelta(days=1)
         row.revoked_at = datetime.now(timezone.utc)
         await session.commit()
-    revoked = await harness.client.get(
-        "/api/test/bearer", headers={"Authorization": f"Bearer {plaintext}"}
-    )
+    revoked = await harness.client.get("/api/test/bearer", headers={"Authorization": f"Bearer {plaintext}"})
     assert revoked.status_code == 401
 
     async with harness.sessions() as session:
@@ -301,9 +328,7 @@ async def test_bearer_dependency_uniformly_maps_invalid_token_states(
         user = await session.get(User, row.user_id)
         user.disabled_at = datetime.now(timezone.utc)
         await session.commit()
-    disabled = await harness.client.get(
-        "/api/test/bearer", headers={"Authorization": f"Bearer {plaintext}"}
-    )
+    disabled = await harness.client.get("/api/test/bearer", headers={"Authorization": f"Bearer {plaintext}"})
     assert disabled.status_code == 401
 
 
@@ -331,8 +356,6 @@ async def test_repository_serializes_concurrent_active_limit(tmp_path) -> None:
     assert sum(not isinstance(result, Exception) for result in results) == 5
     assert sum(isinstance(result, ScanTokenActiveLimitError) for result in results) == 1
     async with sessions() as session:
-        count = (
-            await session.execute(select(func.count()).select_from(ApiToken))
-        ).scalar_one()
+        count = (await session.execute(select(func.count()).select_from(ApiToken))).scalar_one()
     assert count == 5
     await engine.dispose()

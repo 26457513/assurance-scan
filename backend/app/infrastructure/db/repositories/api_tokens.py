@@ -44,6 +44,7 @@ class SqlAlchemyScanTokenRepository:
         *,
         now: dt.datetime,
         active_limit: int,
+        creation_hourly_limit: int,
     ) -> ScanTokenCreateStorageDecision:
         await self._begin_user_write(record.user_id)
         active_predicates = (
@@ -53,14 +54,27 @@ class SqlAlchemyScanTokenRepository:
         )
         active_count = int(
             (
-                await self.session.execute(
-                    select(func.count()).select_from(ApiToken).where(*active_predicates)
-                )
+                await self.session.execute(select(func.count()).select_from(ApiToken).where(*active_predicates))
             ).scalar_one()
         )
         if active_count >= active_limit:
             await self.session.rollback()
             return ScanTokenCreateStorageDecision.ACTIVE_LIMIT_REACHED
+        creation_count = int(
+            (
+                await self.session.execute(
+                    select(func.count())
+                    .select_from(ApiToken)
+                    .where(
+                        ApiToken.user_id == record.user_id,
+                        ApiToken.created_at >= now - dt.timedelta(hours=1),
+                    )
+                )
+            ).scalar_one()
+        )
+        if creation_count >= creation_hourly_limit:
+            await self.session.rollback()
+            return ScanTokenCreateStorageDecision.CREATION_RATE_LIMITED
         label_exists = (
             await self.session.execute(
                 select(ApiToken.id).where(
@@ -105,9 +119,7 @@ class SqlAlchemyScanTokenRepository:
     ) -> ScanTokenAuthenticationRecord | None:
         row = (
             await self.session.execute(
-                select(ApiToken, User)
-                .join(User, User.id == ApiToken.user_id)
-                .where(ApiToken.selector == selector)
+                select(ApiToken, User).join(User, User.id == ApiToken.user_id).where(ApiToken.selector == selector)
             )
         ).first()
         if row is None:
@@ -181,16 +193,12 @@ class SqlAlchemyScanTokenRepository:
         if dialect == "sqlite":
             await self.session.execute(text("BEGIN IMMEDIATE"))
             return
-        await self.session.execute(
-            select(User.id).where(User.id == user_id).with_for_update()
-        )
+        await self.session.execute(select(User.id).where(User.id == user_id).with_for_update())
 
     async def _selector_or_id_exists(self, record: ScanTokenRecord) -> bool:
         existing = (
             await self.session.execute(
-                select(ApiToken.id).where(
-                    (ApiToken.selector == record.selector) | (ApiToken.id == record.token_id)
-                )
+                select(ApiToken.id).where((ApiToken.selector == record.selector) | (ApiToken.id == record.token_id))
             )
         ).first()
         return existing is not None

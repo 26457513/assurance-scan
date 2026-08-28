@@ -47,15 +47,18 @@ entrypoints (API routes, scripts, CLI)
 - Atomic modules expose their supported surface through `__init__.py`.
 - Capability contracts live in `models.py`, behavior in `service.py`, and
   replaceable infrastructure implementations in optional `_adapters.py` files.
-- `github_result_ingest` coordinates GitHub result ingestion, while
-  `github_scan_execution` owns the existing GitHub Actions scanner loop. The
-  CI script is only responsible for command arguments and output files.
+- `result_ingest` is the source-neutral GitHub/local persistence workflow,
+  `local_scan_ingest` owns authenticated upload sequencing, and
+  `github_scan_execution` owns the GitHub Actions scanner loop. The CI script
+  is only responsible for command arguments and output files.
 
 The completed pre-feature extraction is:
 
 | Responsibility | Current module |
 |---|---|
-| GitHub result ingest orchestration | `app.modules.workflows.github_result_ingest` |
+| Source-neutral result ingest orchestration | `app.modules.workflows.result_ingest` |
+| Authenticated local upload orchestration | `app.modules.workflows.local_scan_ingest` |
+| Idempotency, quotas and redaction | `app.modules.atomic.ingestion.{idempotency_guard,usage_quota,data_redactor}` |
 | GitHub scanner execution | `app.modules.workflows.github_scan_execution` |
 | Finding parsers | `app.modules.atomic.scanning.finding_parser` |
 | JUnit/test-result parsing | `app.modules.atomic.scanning.test_result_parser` |

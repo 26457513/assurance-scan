@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 from app.modules.shared.contracts.local_scan import (
     TOKEN_ACTIVE_LIMIT,
+    TOKEN_CREATION_HOURLY_LIMIT,
     TOKEN_DEFAULT_EXPIRY_DAYS,
     TOKEN_MAX_EXPIRY_DAYS,
     TOKEN_PREFIX,
@@ -27,6 +28,7 @@ from .models import (
     ScanTokenActiveLimitError,
     ScanTokenAuthenticationResult,
     ScanTokenCreateStorageDecision,
+    ScanTokenCreationRateLimitError,
     ScanTokenDecision,
     ScanTokenLabelConflictError,
     ScanTokenPrincipal,
@@ -67,9 +69,7 @@ def normalize_expiry_days(expiry_days: int | None) -> int:
     if isinstance(expiry_days, bool) or not isinstance(expiry_days, int):
         raise ScanTokenValidationError("token expiry must be a whole number of days")
     if not 1 <= expiry_days <= TOKEN_MAX_EXPIRY_DAYS:
-        raise ScanTokenValidationError(
-            f"token expiry must be between 1 and {TOKEN_MAX_EXPIRY_DAYS} days"
-        )
+        raise ScanTokenValidationError(f"token expiry must be between 1 and {TOKEN_MAX_EXPIRY_DAYS} days")
     return expiry_days
 
 
@@ -134,6 +134,7 @@ async def create_scan_token(
             record,
             now=now,
             active_limit=TOKEN_ACTIVE_LIMIT,
+            creation_hourly_limit=TOKEN_CREATION_HOURLY_LIMIT,
         )
         if decision is ScanTokenCreateStorageDecision.CREATED:
             return IssuedScanToken(
@@ -142,6 +143,8 @@ async def create_scan_token(
             )
         if decision is ScanTokenCreateStorageDecision.ACTIVE_LIMIT_REACHED:
             raise ScanTokenActiveLimitError("active scan-token limit reached")
+        if decision is ScanTokenCreateStorageDecision.CREATION_RATE_LIMITED:
+            raise ScanTokenCreationRateLimitError("scan-token creation rate limit reached")
         if decision is ScanTokenCreateStorageDecision.LABEL_CONFLICT:
             raise ScanTokenLabelConflictError("an active token already uses this label")
         if decision is not ScanTokenCreateStorageDecision.SELECTOR_COLLISION:

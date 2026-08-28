@@ -1,20 +1,32 @@
-"""Focused tests for the behavior-preserving ingestion extraction."""
+"""Focused contracts and transaction tests for source-neutral ingestion."""
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, cast
 
-from app.modules.atomic.ingestion.bundle_validator import validate_bundle
+import pytest
+
 from app.modules.atomic.ingestion.finding_normalizer import normalize_findings
-from app.modules.atomic.ingestion.idempotency_guard import run_exists
 from app.modules.atomic.ingestion.result_persister import persist_result_bundle
-from app.modules.shared.contracts.ingest import BLOB_ARTIFACTS
-from app.modules.shared.contracts.ingest import ResultBundle, RunRecord
-from app.modules.workflows import github_result_ingest
+from app.modules.shared.contracts.ingest import (
+    BLOB_ARTIFACTS,
+    LocalIngestEnvelope,
+    ResolvedProject,
+    ResultBundle,
+    RunRecord,
+    ScannerResult,
+)
+from app.modules.workflows.result_ingest import (
+    build_local_result_bundle,
+    github_run_id,
+    ingest_result_bundle,
+)
 
 
-def test_ingestion_workflow_and_shared_blob_contract_are_public() -> None:
-    assert github_result_ingest.ci_run_id({"github_run_id": 42}) == "gh-42"
+def test_source_neutral_workflow_and_blob_contract_are_public() -> None:
+    assert github_run_id(42) == "gh-42"
     assert BLOB_ARTIFACTS == (
         ("sarif", "sarif", "assurance-scan/sarif"),
         ("sbom", "cyclonedx-json", "assurance-scan/sbom"),
@@ -22,147 +34,212 @@ def test_ingestion_workflow_and_shared_blob_contract_are_public() -> None:
     )
 
 
-def test_bundle_validator_preserves_legacy_permissive_inputs() -> None:
-    payload = {"github_run_id": 42}
-    metadata = {"repo": "owner/repo"}
-    blobs = {"sarif": b"{}"}
-
-    bundle = validate_bundle(payload, metadata, blobs)
-
-    assert bundle.payload is payload
-    assert bundle.metadata is metadata
-    assert bundle.blobs is blobs
-    assert validate_bundle(None, metadata).blobs == {}
+def test_local_bundle_contains_scanner_output_only() -> None:
+    document = {
+        "schema_version": 1,
+        "scanners": [{
+            "kind": "semgrep",
+            "status": "completed",
+            "duration_ms": 12,
+            "image": "semgrep/semgrep@sha256:" + "a" * 64,
+            "tool_version": "1.0",
+            "database_version": None,
+            "error_code": None,
+        }],
+        "findings": [],
+    }
+    bundle = build_local_result_bundle(document, {"sarif": b"{}"})
+    assert bundle.schema_version == 1
+    assert bundle.scanners[0].image_digest == "sha256:" + "a" * 64
+    assert not hasattr(bundle, "origin")
+    assert not hasattr(bundle, "metadata")
 
 
 def test_finding_normalizer_preserves_defaults_and_fields() -> None:
     rows = normalize_findings(
-        "gh-42",
-        [
-            {
-                "scanner": "semgrep",
-                "severity": "HIGH",
-                "message": None,
-                "compliance_tags": None,
-            },
-            {
-                "scanner": "gitleaks",
-                "rule_id": "secret",
-                "severity": "CRITICAL",
-                "file_path": "config.py",
-                "line_start": 2,
-                "line_end": 3,
-                "message": "credential",
-                "theme": "secrets",
-                "fix_strategy": "rotate",
-                "compliance_tags": ["SOC2"],
-            },
-        ],
-    )
-
-    assert rows == [
-        {
-            "run_id": "gh-42",
-            "scanner_kind": "semgrep",
-            "rule_id": None,
+        "local-42",
+        [cast(Any, {
+            "scanner": "semgrep",
             "severity": "HIGH",
-            "file_path": None,
-            "line_start": None,
-            "line_end": None,
-            "message": "",
-            "theme": None,
-            "fix_strategy": None,
-            "compliance_tags": [],
-        },
-        {
-            "run_id": "gh-42",
-            "scanner_kind": "gitleaks",
-            "rule_id": "secret",
-            "severity": "CRITICAL",
-            "file_path": "config.py",
-            "line_start": 2,
-            "line_end": 3,
-            "message": "credential",
-            "theme": "secrets",
-            "fix_strategy": "rotate",
-            "compliance_tags": ["SOC2"],
-        },
-    ]
+            "message": None,
+            "compliance_tags": None,
+        })],
+    )
+    assert rows == [{
+        "run_id": "local-42",
+        "scanner_kind": "semgrep",
+        "rule_id": None,
+        "severity": "HIGH",
+        "file_path": None,
+        "line_start": None,
+        "line_end": None,
+        "message": "",
+        "theme": None,
+        "fix_strategy": None,
+        "compliance_tags": [],
+    }]
 
 
-async def test_idempotency_guard_uses_repository_lookup() -> None:
-    class Lookup:
-        def __init__(self, value: object | None) -> None:
-            self.value = value
-            self.requested: list[str] = []
+class RecordingPersistence:
+    def __init__(self, *, fail_at: str | None = None) -> None:
+        self.fail_at = fail_at
+        self.events: list[tuple[Any, ...]] = []
+        self.artifacts: list[bytes] = []
+        self.findings: list[dict[str, Any]] = []
 
-        async def get(self, run_id: str) -> object | None:
-            self.requested.append(run_id)
-            return self.value
+    async def get(self, run_id: str) -> object | None:
+        self.events.append(("get", run_id))
+        return None
 
-    missing = Lookup(None)
-    existing = Lookup(object())
+    async def add_run(self, record: RunRecord) -> None:
+        self.events.append(("run", record.run_id, record.origin))
 
-    assert await run_exists(missing, "gh-1") is False
-    assert missing.requested == ["gh-1"]
-    assert await run_exists(existing, "gh-2") is True
-    assert existing.requested == ["gh-2"]
+    async def add_scan_job(self, record: RunRecord) -> None:
+        self.events.append(("job", record.run_id))
+
+    async def create_scanner_run(self, run_id: str, result: ScannerResult) -> int:
+        self.events.append(("scanner", run_id, result.kind, result.status))
+        return len(self.events)
+
+    async def mark_scanner_completed(self, scanner_run_id: int) -> None:
+        self.events.append(("completed", scanner_run_id))
+
+    async def mark_scanner_failed(self, scanner_run_id: int, error: str) -> None:
+        self.events.append(("failed", scanner_run_id, error))
+
+    async def mark_scanner_skipped(self, scanner_run_id: int, reason: str | None) -> None:
+        self.events.append(("skipped", scanner_run_id, reason))
+
+    async def store_artifact(
+        self, scanner_run_id: int, artifact_kind: str, content: bytes
+    ) -> None:
+        self.events.append(("artifact", scanner_run_id, artifact_kind))
+        self.artifacts.append(content)
+
+    async def insert_findings(self, findings: Sequence[dict[str, Any]]) -> None:
+        self.events.append(("findings", len(findings)))
+        self.findings.extend(findings)
+        if self.fail_at == "findings":
+            raise RuntimeError("injected persistence failure")
+
+    async def before_commit(self, run_id: str) -> None:
+        self.events.append(("before_commit", run_id))
+        if self.fail_at == "before_commit":
+            raise RuntimeError("injected finalization failure")
+
+    async def commit(self) -> None:
+        self.events.append(("commit",))
+
+    async def rollback(self) -> None:
+        self.events.append(("rollback",))
 
 
-async def test_result_persister_uses_only_its_explicit_port() -> None:
-    class Persistence:
-        def __init__(self) -> None:
-            self.events: list[tuple] = []
-
-        async def add_run(self, record: RunRecord) -> None:
-            self.events.append(("run", record.run_id))
-
-        async def add_scan_job(self, record: RunRecord) -> None:
-            self.events.append(("job", record.run_id))
-
-        async def create_scanner_run(self, run_id: str, scanner_kind: str) -> int:
-            self.events.append(("scanner", run_id, scanner_kind))
-            return len(self.events)
-
-        async def mark_scanner_completed(self, scanner_run_id: int) -> None:
-            self.events.append(("completed", scanner_run_id))
-
-        async def mark_scanner_failed(self, scanner_run_id: int, error: str) -> None:
-            self.events.append(("failed", scanner_run_id, error))
-
-        async def store_artifact(
-            self, scanner_run_id: int, artifact_kind: str, content: bytes
-        ) -> None:
-            self.events.append(("artifact", scanner_run_id, artifact_kind, content))
-
-        async def insert_findings(self, findings: Sequence[dict[str, Any]]) -> None:
-            self.events.append(("findings", len(findings)))
-
-        async def commit(self) -> None:
-            self.events.append(("commit",))
-
-    persistence = Persistence()
-    record = RunRecord(
-        run_id="gh-42",
+def _record() -> RunRecord:
+    return RunRecord(
+        run_id="local-42",
         project_id=42,
-        origin="github-actions",
+        origin="local",
         options_json="{}",
         status="completed",
         started_at=None,
         completed_at=None,
-        commit_sha=None,
+        commit_sha="a" * 40,
         git_branch="main",
         error_message=None,
         findings_json="{}",
     )
+
+
+async def test_result_persister_stages_claim_then_commits_once() -> None:
+    persistence = RecordingPersistence()
     bundle = ResultBundle(
-        payload={"scanner_status": {"semgrep": "ok"}},
-        metadata={},
-        blobs={"sarif": b"{}"},
+        schema_version=1,
+        scanners=(ScannerResult("semgrep", "completed"),),
+        artifacts={"sarif": b"{}"},
     )
+    await persist_result_bundle(persistence, _record(), bundle, [{"run_id": "local-42"}])
+    assert persistence.events[-2:] == [("before_commit", "local-42"), ("commit",)]
+    assert ("rollback",) not in persistence.events
 
-    await persist_result_bundle(persistence, record, bundle, [{"run_id": "gh-42"}])
 
-    assert persistence.events[0:2] == [("run", "gh-42"), ("job", "gh-42")]
-    assert ("findings", 1) in persistence.events
-    assert persistence.events[-1] == ("commit",)
+@pytest.mark.parametrize("fail_at", ["findings", "before_commit"])
+async def test_result_persister_rolls_back_every_partial_graph(fail_at: str) -> None:
+    persistence = RecordingPersistence(fail_at=fail_at)
+    bundle = ResultBundle(
+        schema_version=1,
+        scanners=(ScannerResult("semgrep", "completed"),),
+        findings=({"scanner": "semgrep", "message": "bad"},),
+    )
+    with pytest.raises(RuntimeError, match="injected"):
+        await persist_result_bundle(
+            persistence,
+            _record(),
+            bundle,
+            [{"run_id": "local-42"}],
+        )
+    assert persistence.events[-1] == ("rollback",)
+    assert ("commit",) not in persistence.events
+
+
+async def test_ingest_redacts_findings_artifacts_and_client_provenance() -> None:
+    persistence = RecordingPersistence()
+    canary = "AS_CANARY_SECRET_DO_NOT_PERSIST_123"
+    bundle = ResultBundle(
+        schema_version=1,
+        scanners=(ScannerResult("semgrep", "completed"),),
+        findings=({
+            "scanner": "semgrep",
+            "message": f"{canary} at /Users/alice/work/repo/app.py",
+        },),
+        artifacts={
+            "sarif": json.dumps({"message": canary, "path": "/home/alice/repo"}).encode(),
+            "findings": json.dumps({"source": "local", "secret": canary}).encode(),
+        },
+    )
+    envelope = LocalIngestEnvelope(
+        run_id="local-42",
+        project=ResolvedProject(42, "owner/repo", 99),
+        submitted_by_user_id=7,
+        submitting_token_id="token-id",
+        payload_hash="b" * 64,
+        commit_sha="a" * 40,
+        git_object_format="sha1",
+        branch="main",
+        working_tree_dirty=True,
+        source_content_hash="c" * 64,
+        source_manifest_version="assurance-snapshot-v1",
+        client_provenance_version=1,
+        client_provenance={"diagnostic": f"{canary} /Users/alice/work"},
+        started_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(timezone.utc),
+    )
+    assert await ingest_result_bundle(persistence, envelope, bundle) == "ingested"
+    persisted = b"\n".join(persistence.artifacts).decode()
+    assert canary not in persisted
+    assert "/Users/alice" not in persisted
+    assert canary not in persistence.findings[0]["message"]
+    assert "/Users/alice" not in persistence.findings[0]["message"]
+
+
+async def test_local_ingest_rejects_bundle_without_scanner_results() -> None:
+    persistence = RecordingPersistence()
+    envelope = LocalIngestEnvelope(
+        run_id="local-42",
+        project=ResolvedProject(42, "owner/repo"),
+        submitted_by_user_id=7,
+        submitting_token_id="token-id",
+        payload_hash="b" * 64,
+        commit_sha="a" * 40,
+        git_object_format="sha1",
+        branch=None,
+        working_tree_dirty=False,
+        source_content_hash="c" * 64,
+        source_manifest_version="assurance-snapshot-v1",
+        client_provenance_version=1,
+        client_provenance={},
+        started_at=None,
+        completed_at=None,
+    )
+    with pytest.raises(ValueError, match="no scanner results"):
+        await ingest_result_bundle(persistence, envelope, ResultBundle(schema_version=1))
+    assert persistence.events == []

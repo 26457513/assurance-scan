@@ -11,6 +11,8 @@ APP_ROOT = MODULES_ROOT.parent
 REMOVED_IMPORT_ROOTS = (
     "app.auth",
     "app.ci_ingest",
+    "app.modules.atomic.ingestion.bundle_validator",
+    "app.modules.workflows.github_result_ingest",
     "app.worker.parsers",
     "app.worker.runner",
     "app.worker.sarif",
@@ -132,6 +134,8 @@ def test_removed_legacy_import_roots_are_absent_from_application_sources() -> No
     )
     assert [str(path.relative_to(APP_ROOT)) for path in removed_files if path.exists()] == []
     assert not (APP_ROOT / "worker" / "parsers").exists()
+    assert not any((MODULES_ROOT / "workflows" / "github_result_ingest").glob("*.py"))
+    assert not any((MODULES_ROOT / "atomic" / "ingestion" / "bundle_validator").glob("*.py"))
 
 
 def test_module_dependency_graph_has_no_cycles() -> None:

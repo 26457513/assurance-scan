@@ -3,11 +3,19 @@
 Single-user, localhost-only. All defaults assume the canonical
 `docker run -v "$PWD:$PWD" -v "$HOME/.assurance-scan:/data"` invocation.
 """
+
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from app.modules.shared.contracts.local_scan import (
+    UPLOAD_LIMITS,
+    USAGE_LIMITS,
+    UploadLimits,
+    UsageLimits,
+)
 
 
 def _env(name: str, default: str) -> str:
@@ -19,6 +27,13 @@ def _env_int(name: str, default: int) -> int:
     if raw is None or raw == "":
         return default
     return int(raw)
+
+
+def _env_lower_limit(name: str, maximum: int) -> int:
+    value = _env_int(name, maximum)
+    if value <= 0 or value > maximum:
+        raise ValueError(f"{name} must be between 1 and {maximum}")
+    return value
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -98,9 +113,11 @@ class Settings:
     github_poll_token: str
     github_org: str
 
-    # Version-one local upload remains closed until the WS2 ingest adapter is
-    # deployed and explicitly enabled by the operator.
+    # Version-one local upload remains closed until explicitly enabled by an
+    # operator with account-bound Google/session identity configured.
     local_ingest_enabled: bool
+    local_ingest_upload_limits: UploadLimits
+    local_ingest_usage_limits: UsageLimits
 
 
 def load_settings() -> Settings:
@@ -117,6 +134,41 @@ def load_settings() -> Settings:
         github_poll_token=_env("GITHUB_POLL_TOKEN", ""),
         github_org=_env("GITHUB_ORG", ""),
         local_ingest_enabled=_env_bool("LOCAL_INGEST_ENABLED"),
+        local_ingest_upload_limits=UploadLimits(
+            wire_bytes=_env_lower_limit("LOCAL_INGEST_WIRE_BYTES", UPLOAD_LIMITS.wire_bytes),
+            parsed_bytes=_env_lower_limit("LOCAL_INGEST_PARSED_BYTES", UPLOAD_LIMITS.parsed_bytes),
+            metadata_bytes=_env_lower_limit("LOCAL_INGEST_METADATA_BYTES", UPLOAD_LIMITS.metadata_bytes),
+            findings_bytes=_env_lower_limit("LOCAL_INGEST_FINDINGS_BYTES", UPLOAD_LIMITS.findings_bytes),
+            sarif_bytes=_env_lower_limit("LOCAL_INGEST_SARIF_BYTES", UPLOAD_LIMITS.sarif_bytes),
+            sbom_bytes=_env_lower_limit("LOCAL_INGEST_SBOM_BYTES", UPLOAD_LIMITS.sbom_bytes),
+            findings_count=_env_lower_limit("LOCAL_INGEST_FINDINGS_COUNT", UPLOAD_LIMITS.findings_count),
+            scanner_results=_env_lower_limit("LOCAL_INGEST_SCANNER_RESULTS", UPLOAD_LIMITS.scanner_results),
+            json_depth=_env_lower_limit("LOCAL_INGEST_JSON_DEPTH", UPLOAD_LIMITS.json_depth),
+            path_chars=_env_lower_limit("LOCAL_INGEST_PATH_CHARS", UPLOAD_LIMITS.path_chars),
+            message_chars=_env_lower_limit("LOCAL_INGEST_MESSAGE_CHARS", UPLOAD_LIMITS.message_chars),
+        ),
+        local_ingest_usage_limits=UsageLimits(
+            uploads_per_token_hour=_env_lower_limit(
+                "LOCAL_INGEST_UPLOADS_PER_TOKEN_HOUR", USAGE_LIMITS.uploads_per_token_hour
+            ),
+            uploads_per_user_day=_env_lower_limit(
+                "LOCAL_INGEST_UPLOADS_PER_USER_DAY", USAGE_LIMITS.uploads_per_user_day
+            ),
+            inflight_per_token=_env_lower_limit("LOCAL_INGEST_INFLIGHT_PER_TOKEN", USAGE_LIMITS.inflight_per_token),
+            inflight_per_user=_env_lower_limit("LOCAL_INGEST_INFLIGHT_PER_USER", USAGE_LIMITS.inflight_per_user),
+            inflight_per_instance=_env_lower_limit(
+                "LOCAL_INGEST_INFLIGHT_PER_INSTANCE", USAGE_LIMITS.inflight_per_instance
+            ),
+            retained_bytes_per_user=_env_lower_limit(
+                "LOCAL_INGEST_RETAINED_BYTES_PER_USER", USAGE_LIMITS.retained_bytes_per_user
+            ),
+            retained_bytes_per_instance=_env_lower_limit(
+                "LOCAL_INGEST_RETAINED_BYTES_PER_INSTANCE", USAGE_LIMITS.retained_bytes_per_instance
+            ),
+            accepted_bytes_per_user_day=_env_lower_limit(
+                "LOCAL_INGEST_ACCEPTED_BYTES_PER_USER_DAY", USAGE_LIMITS.accepted_bytes_per_user_day
+            ),
+        ),
         db_url=f"sqlite+aiosqlite:///{db_path.as_posix()}",
         db_url_sync=f"sqlite:///{db_path.as_posix()}",
         project_root=project_root,

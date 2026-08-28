@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.db.models import Project, Run, ScanJob
+from app.infrastructure.db.models import Run, ScanJob, ScannerRun
 from app.infrastructure.db.repositories.findings import FindingRepository
 from app.infrastructure.db.repositories.runs import RunRepository
 from app.infrastructure.db.repositories.scanner_artifacts import ScannerArtifactRepository
 from app.infrastructure.db.repositories.scanner_runs import ScannerRunRepository
 from app.modules.shared.contracts.findings import NormalizedFinding
-from app.modules.shared.contracts.ingest import ResolvedGitHubProject, RunRecord
-from app.modules.atomic.provenance.repository_identity import normalize_github_repository_key
+from app.modules.shared.contracts.ingest import RunRecord, ScannerResult
 
 
 class SqlAlchemyIngestPersistence:
@@ -29,20 +29,6 @@ class SqlAlchemyIngestPersistence:
 
     async def get(self, run_id: str) -> object | None:
         return await self._runs.get(run_id)
-
-    async def resolve_github_project(self, repository: str) -> ResolvedGitHubProject | None:
-        key = normalize_github_repository_key(repository)
-        project = (
-            await self._session.execute(
-                select(Project).where(
-                    Project.github_repo_key == key,
-                    Project.hidden.is_(False),
-                )
-            )
-        ).scalars().first()
-        if project is None or project.github_repo is None:
-            return None
-        return ResolvedGitHubProject(project_id=project.id, repository=project.github_repo)
 
     async def add_run(self, record: RunRecord) -> None:
         self._session.add(Run(
@@ -86,8 +72,19 @@ class SqlAlchemyIngestPersistence:
             error_message=record.error_message,
         ))
 
-    async def create_scanner_run(self, run_id: str, scanner_kind: str) -> int:
-        scanner_run = await self._scanner_runs.create(run_id, scanner_kind)
+    async def create_scanner_run(self, run_id: str, result: ScannerResult) -> int:
+        scanner_run = await self._scanner_runs.create(
+            run_id,
+            result.kind,
+            image_reference=result.image_reference,
+            image_digest=result.image_digest,
+            tool_version=result.tool_version,
+            database_version_json=(
+                None
+                if result.database_version is None
+                else '{"version": ' + json.dumps(result.database_version) + "}"
+            ),
+        )
         return scanner_run.id
 
     async def mark_scanner_completed(self, scanner_run_id: int) -> None:
@@ -95,6 +92,17 @@ class SqlAlchemyIngestPersistence:
 
     async def mark_scanner_failed(self, scanner_run_id: int, error: str) -> None:
         await self._scanner_runs.mark_failed(scanner_run_id, error)
+
+    async def mark_scanner_skipped(
+        self,
+        scanner_run_id: int,
+        reason: str | None,
+    ) -> None:
+        await self._session.execute(
+            update(ScannerRun)
+            .where(ScannerRun.id == scanner_run_id)
+            .values(status="skipped", error_message=reason)
+        )
 
     async def store_artifact(
         self,
@@ -116,6 +124,12 @@ class SqlAlchemyIngestPersistence:
 
     async def commit(self) -> None:
         await self._session.commit()
+
+    async def before_commit(self, run_id: str) -> None:
+        """Default hook for ingests without an external idempotency claim."""
+
+    async def rollback(self) -> None:
+        await self._session.rollback()
 
 
 __all__ = ["SqlAlchemyIngestPersistence"]

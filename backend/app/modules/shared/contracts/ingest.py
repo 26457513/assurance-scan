@@ -1,21 +1,24 @@
-"""Source-neutral contracts for result-bundle ingestion."""
+"""Stable, source-neutral contracts for result ingestion."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal, Mapping
+from typing import Any, Literal, Mapping, Sequence
+
+from .findings import FindingPayload
 
 
 IngestStatus = Literal["ingested", "exists"]
+ScannerStatus = Literal["completed", "failed", "skipped"]
 
 
 @dataclass(frozen=True)
 class ArtifactSpec:
-    """Mapping from an uploaded blob name to its persisted artifact kind."""
+    """Mapping from a protocol part to its persisted artifact kind."""
 
-    suffix: str
+    part_name: str
     artifact_kind: str
-    description: str
+    scanner_kind: str
 
 
 ARTIFACT_SPECS: tuple[ArtifactSpec, ...] = (
@@ -25,25 +28,86 @@ ARTIFACT_SPECS: tuple[ArtifactSpec, ...] = (
 )
 
 BLOB_ARTIFACTS: tuple[tuple[str, str, str], ...] = tuple(
-    (spec.suffix, spec.artifact_kind, spec.description) for spec in ARTIFACT_SPECS
+    (spec.part_name, spec.artifact_kind, spec.scanner_kind) for spec in ARTIFACT_SPECS
 )
 
 
 @dataclass(frozen=True)
-class ResolvedGitHubProject:
-    """Visible registry identity resolved from a canonical GitHub repository."""
+class ResolvedProject:
+    """Canonical registered project selected before result persistence."""
 
     project_id: int
     repository: str
+    github_repository_id: int | None = None
+
+
+@dataclass(frozen=True)
+class ScannerResult:
+    """Source-neutral outcome and reproducibility data for one scanner."""
+
+    kind: str
+    status: ScannerStatus
+    duration_ms: int | None = None
+    image_reference: str | None = None
+    image_digest: str | None = None
+    tool_version: str | None = None
+    database_version: str | None = None
+    error_code: str | None = None
 
 
 @dataclass(frozen=True)
 class ResultBundle:
-    """Boundary inputs used by ingestion workflows."""
+    """Scanner output only; origin and source provenance are deliberately absent."""
 
-    payload: dict[str, Any] | None
-    metadata: Mapping[str, Any]
-    blobs: Mapping[str, bytes]
+    schema_version: int
+    scanners: Sequence[ScannerResult] = ()
+    findings: Sequence[FindingPayload] = ()
+    artifacts: Mapping[str, bytes] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class GitHubIngestEnvelope:
+    """Authoritative provenance obtained from the GitHub API."""
+
+    project: ResolvedProject
+    github_run_id: int
+    checkout_sha: str
+    head_sha: str
+    git_object_format: Literal["sha1", "sha256"]
+    branch: str | None
+    conclusion: str | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    run_number: int | None = None
+    run_attempt: int | None = None
+    run_url: str | None = None
+    event: str | None = None
+    actor: str | None = None
+    display_title: str | None = None
+
+
+@dataclass(frozen=True)
+class LocalIngestEnvelope:
+    """Server-locked local provenance and authenticated submitting principal."""
+
+    run_id: str
+    project: ResolvedProject
+    submitted_by_user_id: int
+    submitting_token_id: str
+    payload_hash: str
+    commit_sha: str
+    git_object_format: Literal["sha1", "sha256"]
+    branch: str | None
+    working_tree_dirty: bool
+    source_content_hash: str
+    source_manifest_version: str
+    client_provenance_version: int
+    client_provenance: Mapping[str, Any]
+    started_at: datetime | None
+    completed_at: datetime | None
+
+
+IngestEnvelope = GitHubIngestEnvelope | LocalIngestEnvelope
 
 
 @dataclass(frozen=True)
@@ -78,3 +142,19 @@ class RunRecord:
     github_event: str | None = None
     github_actor: str | None = None
     github_head_sha: str | None = None
+
+
+__all__ = [
+    "ARTIFACT_SPECS",
+    "BLOB_ARTIFACTS",
+    "ArtifactSpec",
+    "GitHubIngestEnvelope",
+    "IngestEnvelope",
+    "IngestStatus",
+    "LocalIngestEnvelope",
+    "ResolvedProject",
+    "ResultBundle",
+    "RunRecord",
+    "ScannerResult",
+    "ScannerStatus",
+]

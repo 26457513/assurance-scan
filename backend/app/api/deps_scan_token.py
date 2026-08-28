@@ -15,6 +15,12 @@ from app.modules.atomic.access.scan_token import (
     ScanTokenPrincipal,
     authenticate_scan_token,
 )
+from app.modules.atomic.access.auth_failure_limiter import AuthenticationFailureLimiter
+
+
+def _selector_bucket(plaintext: str) -> str:
+    prefix, separator, _secret = plaintext.partition(".")
+    return prefix if separator and prefix.startswith("asu_v1_") else "malformed"
 
 
 async def require_scan_token_principal(
@@ -35,6 +41,21 @@ async def require_scan_token_principal(
     if result.decision is ScanTokenDecision.INSUFFICIENT_SCOPE:
         raise HTTPException(status_code=403, detail="insufficient token scope")
     if not result.authenticated or result.principal is None:
+        limiter = getattr(request.app.state, "scan_token_failure_limiter", None)
+        if limiter is None:
+            limiter = AuthenticationFailureLimiter()
+            request.app.state.scan_token_failure_limiter = limiter
+        origin = request.client.host if request.client is not None else "unknown"
+        rate = await limiter.record_failure(
+            origin=origin,
+            selector=_selector_bucket(plaintext),
+        )
+        if not rate.allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="authentication rate limited",
+                headers={"Retry-After": str(rate.retry_after_seconds or 1)},
+            )
         raise HTTPException(
             status_code=401,
             detail="invalid bearer credential",

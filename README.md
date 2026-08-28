@@ -102,8 +102,17 @@ GOOGLE_DOMAIN=yourdomain.com
 SESSION_SECRET=<random 32+ chars>
 PUBLIC_BASE_URL=https://scan.yourdomain.com
 TOKEN_ENCRYPTION_KEY=<random 32+ chars>   # encrypts user + org tokens
+LOCAL_INGEST_ENABLED=true                # account-bound local upload API
 # APP_AUTH_USER / APP_AUTH_PASSWORD      # optional Basic Auth fallback
 ```
+
+Local ingest requires the complete Google/session configuration above; it
+stays unavailable in auth-off and Basic-only deployments. Users create a
+one-time `asu_v1_...` upload token in **Settings → Scan tokens**. The v1 API
+exposes authenticated capabilities, identity validation, multipart upload and
+request-status endpoints under `/api/v1/ingest`. Upload, concurrency, storage
+and payload ceilings can be lowered with the `LOCAL_INGEST_*` variables shown
+in `.env.example`; compiled ceilings cannot be raised by configuration.
 
 ### Google login setup
 

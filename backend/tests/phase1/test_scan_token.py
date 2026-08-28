@@ -12,6 +12,7 @@ from app.modules.atomic.access.scan_token import (
     ScanTokenActiveLimitError,
     ScanTokenAuthenticationRecord,
     ScanTokenCreateStorageDecision,
+    ScanTokenCreationRateLimitError,
     ScanTokenDecision,
     ScanTokenLabelConflictError,
     ScanTokenRecord,
@@ -27,6 +28,7 @@ from app.modules.atomic.access.scan_token import (
 from app.modules.atomic.access.scan_token import service as token_service
 from app.modules.shared.contracts.local_scan import (
     TOKEN_ACTIVE_LIMIT,
+    TOKEN_CREATION_HOURLY_LIMIT,
     TOKEN_ALLOWED_EXPIRY_DAYS,
     TOKEN_DEFAULT_EXPIRY_DAYS,
     TOKEN_MAX_EXPIRY_DAYS,
@@ -63,7 +65,7 @@ class FakeRepository:
         self.outcomes = outcomes or [ScanTokenCreateStorageDecision.CREATED]
         self.created: list[ScanTokenRecord] = []
         self.authentication_records: dict[str, ScanTokenAuthenticationRecord] = {}
-        self.create_arguments: list[tuple[datetime, int]] = []
+        self.create_arguments: list[tuple[datetime, int, int]] = []
 
     async def create_token(
         self,
@@ -71,9 +73,10 @@ class FakeRepository:
         *,
         now: datetime,
         active_limit: int,
+        creation_hourly_limit: int,
     ) -> ScanTokenCreateStorageDecision:
         self.created.append(record)
-        self.create_arguments.append((now, active_limit))
+        self.create_arguments.append((now, active_limit, creation_hourly_limit))
         outcome = self.outcomes.pop(0)
         if outcome is ScanTokenCreateStorageDecision.CREATED:
             self.authentication_records[record.selector] = ScanTokenAuthenticationRecord(
@@ -120,7 +123,7 @@ async def test_issue_token_uses_canonical_format_digest_and_safe_repr() -> None:
     assert issued.record.expires_at == NOW + timedelta(days=TOKEN_DEFAULT_EXPIRY_DAYS)
     assert issued.record.scope == TOKEN_SCOPE
     assert issued.record.token_version == 1
-    assert repository.create_arguments == [(NOW, TOKEN_ACTIVE_LIMIT)]
+    assert repository.create_arguments == [(NOW, TOKEN_ACTIVE_LIMIT, TOKEN_CREATION_HOURLY_LIMIT)]
     assert issued.plaintext_token not in repr(issued)
     assert parsed.secret.hex() not in repr(parsed)
 
@@ -178,6 +181,10 @@ def test_parse_rejects_malformed_or_noncanonical_tokens(token: str) -> None:
             ScanTokenCreateStorageDecision.LABEL_CONFLICT,
             ScanTokenLabelConflictError,
         ),
+        (
+            ScanTokenCreateStorageDecision.CREATION_RATE_LIMITED,
+            ScanTokenCreationRateLimitError,
+        ),
     ],
 )
 async def test_issue_maps_transactional_storage_decisions_to_domain_errors(
@@ -214,9 +221,7 @@ async def test_issue_retries_selector_collisions_with_fresh_random_material() ->
 
 
 async def test_issue_stops_after_bounded_selector_collisions() -> None:
-    repository = FakeRepository(
-        [ScanTokenCreateStorageDecision.SELECTOR_COLLISION] * 4
-    )
+    repository = FakeRepository([ScanTokenCreateStorageDecision.SELECTOR_COLLISION] * 4)
     with pytest.raises(ScanTokenSelectorCollisionError):
         await create_scan_token(
             CreateScanTokenCommand(user_id=7, label="Laptop"),

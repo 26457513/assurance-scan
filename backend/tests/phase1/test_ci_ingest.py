@@ -9,11 +9,17 @@ from sqlalchemy import select as sa_select
 
 from app.infrastructure.db.models import Finding, Project, Run, ScanJob, ScannerArtifact, ScannerRun
 from app.modules.atomic.ingestion.result_persister._adapters import SqlAlchemyIngestPersistence
-from app.modules.workflows.github_result_ingest import ci_run_id, ingest_ci_run
+from app.modules.workflows.result_ingest import (
+    ResolvedProject,
+    build_github_inputs,
+    github_run_id,
+    ingest_result_bundle,
+)
 
 
 META = {
     "github_run_id": 32127508239,
+    "github_repository_id": 987654,
     "repo": "26457513/doc2context",
     "conclusion": "success",
     "head_branch": "trial/pr-comment",
@@ -31,6 +37,7 @@ def _register_project(session) -> None:
         local_path=None,
         github_repo="26457513/doc2context",
         github_repo_key="26457513/doc2context",
+        github_repository_id=987654,
     ))
 
 
@@ -70,9 +77,17 @@ async def test_ingest_creates_run_findings_scanner_runs_and_blobs(session) -> No
         "sbom": b"{}",
         "findings": json.dumps(_payload()).encode(),
     }
-    status = await ingest_ci_run(SqlAlchemyIngestPersistence(session), _payload(), META, blobs)
+    envelope, bundle = build_github_inputs(
+        ResolvedProject(123, "26457513/doc2context", 987654),
+        META,
+        _payload(),
+        blobs,
+    )
+    status = await ingest_result_bundle(
+        SqlAlchemyIngestPersistence(session), envelope, bundle
+    )
     assert status == "ingested"
-    assert ci_run_id(_payload()) == "gh-32127508239"
+    assert github_run_id(32127508239) == "gh-32127508239"
 
     run = (await session.execute(sa_select(Run))).scalars().one()
     assert run.run_id == "gh-32127508239"
@@ -83,7 +98,7 @@ async def test_ingest_creates_run_findings_scanner_runs_and_blobs(session) -> No
     assert run.status == "completed"
     assert run.git_branch == "trial/pr-comment"
     assert run.commit_sha == META["head_sha"]
-    assert json.loads(run.options_json)["run_url"] == META["run_url"]
+    assert run.github_run_url == META["run_url"]
 
     job = (await session.execute(sa_select(ScanJob))).scalars().one()
     assert job.state == "completed"
@@ -103,9 +118,15 @@ async def test_ingest_creates_run_findings_scanner_runs_and_blobs(session) -> No
 
 async def test_ingest_is_idempotent(session) -> None:
     _register_project(session)
-    await ingest_ci_run(SqlAlchemyIngestPersistence(session), _payload(), META, {"sarif": b"{}"})
-    status = await ingest_ci_run(
-        SqlAlchemyIngestPersistence(session), _payload(), META, {"sarif": b"{}"}
+    envelope, bundle = build_github_inputs(
+        ResolvedProject(123, "26457513/doc2context", 987654),
+        META,
+        _payload(),
+        {"results.sarif": b"{}"},
+    )
+    await ingest_result_bundle(SqlAlchemyIngestPersistence(session), envelope, bundle)
+    status = await ingest_result_bundle(
+        SqlAlchemyIngestPersistence(session), envelope, bundle
     )
     assert status == "exists"
     runs = (await session.execute(sa_select(Run))).scalars().all()
@@ -117,12 +138,33 @@ async def test_ingest_is_idempotent(session) -> None:
 async def test_ingest_failed_run_without_payload(session) -> None:
     _register_project(session)
     failed_meta = {**META, "conclusion": "failure"}
-    status = await ingest_ci_run(SqlAlchemyIngestPersistence(session), None, failed_meta)
+    envelope, bundle = build_github_inputs(
+        ResolvedProject(123, "26457513/doc2context", 987654),
+        failed_meta,
+        None,
+    )
+    status = await ingest_result_bundle(
+        SqlAlchemyIngestPersistence(session), envelope, bundle
+    )
     assert status == "ingested"
     run = (await session.execute(sa_select(Run))).scalars().one()
     assert run.status == "failed"
-    assert run.error_message == "GitHub workflow run failed"
+    assert run.error_message == "GitHub workflow produced no scan results"
     assert (await session.execute(sa_select(Finding))).scalars().first() is None
+
+
+async def test_valid_results_complete_even_when_github_workflow_failed(session) -> None:
+    _register_project(session)
+    failed_meta = {**META, "conclusion": "failure"}
+    envelope, bundle = build_github_inputs(
+        ResolvedProject(123, "26457513/doc2context", 987654),
+        failed_meta,
+        _payload(),
+    )
+    await ingest_result_bundle(SqlAlchemyIngestPersistence(session), envelope, bundle)
+    run = (await session.execute(sa_select(Run))).scalars().one()
+    assert run.status == "completed"
+    assert run.error_message is None
 
 
 def test_source_window_slices_context() -> None:

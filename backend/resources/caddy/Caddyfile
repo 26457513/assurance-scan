@@ -1,0 +1,8 @@
+{$DOMAIN:scan.example.com} {
+	# Match the application's absolute v1 wire ceiling. Deployments may set
+	# lower application limits; the proxy remains the non-bypassable hard cap.
+	request_body {
+		max_size 32MB
+	}
+	reverse_proxy server:8000
+}

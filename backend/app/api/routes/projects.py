@@ -192,6 +192,12 @@ async def delete_project(
     if project is None or project.hidden:
         raise HTTPException(status_code=404, detail="project not found")
 
+    from app.infrastructure.db.retention import prepare_runs_for_deletion
+
+    run_ids = tuple(
+        (await session.execute(select(Run.run_id).where(Run.project_id == project_id))).scalars()
+    )
+    await prepare_runs_for_deletion(session, run_ids)
     await session.execute(delete(Run).where(Run.project_id == project_id))
     for model in (
         CatalogueSnapshot,

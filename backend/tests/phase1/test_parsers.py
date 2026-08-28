@@ -57,6 +57,8 @@ def test_gitleaks_parser_extracts_leak() -> None:
     assert f.rule_id == "aws-access-key"
     assert f.severity == "HIGH"
     assert f.theme == "secrets"
+    assert "AKIAIOSFODNN7EXAMPLE" not in f.message
+    assert "AKIAIOSF" not in f.message
 
 
 def test_trivy_fs_parser_extracts_vulnerabilities() -> None:

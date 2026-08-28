@@ -16,7 +16,7 @@ from app.infrastructure.db.models import ApiToken, Base, IngestRequest, Project,
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_HEAD = "0020_snapshot_source_branch"
-NEW_HEAD = "0021_project_identity_provenance"
+NEW_HEAD = "0022_local_ingest_claims"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -165,6 +165,8 @@ def test_model_metadata_matches_token_and_identity_contract() -> None:
     assert getattr(ApiToken.__table__.c.secret_digest.type, "length") == 32
     assert User.__table__.c.disabled_at.nullable
     assert not IngestRequest.__table__.c.project_id.nullable
+    assert not IngestRequest.__table__.c.submitting_token_id.nullable
+    assert not IngestRequest.__table__.c.accepted_bytes.nullable
     assert "project_path" not in Run.__table__.c
     assert {
         "projects",

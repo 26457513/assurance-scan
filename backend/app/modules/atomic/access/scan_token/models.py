@@ -23,6 +23,7 @@ class ScanTokenCreateStorageDecision(StrEnum):
 
     CREATED = "created"
     ACTIVE_LIMIT_REACHED = "active_limit_reached"
+    CREATION_RATE_LIMITED = "creation_rate_limited"
     LABEL_CONFLICT = "label_conflict"
     SELECTOR_COLLISION = "selector_collision"
 
@@ -114,6 +115,10 @@ class ScanTokenActiveLimitError(ScanTokenError):
     """The user already owns the maximum number of active tokens."""
 
 
+class ScanTokenCreationRateLimitError(ScanTokenError):
+    """The user created too many tokens in the current hour."""
+
+
 class ScanTokenLabelConflictError(ScanTokenError):
     """The normalized label conflicts with another active token."""
 
@@ -130,6 +135,7 @@ __all__ = [
     "ScanTokenAuthenticationRecord",
     "ScanTokenAuthenticationResult",
     "ScanTokenCreateStorageDecision",
+    "ScanTokenCreationRateLimitError",
     "ScanTokenDecision",
     "ScanTokenError",
     "ScanTokenLabelConflictError",

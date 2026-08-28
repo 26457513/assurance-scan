@@ -1,7 +1,8 @@
 """Parse Gitleaks JSON output into normalized findings.
 
 Gitleaks emits a flat array of leak records. Each has RuleID, File,
-StartLine, Description, Secret (redacted by default), and Rule.
+StartLine, Description, Secret, and Rule. Secret material is never copied into
+the normalized finding, even when Gitleaks was invoked without redaction.
 """
 from __future__ import annotations
 
@@ -57,10 +58,6 @@ class GitleaksJsonParser(FindingParser):
             or item.get("Description")
             or f"leak detected by rule {rule_id}"
         )
-        secret = item.get("Secret")
-        if secret:
-            message = f"{message} (redacted secret: {secret[:8]}…)"
-
         return ParsedFinding(
             scanner_kind="gitleaks",
             rule_id=rule_id,
