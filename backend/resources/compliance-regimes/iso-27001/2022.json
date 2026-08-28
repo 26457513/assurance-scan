@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "regime": "ISO-27001",
+  "version": "2022",
+  "title": "ISO/IEC 27001 Information Security Management",
+  "short_title": "ISO 27001",
+  "description": "Information security management system requirements and Annex A control themes. Use when the project contract requires ISO 27001 traceability.",
+  "ruleset_ref": {
+    "ruleset": "ISO-27001",
+    "version": "2022",
+    "path": "resources/rulesets/iso-27001/2022.json"
+  },
+  "source": {
+    "url": "https://www.iso.org/standard/27001",
+    "license": "ISO copyrighted standard metadata only",
+    "publisher": "ISO/IEC",
+    "retrieved_at": "2026-07-12",
+    "source_file": "resources/compliance-regimes/iso-27001/2022.json"
+  },
+  "family_axis": {
+    "label": "control theme",
+    "row_field": "group",
+    "ui_label": "Control theme"
+  },
+  "families": [
+    {"id": "A.5", "title": "Organizational controls"},
+    {"id": "A.6", "title": "People controls"},
+    {"id": "A.7", "title": "Physical controls"},
+    {"id": "A.8", "title": "Technological controls"}
+  ],
+  "applicability": {
+    "default_scope": "information_security_management",
+    "notes": [
+      "This file is regime metadata, not a licensed copy of the ISO standard.",
+      "A project must load an accepted ruleset snapshot or mapping pack before ISO 27001 becomes an active graph obligation."
+    ]
+  },
+  "proof": {
+    "commitment_role": "compliance_regime",
+    "zk_disclosure": "May be disclosed as public metadata with a hash commitment to the selected control snapshot."
+  }
+}

@@ -1,0 +1,1 @@
+"""Atomic access-control capabilities."""

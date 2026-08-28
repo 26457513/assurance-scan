@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "gitleaks-nist-800-53-5-2-0",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-12T00:00:00Z",
+    "updated_at": "2026-07-12T00:00:00Z",
+    "generator": "manual-curation",
+    "input_artifacts": [
+      {
+        "kind": "ruleset",
+        "path": "resources/rulesets/nist-800-53/5.2.0.json",
+        "version": "5.2.0"
+      }
+    ]
+  },
+  "scanner": "gitleaks",
+  "scanner_version": "rule-pack-specific",
+  "scanner_rule_source": {
+    "kind": "manual-curation",
+    "ref": "scanner output fields and rule naming conventions",
+    "version": "curated-0.1.0",
+    "retrieved_at": "2026-07-12T00:00:00Z"
+  },
+  "compliance": {
+    "ruleset": "NIST-800-53",
+    "version": "5.2.0",
+    "source_ref": "resources/rulesets/nist-800-53/5.2.0.json"
+  },
+  "mappings": [
+    {
+      "id": "SCM-GITLEAKS-NIST-800-53-SECRETS",
+      "review_status": "accepted",
+      "reviewed_by": "assurance-scan-maintainers",
+      "reviewed_at": "2026-07-12T00:00:00Z",
+      "review_decision": "accepted_as_domain_signal",
+      "review_notes": "Generic scanner-to-regime mapping. It creates a compliance signal, not sufficient FR/TBT evidence by itself.",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "blocking_if_finding",
+      "rule_selectors": [
+        {
+          "type": "glob",
+          "value": "*secret*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*token*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*key*",
+          "output_field": "RuleID"
+        },
+        {
+          "type": "glob",
+          "value": "*password*",
+          "output_field": "RuleID"
+        }
+      ],
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "NIST-800-53",
+            "row": "ia-5"
+          },
+          {
+            "ruleset": "NIST-800-53",
+            "row": "sc-12"
+          },
+          {
+            "ruleset": "NIST-800-53",
+            "row": "sc-13"
+          }
+        ],
+        "compliance_domains": []
+      },
+      "limitations": [
+        "Scanner evidence must be interpreted with project-specific FR/TBT evidence before compliance is claimed."
+      ],
+      "source_basis": [
+        {
+          "kind": "manual_curation",
+          "ref": "cross-regime security category mapping"
+        }
+      ],
+      "rationale": "Secret and token leaks are relevant to authenticator management and cryptographic key controls.",
+      "confidence": "medium"
+    }
+  ]
+}

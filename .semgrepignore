@@ -1,0 +1,10 @@
+# Semgrep's Bash parser cannot parse this large Bash 4 orchestration script.
+# It is syntax-checked separately with `bash -n` in the quality gate.
+backend/scripts/run-local.sh
+
+# Local and generated content.
+.assurance-scan/
+backend/.venv/
+frontend/node_modules/
+frontend/build/
+frontend/.svelte-kit/

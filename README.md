@@ -30,16 +30,19 @@ is automatic. **All scanning runs on the target org's own GitHub compute**
 
 | Piece | What it is |
 |---|---|
-| `server/` | FastAPI app: projects registry, scans/findings, FR catalogues, poller, auth |
+| `backend/` | FastAPI service, atomic/workflow/shared modules, resources, scripts, and tests |
 | `frontend/` | SvelteKit UI (served by the server container) |
-| `Dockerfile.ci` | Slim scanner orchestrator (glue only; scanners run as stock public images) |
+| `backend/app/modules/` | VibeGuide modules grouped under `atomic/`, `workflows/`, and `shared/` |
+| `backend/Dockerfile.ci` | Slim scanner orchestrator (glue only; scanners run as stock public images) |
 | `Dockerfile` | Full app image (server + built frontend) |
 | `compose.yaml` | Local + cloud deployment (identical containers) |
 | `assurance-scan-ci` (public repo) | Reusable CI workflow + vendored template for any org |
-| `scripts/ci-scan.py` | Standalone scanner CLI (no server, no DB) |
-| `templates/assurance-scan.yml` | Vendored stub for repos outside the home org |
+| `backend/scripts/ci-scan.py` | Standalone scanner CLI (no server, no DB) |
+| `backend/resources/templates/assurance-scan.yml` | Vendored stub for repos outside the home org |
 
-Design notes live in `docs/plan-*.md`.
+The backend module boundaries are documented in
+[`docs/module-architecture.md`](docs/module-architecture.md); feature design
+notes live in `docs/plan-*.md`.
 
 ## Local deployment
 
@@ -59,7 +62,7 @@ docker socket and `~/Development`.
 
 Work on `develop`, test locally (`docker compose up -d --build` picks up the
 working tree), merge to `main` when happy — merges deploy automatically (see
-below). Tests: `python3 -m pytest tests/ -q`; frontend:
+below). Backend tests: `cd backend && python3 -m pytest tests/ -q`; frontend:
 `cd frontend && npx svelte-check`.
 
 ## Droplet deployment (DigitalOcean)
@@ -209,7 +212,7 @@ manual-only variant that costs nothing until clicked).
 | With a Dockerfile | trivy-image (built image) |
 
 All run as their stock public images via the docker socket — always current
-at run time. Local equivalent: `python3 scripts/ci-scan.py <path> --sarif
+at run time. Local equivalent: `python3 backend/scripts/ci-scan.py <path> --sarif
 out.sarif [--image app:local]` (needs Docker; no server, no DB).
 
 ## MCP server

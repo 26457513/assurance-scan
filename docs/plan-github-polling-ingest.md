@@ -47,7 +47,7 @@ it to the `assurance-scan-results` zip. Shape mirrors the orchestrator's
 ### 2. Poller (server side, the main new code)
 
 An in-process asyncio task started from `main.py` lifespan — no new process
-to supervise; `dev.sh`/docker bring it up with the server.
+to supervise; `dev.sh`/docker bring it up with the app.
 
 Every 60s (configurable via env, default `POLL_INTERVAL_SECONDS=60`):
 

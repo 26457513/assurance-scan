@@ -19,7 +19,7 @@ proposal*.md
 # Python bytecode caches
 __pycache__/
 *.pyc
-data/authority-sources/raw/
+backend/resources/authority-sources/raw/
 
 # Config files now stored in DB — don't commit local copies
 fr-catalog.json

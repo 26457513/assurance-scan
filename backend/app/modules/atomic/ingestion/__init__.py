@@ -1,0 +1,1 @@
+"""Atomic result-ingestion capabilities."""

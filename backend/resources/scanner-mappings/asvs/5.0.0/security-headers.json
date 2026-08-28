@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "security-headers-asvs-v5.0.0",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-08T00:00:00Z",
+    "updated_at": "2026-07-08T00:00:00Z",
+    "generator": "manual-curation",
+    "input_artifacts": [
+      {
+        "kind": "scanner_rule_catalog",
+        "path": "resources/sources/security_headers_rules.json",
+        "version": "in-repo"
+      },
+      {
+        "kind": "ruleset",
+        "path": "resources/rulesets/asvs/5.0.0.json",
+        "version": "5.0.0"
+      }
+    ]
+  },
+  "scanner": "security-headers",
+  "scanner_version": "in-repo",
+  "scanner_rule_source": {
+    "kind": "scanner_rule_catalog",
+    "ref": "resources/sources/security_headers_rules.json",
+    "version": "in-repo"
+  },
+  "compliance": {
+    "ruleset": "ASVS",
+    "version": "5.0.0",
+    "source_ref": "resources/rulesets/asvs/5.0.0.json"
+  },
+  "mappings": [
+    {
+      "id": "SCM-SECURITY-HEADERS-ASVS-5-HSTS",
+      "review_status": "accepted",
+      "reviewed_by": "assurance-scan-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "Header presence is strong evidence for this control, but exact values still require policy checks.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "strict-transport-security",
+          "output_field": "id"
+        }
+      ],
+      "limitations": [
+        "HSTS preload and max-age requirements may require additional value inspection."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_rule_catalog",
+          "ref": "resources/sources/security_headers_rules.json"
+        }
+      ],
+      "rationale": "The HSTS header is directly named by ASVS v5.0.0-3.4.1.",
+      "confidence": "high",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-4.4.1"
+          }
+        ],
+        "compliance_domains": []
+      }
+    },
+    {
+      "id": "SCM-SECURITY-HEADERS-ASVS-5-CSP",
+      "review_status": "accepted",
+      "reviewed_by": "assurance-scan-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "Missing CSP is a blocking signal for CSP rows; passing scan may still need directive review.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "content-security-policy",
+          "output_field": "id"
+        }
+      ],
+      "limitations": [
+        "Header existence does not prove a restrictive or correct CSP policy."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_rule_catalog",
+          "ref": "resources/sources/security_headers_rules.json"
+        }
+      ],
+      "rationale": "CSP controls directly support ASVS browser security mechanism header requirements.",
+      "confidence": "high",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.3"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.6"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.7"
+          }
+        ],
+        "compliance_domains": []
+      }
+    },
+    {
+      "id": "SCM-SECURITY-HEADERS-ASVS-5-NOSNIFF-REFERRER-FRAME",
+      "review_status": "accepted",
+      "reviewed_by": "assurance-scan-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "Header findings map directly to named ASVS browser-header rows.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "x-content-type-options",
+          "output_field": "id"
+        },
+        {
+          "type": "exact",
+          "value": "referrer-policy",
+          "output_field": "id"
+        },
+        {
+          "type": "exact",
+          "value": "x-frame-options",
+          "output_field": "id"
+        }
+      ],
+      "limitations": [
+        "X-Frame-Options is legacy support; ASVS prefers CSP frame-ancestors."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_rule_catalog",
+          "ref": "resources/sources/security_headers_rules.json"
+        }
+      ],
+      "rationale": "These headers correspond to ASVS browser security mechanism requirements.",
+      "confidence": "high",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.4"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.5"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-3.4.6"
+          }
+        ],
+        "compliance_domains": []
+      }
+    }
+  ]
+}

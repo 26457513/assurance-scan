@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "ruleset": "ISO-27001",
+  "version": "2022",
+  "title": "ISO/IEC 27001:2022 Public-Safe Annex A Themes",
+  "description": "Public-safe theme-level snapshot for ISO/IEC 27001:2022. This file deliberately avoids embedding copyrighted control text; licensed control catalogs can be imported as governed project artifacts.",
+  "source": {
+    "url": "https://www.iso.org/standard/27001",
+    "license": "ISO copyrighted standard metadata only",
+    "retrieved_at": "2026-07-12T00:00:00Z",
+    "source_file": "resources/rulesets/iso-27001/2022.json",
+    "authority": "ISO/IEC",
+    "version_tag": "2022",
+    "raw_artifacts": [
+      {
+        "path": "resources/authority-sources/raw/iso-27001/2022/user-supplied-control-catalog.json",
+        "url": "https://www.iso.org/standard/27001",
+        "sha256": "sha256:7e0d4da0194562f154a85900abf5651e5d6b31898498063daf16f3796741e35d",
+        "bytes": 323,
+        "media_type": "application/json"
+      }
+    ],
+    "transform": {
+      "tool": "scripts/sync-authority-rulesets.py",
+      "version": "2",
+      "command": "sync-authority-rulesets",
+      "output_sha256": "sha256:20fbf6c42adacbe387dc85df4dc3b28f1f0df8d5cbcc97c49b38b2c1bc4d81b8"
+    }
+  },
+  "rows": [
+    {
+      "id": "A.5",
+      "title": "Organizational controls",
+      "description": "Theme-level grouping for organizational information security controls.",
+      "group": "A.5",
+      "metadata": {
+        "theme": "organizational",
+        "granularity": "theme",
+        "licensed_control_detail_required": true
+      }
+    },
+    {
+      "id": "A.6",
+      "title": "People controls",
+      "description": "Theme-level grouping for people-related information security controls.",
+      "group": "A.6",
+      "metadata": {
+        "theme": "people",
+        "granularity": "theme",
+        "licensed_control_detail_required": true
+      }
+    },
+    {
+      "id": "A.7",
+      "title": "Physical controls",
+      "description": "Theme-level grouping for physical information security controls.",
+      "group": "A.7",
+      "metadata": {
+        "theme": "physical",
+        "granularity": "theme",
+        "licensed_control_detail_required": true
+      }
+    },
+    {
+      "id": "A.8",
+      "title": "Technological controls",
+      "description": "Theme-level grouping for technology and technical information security controls.",
+      "group": "A.8",
+      "metadata": {
+        "theme": "technological",
+        "granularity": "theme",
+        "licensed_control_detail_required": true
+      }
+    }
+  ]
+}

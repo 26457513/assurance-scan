@@ -23,7 +23,7 @@ Terms used across this doc and [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md). New con
 |---|---|
 | **FR** | Functional Requirement. The central abstraction. Project-defined, lives in `fr-catalog.json`. |
 | **FR catalog** | The project's `fr-catalog.json` file containing all FRs + scope + na_rows. Supplied via `--fr-catalog` flag. |
-| **Framework** | A compliance framework: ASVS, NIST 800-53, PCI-DSS, ISO 27001, NIST CSF. Each has a snapshot in `data/frameworks/<fw>/`. |
+| **Framework** | A compliance framework: ASVS, NIST 800-53, PCI-DSS, ISO 27001, NIST CSF. Each has a snapshot in `backend/resources/frameworks/<fw>/`. |
 | **Compliance row** (or framework row) | A single requirement within a framework. E.g. `v5.0.0-6.1.1` is an ASVS row; `IA-2` is a NIST 800-53 row. |
 | **satisfies** | FR → compliance row relationship. Says "this FR addresses this compliance row". |
 | **implemented_by** | FR → code relationship. Glob, file, or symbol reference. |
@@ -297,7 +297,7 @@ Two top-level fields in the FR catalog drive which compliance rows are in scope 
 | **Out of scope (filtered)** | Project's `scope` excludes this level/baseline | Hidden or greyed out |
 | **Out of scope (explicit)** | Row listed in `na_rows`, or FR `satisfies` has `status: "na"` | "Not applicable" badge + reason |
 
-**Formal JSON Schema.** The contract for `fr-catalog.json` is defined at `data/schemas/fr-catalog.schema.json` (Draft 2020-12). The schema enforces required fields, enum values, ID patterns, and reference shapes. `scripts/load_fr_catalog.py` validates against it at scan time using the `jsonschema` Python package. CI runs the same validation on every PR that touches an `fr-catalog.json` file. The schema is versioned (`"version": 1`); future incompatible changes bump the version with a migration path.
+**Formal JSON Schema.** The contract for `fr-catalog.json` is defined at `backend/resources/schemas/fr-catalog.schema.json` (Draft 2020-12). The schema enforces required fields, enum values, ID patterns, and reference shapes. `backend/scripts/load_fr_catalog.py` validates against it at scan time using the `jsonschema` Python package. CI runs the same validation on every PR that touches an `fr-catalog.json` file. The schema is versioned (`"version": 1`); future incompatible changes bump the version with a migration path.
 
 **Schema rules reference:**
 
@@ -391,7 +391,7 @@ Each compliance framework has a loader that produces a normalized JSON snapshot.
 
 Two frameworks (ASVS + NIST 800-53) cover both structural archetypes — testable statements + imperative controls, flat hierarchy + parent-child enhancements — which is sufficient to validate the FR schema. See [FRAMEWORK_COMPARISON.md](FRAMEWORK_COMPARISON.md) for the structural analysis.
 
-**Loader contract:** each produces `data/sources/<framework>_requirements.json` with shape:
+**Loader contract:** each produces `backend/resources/sources/<framework>_requirements.json` with shape:
 
 ```json
 {
@@ -474,7 +474,7 @@ Tests are evidence. We need to ingest their results without forcing a specific t
 
 **Universal format: JUnit XML.** Every major test runner can emit it (pytest via `--junit-xml`, jest via `--reporters=default --reporters=jest-junit`, cypress via `cypress-multi-reporters`, go test via `go-junit-report`, Kotlin/Java via surefire). Stable, parseable, includes pass/fail/skip + timing per test. The user runs their own tests in CI, drops the JUnit XML at a known location, and the scanner picks it up.
 
-**Parser spec (`scripts/parse_junit.py`):**
+**Parser spec (`backend/scripts/parse_junit.py`):**
 
 ```
 Input: one or more JUnit XML files supplied via --junit-xml
@@ -610,7 +610,7 @@ The single contract between `generate-dashboard.py` (backend) and the dashboard'
 
 **Computation.** `generate-dashboard.py` produces this payload at scan time by:
 1. Loading the FR catalog + validating against JSON Schema
-2. Loading framework snapshots from bundled `data/frameworks/<fw>/requirements.json`
+2. Loading framework snapshots from bundled `backend/resources/frameworks/<fw>/requirements.json`
 3. Reading scanner outputs (`reports/*.json`)
 4. Reading JUnit XML (if supplied)
 5. Computing per-framework `coverage` and per-row `state`
@@ -670,8 +670,8 @@ For time travel and cross-scan navigation. The frontend assumes the dashboard ca
 - Reproducing past audit findings exactly
 
 **Backend changes required:**
-- `run-local.sh`: after dashboard generation, copy `evidence-manifest.json`, `dashboard-data.json`, `fr-catalog.snapshot.json`, `scope.snapshot.json` to `scan-history/<RUN_ID>/`
-- New helper: `scripts/record-scan-history.py` updates `scan-history/index.json`, evicts old scans per retention policy
+- `backend/scripts/run-local.sh`: after dashboard generation, copy `evidence-manifest.json`, `dashboard-data.json`, `fr-catalog.snapshot.json`, `scope.snapshot.json` to `scan-history/<RUN_ID>/`
+- New helper: `backend/scripts/record-scan-history.py` updates `scan-history/index.json`, evicts old scans per retention policy
 - Dashboard reads `scan-history/index.json` (via embedded data in the payload, or a separate fetch) to populate the scan picker
 
 **Comparison mode** (frontend computes diffs):
@@ -797,12 +797,12 @@ Backend CI runs on every PR. Workflow file: `.github/workflows/ci.yml`. Jobs:
 
 | Job | Triggers on | What it checks |
 |---|---|---|
-| `validate-fr-schema` | Any PR touching `data/schemas/fr-catalog.schema.json` or `**/fr-catalog.json` | Runs `scripts/validate_fr_catalog.py` against the schema; reports errors |
-| `validate-mapping` | PRs touching `data/asvs_mapping.yaml` or `data/sources/**` | Runs existing `scripts/validate-mapping.py` |
-| `dashboard-snapshot` | PRs touching `scripts/generate-dashboard.py` or `assets/dashboard.js` | Regenerates dashboard from fixture scan; diffs against `tests/fixtures/expected-dashboard.html`. Snapshot updates require explicit `--update-snapshot` flag. |
-| `payload-size` | PRs touching `scripts/generate-dashboard.py` or `data/sources/**` | Asserts `dashboard-data.json` <2MB for the fixture scan |
+| `validate-fr-schema` | Any PR touching `backend/resources/schemas/fr-catalog.schema.json` or `**/fr-catalog.json` | Runs `backend/scripts/validate_fr_catalog.py` against the schema; reports errors |
+| `validate-mapping` | PRs touching `backend/resources/asvs_mapping.yaml` or `backend/resources/sources/**` | Runs existing `backend/scripts/validate-mapping.py` |
+| `dashboard-snapshot` | PRs touching `backend/scripts/generate-dashboard.py` or `assets/dashboard.js` | Regenerates dashboard from fixture scan; diffs against `tests/fixtures/expected-dashboard.html`. Snapshot updates require explicit `--update-snapshot` flag. |
+| `payload-size` | PRs touching `backend/scripts/generate-dashboard.py` or `backend/resources/sources/**` | Asserts `dashboard-data.json` <2MB for the fixture scan |
 | `bundle-size` | PRs touching `assets/**` | Asserts total JS bundle <500KB |
-| `scan-history` | PRs touching `scripts/record_scan_history.py` or `run-local.sh` | Runs scanner twice against fixture, verifies both scans retained, verifies FIFO eviction after 6th run |
+| `scan-history` | PRs touching `backend/scripts/record_scan_history.py` or `backend/scripts/run-local.sh` | Runs scanner twice against fixture, verifies both scans retained, verifies FIFO eviction after 6th run |
 | `js-unit-tests` | PRs touching `assets/**` | Vitest with coverage targets (state 90%, utils 80%, graph 60%) |
 
 **Failure policy:** all jobs must pass for PR merge (branch protection). Snapshot updates and bundle-size increases (>10%) require reviewer sign-off via label.
@@ -854,12 +854,12 @@ The scanner-driven Compliance Matrix built on `develop` (Phase 2) is **being rep
 
 | From `develop` | Becomes in `pivot` |
 |---|---|
-| `scripts/build-mapping-sources.py` (ASVS + scanner rule fetchers) | Same script, extended with NIST 800-53 fetcher (done). Will rename to `build-framework-sources.py` once multi-framework is proven. |
-| `data/sources/*.json` snapshots (ASVS, gitleaks, trivy-config, trivy-vuln, security-headers) | Same files, retained as scanner rule catalogs |
-| `data/asvs_mapping.yaml` | Reframed as one framework's mapping — moves to `data/frameworks/asvs/scanner_mapping.yaml` (orthogonal to FR catalog) |
-| `scripts/generate-mapping.py` + `scripts/validate-mapping.py` | Same scripts, still useful for the ASVS scanner-rule mapping |
-| `scripts/enrich-mapping-llm.py` | Same — Path B enrichment of scanner mappings |
-| `requirements-mapping.txt`, `data/sources/LICENSES.md` | Same |
+| `backend/scripts/build-mapping-sources.py` (ASVS + scanner rule fetchers) | Same script, extended with NIST 800-53 fetcher (done). Will rename to `build-framework-sources.py` once multi-framework is proven. |
+| `backend/resources/sources/*.json` snapshots (ASVS, gitleaks, trivy-config, trivy-vuln, security-headers) | Same files, retained as scanner rule catalogs |
+| `backend/resources/asvs_mapping.yaml` | Reframed as one framework's mapping — moves to `backend/resources/frameworks/asvs/scanner_mapping.yaml` (orthogonal to FR catalog) |
+| `backend/scripts/generate-mapping.py` + `backend/scripts/validate-mapping.py` | Same scripts, still useful for the ASVS scanner-rule mapping |
+| `backend/scripts/enrich-mapping-llm.py` | Same — Path B enrichment of scanner mappings |
+| `backend/requirements/mapping.txt`, `backend/resources/sources/LICENSES.md` | Same |
 | py3-yaml in Dockerfile | Same |
 
 **What's deleted from `develop`:**
@@ -867,8 +867,8 @@ The scanner-driven Compliance Matrix built on `develop` (Phase 2) is **being rep
 | From `develop` | Disposition |
 |---|---|
 | Phase 2 Compliance Matrix tab (`render_compliance_matrix` in `generate-dashboard.py`) | **Deleted.** Replaced by the FR-driven multi-framework tab set. |
-| `--compliance-matrix` flag in `bin/asvs-scanner` and `run-local.sh` | **Deleted.** Replaced by `--fr-catalog`. |
-| `data/asvs_mapping.yaml` consumption in the dashboard | Reframed — scanner rule mappings feed the `verified_by: scanner` evidence type, but the dashboard's primary input is the FR catalog. |
+| `--compliance-matrix` flag in `bin/asvs-scanner` and `backend/scripts/run-local.sh` | **Deleted.** Replaced by `--fr-catalog`. |
+| `backend/resources/asvs_mapping.yaml` consumption in the dashboard | Reframed — scanner rule mappings feed the `verified_by: scanner` evidence type, but the dashboard's primary input is the FR catalog. |
 
 **What's new in `pivot`:**
 
@@ -876,8 +876,8 @@ The scanner-driven Compliance Matrix built on `develop` (Phase 2) is **being rep
 |---|---|
 | `--fr-catalog <path>` flag | Primary input — points to project's `fr-catalog.json` |
 | `--junit-xml <path>` flag | Test results from any runner that emits JUnit XML |
-| `scripts/load_fr_catalog.py` | JSON Schema validation + reference resolver |
-| `data/schemas/fr-catalog.schema.json` | Formal JSON Schema for the FR catalog |
+| `backend/scripts/load_fr_catalog.py` | JSON Schema validation + reference resolver |
+| `backend/resources/schemas/fr-catalog.schema.json` | Formal JSON Schema for the FR catalog |
 | FR Catalog tab + per-framework tabs in dashboard | New UI |
 | D3 traceability graph (Phase 6) | New visualization |
 
@@ -919,27 +919,27 @@ Phase numbering is **shared with [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md#phased-
 ## Critical files (planned)
 
 **New (data + schemas):**
-- `data/schemas/fr-catalog.schema.json` — formal JSON Schema for the FR catalog ✅ created
-- `data/schemas/dashboard-payload.schema.json` — formal JSON Schema for the consolidated dashboard input payload (see "Dashboard input payload" section)
-- `data/frameworks/asvs/requirements.json` (moved from `data/sources/asvs_requirements.json`)
-- `data/frameworks/asvs/scanner_mapping.yaml` (moved from `data/asvs_mapping.yaml`)
-- `data/frameworks/nist_800_53/requirements.json` ✅ exists at `data/sources/nist_800_53_requirements.json` (will move)
+- `backend/resources/schemas/fr-catalog.schema.json` — formal JSON Schema for the FR catalog ✅ created
+- `backend/resources/schemas/dashboard-payload.schema.json` — formal JSON Schema for the consolidated dashboard input payload (see "Dashboard input payload" section)
+- `backend/resources/frameworks/asvs/requirements.json` (moved from `backend/resources/sources/asvs_requirements.json`)
+- `backend/resources/frameworks/asvs/scanner_mapping.yaml` (moved from `backend/resources/asvs_mapping.yaml`)
+- `backend/resources/frameworks/nist_800_53/requirements.json` ✅ exists at `backend/resources/sources/nist_800_53_requirements.json` (will move)
 - `tests/fixtures/sample-scan/` — fixture scan with FR catalog + scanner outputs + JUnit XML + framework snapshots. Powers dashboard snapshot tests.
 
 **New (scripts):**
-- `scripts/build-framework-sources.py` (rename of `build-mapping-sources.py`)
-- `scripts/parse_junit.py` — JUnit XML parser (spec in "Test integration" section)
-- `scripts/resolve_code_refs.py` — glob/file/symbol resolver
-- `scripts/load_fr_catalog.py` — FR JSON validator + loader (uses jsonschema)
-- `scripts/validate_fr_catalog.py` — CI-runnable validator (validates + reports errors/warnings)
-- `scripts/compute_derived_indices.py` — produces coverage_heatmap, framework_equivalences, reverse_lookup, audit_chains
-- `scripts/record_scan_history.py` — copies scan artifacts to scan-history/, updates index.json, evicts per retention policy
-- `scripts/generate-dashboard.py` extensions: new FR Catalog tab, per-framework tabs, D3 graph tab; emits consolidated dashboard-data.json payload
+- `backend/scripts/build-framework-sources.py` (rename of `build-mapping-sources.py`)
+- `backend/scripts/parse_junit.py` — JUnit XML parser (spec in "Test integration" section)
+- `backend/scripts/resolve_code_refs.py` — glob/file/symbol resolver
+- `backend/scripts/load_fr_catalog.py` — FR JSON validator + loader (uses jsonschema)
+- `backend/scripts/validate_fr_catalog.py` — CI-runnable validator (validates + reports errors/warnings)
+- `backend/scripts/compute_derived_indices.py` — produces coverage_heatmap, framework_equivalences, reverse_lookup, audit_chains
+- `backend/scripts/record_scan_history.py` — copies scan artifacts to scan-history/, updates index.json, evicts per retention policy
+- `backend/scripts/generate-dashboard.py` extensions: new FR Catalog tab, per-framework tabs, D3 graph tab; emits consolidated dashboard-data.json payload
 
 **Modified:**
 - `bin/asvs-scanner` — add `--fr-catalog <path>` and `--junit-xml <path>` flags; **remove** `--compliance-matrix` flag (deleted per "no backward compat")
-- `run-local.sh` — thread new flags; remove old `--compliance-matrix`; call `record_scan_history.py` after dashboard generation
-- `scripts/generate-dashboard.py` — **remove** `render_compliance_matrix` (Phase 2 code); replace with FR-driven equivalents; emit consolidated `dashboard-data.json` payload
+- `backend/scripts/run-local.sh` — thread new flags; remove old `--compliance-matrix`; call `record_scan_history.py` after dashboard generation
+- `backend/scripts/generate-dashboard.py` — **remove** `render_compliance_matrix` (Phase 2 code); replace with FR-driven equivalents; emit consolidated `dashboard-data.json` payload
 - `Dockerfile` — add `py3-jsonschema` to apk install
 
 **Existing (no change):**
@@ -958,7 +958,7 @@ Phase numbering is **shared with [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md#phased-
 
 ## Open questions
 
-1. ~~JSON schema enforcement~~ — **decided**: jsonschema (Draft 2020-12), schema at `data/schemas/fr-catalog.schema.json`.
+1. ~~JSON schema enforcement~~ — **decided**: jsonschema (Draft 2020-12), schema at `backend/resources/schemas/fr-catalog.schema.json`.
 2. **D3 vs D3 + WebGL** for very large graphs? Default D3, revisit if performance demands.
 3. ~~Where do JUnit XML files come from~~ — **decided**: user supplies via `--junit-xml <path>`. Scanner doesn't run code.
 4. ~~Manual evidence artifacts stored where~~ — **decided**: file path references only. Scanner doesn't store content; just verifies existence.
@@ -975,7 +975,7 @@ Phase numbering is **shared with [FRONTEND_DESIGN.md](FRONTEND_DESIGN.md#phased-
 
 **Open decisions for Phase 1 start:**
 
-- JSON Schema file location: `data/schemas/fr-catalog.schema.json` (proposed)
+- JSON Schema file location: `backend/resources/schemas/fr-catalog.schema.json` (proposed)
 - Validation library: `jsonschema` Python package (proposed — no extra runtime dep beyond pyyaml + jsonschema, both lightweight)
 - Scanner-driven mappings (`asvs_mapping.yaml`) — keep as input to the `verified_by: scanner` evidence type, or deprecate entirely once FR-driven `satisfies` mappings cover the same ground?
 - Pre-commit hook vs CI-only validation for FR catalog changes

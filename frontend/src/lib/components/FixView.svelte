@@ -536,20 +536,20 @@
 
       <div class="space-y-3">
         <div>
-          <label class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted block mb-1">Rationale <span class="text-state-failed">*</span></label>
-          <textarea bind:value={acceptRationale} rows="2"
+          <label for="accept-rationale" class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted block mb-1">Rationale <span class="text-state-failed">*</span></label>
+          <textarea id="accept-rationale" bind:value={acceptRationale} rows="2"
             class="w-full bg-surface-inset border border-line-hairline rounded-sm px-2.5 py-1.5 text-[12px] text-ink-primary font-mono resize-none focus:outline-none focus:border-accent"
             placeholder="Why this finding is not exploitable in this project"></textarea>
         </div>
         <div>
-          <label class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted block mb-1">Fix impact <span class="text-ink-muted normal-case">(optional)</span></label>
-          <textarea bind:value={acceptFixAssessment} rows="2"
+          <label for="accept-fix-impact" class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted block mb-1">Fix impact <span class="text-ink-muted normal-case">(optional)</span></label>
+          <textarea id="accept-fix-impact" bind:value={acceptFixAssessment} rows="2"
             class="w-full bg-surface-inset border border-line-hairline rounded-sm px-2.5 py-1.5 text-[12px] text-ink-primary font-mono resize-none focus:outline-none focus:border-accent"
             placeholder="What fixing would involve + what could break"></textarea>
         </div>
         <div>
-          <label class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted block mb-1">Invalidated when <span class="text-ink-muted normal-case">(optional)</span></label>
-          <textarea bind:value={acceptInvalidation} rows="2"
+          <label for="accept-invalidation" class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted block mb-1">Invalidated when <span class="text-ink-muted normal-case">(optional)</span></label>
+          <textarea id="accept-invalidation" bind:value={acceptInvalidation} rows="2"
             class="w-full bg-surface-inset border border-line-hairline rounded-sm px-2.5 py-1.5 text-[12px] text-ink-primary font-mono resize-none focus:outline-none focus:border-accent"
             placeholder="Conditions that would make this acceptance invalid"></textarea>
         </div>

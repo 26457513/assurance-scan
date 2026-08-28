@@ -6,7 +6,7 @@
 
 > **What changed in v3:**
 > - **DB-only storage.** Scanner findings, evidence, raw artifacts, curated outputs — all in SQLite. No file-based reports.
-> - **Server-invoked-from-project-folder.** Reuses `run-local.sh`'s `$PWD:$PWD` mount trick. Eliminates the path-translation problem.
+> - **Server-invoked-from-project-folder.** Reuses `backend/scripts/run-local.sh`'s `$PWD:$PWD` mount trick. Eliminates the path-translation problem.
 > - **One canonical approach.** No backward compatibility with the file-based CLI mode. One way to scan, one way to query, one way to storage.
 > - **Resolved the remaining 4 open items:** config-file sync, TBT migration, state recompute triggers, evidence-to-spec matching.
 
@@ -35,9 +35,9 @@ Packaged as a **single Docker image**. Started from the project folder. Browser 
 2. **DB-only storage.** Scanner output, findings, evidence, computed state — all in SQLite. Project folder is read-only. Nothing written to the user's repo (no `.assurance-scan/` directory, no gitignore management).
 3. **One canonical approach.** The server is the only way to run scans. No file-based CLI fallback. No dual storage paths. No backward compatibility with v1 file-based reports.
 4. **Server is invoked from the project folder.** Reuses the existing `$PWD:$PWD` mount trick. No path translation.
-5. **The server is deterministic.** All LLM-driven reasoning happens in the agent that calls the MCP tools, not in the server. The server runs scanners, stores findings, computes state, exposes APIs.
+5. **The server is deterministic.** All LLM-driven reasoning happens in the agent that calls the MCP tools, not in the app. The server runs scanners, stores findings, computes state, exposes APIs.
 6. **Project-declared config files live in the project repo.** FR catalogue, mapping pack, `assurance-tests.json` are source-controlled artifacts the server reads via bind mount. Catalogue path is supplied per-scan via flag, defaulting to `./fr-catalog.json`. No file watcher — the catalogue is re-read at the start of each scan, so edits naturally take effect on the next scan.
-7. **No static dashboard generation.** The web UI reads live from the DB via REST/SSE. No `dashboard.html` is produced. (Drops `scripts/generate_dashboard.py`.)
+7. **No static dashboard generation.** The web UI reads live from the DB via REST/SSE. No `dashboard.html` is produced. (Drops `backend/scripts/generate_dashboard.py`.)
 8. **Schemas versioned.** v2 catalogue schema. v1 catalogues migrated on first scan against a project.
 
 ---
@@ -275,7 +275,7 @@ Maps evidence sources (scanner rules, test names) to FR IDs. Lives in the projec
 
 ### Compliance integration
 
-`satisfies` is an array of strings referencing compliance rows: `"ASVS:v5.0.0-5.1.1"`. The server resolves these against the existing `data/frameworks/` snapshots (loaded at startup, cached in DB). UI shows compliance descriptions on hover.
+`satisfies` is an array of strings referencing compliance rows: `"ASVS:v5.0.0-5.1.1"`. The server resolves these against the existing `backend/resources/frameworks/` snapshots (loaded at startup, cached in DB). UI shows compliance descriptions on hover.
 
 ### `findings.json` shape (agent-facing artifact)
 
@@ -355,7 +355,7 @@ Single Python process inside one container. Container is invoked from the projec
 │  │  │   ├── /mcp           MCP-over-HTTP (Streamable)  │     │
 │  │  │   ├── /              Serves SvelteKit app       │     │
 │  │  │   └── /health        Health check (no auth)     │     │
-│  │  ├── SQLite (WAL mode)  → /data/db.sqlite          │     │
+│  │  ├── SQLite (WAL mode)  → /backend/resources/db.sqlite          │     │
 │  │  ├── Scan worker        (asyncio + asyncio.subprocess) │
 │  │  └── Alembic migrations                            │     │
 │  └────────────────────────────────────────────────────┘     │
@@ -531,7 +531,7 @@ The server has zero awareness of "proposals" or "fixes." It just runs scanners, 
 **What this means for the server:**
 - No `propose_fixes`, `review_proposal`, `apply_proposal_selections` tools.
 - No `proposals` or `proposal_selections` tables.
-- The `agent_actions` audit log records state-mutating MCP/API calls (start_scan, add_waiver, etc.) for traceability — but the agent's reasoning and the user's approval are not in the server.
+- The `agent_actions` audit log records state-mutating MCP/API calls (start_scan, add_waiver, etc.) for traceability — but the agent's reasoning and the user's approval are not in the app.
 - The web UI shows scan history, findings, evidence, FR state. It does not show "pending proposals" because there's no such concept.
 
 If the user wants to revisit this decision later (e.g., add a server-side review queue for high-stakes environments), it's a clean additive change — new tables, new MCP tools, no rewrite.
@@ -576,7 +576,7 @@ Each event has a monotonic `id`. Server keeps an in-memory ring buffer (1000 eve
 **SSE auth:** Native EventSource doesn't support auth headers. Use `fetch` with `ReadableStream` (or `event-source-polyfill`). For v1 with no auth, plain EventSource works.
 
 **Dev workflow:**
-- Backend: `uvicorn server.app:app --reload --port 8000`
+- Backend: `cd backend && uvicorn app.main:app --reload --port 8000`
 - Frontend: `npm run dev -- --port 5173` in `frontend/`, Vite proxy forwards `/api/*` to `localhost:8000`
 - Both share the same SQLite DB
 
@@ -609,23 +609,29 @@ RUN apk upgrade --no-cache && apk add --no-cache \
 # Python web stack in a virtualenv
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-COPY requirements-server.txt /tmp/
+COPY backend/requirements/server.txt /tmp/requirements-server.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-server.txt
 # Pins: fastapi, uvicorn[standard], mcp, pydantic, alembic, aiosqlite, sqlalchemy
 
-WORKDIR /opt/assurance-scan
+WORKDIR /opt/assurance-scan/backend
 
-COPY --from=frontend /app/build /opt/assurance-scan/server/static
-COPY . /opt/assurance-scan
+COPY --from=frontend /app/build /opt/assurance-scan/backend/app/static
+COPY backend/app/ /opt/assurance-scan/backend/app/
+COPY backend/bin/ /opt/assurance-scan/backend/bin/
+COPY backend/scripts/ /opt/assurance-scan/backend/scripts/
+COPY backend/resources/ /opt/assurance-scan/backend/resources/
+COPY backend/alembic.ini /opt/assurance-scan/backend/
+COPY docker-compose.security.yml /opt/assurance-scan/backend/
 
-RUN chmod +x /opt/assurance-scan/server/entrypoint.sh \
-    && ln -s /opt/assurance-scan/server/entrypoint.sh /usr/local/bin/assurance-scan
+RUN chmod +x /opt/assurance-scan/backend/app/entrypoint.sh \
+    && ln -s /opt/assurance-scan/backend/app/entrypoint.sh /usr/local/bin/assurance-scan
 
 ENTRYPOINT ["assurance-scan"]
 CMD ["serve"]
 ```
 
-**`requirements-server.txt`** is pinned and hashed. Image size budget: ~280 MB.
+**`backend/requirements/server.txt`** is the backend runtime dependency list.
+Image size budget: ~280 MB.
 
 **Multi-arch: linux/amd64 + linux/arm64 from day one.** Matches the current image. The build pipeline uses `docker buildx build --platform linux/amd64,linux/arm64 --push`. Frontend build (node:22-alpine) and Python deps are both multi-arch. Compose plugin download already handles arch via `$(uname -m)`.
 
@@ -639,35 +645,35 @@ This is a clean break, not a compatibility exercise. v1 file-based reports are n
 
 ### What's reused (importable, unmodified)
 
-- `scripts/scanner_parsers.py` — parses scanner output
-- `scripts/artifact_hashing.py` — SHA-256 hashing
-- `scripts/assurance_claims.py`, `scripts/assurance_proof_bundles.py` — proof bundle format
-- `scripts/process/` — per-scanner processor modules
+- `backend/scripts/scanner_parsers.py` — parses scanner output
+- `backend/scripts/artifact_hashing.py` — SHA-256 hashing
+- `backend/scripts/assurance_claims.py`, `backend/scripts/assurance_proof_bundles.py` — proof bundle format
+- `backend/scripts/process/` — per-scanner processor modules
 
 ### What's modified (domain logic changes)
 
-- `scripts/load_fr_catalog.py` — v2 schema only. No v1 reader.
-- `scripts/resolve-assurance-status.py` — replace FR+TBT state machine with the 8-state FR-only machine (§3). Precedence ladder, synchronous per-FR recompute.
-- `scripts/generate-evidence-bundle.py` — drop `target_tbt`; align with v2 schema.
-- `scripts/publish_findings.py` — switch from file-write to DB-insert. Reads scanner output (from `scanner_artifacts`), parses, inserts normalized findings + curated JSON columns. Drops all gitignore-management logic (no files written to repo anymore).
+- `backend/scripts/load_fr_catalog.py` — v2 schema only. No v1 reader.
+- `backend/scripts/resolve-assurance-status.py` — replace FR+TBT state machine with the 8-state FR-only machine (§3). Precedence ladder, synchronous per-FR recompute.
+- `backend/scripts/generate-evidence-bundle.py` — drop `target_tbt`; align with v2 schema.
+- `backend/scripts/publish_findings.py` — switch from file-write to DB-insert. Reads scanner output (from `scanner_artifacts`), parses, inserts normalized findings + curated JSON columns. Drops all gitignore-management logic (no files written to repo anymore).
 
 ### What's new
 
-- `server/` — FastAPI app, MCP endpoint, SQLite layer (SQLAlchemy + aiosqlite), Alembic migrations
-- `server/worker.py` — asyncio worker
-- `server/mcp.py` — MCP Streamable HTTP endpoint
-- `server/project_tests.py` — test discovery
-- `server/matching.py` — evidence-to-spec matching (§4)
+- `backend/app/` — FastAPI app, MCP endpoint, SQLite layer (SQLAlchemy + aiosqlite), Alembic migrations
+- `backend/app/worker.py` — asyncio worker
+- `backend/app/mcp.py` — MCP Streamable HTTP endpoint
+- `backend/app/project_tests.py` — test discovery
+- `backend/app/matching.py` — evidence-to-spec matching (§4)
 - `frontend/` — SvelteKit app
-- `data/schemas/fr-catalog.v2.schema.json`
-- `data/schemas/evidence.v2.schema.json`
-- `data/schemas/evidence-mapping-pack.v2.schema.json`
+- `backend/resources/schemas/fr-catalog.v2.schema.json`
+- `backend/resources/schemas/evidence.v2.schema.json`
+- `backend/resources/schemas/evidence-mapping-pack.v2.schema.json`
 
 ### What's removed
 
-- All `bin/assurance-scan` subcommands except `serve`, `mcp-config`, `export`
-- `scripts/run-local.sh` — replaced by the server worker (was already deprecated for service mode)
-- `scripts/generate_dashboard.py` — no static HTML generation; the SvelteKit UI replaces it
+- All `backend/bin/assurance-scan` subcommands except `serve`, `mcp-config`, `export`
+- `backend/scripts/run-local.sh` — replaced by the server worker (was already deprecated for service mode)
+- `backend/scripts/generate_dashboard.py` — no static HTML generation; the SvelteKit UI replaces it
 - File-based report writing paths (`reports/`, `sbom/`, `hashes/` directory layouts)
 - Gitignore-management logic in `publish_findings.py` — nothing written to repo
 - `docker-compose.security.yml` — replaced by direct container orchestration in the worker
@@ -704,7 +710,7 @@ Migration writes a v2 catalogue next to the v1 (e.g., `fr-catalog.v2.json`) and 
 
 ### Test updates
 
-Each test file under `tests/` gets updated for v2 schemas:
+Each test file under `backend/tests/` gets updated for v2 schemas:
 - `test_config_update_workflow.py` — drop, this workflow is removed in v3
 - `test_publish_findings.py` — rewrite for DB-insert flow
 - `test_authority_ruleset_sync.py` — review; likely unchanged (about scanner rules)
@@ -910,6 +916,6 @@ If Phase 0 surfaces architectural problems, fix them now while the surface area 
 - [ ] Confirm or override decisions (call out any to revisit)
 - [ ] Resolve the 5 remaining open questions in §15
 - [ ] Decide Phase 1 start date
-- [ ] Scaffold `server/` and `frontend/` directories
-- [ ] Write `data/schemas/fr-catalog.v2.schema.json`
+- [ ] Scaffold `backend/app/` and `frontend/` directories
+- [ ] Write `backend/resources/schemas/fr-catalog.v2.schema.json`
 - [ ] Write Alembic baseline migration

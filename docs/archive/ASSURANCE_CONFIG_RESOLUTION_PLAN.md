@@ -53,7 +53,7 @@ Rules:
 Prompt:
 
 ```text
-scripts/prompts/assurance-config-authoring.md
+backend/scripts/prompts/assurance-config-authoring.md
 ```
 
 ### 2. Validation Layer
@@ -240,7 +240,7 @@ Defines where non-scanner evidence is expected to come from:
 - document paths or manifests
 - approval record locations
 - manual checklist locations
-- required metadata/frontmatter
+- required metabackend/resources/frontmatter
 - provenance expectations
 
 Declared evidence sources do not affect status until evidence is observed,

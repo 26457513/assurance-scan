@@ -1,0 +1,14 @@
+# Slim CI orchestrator: stdlib-only scanner glue; scanners themselves run as
+# stock public images via the docker socket (option A — see docs/).
+FROM python:3.12-slim
+
+# The runner drives sibling scanner containers via the docker CLI over the
+# mounted socket; python-slim has no docker binary.
+COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
+
+WORKDIR /opt/assurance-scan/backend
+COPY backend/scripts/ci-scan.py ./scripts/ci-scan.py
+COPY backend/app/ ./app/
+
+ENV PYTHONPATH=/opt/assurance-scan/backend
+ENTRYPOINT ["python3", "/opt/assurance-scan/backend/scripts/ci-scan.py"]

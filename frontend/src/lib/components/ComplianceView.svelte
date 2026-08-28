@@ -132,7 +132,7 @@
       <CopyButton text={mappingPrompt} label="Copy prompt" />
     </div>
     <div class="mt-3 text-[11px] text-ink-muted font-mono">
-      Requires an FR catalogue first — <a href="#" class="text-accent hover:underline">generate one on the FRs tab</a>
+      Requires an FR catalogue first — <a href="/frs" class="text-accent hover:underline">generate one on the FRs tab</a>
     </div>
   </div>
 {:else if loading && !matrix}

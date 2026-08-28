@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "pack_id": "trivy-config-asvs-v5.0.0",
+    "pack_version": "0.1.0",
+    "created_at": "2026-07-08T00:00:00Z",
+    "updated_at": "2026-07-08T00:00:00Z",
+    "generator": "manual-curation",
+    "input_artifacts": [
+      {
+        "kind": "scanner_rule_catalog",
+        "path": "resources/sources/trivy_config_rules.json",
+        "version": "main"
+      },
+      {
+        "kind": "ruleset",
+        "path": "resources/rulesets/asvs/5.0.0.json",
+        "version": "5.0.0"
+      }
+    ]
+  },
+  "scanner": "trivy-config",
+  "scanner_version": "rule-pack-specific",
+  "scanner_rule_source": {
+    "kind": "scanner_rule_catalog",
+    "ref": "resources/sources/trivy_config_rules.json",
+    "version": "main"
+  },
+  "compliance": {
+    "ruleset": "ASVS",
+    "version": "5.0.0",
+    "source_ref": "resources/rulesets/asvs/5.0.0.json"
+  },
+  "mappings": [
+    {
+      "id": "SCM-TRIVY-CONFIG-ASVS-5-CONTAINER-SECRETS",
+      "review_status": "accepted",
+      "reviewed_by": "assurance-scan-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_blocking_signal",
+      "review_notes": "Secrets in Docker build args/env are blocking signals for secret management.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "DS-0031",
+          "output_field": "ID"
+        }
+      ],
+      "limitations": [
+        "Container config scanning cannot inspect runtime vault access policy."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_rule_catalog",
+          "ref": "resources/sources/trivy_config_rules.json#/entries/DS-0031"
+        }
+      ],
+      "rationale": "Secrets passed into image builds can leak into layers and violate secret-management expectations.",
+      "confidence": "high",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "blocking_if_finding",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-13.3.1"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-13.3.2"
+          }
+        ],
+        "compliance_domains": []
+      }
+    },
+    {
+      "id": "SCM-TRIVY-CONFIG-ASVS-5-RISKY-CONTAINER-COMPONENTS",
+      "review_status": "accepted",
+      "reviewed_by": "assurance-scan-maintainers",
+      "reviewed_at": "2026-07-08T00:00:00Z",
+      "review_decision": "accepted_as_supporting_or_blocking_signal",
+      "review_notes": "Container hardening findings are relevant to dependency and risky-component controls, but are not pure ASVS proof.",
+      "rule_selectors": [
+        {
+          "type": "exact",
+          "value": "DS-0002",
+          "output_field": "ID"
+        },
+        {
+          "type": "exact",
+          "value": "DS-0004",
+          "output_field": "ID"
+        },
+        {
+          "type": "exact",
+          "value": "DS-0026",
+          "output_field": "ID"
+        }
+      ],
+      "limitations": [
+        "ASVS is application-focused; platform hardening evidence may fit CIS/NIST better."
+      ],
+      "source_basis": [
+        {
+          "kind": "scanner_rule_catalog",
+          "ref": "resources/sources/trivy_config_rules.json"
+        }
+      ],
+      "rationale": "Container misconfiguration findings can indicate risky deployment components around the application.",
+      "confidence": "low",
+      "mapping_level": "compliance_row",
+      "traceability_strength": "direct",
+      "assurance_effect": "supporting_signal",
+      "targets": {
+        "compliance_rows": [
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-13.1.3"
+          },
+          {
+            "ruleset": "ASVS",
+            "row": "v5.0.0-15.2.5"
+          }
+        ],
+        "compliance_domains": []
+      }
+    }
+  ]
+}

@@ -7,13 +7,10 @@ FROM node:22-alpine AS frontend
 WORKDIR /app
 
 COPY frontend/package*.json ./
-# Use npm install — package-lock.json in this repo isn't kept perfectly in sync
-# with package.json (npm ci fails). npm install is more forgiving and produces
-# a working build.
-RUN npm install
+RUN npm ci --ignore-scripts
 
 COPY frontend/ ./
-RUN npm run build
+RUN npm run check && npm run build
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +27,7 @@ RUN apk add --no-cache \
     python3-dev
 
 WORKDIR /build
-COPY requirements-server.txt /tmp/
+COPY backend/requirements/server.txt /tmp/requirements-server.txt
 
 RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir --upgrade pip "setuptools>=78.1.1" \
@@ -69,7 +66,7 @@ RUN apk upgrade --no-cache && apk add --no-cache \
 COPY --from=pybuilder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-WORKDIR /opt/assurance-scan
+WORKDIR /opt/assurance-scan/backend
 
 LABEL org.opencontainers.image.source="https://github.com/jondowson/assurance-scan" \
       org.opencontainers.image.url="https://github.com/jondowson/assurance-scan" \
@@ -78,24 +75,20 @@ LABEL org.opencontainers.image.source="https://github.com/jondowson/assurance-sc
       org.opencontainers.image.description="Single-user, locally-running assurance service exposing scans via REST + MCP and a SvelteKit UI."
 
 # Built frontend
-COPY --from=frontend /app/build /opt/assurance-scan/server/static
+COPY --from=frontend /app/build /opt/assurance-scan/backend/app/static
 
-# Application code
-COPY server/ /opt/assurance-scan/server/
-COPY alembic.ini /opt/assurance-scan/
-
-# JSON Schemas used at runtime by the catalogue loader
-COPY data/schemas/ /opt/assurance-scan/data/schemas/
-
-# Workflow prompt definitions served via MCP
-COPY data/workflows/ /opt/assurance-scan/data/workflows/
-
-# Compliance packs (framework row data — agent reads these to draft mappings)
-COPY data/compliance-packs/ /opt/assurance-scan/data/compliance-packs/
+# Backend source layout. Keep the image paths aligned with the repository so
+# scripts and runtime resource resolution behave the same locally and in CI.
+COPY backend/app/ /opt/assurance-scan/backend/app/
+COPY backend/bin/ /opt/assurance-scan/backend/bin/
+COPY backend/scripts/ /opt/assurance-scan/backend/scripts/
+COPY backend/resources/ /opt/assurance-scan/backend/resources/
+COPY backend/alembic.ini /opt/assurance-scan/backend/
+COPY docker-compose.security.yml /opt/assurance-scan/backend/docker-compose.security.yml
 
 # Entrypoint
-RUN chmod +x /opt/assurance-scan/server/entrypoint.sh \
-    && ln -s /opt/assurance-scan/server/entrypoint.sh /usr/local/bin/assurance-scan
+RUN chmod +x /opt/assurance-scan/backend/app/entrypoint.sh \
+    && ln -s /opt/assurance-scan/backend/app/entrypoint.sh /usr/local/bin/assurance-scan
 
 # /data must be bind-mounted from the host for persistence.
 RUN mkdir -p /data

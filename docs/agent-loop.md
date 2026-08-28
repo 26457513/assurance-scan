@@ -13,7 +13,7 @@ This doc walks through the canonical workflow end-to-end: configure MCP, trigger
    ```bash
    docker pull namenottaken/assurance-scan:latest
    ```
-3. **An FR catalogue** at `<your-project>/fr-catalog.json` (schema v2 — see `data/schemas/fr-catalog.v2.schema.json`).
+3. **An FR catalogue** at `<your-project>/fr-catalog.json` (schema v2 — see `backend/resources/schemas/fr-catalog.v2.schema.json`).
 4. **A mapping pack** (optional) at `<your-project>/evidence-mapping-pack.json` if your scanner rule IDs need explicit FR associations.
 
 ---
@@ -202,7 +202,7 @@ Waived FRs drop out of the gap analysis on subsequent scans. Revoke with `revoke
 
 ## 6. Operational notes
 
-- **Concurrency:** one scan at a time per server. Multiple scans queue.
+- **Concurrency:** one scan at a time per app. Multiple scans queue.
 - **Per-scanner failures are recorded but don't fail the run.** If Gitleaks crashes, Semgrep still runs and the scan completes. The `scanner_status` field on the scan shows per-scanner state.
 - **Catalogue edits:** just save the file. The next `start_scan` picks up the new version automatically — no reload command needed.
 - **Persistent state:** everything lives in `$HOME/.assurance-scan/db.sqlite`. Back it up with `docker stop assurance-scan && cp ~/.assurance-scan/db.sqlite ~/.assurance-scan/db.sqlite.bak && docker start assurance-scan`.

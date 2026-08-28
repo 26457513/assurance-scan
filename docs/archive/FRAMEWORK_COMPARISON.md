@@ -1,12 +1,12 @@
 # Framework Comparison: ASVS vs NIST 800-53
 
-> **Status: Historical.** This doc was written during Phase 0 to validate the FR schema design against two structurally different frameworks. The schema refinements it proposed were incorporated into [FR_TRACEABILITY_PIVOT.md](FR_TRACEABILITY_PIVOT.md) (specifically: evidence promoted to typed entries, parent field for hierarchical frameworks, satisfies with status="na"). For the current schema, see [FR_TRACEABILITY_PIVOT.md](FR_TRACEABILITY_PIVOT.md) and [`data/schemas/fr-catalog.schema.json`](../../data/schemas/fr-catalog.schema.json). This doc is kept as a record of the design rationale; no longer the source of truth.
+> **Status: Historical.** This doc was written during Phase 0 to validate the FR schema design against two structurally different frameworks. The schema refinements it proposed were incorporated into [FR_TRACEABILITY_PIVOT.md](FR_TRACEABILITY_PIVOT.md) (specifically: evidence promoted to typed entries, parent field for hierarchical frameworks, satisfies with status="na"). For the current schema, see [FR_TRACEABILITY_PIVOT.md](FR_TRACEABILITY_PIVOT.md) and [`backend/resources/schemas/fr-catalog.schema.json`](../../backend/resources/schemas/fr-catalog.schema.json). This doc is kept as a record of the design rationale; no longer the source of truth.
 
 ## Why this doc exists
 
 Before finalising the FR JSON schema (see [FR_TRACEABILITY_PIVOT.md](FR_TRACEABILITY_PIVOT.md)), we need to see how real compliance frameworks are structured. If the FR schema is designed against only one framework, it bakes in that framework's idiosyncrasies. By comparing two structurally different frameworks — ASVS (testable "verify" statements with maturity levels) and NIST 800-53 (imperative controls with hierarchical enhancements and baseline allocations) — we identify which fields are universal and which need framework-specific extensions.
 
-This doc uses snapshots in `data/sources/asvs_requirements.json` (345 reqs) and `data/sources/nist_800_53_requirements.json` (1196 controls) produced by `scripts/build-mapping-sources.py`.
+This doc uses snapshots in `backend/resources/sources/asvs_requirements.json` (345 reqs) and `backend/resources/sources/nist_800_53_requirements.json` (1196 controls) produced by `backend/scripts/build-mapping-sources.py`.
 
 ## Side-by-side structure
 

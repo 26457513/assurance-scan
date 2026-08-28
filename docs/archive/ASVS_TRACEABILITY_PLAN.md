@@ -55,12 +55,12 @@ Both read the same intermediate data: a mapping (`asvs_mapping.yaml`) that links
 
 **Data shapes:**
 
-- **`asvs_mapping.yaml`** (source of truth, in repo, baked into image). Maps ASVS IDs to scanner rules. Per-entry review state stored as structured fields (not YAML comments) so it survives regen. Lives at `data/asvs_mapping.yaml` in the repo → `/opt/asvs-scanner/data/asvs_mapping.yaml` in the image (Dockerfile's `COPY .` includes it; the existing `rm -rf` step does not touch `data/`).
+- **`asvs_mapping.yaml`** (source of truth, in repo, baked into image). Maps ASVS IDs to scanner rules. Per-entry review state stored as structured fields (not YAML comments) so it survives regen. Lives at `backend/resources/asvs_mapping.yaml` in the repo → `/opt/asvs-scanner/backend/resources/asvs_mapping.yaml` in the image (Dockerfile's `COPY .` includes it; the existing `rm -rf` step does not touch `backend/resources/`).
 - **Per-scan graph payload** (`graph.json`, embedded in dashboard HTML as `<script type="application/json" id="traceability-data">`). Same data rendered two ways (table + graph). Machine-generated, never hand-edited.
 
 ## Phase 1 — Mapping generation
 
-**Goal:** produce `data/asvs_mapping.yaml` covering the four ASVS 5.0 chapters most tractable to automated mapping, at high quality, plus a thin layer of section-level fallback for the other 13 chapters.
+**Goal:** produce `backend/resources/asvs_mapping.yaml` covering the four ASVS 5.0 chapters most tractable to automated mapping, at high quality, plus a thin layer of section-level fallback for the other 13 chapters.
 
 **ASVS 5.0 chapter scope for v1** (chapter numbering changed between ASVS 4.0 and 5.0 — this plan uses 5.0):
 
@@ -75,23 +75,23 @@ Both read the same intermediate data: a mapping (`asvs_mapping.yaml`) that links
 
 Other chapters (V3 Web Frontend, V4 API, V5 File Handling, V6 Authentication, V7 Sessions, V8 Authorization, V9 Tokens, V10 OAuth, V11 Crypto, V12 Comms, V15 Secure Coding, V16 Logging, V17 WebRTC) get section-level fallback only in v1.
 
-### 1.1 Inputs (download once, commit to repo under `data/sources/`)
+### 1.1 Inputs (download once, commit to repo under `backend/resources/sources/`)
 
 | Source | URL | Format | Notes |
 |---|---|---|---|
 | ASVS 5.0.0 standard | `https://github.com/OWASP/ASVS/tree/v5.0.0` under `5.0/en/` | Markdown per chapter (e.g. `0x10-V1-Encoding-and-Sanitization.md`) | Parsed in-repo (no pandoc/dicttoxml dep). Tables with `\| # \| Description \| Level \|` per section. Confirm empirical row counts during §1.1. |
 | Project CSV (Barkley) | supplied by user via `--compliance-matrix` at generation time | CSV | Has `Automated Scan Tool` column already encoding mapping hints — feeds LLM as critique target, not as ground truth |
-| Semgrep ASVS rules | `https://github.com/semgrep-old/rules-owasp-asvs` | YAML rules | MPL 2.0 license — attribution in `data/sources/LICENSES.md` |
+| Semgrep ASVS rules | `https://github.com/semgrep-old/rules-owasp-asvs` | YAML rules | MPL 2.0 license — attribution in `backend/resources/sources/LICENSES.md` |
 | Semgrep community rules | `https://github.com/semgrep/semgrep-rules` | YAML rules | 4000+ rules; filter to `security-affecting` rulesets (categorisation lives in each rule's `metadata` block — filter on `confidence`, `impact`, `owasp` keys) |
 | Trivy misconfig checks | `https://github.com/aquasecurity/trivy-checks` | Rego + metadata | Apache 2.0; IDs like `AVD-DS-0002`; OPA Rego files include title/description/severity |
 | Gitleaks rules | `https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml` | TOML | MIT; ~150 rules with IDs + descriptions |
 | ZAP passive rules | `https://www.zaproxy.org/docs/alerts/` | Markdown | Apache 2.0; stable IDs (e.g. `10096`); scrape and parse |
-| security-headers | `scripts/security-headers.py` (in-repo) | Python source | 6 headers, hardcoded — extract to YAML |
+| security-headers | `backend/scripts/security-headers.py` (in-repo) | Python source | 6 headers, hardcoded — extract to YAML |
 | testssl.sh | `https://github.com/testssl/testssl.sh` | Bash | No stable IDs; map at category level only (TLS protocols, ciphers, etc.) |
 
-A small Python script `scripts/build-mapping-sources.py` clones/fetches each, normalizes to intermediate JSON, and writes `data/sources/<scanner>_rules.json` + `data/sources/asvs_requirements.json`. Reviewers can rerun this when sources update.
+A small Python script `backend/scripts/build-mapping-sources.py` clones/fetches each, normalizes to intermediate JSON, and writes `backend/resources/sources/<scanner>_rules.json` + `backend/resources/sources/asvs_requirements.json`. Reviewers can rerun this when sources update.
 
-**License attribution.** Each source's license + attribution URL is recorded in `data/sources/LICENSES.md` (CC BY-SA for ASVS, MPL 2.0 for Semgrep, Apache 2.0 for Trivy/ZAP, MIT for Gitleaks). Required for ASVS (CC BY-SA) and good practice for the rest.
+**License attribution.** Each source's license + attribution URL is recorded in `backend/resources/sources/LICENSES.md` (CC BY-SA for ASVS, MPL 2.0 for Semgrep, Apache 2.0 for Trivy/ZAP, MIT for Gitleaks). Required for ASVS (CC BY-SA) and good practice for the rest.
 
 **Trivy is treated as three sub-scanners** at the mapping layer (one Trivy scan emits three result types that map to different ASVS chapters):
 
@@ -105,7 +105,7 @@ A small Python script `scripts/build-mapping-sources.py` clones/fetches each, no
 
 ### 1.2 Mapping generation (LLM-assisted)
 
-Script: `scripts/generate-mapping.py`. Reads the intermediate JSON files + the project CSV, calls Claude per ASVS chapter, produces a candidate YAML.
+Script: `backend/scripts/generate-mapping.py`. Reads the intermediate JSON files + the project CSV, calls Claude per ASVS chapter, produces a candidate YAML.
 
 **Chunking strategy:** one LLM call per ASVS chapter × per scanner sub-type. For the v1 scope (ASVS 5.0 chapters):
 - V1 × {semgrep} → 1 call
@@ -121,17 +121,17 @@ Script: `scripts/generate-mapping.py`. Reads the intermediate JSON files + the p
 
 **Parroting guard.** If the LLM agrees with CSV hints ~100% of the time, that's suspicious — either the CSV was already perfect (unlikely) or the LLM is being lazy. The validator (§1.5) reports "% of mappings where LLM agreed with CSV hint vs. modified vs. rejected". If agreement >85%, flag for human spot-check before promoting any entries to `high` confidence.
 
-**Prompt template (stored in `scripts/prompts/asvs-mapping.md`):**
+**Prompt template (stored in `backend/scripts/prompts/asvs-mapping.md`):**
 - System: "You map OWASP ASVS requirements to scanner rules. Be conservative — only `high` confidence when the rule clearly verifies the requirement. Include reasoning so reviewers can sanity-check."
 - User: chapter context + requirement text + rule list with descriptions + CSV's existing hint for each row
 - Output: strict JSON, schema in §1.3 below
 
 Convert JSON output to YAML with `yaml.safe_dump` (standard library `pyyaml`, already implied available — see §Dependencies). No `ruamel.yaml`.
 
-### 1.3 Output schema (`data/asvs_mapping.yaml`)
+### 1.3 Output schema (`backend/resources/asvs_mapping.yaml`)
 
 ```yaml
-# Auto-generated by scripts/generate-mapping.py on 2026-07-15
+# Auto-generated by backend/scripts/generate-mapping.py on 2026-07-15
 # ASVS version: 5.0.0
 # Scanner rule snapshots: as of <dates per source>
 #
@@ -176,14 +176,14 @@ requirements:
 
 The LLM may emit either. The generator and dashboard both use `fnmatch` uniformly — exact IDs match themselves under fnmatch, so no special-casing.
 
-**`rule_hash` definition.** SHA-256 of the JSON-normalized `{title, description, severity}` tuple from `data/sources/<scanner>_rules.json`. Canonicalisation: `json.dumps({...}, sort_keys=True, separators=(',', ':'))` then SHA-256. Hashed value stored as `rule_hash: "sha256:<hex>"`. On regen, recompute and compare — mismatch flips `review.status` to `stale`. Cosmetic changes (whitespace, capitalisation in non-hashed fields) do NOT trigger staleness; semantic changes (title/description/severity edits) do.
+**`rule_hash` definition.** SHA-256 of the JSON-normalized `{title, description, severity}` tuple from `backend/resources/sources/<scanner>_rules.json`. Canonicalisation: `json.dumps({...}, sort_keys=True, separators=(',', ':'))` then SHA-256. Hashed value stored as `rule_hash: "sha256:<hex>"`. On regen, recompute and compare — mismatch flips `review.status` to `stale`. Cosmetic changes (whitespace, capitalisation in non-hashed fields) do NOT trigger staleness; semantic changes (title/description/severity edits) do.
 
 **Review state lives in data, not comments.** Generator preserves existing `review` blocks when re-running on the same `(asvs_id, scanner, rule_id)` tuple. Reviewers edit the field, never the comments. This survives regen without `ruamel.yaml`.
 
 ### 1.4 Review workflow
 
 1. Generator produces v1 of the YAML covering V5, V8, V14.
-2. Reviewer runs `scripts/review-mapping.py` — a small TUI that walks entries one at a time, lowest-confidence first. Each screen shows: ASVS requirement text, the rule's description, the LLM's reasoning, and (when present) the CSV hint that was critiqued. Reviewer presses `y` (reviewed, accept), `n` (rejected), `m` (needs discussion, mark medium), or `s` (skip). Writes the `review` block including `rule_hash`.
+2. Reviewer runs `backend/scripts/review-mapping.py` — a small TUI that walks entries one at a time, lowest-confidence first. Each screen shows: ASVS requirement text, the rule's description, the LLM's reasoning, and (when present) the CSV hint that was critiqued. Reviewer presses `y` (reviewed, accept), `n` (rejected), `m` (needs discussion, mark medium), or `s` (skip). Writes the `review` block including `rule_hash`.
 3. Reviewer eyeballs `high` confidence entries directly in the YAML for obvious false mappings — TUI focuses on the long tail.
 4. Commit. The YAML is the source of truth until the next refresh (see §1.6).
 
@@ -193,25 +193,25 @@ The LLM may emit either. The generator and dashboard both use `fnmatch` uniforml
 
 ### 1.5 Validation
 
-Script: `scripts/validate-mapping.py`. Checks:
+Script: `backend/scripts/validate-mapping.py`. Checks:
 - Every ASVS ID in the YAML exists in the source CSV (no typos).
-- Every `rule_id` resolves against `data/sources/<scanner>_rules.json` — either exact match or glob that matches at least one rule.
+- Every `rule_id` resolves against `backend/resources/sources/<scanner>_rules.json` — either exact match or glob that matches at least one rule.
 - No requirement is left with zero mappings AND marked as `automated` in the CSV (would be a coverage gap).
 - Schema conformance (required fields present, `review.status` is one of: `unreviewed | reviewed | rejected | stale | orphaned`).
-- **Coverage gap report:** list scanner rules in the source snapshots that aren't referenced by any ASVS row. Useful for "where could we add coverage?" analysis. Output written to `data/sources/coverage-gaps.md` (markdown table), committed on every generator run. CI workflow surfaces the report as a PR comment when changes are detected.
+- **Coverage gap report:** list scanner rules in the source snapshots that aren't referenced by any ASVS row. Useful for "where could we add coverage?" analysis. Output written to `backend/resources/sources/coverage-gaps.md` (markdown table), committed on every generator run. CI workflow surfaces the report as a PR comment when changes are detected.
 - **Parroting check:** report "% of LLM mappings that agreed with / modified / rejected the CSV hint". Flag if agreement >85% (see §1.2).
 - **Orphan detection:** ASVS IDs in the YAML that no longer exist in the project CSV get `review.status: orphaned`. **Never auto-delete** — the mapping might be useful if the row returns in a future CSV revision. TUI surfaces orphaned entries at top of review queue so the reviewer can decide whether to keep, reject, or move to a separate `archived` section.
 
-Runs in CI on every PR touching `data/asvs_mapping.yaml`, `data/sources/**`, or any `scripts/*-mapping.py`.
+Runs in CI on every PR touching `backend/resources/asvs_mapping.yaml`, `backend/resources/sources/**`, or any `backend/scripts/*-mapping.py`.
 
 ### 1.6 Updates (regen + merge)
 
 When ASVS publishes a new version, a scanner adds rules, or the project CSV changes:
 
-1. **Refresh sources** — re-run `scripts/build-mapping-sources.py` → refreshes `data/sources/`. **Cadence:** quarterly via maintainer manual trigger (no automation yet — automation is a Phase 4 candidate). Each refresh PR includes a diff of added/removed/changed rule IDs (generated by the build script) to make review tractable.
-2. Re-run `scripts/generate-mapping.py --merge` → produces a new candidate YAML. The `--merge` flag means: for every `(asvs_id, scanner, rule_id)` tuple already in the existing YAML, **preserve** the entry as-is, **unless** the source rule's hash differs from the snapshotted `rule_hash` — in which case mark `review.status: stale`. Only LLM-generate mappings for new tuples, stale tuples, or tuples still marked `unreviewed`.
+1. **Refresh sources** — re-run `backend/scripts/build-mapping-sources.py` → refreshes `backend/resources/sources/`. **Cadence:** quarterly via maintainer manual trigger (no automation yet — automation is a Phase 4 candidate). Each refresh PR includes a diff of added/removed/changed rule IDs (generated by the build script) to make review tractable.
+2. Re-run `backend/scripts/generate-mapping.py --merge` → produces a new candidate YAML. The `--merge` flag means: for every `(asvs_id, scanner, rule_id)` tuple already in the existing YAML, **preserve** the entry as-is, **unless** the source rule's hash differs from the snapshotted `rule_hash` — in which case mark `review.status: stale`. Only LLM-generate mappings for new tuples, stale tuples, or tuples still marked `unreviewed`.
 3. **Staleness detection** is automatic via `rule_hash` comparison. Reviewers don't have to spot drift manually.
-4. Reviewer runs `scripts/review-mapping.py` again — TUI surfaces stale + new + changed + orphaned entries first, then anything still `unreviewed`.
+4. Reviewer runs `backend/scripts/review-mapping.py` again — TUI surfaces stale + new + changed + orphaned entries first, then anything still `unreviewed`.
 5. Commit.
 
 This makes ASVS upgrades and scanner refreshes cheap. The merge is conservative — once a human has reviewed a mapping, the LLM doesn't second-guess it unless the underlying rule actually changed.
@@ -227,19 +227,19 @@ The scanner image (`docker:27-cli` + `apk add python3`) needs these additional P
 | `anthropic` | `generate-mapping.py` | Claude API client for mapping generation |
 | `prompt_toolkit` | `review-mapping.py` | Pleasant TUI: side-by-side ASVS text + rule description, proper line wrapping, keybinding hints |
 
-Add to a new `requirements-mapping.txt` (separate from runtime scanner deps — these are dev/maintainer tools, not needed in every scan). The Dockerfile stays unchanged; mapping tools run on the maintainer's machine, not inside the scan image.
+Add to a new `backend/requirements/mapping.txt` (separate from runtime scanner deps — these are dev/maintainer tools, not needed in every scan). The Dockerfile stays unchanged; mapping tools run on the maintainer's machine, not inside the scan image.
 
-Maintainer-side env: `ANTHROPIC_API_KEY` (Claude API access). Document in `scripts/generate-mapping.py --help` and the README's "Publishing A New Version" section.
+Maintainer-side env: `ANTHROPIC_API_KEY` (Claude API access). Document in `backend/scripts/generate-mapping.py --help` and the README's "Publishing A New Version" section.
 
-The scan image only needs `pyyaml` to **read** the mapping at render time. `pyyaml` is part of standard Python image; verify it's installed in `scripts/preflight.sh` and add to the Dockerfile's `apk add` if missing.
+The scan image only needs `pyyaml` to **read** the mapping at render time. `pyyaml` is part of standard Python image; verify it's installed in `backend/scripts/preflight.sh` and add to the Dockerfile's `apk add` if missing.
 
 ### 1.8 Testing
 
 | Test type | What | Where | CI |
 |---|---|---|---|
-| Unit | Traffic-light computation, rule pattern matching, NA handling, orphan handling, staleness detection | `scripts/test_compliance_matrix.py` | yes |
-| Schema | Mapping YAML conformance (already in `validate-mapping.py`) | `scripts/validate-mapping.py` | yes |
-| Snapshot | Rendered dashboard HTML for a fixture scan; PR-affecting changes require snapshot update (reviewable diff) | `tests/fixtures/sample-scan/` + `scripts/test_dashboard_snapshot.py` | yes |
+| Unit | Traffic-light computation, rule pattern matching, NA handling, orphan handling, staleness detection | `backend/scripts/test_compliance_matrix.py` | yes |
+| Schema | Mapping YAML conformance (already in `validate-mapping.py`) | `backend/scripts/validate-mapping.py` | yes |
+| Snapshot | Rendered dashboard HTML for a fixture scan; PR-affecting changes require snapshot update (reviewable diff) | `tests/fixtures/sample-scan/` + `backend/scripts/test_dashboard_snapshot.py` | yes |
 
 Unit tests target the pure functions in §2.3 (compliance computation) and §1.5 (validation). Fast (<5s), no fixtures needed.
 
@@ -251,9 +251,9 @@ Snapshot test uses a committed sample scan output. Any change that affects rende
 
 ### 2.1 CLI wiring
 
-- `bin/asvs-scanner`: accept `--compliance-matrix <path>` flag in the `scan` subcommand. Mirror the existing `--uploads` handling at line ~500: call `to_abs_path` to resolve to absolute, validate the file exists at scan time, pass through to `run-local.sh` via env (`ASVS_COMPLIANCE_MATRIX`). The CSV must be visible inside the container at the same absolute path (covered by the existing `"(dirname "$PWD"):(dirname "$PWD")"` mount — same pattern as the target repo itself).
-- `run-local.sh`: thread the env var to `generate-dashboard.py` via a new `--compliance-matrix` flag.
-- `scripts/generate-dashboard.py`: if flag is set, render the Compliance Matrix tab; if not, omit it entirely (no empty tabs).
+- `bin/asvs-scanner`: accept `--compliance-matrix <path>` flag in the `scan` subcommand. Mirror the existing `--uploads` handling at line ~500: call `to_abs_path` to resolve to absolute, validate the file exists at scan time, pass through to `backend/scripts/run-local.sh` via env (`ASVS_COMPLIANCE_MATRIX`). The CSV must be visible inside the container at the same absolute path (covered by the existing `"(dirname "$PWD"):(dirname "$PWD")"` mount — same pattern as the target repo itself).
+- `backend/scripts/run-local.sh`: thread the env var to `generate-dashboard.py` via a new `--compliance-matrix` flag.
+- `backend/scripts/generate-dashboard.py`: if flag is set, render the Compliance Matrix tab; if not, omit it entirely (no empty tabs).
 
 ### 2.2 CSV parsing
 
@@ -323,9 +323,9 @@ New function `render_compliance_matrix(csv_path, mapping, evidence, report_dir) 
 | File | Change |
 |---|---|
 | `bin/asvs-scanner` | Accept `--compliance-matrix` flag (mirror `--uploads` handling ~line 500), validate path, set env var |
-| `run-local.sh` | Pass `ASVS_COMPLIANCE_MATRIX` through to dashboard generator |
-| `scripts/generate-dashboard.py` | New `render_compliance_matrix()`, new tab wiring (~lines 1781, 1809 for tab buttons and panels), traffic-light computation helpers, ASVS Coverage KPI on Overview |
-| `data/asvs_mapping.yaml` | The mapping file from Phase 1 (read at render time) |
+| `backend/scripts/run-local.sh` | Pass `ASVS_COMPLIANCE_MATRIX` through to dashboard generator |
+| `backend/scripts/generate-dashboard.py` | New `render_compliance_matrix()`, new tab wiring (~lines 1781, 1809 for tab buttons and panels), traffic-light computation helpers, ASVS Coverage KPI on Overview |
+| `backend/resources/asvs_mapping.yaml` | The mapping file from Phase 1 (read at render time) |
 | README.md | Document the new flag and tab |
 
 ## Phase 3 — Traceability Graph tab
@@ -390,8 +390,8 @@ A naive "show everything" graph with ~990 requirements + thousands of rules + th
 
 | File | Change |
 |---|---|
-| `scripts/generate-dashboard.py` | New `render_traceability_graph()` function, new `build_traceability_graph()` helper, new tab wiring, ECharts `<script>` tag, hash-based cross-tab nav handlers, "Find ASVS impact" button on All Findings rows |
-| `scripts/generate-dashboard.py` (CSS) | Add styles for the graph panel, sidebar, detail pane |
+| `backend/scripts/generate-dashboard.py` | New `render_traceability_graph()` function, new `build_traceability_graph()` helper, new tab wiring, ECharts `<script>` tag, hash-based cross-tab nav handlers, "Find ASVS impact" button on All Findings rows |
+| `backend/scripts/generate-dashboard.py` (CSS) | Add styles for the graph panel, sidebar, detail pane |
 | README.md | Brief mention of the graph tab and its scope limitations |
 
 No CLI changes — the same `--compliance-matrix` flag enables both Phase 2 and Phase 3.
@@ -400,25 +400,25 @@ No CLI changes — the same `--compliance-matrix` flag enables both Phase 2 and 
 
 **Existing, modified:**
 - `bin/asvs-scanner` — `--compliance-matrix` flag in `scan` case (around line 477)
-- `run-local.sh` — env var threading (near other `--image` / `--url` parsing around line 322)
-- `scripts/generate-dashboard.py` — bulk of the work; new render functions, tab wiring, embedded graph payload, ASVS Coverage KPI
+- `backend/scripts/run-local.sh` — env var threading (near other `--image` / `--url` parsing around line 322)
+- `backend/scripts/generate-dashboard.py` — bulk of the work; new render functions, tab wiring, embedded graph payload, ASVS Coverage KPI
 
 **New, in repo:**
-- `data/asvs_mapping.yaml` — the curated mapping
-- `data/sources/asvs_requirements.json` — ASVS spec snapshot
-- `data/sources/{semgrep,trivy-vuln,trivy-config,trivy-secret,gitleaks,zap,security-headers,testssl}_rules.json` — scanner rule snapshots
-- `data/sources/LICENSES.md` — license attribution for each source
-- `data/sources/coverage-gaps.md` — auto-generated coverage gap report
-- `scripts/build-mapping-sources.py` — fetches and normalizes source data
-- `scripts/generate-mapping.py` — LLM-assisted mapping generator with `--merge` mode
-- `scripts/validate-mapping.py` — schema/coverage validation, orphan-rules report, parroting check
-- `scripts/review-mapping.py` — interactive TUI for review pass
-- `scripts/test_compliance_matrix.py` — unit tests for §2.3 logic
-- `scripts/test_dashboard_snapshot.py` — snapshot test for rendered dashboard
+- `backend/resources/asvs_mapping.yaml` — the curated mapping
+- `backend/resources/sources/asvs_requirements.json` — ASVS spec snapshot
+- `backend/resources/sources/{semgrep,trivy-vuln,trivy-config,trivy-secret,gitleaks,zap,security-headers,testssl}_rules.json` — scanner rule snapshots
+- `backend/resources/sources/LICENSES.md` — license attribution for each source
+- `backend/resources/sources/coverage-gaps.md` — auto-generated coverage gap report
+- `backend/scripts/build-mapping-sources.py` — fetches and normalizes source data
+- `backend/scripts/generate-mapping.py` — LLM-assisted mapping generator with `--merge` mode
+- `backend/scripts/validate-mapping.py` — schema/coverage validation, orphan-rules report, parroting check
+- `backend/scripts/review-mapping.py` — interactive TUI for review pass
+- `backend/scripts/test_compliance_matrix.py` — unit tests for §2.3 logic
+- `backend/scripts/test_dashboard_snapshot.py` — snapshot test for rendered dashboard
 - `tests/fixtures/sample-scan/` — fixture scan data for snapshot tests
-- `scripts/prompts/asvs-mapping.md` — prompt template for the LLM
-- `requirements-mapping.txt` — Python deps for maintainer-side tooling (pyyaml, requests, anthropic, prompt_toolkit)
-- `.github/workflows/validate-mapping.yml` — CI check; triggers on PRs touching `data/asvs_mapping.yaml`, `data/sources/**`, or any `scripts/*-mapping.py`
+- `backend/scripts/prompts/asvs-mapping.md` — prompt template for the LLM
+- `backend/requirements/mapping.txt` — Python deps for maintainer-side tooling (pyyaml, requests, anthropic, prompt_toolkit)
+- `.github/workflows/validate-mapping.yml` — CI check; triggers on PRs touching `backend/resources/asvs_mapping.yaml`, `backend/resources/sources/**`, or any `backend/scripts/*-mapping.py`
 
 ## Risks and mitigations
 
@@ -443,28 +443,28 @@ No CLI changes — the same `--compliance-matrix` flag enables both Phase 2 and 
 **Phase 1 (mapping):**
 ```bash
 # Install maintainer-side deps
-pip install -r requirements-mapping.txt
+pip install -r backend/requirements/mapping.txt
 export ANTHROPIC_API_KEY=...
 
 # Generate fresh source snapshots
-python3 scripts/build-mapping-sources.py
+python3 backend/scripts/build-mapping-sources.py
 
 # Generate candidate mapping for V5, V8, V14
-python3 scripts/generate-mapping.py --chapters V5,V8,V14 \
+python3 backend/scripts/generate-mapping.py --chapters V5,V8,V14 \
   --compliance-csv /path/to/Barkley_csv \
-  --output data/asvs_mapping.yaml
+  --output backend/resources/asvs_mapping.yaml
 
 # Validate
-python3 scripts/validate-mapping.py data/asvs_mapping.yaml
+python3 backend/scripts/validate-mapping.py backend/resources/asvs_mapping.yaml
 # Expect: 0 schema errors, ~200 rows covered, every rule_id resolves,
 #         coverage-gaps.md refreshed, parroting % within bounds,
 #         orphan check passes (no rows removed from CSV since last gen)
 
 # Review pass (interactive TUI)
-python3 scripts/review-mapping.py data/asvs_mapping.yaml
+python3 backend/scripts/review-mapping.py backend/resources/asvs_mapping.yaml
 
 # Run unit tests
-pytest scripts/test_compliance_matrix.py
+pytest backend/scripts/test_compliance_matrix.py
 ```
 
 **Phase 2 (compliance matrix):**
@@ -495,7 +495,7 @@ docker run --rm -it -v /var/run/docker.sock:/var/run/docker.sock \
 #   - Tab/enter keyboard navigation works through rows and filters
 
 # Snapshot test
-pytest scripts/test_dashboard_snapshot.py
+pytest backend/scripts/test_dashboard_snapshot.py
 ```
 
 **Phase 3 (graph):**

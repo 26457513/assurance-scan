@@ -1,0 +1,61 @@
+"""Per-user MCP token preview/apply stores a hash, never the plaintext."""
+from __future__ import annotations
+
+import hashlib
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient, Request
+
+from app.main import create_app
+
+
+@pytest_asyncio.fixture
+async def client():
+    from app.infrastructure.db.connection import get_engine
+    from app.infrastructure.db.models import Base
+
+    app = create_app()
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    from app.infrastructure.db import connection as _conn
+    _conn._engine = None
+    _conn._sessionmaker = None
+
+
+@pytest.mark.asyncio
+async def test_preview_then_apply_stores_hash_not_plaintext(client) -> None:
+    from sqlalchemy import select
+
+    from app.api.routes.gh_tokens import ApplyMcpTokenBody, apply_mcp_token, preview_mcp_token
+    from app.infrastructure.db.connection import get_sessionmaker
+    from app.infrastructure.db.models import User
+
+    factory = get_sessionmaker()
+    async with factory() as session:
+        user = User(email="mcp-test@example.com", role="user")
+        session.add(user)
+        await session.commit()
+
+        req = Request("POST", "http://test:8742/api/users/me/mcp-token/preview")
+        res = await preview_mcp_token(request=req, user=user)
+        assert res["token"]
+        assert "Bearer " in res["command"]
+        assert "http://test:8742/mcp" in res["command"]
+
+        # Preview must not activate anything.
+        row = (await session.execute(select(User).where(User.email == user.email))).scalars().one()
+        assert row.mcp_token_hash is None
+
+        await apply_mcp_token(user=user, session=session, body=ApplyMcpTokenBody(token=res["token"]))
+
+        row = (await session.execute(select(User).where(User.email == user.email))).scalars().one()
+        assert row.mcp_token_hash == hashlib.sha256(res["token"].encode()).hexdigest()
+        assert row.mcp_token_hash != res["token"]
+        assert row.mcp_token_generated_at is not None

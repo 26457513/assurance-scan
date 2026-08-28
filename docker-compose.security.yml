@@ -2,8 +2,8 @@
 # Assurance Scan — Compose
 #
 # Two profiles:
-#   - default: scan services (use via `./run-local.sh <target>`)
-#   - prefetch: one-time DB pre-download (use via `./run-local.sh prefetch`)
+#   - default: scan services (use via `./backend/scripts/run-local.sh <target>`)
+#   - prefetch: one-time DB pre-download (use via `./backend/scripts/run-local.sh prefetch`)
 #
 # All scan-time services skip mid-run DB updates. Run `prefetch` first to
 # populate the named volumes; subsequent scans are offline-tolerant.
@@ -27,6 +27,7 @@ services:
     command: >
       semgrep scan
       --config auto
+      --timeout 30
       --sarif
       --output /reports/semgrep.sarif
       /src
@@ -196,7 +197,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./scripts:/scripts:ro
+      # run-local.sh exports its absolute SCRIPT_DIR; the fallback supports
+      # invoking this root-level Compose file directly from the repository.
+      - ${SCRIPT_DIR:-./backend/scripts}:/scripts:ro
       - ./reports/${RUN_ID:?RUN_ID is required}/reports:/reports
     command: >
       python3 /scripts/security-headers.py

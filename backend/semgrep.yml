@@ -1,0 +1,156 @@
+rules:
+  - id: assurance-scan.python-subprocess-shell
+    message: Avoid shell=True; pass an argument vector to subprocess APIs.
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.run(..., shell=True, ...)
+          - pattern: subprocess.call(..., shell=True, ...)
+          - pattern: subprocess.check_call(..., shell=True, ...)
+          - pattern: subprocess.check_output(..., shell=True, ...)
+          - pattern: subprocess.Popen(..., shell=True, ...)
+
+  - id: assurance-scan.python-dynamic-execution
+    message: Dynamic eval/exec is forbidden in Assurance Scan Python code.
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+
+  - id: assurance-scan.python-unsafe-yaml-load
+    message: Use yaml.safe_load for untrusted YAML input.
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern: yaml.load(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader, ...)
+
+  - id: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
+    message: SHA-1 is unsafe for security decisions; use SHA-256 or stronger.
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: hashlib.sha1(...)
+      - pattern: hashlib.new("sha1", ...)
+
+  - id: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-md5
+    message: MD5 is unsafe for security decisions; use SHA-256 or stronger.
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: hashlib.md5(...)
+      - pattern: hashlib.new("md5", ...)
+
+  - id: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+    message: Validate the scheme and host before opening a dynamic URL.
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: urllib.request.urlopen(...)
+      - pattern: urlopen(...)
+      - pattern: $SELF._opener.open(...)
+
+  - id: python.lang.security.audit.httpsconnection-detected.httpsconnection-detected
+    message: HTTPSConnection callers must explicitly preserve certificate verification.
+    severity: ERROR
+    languages: [python]
+    pattern: http.client.HTTPSConnection(...)
+
+  - id: assurance-scan.python-unsafe-tar-extraction
+    message: Validate archive member paths before extracting tar content.
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: $TAR.extractall(...)
+      - pattern: $TAR.extract(...)
+
+  - id: assurance-scan.sqlalchemy-materialized-count
+    message: Use a database COUNT query instead of materializing all rows for len().
+    severity: ERROR
+    languages: [python]
+    pattern-either:
+      - pattern: len($QUERY.all())
+      - pattern: len((await $SESSION.execute(...)).all())
+
+  - id: assurance-scan.hardcoded-token
+    message: Do not commit access tokens, API keys, or secret keys.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - /backend/**/*.py
+        - /frontend/**/*.js
+        - /frontend/**/*.ts
+        - /frontend/**/*.svelte
+        - /.github/workflows/*.yml
+        - /.github/workflows/*.yaml
+    pattern-regex: >-
+      (?i)(?:api[_-]?key|access[_-]?token|auth[_-]?token|secret[_-]?key)\s*[:=]\s*["'][A-Za-z0-9_./+=-]{16,}["']
+
+  - id: assurance-scan.javascript-dynamic-execution
+    message: Dynamic JavaScript execution is forbidden.
+    severity: ERROR
+    languages: [javascript, typescript]
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: assurance-scan.javascript-child-process-shell
+    message: Avoid shell command strings built from dynamic JavaScript values.
+    severity: ERROR
+    languages: [javascript, typescript]
+    patterns:
+      - pattern-either:
+          - pattern: $CP.exec($COMMAND, ...)
+          - pattern: $CP.execSync($COMMAND, ...)
+      - metavariable-pattern:
+          metavariable: $COMMAND
+          patterns:
+            - pattern-either:
+                - pattern: $A + $B
+                - pattern: '`...${$VALUE}...`'
+
+  - id: assurance-scan.github-actions-mutable-reference
+    message: Pin external GitHub Actions and reusable workflows to full commit SHAs.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - /.github/workflows/*.yml
+        - /.github/workflows/*.yaml
+        - /backend/resources/templates/assurance-scan.yml
+    pattern-regex: >-
+      (?m)^\s*-?\s*uses:\s*["']?(?!\./|docker://)[^\s#"']+@(?![0-9a-fA-F]{40}(?:\s|["']|#|$))[^\s#"']+
+
+  - id: assurance-scan.docker-latest-base-image
+    message: Pin Docker base images to an immutable digest instead of latest.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - /Dockerfile
+        - /backend/Dockerfile.ci
+    pattern-regex: '(?mi)^\s*FROM\s+[^\s]+:latest(?:\s|$)'
+
+  - id: assurance-scan.embedded-private-key
+    message: Private key material must not be committed to source or configuration.
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include:
+        - /backend/**/*.yml
+        - /backend/**/*.yaml
+        - /frontend/**/*.js
+        - /frontend/**/*.ts
+        - /frontend/**/*.svelte
+        - /.github/workflows/*.yml
+        - /.github/workflows/*.yaml
+    pattern-regex: '-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'
+
+# Optional, non-gating latest-rules audit:
+#   docker run --rm -v "$PWD:/src:ro" -w /src semgrep/semgrep:1.136.0 \
+#     semgrep scan --config auto --metrics off backend frontend
+# Registry `auto` rules change over time, so they are intentionally excluded
+# from the mandatory deterministic gate above.

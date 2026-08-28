@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "regime": "NIST-800-53",
+  "version": "5.2.0",
+  "title": "NIST SP 800-53 Security and Privacy Controls",
+  "short_title": "NIST 800-53",
+  "description": "Security and privacy controls for information systems and organizations.",
+  "ruleset_ref": {
+    "ruleset": "NIST-800-53",
+    "version": "5.2.0",
+    "path": "resources/rulesets/nist-800-53/5.2.0.json"
+  },
+  "source": {
+    "url": "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov/SP800-53/rev5/json/NIST_SP-800-53_rev5_catalog-min.json",
+    "license": "NIST Public (US Government Work, public domain)",
+    "publisher": "NIST",
+    "retrieved_at": "2026-07-03T14:34:04Z",
+    "source_file": "resources/compliance-regimes/nist-800-53/5.2.0.json"
+  },
+  "family_axis": {
+    "label": "control family",
+    "row_field": "group",
+    "ui_label": "Control family"
+  },
+  "families": [
+    {"id": "AC", "title": "Access Control"},
+    {"id": "AT", "title": "Awareness and Training"},
+    {"id": "AU", "title": "Audit and Accountability"},
+    {"id": "CA", "title": "Assessment, Authorization, and Monitoring"},
+    {"id": "CM", "title": "Configuration Management"},
+    {"id": "CP", "title": "Contingency Planning"},
+    {"id": "IA", "title": "Identification and Authentication"},
+    {"id": "IR", "title": "Incident Response"},
+    {"id": "MA", "title": "Maintenance"},
+    {"id": "MP", "title": "Media Protection"},
+    {"id": "PE", "title": "Physical and Environmental Protection"},
+    {"id": "PL", "title": "Planning"},
+    {"id": "PM", "title": "Program Management"},
+    {"id": "PS", "title": "Personnel Security"},
+    {"id": "PT", "title": "PII Processing and Transparency"},
+    {"id": "RA", "title": "Risk Assessment"},
+    {"id": "SA", "title": "System and Services Acquisition"},
+    {"id": "SC", "title": "System and Communications Protection"},
+    {"id": "SI", "title": "System and Information Integrity"},
+    {"id": "SR", "title": "Supply Chain Risk Management"}
+  ],
+  "applicability": {
+    "default_scope": "information_system_security_and_privacy_controls",
+    "notes": [
+      "Use as a compliance regime when project governance requires NIST SP 800-53 traceability.",
+      "Project FR/TBT mappings must remain explicit and reviewed."
+    ]
+  },
+  "proof": {
+    "commitment_role": "compliance_regime",
+    "zk_disclosure": "May be disclosed as public metadata with a hash commitment to the exact ruleset snapshot."
+  }
+}

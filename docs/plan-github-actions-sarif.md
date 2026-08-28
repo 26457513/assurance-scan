@@ -34,27 +34,32 @@ A GitHub Actions workflow in a target repo that:
 
 ## What we already have (and reuse unchanged)
 
-The scan execution path is already free of DB/server coupling:
+The scan execution path is free of DB/server coupling and follows the atomic
+module boundary:
 
-- `server/worker/scanners.py` — declarative `ScannerConfig` per scanner
+- `backend/app/modules/atomic/scanning/scanner_catalog/` — declarative
+  `ScannerConfig` per scanner
   (image, command, mounts, exit codes). Stdlib only.
-- `server/worker/runner.py` — `DockerRunner` spawns scanner containers via
-  the `docker` CLI. Ubuntu hosted runners ship docker preinstalled.
-- `server/worker/parsers/*` — normalize each scanner's output to
+- `backend/app/modules/atomic/platform/docker_port/` — the Docker adapter
+  spawns scanner containers via the `docker` CLI. Ubuntu hosted runners ship
+  Docker preinstalled.
+- `backend/app/modules/atomic/scanning/finding_parser/` — normalizes each
+  scanner's output to
   `ParsedFinding` (rule_id, severity, file_path, line, message, tags).
   Stdlib only.
 
-Only `ScanOrchestrator` couples to the DB. Phase 1 bypasses it entirely —
-nothing existing needs refactoring; we add one new entry script.
+`backend/app/modules/workflows/github_scan_execution/` composes these atomic
+capabilities without importing the database or API layers. The entry script is
+only a transport adapter for that workflow.
 
 ## Design
 
-### 1. New script: `scripts/ci-scan.py`
+### 1. New script: `backend/scripts/ci-scan.py`
 
 Stdlib-only CLI (no pip install on the runner):
 
 ```
-python3 scripts/ci-scan.py <project_path> --sarif out.sarif
+python3 backend/scripts/ci-scan.py <project_path> --sarif out.sarif
 ```
 
 Behavior:
@@ -63,15 +68,15 @@ Behavior:
   default: semgrep, gitleaks, trivy-fs, trivy-config, syft (SBOM artifact),
   grype, osv-scanner. With `--image <tag>`, trivy-image runs against that
   image; the workflow builds it from the root Dockerfile when present
-  (`ci_scanner_set()` in `server/worker/scanners.py`).
-- Drive them with `DockerRunner` + `parser_for` exactly as the orchestrator
-  does; collect `ParsedFinding` rows in memory (no DB).
+  (`ci_scanner_set()` in the atomic scanner catalog).
+- Drive them through the Docker port and atomic finding parser exactly as the
+  workflow does; collect `ParsedFinding` rows in memory (no DB).
 - Emit one unified SARIF file and print a summary (counts by scanner and
   severity) to the log.
 - Always exit 0 unless the script itself is broken. Scanner failures are
   logged with stderr context and counted in the summary.
 - Constraint to hold in review: the import graph of `ci-scan.py` must never
-  touch `server.db`, `server.api`, or `server.config` — if a parser grows a
+  touch `app.db`, `app.api`, or `app.config` — if a parser grows a
   heavy import later, that's a regression against this plan.
 
 ### 2. SARIF shape (one tool, one run)
@@ -122,7 +127,7 @@ jobs:
           # sibling private repos, so callers pass the org secret via
           # `secrets: inherit`.
           token: ${{ secrets.ASSURANCE_SCAN_TOKEN }}
-      - run: python3 assurance-scan/scripts/ci-scan.py . --sarif assurance.sarif
+      - run: python3 assurance-scan/backend/scripts/ci-scan.py . --sarif assurance.sarif
         # ci-scan.py also writes the GitHub Step Summary ($GITHUB_STEP_SUMMARY)
       - uses: actions/upload-artifact@v4
         with:
@@ -177,7 +182,7 @@ Runner behaviour to expect (fine for phase 1, noted so nobody's surprised):
 
 ## Verification
 
-1. Local: run `scripts/ci-scan.py . --sarif /tmp/out.sarif` against this
+1. Local: run `backend/scripts/ci-scan.py . --sarif /tmp/out.sarif` against this
    repo; assert findings counts match a server-side scan of the same commit.
 2. Validate the SARIF parses (`python3 -c "import json;json.load(open(...))"`
    plus schema spot-checks; a `@microsoft/sarif-multitool validate` run

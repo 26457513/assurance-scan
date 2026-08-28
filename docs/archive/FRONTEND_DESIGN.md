@@ -216,7 +216,7 @@ The doc so far describes happy paths. Real users hit failures. Each needs a defi
 |---|---|
 | FR Catalog tab, project has zero FRs | Friendly message: "No functional requirements defined. Add an FR to fr-catalog.json and rescan." Link to schema doc. |
 | Framework tab, no FR catalog supplied | "Supply `--fr-catalog <path>` to enable the FR-driven view. Without it, this tab shows scanner-driven status only." |
-| Framework tab, framework snapshot missing | "Framework snapshot for X not bundled in this image. Run scripts/build-mapping-sources.py --only X and rebuild." |
+| Framework tab, framework snapshot missing | "Framework snapshot for X not bundled in this image. Run backend/scripts/build-mapping-sources.py --only X and rebuild." |
 | Graph tab, no entry point selected | Sidebar of 5 entry points (default). Centre canvas shows "Pick an entry point or search for a node." |
 | Graph subgraph, no nodes match | "No nodes match this filter. Try widening scope or clearing the search." |
 
@@ -345,7 +345,7 @@ Current dashboard uses inline `<script>` blocks (one per tab's logic). The pivot
 
 **Module structure:**
 ```
-scripts/generate-dashboard.py        # generates HTML + embedded JSON
+backend/scripts/generate-dashboard.py        # generates HTML + embedded JSON
   ↓ emits
 dashboard.html
   ├── <style>...</style>
@@ -432,7 +432,7 @@ If targets aren't met, optimisations to try (in order):
 
 ### Snapshot tests
 
-Snapshot test infrastructure (`tests/fixtures/sample-scan/` + `scripts/test_dashboard_snapshot.py`):
+Snapshot test infrastructure (`tests/fixtures/sample-scan/` + `backend/scripts/test_dashboard_snapshot.py`):
 - One committed fixture scan with FR catalog, scanner outputs, JUnit XML
 - Dashboard HTML generated from fixture on every test run
 - Snapshot file (`tests/fixtures/expected-dashboard.html`) committed
@@ -459,7 +459,7 @@ Each frontend feature implies specific backend support. Listing here so backend 
 
 **Two backend additions worth flagging early:**
 1. **Scan history retention** — keep last 5 scans per project (configurable). Each scan retains: `evidence-manifest.json`, `dashboard-data.json` (the embedded JSON), and `fr-catalog.snapshot.json` (the FR catalog at scan time). Time travel reads these. Comparison mode handles added/removed/changed FRs gracefully.
-2. **Derived cross-framework index** — `data/derived/equivalences.json` computed at scan time, listing groups of `(framework, row)` tuples that share FRs. The Graph tab's "cross-framework equivalents" workflow reads this.
+2. **Derived cross-framework index** — `backend/resources/derived/equivalences.json` computed at scan time, listing groups of `(framework, row)` tuples that share FRs. The Graph tab's "cross-framework equivalents" workflow reads this.
 
 ## Phased delivery
 
