@@ -43,7 +43,7 @@ const PREAMBLE = (scan: ScanSummary): string =>
     ``,
     `Catalogue: ./fr-catalog.json`,
     `Reference run: ${scan.run_id}`,
-    `Project: ${scan.project_path}`
+    `Project ID: ${scan.project_id}`
   ].join('\n');
 
 export function buildFixPrompts(args: BuildPromptArgs): BuiltPrompts {

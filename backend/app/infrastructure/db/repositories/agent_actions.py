@@ -19,12 +19,12 @@ class AgentActionRepository(BaseRepository[AgentAction]):
         self,
         action_kind: str,
         actor: str,
-        project_path: str | None = None,
+        project_id: int | None = None,
         run_id: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> AgentAction:
         action = AgentAction(
-            project_path=project_path,
+            project_id=project_id,
             run_id=run_id,
             action_kind=action_kind,
             actor=actor,

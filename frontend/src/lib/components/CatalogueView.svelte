@@ -9,7 +9,7 @@
 
   export let scan: ScanSummary;
   $: cataloguePrompt = mcpPrompt([
-    { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_path: scan.project_path }) } },
+    { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_id: scan.project_id }) } },
   ]);
 
   let data: FrListResponse | null = null;
@@ -24,7 +24,7 @@
 
   async function refresh() {
     try {
-      data = await api.listFRs(scan.project_path, selectedSnapshotId || undefined);
+      data = await api.listFRs(scan.project_id, selectedSnapshotId || undefined);
       error = null;
     } catch (e) {
       error = String(e);
@@ -35,7 +35,7 @@
 
   onMount(async () => {
     try {
-      const v = await api.listCatalogueVersions(scan.project_path);
+      const v = await api.listCatalogueVersions(scan.project_id);
       versions = v.versions;
       selectedSnapshotId = versions[0]?.snapshot_id ?? '';
     } catch {

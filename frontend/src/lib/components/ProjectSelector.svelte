@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
-  import { selectedProject, selectProject, projectSlug } from '$lib/stores/selectedProject';
+  import { selectedProject, selectProject } from '$lib/stores/selectedProject';
   import type { ProjectSummary } from '$lib/types';
 
   let open = false;
@@ -15,7 +15,7 @@
     try {
       const data = await api.listProjects();
       projects = data.projects;
-      if (!$selectedProject && projects.length) selectProject(projects[0].project_path);
+      if ($selectedProject == null && projects.length) selectProject(projects[0].id);
     } catch {
       /* silent */
     }
@@ -27,16 +27,16 @@
 
   function pick(p: ProjectSummary) {
     open = false;
-    selectProject(p.project_path);
+    selectProject(p.id);
     // If currently inside a project page, navigate to the newly selected
     // project (same view) so the URL follows the selection.
     const m = $page.url.pathname.match(/^\/projects\/(.+)$/);
-    if (m && decodeURIComponent(m[1]) !== p.project_path) {
-      goto(`/projects/${projectSlug(p.project_path)}`, { noScroll: true });
+    if (m && Number(m[1]) !== p.id) {
+      goto(`/projects/${p.id}`, { noScroll: true });
     }
   }
 
-  $: shortName = (path: string) => path.split('/').filter(Boolean).pop() ?? path;
+  $: selected = projects.find((project) => project.id === $selectedProject) ?? null;
   $: pageCount = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   $: if (pg >= pageCount) pg = pageCount - 1;
   $: pageRows = projects.slice(pg * PAGE_SIZE, pg * PAGE_SIZE + PAGE_SIZE);
@@ -54,10 +54,10 @@
     type="button"
     on:click={toggle}
     class="flex items-center gap-2 px-2.5 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors"
-    title={$selectedProject ?? 'no project'}
+    title={selected ? `${selected.tag} (#${selected.id})` : 'no project'}
   >
     <span class="font-mono text-[12px] text-ink-primary">
-      {$selectedProject ? shortName($selectedProject) : 'no project'}
+      {selected?.tag ?? 'no project'}
     </span>
     <svg class="h-3 w-3 text-ink-muted" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
       <path d="M3 4.5l3 3 3-3" stroke-linecap="round" />
@@ -86,15 +86,15 @@
         <div class="text-right">Last scan</div>
       </div>
       <div class="overflow-auto">
-        {#each pageRows as p (p.project_path)}
+        {#each pageRows as p (p.id)}
           <button
             type="button"
             on:click={() => pick(p)}
-            title={p.project_path}
+            title={`${p.tag} (#${p.id})`}
             class="w-full text-left px-3 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_60px_80px_90px] gap-3 items-center"
-            class:bg-accent-subtle={$selectedProject === p.project_path}
+            class:bg-accent-subtle={$selectedProject === p.id}
           >
-            <span class="font-mono text-[11px] text-ink-primary truncate">{p.tag ?? shortName(p.project_path)}</span>
+            <span class="font-mono text-[11px] text-ink-primary truncate">{p.tag}</span>
             <span class="text-right font-mono text-[11px] text-ink-secondary tabular-nums">{p.run_count}</span>
             <span class="text-center font-mono text-[10px] {p.has_catalogue ? 'text-ink-secondary' : 'text-ink-muted opacity-50'}">
               {p.has_catalogue ? '✓' : '—'}

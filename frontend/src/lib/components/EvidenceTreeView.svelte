@@ -15,7 +15,7 @@
   export let scan: ScanSummary;
   $: mappingPrompt = mcpPrompt([
     { tool: 'get_workflow', args: { name: 'author-fr-compliance-map', parameters: JSON.stringify({ framework: 'ASVS' }) } },
-    { tool: 'save_mapping', args: { project_path: scan.project_path } },
+    { tool: 'save_mapping', args: { project_id: scan.project_id } },
   ]);
 
   let groupBy: 'fr' | 'asvs' = 'fr';
@@ -34,16 +34,16 @@
 
   async function load() {
     try {
-      frList = await api.listFRs(scan.project_path);
+      frList = await api.listFRs(scan.project_id);
       const details = await Promise.all(
-        frList.frs.map((fr) => api.getFr(fr.fr_id, scan.run_id).catch(() => null))
+        frList.frs.map((fr) => api.getFr(fr.fr_id, scan.project_id, scan.run_id).catch(() => null))
       );
       frDetails = {};
       details.forEach((d, i) => {
         if (d && frList) frDetails[frList.frs[i].fr_id] = d;
       });
       try {
-        complianceMatrix = await api.getComplianceMatrix('ASVS', scan.project_path);
+        complianceMatrix = await api.getComplianceMatrix('ASVS', scan.project_id);
       } catch (e) {
         complianceMatrix = null;
       }
@@ -155,7 +155,7 @@
               {:else}
                 <div class="space-y-1">
                   {#each detail.tests as test (test.id)}
-                    <TestCard {test} projectPath={scan.project_path} />
+                    <TestCard {test} projectId={scan.project_id} />
                   {/each}
                 </div>
               {/if}
@@ -229,7 +229,7 @@
                             <div class="font-mono text-[10px] uppercase tracking-[0.12em] text-ink-muted mb-1.5 mt-3">Tests ({detail.tests.length})</div>
                             <div class="space-y-1">
                               {#each detail.tests as test (test.id)}
-                                <TestCard {test} projectPath={scan.project_path} />
+                                <TestCard {test} projectId={scan.project_id} />
                               {/each}
                             </div>
                           {/if}

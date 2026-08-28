@@ -18,12 +18,14 @@ class RunRepository(BaseRepository[Run]):
     async def create(
         self,
         run_id: str,
-        project_path: str,
+        project_id: int,
+        origin: str,
         options_json: str = "{}",
     ) -> Run:
         run = Run(
             run_id=run_id,
-            project_path=project_path,
+            project_id=project_id,
+            origin=origin,
             options_json=options_json,
             status="queued",
         )
@@ -63,8 +65,18 @@ class RunRepository(BaseRepository[Run]):
     async def get(self, run_id: str) -> Run | None:
         return await self.session.get(Run, run_id)
 
-    async def list_recent(self, limit: int = 50) -> Sequence[Run]:
+    async def list_recent(
+        self,
+        limit: int = 50,
+        project_id: int | None = None,
+        origin: str | None = None,
+    ) -> Sequence[Run]:
+        statement = select(Run)
+        if project_id is not None:
+            statement = statement.where(Run.project_id == project_id)
+        if origin is not None:
+            statement = statement.where(Run.origin == origin)
         result = await self.session.execute(
-            select(Run).order_by(Run.started_at.desc()).limit(limit)
+            statement.order_by(Run.started_at.desc(), Run.run_id.desc()).limit(limit)
         )
         return result.scalars().all()

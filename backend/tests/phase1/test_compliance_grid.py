@@ -18,6 +18,7 @@ async def client():
     app = create_app()
     engine = get_engine()
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     transport = ASGITransport(app=app)
@@ -32,36 +33,41 @@ async def client():
 @pytest.mark.asyncio
 async def test_grid_picks_newest_run_per_pair(client) -> None:
     from app.infrastructure.db.connection import get_sessionmaker
-    from app.infrastructure.db.models import CatalogueSnapshot, FrState, Run
+    from app.infrastructure.db.models import CatalogueSnapshot, FrState, Project, Run
 
     factory = get_sessionmaker()
     async with factory() as session:
+        project = Project(
+            tag="grid", github_repo="org/grid", github_repo_key="org/grid"
+        )
+        session.add(project)
+        await session.flush()
         snap = "grid-snap-1"
         session.add(CatalogueSnapshot(
-            id=snap, project_path="github:org/grid",
+            id=snap, project_id=project.id,
             catalogue_version="v1", snapshot_json="{}",
             content_hash="sha256:grid", source_branch="main",
         ))
         await session.commit()
-        old = Run(run_id="grid-old", project_path="github:org/grid", status="completed",
+        old = Run(run_id="grid-old", project_id=project.id, origin="server", status="completed",
                   git_branch="main", catalogue_snapshot_id=snap,
                   started_at=dt.datetime(2026, 8, 1, tzinfo=dt.timezone.utc))
-        new = Run(run_id="grid-new", project_path="github:org/grid", status="completed",
+        new = Run(run_id="grid-new", project_id=project.id, origin="server", status="completed",
                   git_branch="main", catalogue_snapshot_id=snap,
                   started_at=dt.datetime(2026, 8, 2, tzinfo=dt.timezone.utc))
-        other = Run(run_id="grid-other", project_path="github:org/grid", status="completed",
+        other = Run(run_id="grid-other", project_id=project.id, origin="server", status="completed",
                     git_branch="dev", catalogue_snapshot_id=snap,
                     started_at=dt.datetime(2026, 8, 3, tzinfo=dt.timezone.utc))
         session.add_all([old, new, other])
         await session.commit()  # runs must exist before the FK'd states
         session.add_all([
-            FrState(project_path="github:org/grid", fr_id="FR-1", run_id="grid-new", state="passed"),
-            FrState(project_path="github:org/grid", fr_id="FR-2", run_id="grid-new", state="failed"),
-            FrState(project_path="github:org/grid", fr_id="FR-1", run_id="grid-other", state="passed"),
+            FrState(fr_id="FR-1", run_id="grid-new", state="passed"),
+            FrState(fr_id="FR-2", run_id="grid-new", state="failed"),
+            FrState(fr_id="FR-1", run_id="grid-other", state="passed"),
         ])
         await session.commit()
 
-    res = await client.get("/api/compliance/grid", params={"project_path": "github:org/grid"})
+    res = await client.get("/api/compliance/grid", params={"project_id": project.id})
     assert res.status_code == 200
     body = res.json()
     assert sorted(body["branches"]) == ["dev", "main"]

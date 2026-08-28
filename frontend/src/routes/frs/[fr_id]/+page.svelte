@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import { selectedScanRunId } from '$lib/stores/selectedScan';
+  import { selectedProject } from '$lib/stores/selectedProject';
   import StatePill from '$lib/components/StatePill.svelte';
   import type { FrDetailResponse, FrHistoryResponse, TestSpecWithResult } from '$lib/types';
 
@@ -15,9 +16,14 @@
   const frId = $page.params.fr_id ?? '';
 
   async function refresh() {
+    if ($selectedProject == null) {
+      error = 'Select a project to view this requirement.';
+      loading = false;
+      return;
+    }
     try {
-      detail = await api.getFr(frId, $selectedScanRunId ?? undefined);
-      history = await api.getFrHistory(frId);
+      detail = await api.getFr(frId, $selectedProject, $selectedScanRunId ?? undefined);
+      history = await api.getFrHistory(frId, $selectedProject);
       error = null;
     } catch (e) {
       error = String(e);
@@ -35,7 +41,7 @@
   });
 
   // Refetch when scan changes
-  $: if ($selectedScanRunId) refresh();
+  $: if ($selectedProject != null || $selectedScanRunId) refresh();
 
   function resultColor(result: string): string {
     return result === 'pass'

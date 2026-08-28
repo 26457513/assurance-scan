@@ -1,21 +1,21 @@
 """Findings endpoints: list findings for a scan, or fetch the published findings.json."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 from collections import Counter
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 from fastapi.responses import PlainTextResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
 from app.api.schemas.finding import FindingResponse, FindingsListResponse
-from app.infrastructure.db.models import FindingAcceptance
+from app.infrastructure.db.models import FindingAcceptance, Project
 from app.infrastructure.db.repositories.findings import FindingRepository
 from app.infrastructure.db.repositories.runs import RunRepository
-from sqlalchemy import select
-from pydantic import BaseModel
-import datetime as _dt
 
 
 router = APIRouter(tags=["findings"])
@@ -84,7 +84,7 @@ def _row_to_response(row) -> FindingResponse:
 # ---------------------------------------------------------------------------
 
 class AcceptFindingRequest(BaseModel):
-    project_path: str
+    project_id: int
     scanner_kind: str
     rule_id: str
     risk_level: str
@@ -103,7 +103,7 @@ async def accept_finding(
     matcher will filter this (scanner_kind, rule_id) from future evaluations."""
     existing = (await session.execute(
         select(FindingAcceptance).where(
-            FindingAcceptance.project_path == req.project_path,
+            FindingAcceptance.project_id == req.project_id,
             FindingAcceptance.scanner_kind == req.scanner_kind,
             FindingAcceptance.rule_id == req.rule_id,
         )
@@ -114,10 +114,13 @@ async def accept_finding(
         existing.fix_assessment = req.fix_assessment
         existing.invalidation_conditions = req.invalidation_conditions
         existing.accepted_by = req.accepted_by
-        existing.accepted_at = _dt.datetime.now(_dt.timezone.utc)
+        existing.accepted_at = dt.datetime.now(dt.timezone.utc)
     else:
+        project = await session.get(Project, req.project_id)
+        if project is None or project.hidden:
+            raise HTTPException(status_code=404, detail="project not found")
         session.add(FindingAcceptance(
-            project_path=req.project_path,
+            project_id=req.project_id,
             scanner_kind=req.scanner_kind,
             rule_id=req.rule_id,
             risk_level=req.risk_level,
@@ -125,7 +128,7 @@ async def accept_finding(
             fix_assessment=req.fix_assessment,
             invalidation_conditions=req.invalidation_conditions,
             accepted_by=req.accepted_by,
-            accepted_at=_dt.datetime.now(_dt.timezone.utc),
+            accepted_at=dt.datetime.now(dt.timezone.utc),
         ))
     await session.commit()
     return {"status": "accepted"}
@@ -147,16 +150,16 @@ async def unaccept_finding(
 
 @router.get("/findings/accepted")
 async def list_accepted(
-    project_path: str = Query(...),
+    project_id: int = Query(...),
     session: AsyncSession = SessionDep,
 ) -> dict:
     """List active finding acceptances for a project."""
     rows = (await session.execute(
         select(FindingAcceptance)
-        .where(FindingAcceptance.project_path == project_path)
+        .where(FindingAcceptance.project_id == project_id)
         .order_by(FindingAcceptance.accepted_at.desc())
     )).scalars().all()
-    now = _dt.datetime.now(_dt.timezone.utc)
+    now = dt.datetime.now(dt.timezone.utc)
     return {
         "acceptances": [
             {

@@ -15,11 +15,24 @@ class ScannerRunRepository(BaseRepository[ScannerRun]):
 
     model = ScannerRun
 
-    async def create(self, run_id: str, scanner_kind: str) -> ScannerRun:
+    async def create(
+        self,
+        run_id: str,
+        scanner_kind: str,
+        *,
+        image_reference: str | None = None,
+        image_digest: str | None = None,
+        tool_version: str | None = None,
+        database_version_json: str | None = None,
+    ) -> ScannerRun:
         scanner_run = ScannerRun(
             run_id=run_id,
             scanner_kind=scanner_kind,
             status="pending",
+            image_reference=image_reference,
+            image_digest=image_digest,
+            tool_version=tool_version,
+            database_version_json=database_version_json,
         )
         self.session.add(scanner_run)
         await self._flush()

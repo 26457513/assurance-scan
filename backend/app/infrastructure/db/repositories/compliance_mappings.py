@@ -12,11 +12,11 @@ from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping, C
 from app.infrastructure.db.repositories.base import BaseRepository
 
 
-def _snapshot_id(project_path: str, content_hash: str) -> str:
+def _snapshot_id(project_id: int, content_hash: str) -> str:
     # This is a persisted deterministic identity, not a security digest. Changing
     # the algorithm would change existing snapshot IDs and break their references.
     digest = hashlib.sha1(  # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
-        f"{project_path}|{content_hash}".encode()
+        f"{project_id}|{content_hash}".encode()
     ).hexdigest()[:16]
     return f"map_{digest}"
 
@@ -28,38 +28,38 @@ class ComplianceMappingRepository(BaseRepository[ComplianceMapping]):
 
     async def upsert(
         self,
-        project_path: str,
+        project_id: int,
         content_hash: str,
         mapping_doc: dict[str, Any],
     ) -> ComplianceMapping:
         # Delete any existing rows for this project (we keep only the latest).
         existing = await self.session.execute(
             select(ComplianceMapping).where(
-                ComplianceMapping.project_path == project_path
+                ComplianceMapping.project_id == project_id
             )
         )
         for row in existing.scalars().all():
             await self.session.delete(row)
 
         new = ComplianceMapping(
-            project_path=project_path,
+            project_id=project_id,
             content_hash=content_hash,
             mapping_doc_json=json.dumps(mapping_doc, sort_keys=True),
             loaded_at=dt.datetime.now(dt.timezone.utc),
         )
         self.session.add(new)
         await self._flush()
-        await self.store_snapshot(project_path, content_hash, mapping_doc)
+        await self.store_snapshot(project_id, content_hash, mapping_doc)
         return new
 
     async def store_snapshot(
         self,
-        project_path: str,
+        project_id: int,
         content_hash: str,
         mapping_doc: dict[str, Any],
     ) -> ComplianceMappingSnapshot:
         """Record an immutable copy, pinning the catalogue + packs it targets."""
-        snapshot_id = _snapshot_id(project_path, content_hash)
+        snapshot_id = _snapshot_id(project_id, content_hash)
         existing = await self.session.get(ComplianceMappingSnapshot, snapshot_id)
         if existing is not None:
             return existing
@@ -79,7 +79,7 @@ class ComplianceMappingRepository(BaseRepository[ComplianceMapping]):
         catalogue_hash: str | None = (
             await self.session.execute(
                 select(CatalogueSnapshot.content_hash)
-                .where(CatalogueSnapshot.project_path == project_path)
+                .where(CatalogueSnapshot.project_id == project_id)
                 .order_by(CatalogueSnapshot.created_at.desc())
                 .limit(1)
             )
@@ -87,7 +87,7 @@ class ComplianceMappingRepository(BaseRepository[ComplianceMapping]):
 
         snapshot = ComplianceMappingSnapshot(
             id=snapshot_id,
-            project_path=project_path,
+            project_id=project_id,
             content_hash=content_hash,
             catalogue_content_hash=catalogue_hash,
             packs_json=json.dumps(packs, sort_keys=True),
@@ -101,18 +101,18 @@ class ComplianceMappingRepository(BaseRepository[ComplianceMapping]):
     async def get_snapshot(self, snapshot_id: str) -> ComplianceMappingSnapshot | None:
         return await self.session.get(ComplianceMappingSnapshot, snapshot_id)
 
-    async def list_snapshots(self, project_path: str) -> list[ComplianceMappingSnapshot]:
+    async def list_snapshots(self, project_id: int) -> list[ComplianceMappingSnapshot]:
         result = await self.session.execute(
             select(ComplianceMappingSnapshot)
-            .where(ComplianceMappingSnapshot.project_path == project_path)
+            .where(ComplianceMappingSnapshot.project_id == project_id)
             .order_by(ComplianceMappingSnapshot.loaded_at.desc())
         )
         return list(result.scalars().all())
 
-    async def get_for_project(self, project_path: str) -> ComplianceMapping | None:
+    async def get_for_project(self, project_id: int) -> ComplianceMapping | None:
         result = await self.session.execute(
             select(ComplianceMapping)
-            .where(ComplianceMapping.project_path == project_path)
+            .where(ComplianceMapping.project_id == project_id)
             .order_by(ComplianceMapping.loaded_at.desc())
             .limit(1)
         )

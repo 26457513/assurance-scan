@@ -6,7 +6,24 @@ parameter substitution applied.
 """
 from __future__ import annotations
 
-from app.modules.atomic.agent_workflow_catalog import get_workflow, list_workflows
+import json
+import re
+
+from app.modules.atomic.agent_workflow_catalog import (
+    WORKFLOWS_DIR,
+    get_workflow,
+    list_workflows,
+)
+
+
+_SOURCE_WORKFLOWS = {
+    "author-fr-catalogue",
+    "code-finding-fix",
+    "code-fr-test",
+    "scan-project",
+    "setup-project",
+}
+_SIMPLE_PLACEHOLDER = re.compile(r"\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}")
 
 
 def test_list_workflows_returns_known_workflows() -> None:
@@ -55,3 +72,52 @@ def test_old_workflow_names_still_resolve() -> None:
     for old, new in _ALIASES.items():
         rendered = get_workflow(old, {})
         assert rendered["name"] == new, f"{old} should resolve to {new}"
+
+
+def test_workflow_documents_follow_project_id_contract() -> None:
+    """Project identity and source location must remain distinct contracts."""
+    paths = sorted(WORKFLOWS_DIR.glob("*.json"))
+    assert paths
+    for path in paths:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        assert set(doc) == {"name", "description", "parameters", "prompt"}, path
+        assert doc["name"] == path.stem
+        assert isinstance(doc["description"], str) and doc["description"]
+        assert isinstance(doc["prompt"], str) and doc["prompt"]
+
+        parameters = doc["parameters"]
+        assert isinstance(parameters, list) and parameters
+        names = [parameter["name"] for parameter in parameters]
+        assert len(names) == len(set(names)), path
+        assert "project_id" in names, path
+        assert "project_path" not in names, path
+        for parameter in parameters:
+            assert set(parameter) <= {"name", "description", "default"}, path
+            assert isinstance(parameter["name"], str) and parameter["name"]
+            assert isinstance(parameter["description"], str) and parameter["description"]
+
+        serialized = json.dumps(doc)
+        assert "project_path" not in serialized, path
+        assert "github:" not in serialized, path
+        placeholders = set(_SIMPLE_PLACEHOLDER.findall(doc["prompt"]))
+        assert placeholders <= set(names), (path, placeholders - set(names))
+
+        uses_checkout = doc["name"] in _SOURCE_WORKFLOWS
+        assert ("checkout_path" in names) is uses_checkout, path
+        assert ("{{checkout_path}}" in doc["prompt"]) is uses_checkout, path
+
+
+def test_rendered_workflow_keeps_id_and_checkout_separate() -> None:
+    rendered = get_workflow(
+        "code-finding-fix",
+        {
+            "project_id": "42",
+            "checkout_path": "/workspace/widget",
+            "fr_id": "FR-WIDGET",
+        },
+    )
+    prompt = rendered["prompt"]
+    assert "bootstrap` with `project_id=42`" in prompt
+    assert "start_scan` with `project_id=42`" in prompt
+    assert "under /workspace/widget" in prompt
+    assert "project_path" not in prompt

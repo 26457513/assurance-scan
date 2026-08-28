@@ -3,7 +3,7 @@
 
 export interface McpCall {
   tool: string;
-  args: Record<string, string>;
+  args: Record<string, unknown>;
   note?: string;
 }
 

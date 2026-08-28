@@ -42,13 +42,13 @@ _SEVERITY_ORDER: tuple[str, ...] = (
 
 @router.get("/compliance")
 async def list_frameworks(
-    project_path: str | None = Query(default=None),
+    project_id: int | None = Query(default=None),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """List compliance frameworks that appear in any project's mapping."""
     stmt = select(ComplianceMapping)
-    if project_path:
-        stmt = stmt.where(ComplianceMapping.project_path == project_path)
+    if project_id is not None:
+        stmt = stmt.where(ComplianceMapping.project_id == project_id)
     rows = (await session.execute(stmt.order_by(
         ComplianceMapping.loaded_at.desc()
     ))).scalars().all()
@@ -73,7 +73,7 @@ async def list_frameworks(
 
 @router.get("/compliance/grid")
 async def branch_compliance_grid(
-    project_path: str = Query(...),
+    project_id: int = Query(...),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Catalogue-version x branch compliance grid.
@@ -82,36 +82,16 @@ async def branch_compliance_grid(
     snapshot, with its FR state counts. Blank cells (absent keys) mean
     the pair has never been measured.
     """
-    from pathlib import PurePath
-
     from app.infrastructure.db.models import CatalogueSnapshot, FrState, Project, Run
 
-    identities = {project_path}
-    reg = (
-        await session.execute(
-            select(Project).where(
-                (Project.local_path == project_path)
-                | (
-                    Project.github_repo.isnot(None)
-                    & ("github:" + Project.github_repo == project_path)
-                )
-            )
-        )
-    ).scalars().first()
-    if reg is not None:
-        identities.add(reg.local_path)
-        if reg.github_repo:
-            identities.add(f"github:{reg.github_repo}")
-    from app.config import load_settings
-
-    org = load_settings().github_org
-    if org and not project_path.startswith("github:"):
-        identities.add(f"github:{org}/{PurePath(project_path).name}")
+    project = await session.get(Project, project_id)
+    if project is None or project.hidden:
+        raise HTTPException(status_code=404, detail="project not found")
 
     snaps = (
         await session.execute(
             select(CatalogueSnapshot)
-            .where(CatalogueSnapshot.project_path.in_(identities))
+            .where(CatalogueSnapshot.project_id == project_id)
             .order_by(CatalogueSnapshot.created_at.desc())
         )
     ).scalars().all()
@@ -120,7 +100,7 @@ async def branch_compliance_grid(
         await session.execute(
             select(Run)
             .where(
-                Run.project_path.in_(identities),
+                Run.project_id == project_id,
                 Run.catalogue_snapshot_id.isnot(None),
                 Run.git_branch.isnot(None),
             )
@@ -181,7 +161,7 @@ async def branch_compliance_grid(
 @router.get("/compliance/{framework}")
 async def compliance_matrix(
     framework: str,
-    project_path: str | None = Query(default=None),
+    project_id: int = Query(...),
     mapping_hash: str | None = Query(default=None, description="specific mapping snapshot hash; latest when omitted"),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -194,7 +174,7 @@ async def compliance_matrix(
       - confidence: agent's self-assessment
     """
     mapping_doc: dict | None = None
-    mapping_project: str | None = None
+    mapping_project_id: int | None = None
     mapping_loaded_at = None
     resolved_hash: str | None = None
 
@@ -204,7 +184,10 @@ async def compliance_matrix(
         snap = (
             await session.execute(
                 select(ComplianceMappingSnapshot)
-                .where(ComplianceMappingSnapshot.content_hash == mapping_hash)
+                .where(
+                    ComplianceMappingSnapshot.project_id == project_id,
+                    ComplianceMappingSnapshot.content_hash == mapping_hash,
+                )
                 .order_by(ComplianceMappingSnapshot.loaded_at.desc())
                 .limit(1)
             )
@@ -214,14 +197,14 @@ async def compliance_matrix(
                 status_code=404, detail=f"no mapping snapshot with hash {mapping_hash}"
             )
         mapping_doc = json.loads(snap.mapping_doc_json)
-        mapping_project = snap.project_path
+        mapping_project_id = snap.project_id
         mapping_loaded_at = snap.loaded_at
         resolved_hash = snap.content_hash
 
     if mapping_doc is None:
-        mapping_stmt = select(ComplianceMapping)
-        if project_path:
-            mapping_stmt = mapping_stmt.where(ComplianceMapping.project_path == project_path)
+        mapping_stmt = select(ComplianceMapping).where(
+            ComplianceMapping.project_id == project_id
+        )
         mapping_stmt = mapping_stmt.order_by(ComplianceMapping.loaded_at.desc()).limit(1)
         mapping_row = (await session.execute(mapping_stmt)).scalars().first()
 
@@ -231,7 +214,7 @@ async def compliance_matrix(
                 detail="no compliance mapping loaded — run a scan with fr-compliance-mapping.json present",
             )
         mapping_doc = json.loads(mapping_row.mapping_doc_json)
-        mapping_project = mapping_row.project_path
+        mapping_project_id = mapping_row.project_id
         mapping_loaded_at = mapping_row.loaded_at
         resolved_hash = mapping_row.content_hash
 
@@ -249,7 +232,7 @@ async def compliance_matrix(
     pack_data = _load_compliance_pack(framework, entries)
 
     # Latest run for the project (for state lookups).
-    run_stmt = select(Run).where(Run.project_path == mapping_project)
+    run_stmt = select(Run).where(Run.project_id == mapping_project_id)
     run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(1)
     run = (await session.execute(run_stmt)).scalars().first()
 
@@ -297,7 +280,7 @@ async def compliance_matrix(
 
     return {
         "framework": framework,
-        "project_path": mapping_project,
+        "project_id": mapping_project_id,
         "mapping_loaded_at": mapping_loaded_at.isoformat() if mapping_loaded_at else None,
         "mapping_hash": resolved_hash,
         "run_id": run.run_id if run else None,

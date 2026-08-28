@@ -22,7 +22,7 @@ router = APIRouter(tags=["frs"])
 
 @router.get("/frs")
 async def list_frs(
-    project_path: str | None = Query(default=None),
+    project_id: int = Query(...),
     snapshot_id: str | None = Query(default=None, description="specific catalogue snapshot; latest when omitted"),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -30,10 +30,12 @@ async def list_frs(
     snapshot: CatalogueSnapshot | None = None
     if snapshot_id:
         snapshot = await session.get(CatalogueSnapshot, snapshot_id)
+        if snapshot is not None and snapshot.project_id != project_id:
+            snapshot = None
     if snapshot is None:
-        snapshot_stmt = select(CatalogueSnapshot)
-        if project_path:
-            snapshot_stmt = snapshot_stmt.where(CatalogueSnapshot.project_path == project_path)
+        snapshot_stmt = select(CatalogueSnapshot).where(
+            CatalogueSnapshot.project_id == project_id
+        )
         snapshot_stmt = snapshot_stmt.order_by(CatalogueSnapshot.created_at.desc()).limit(1)
         snapshot = (await session.execute(snapshot_stmt)).scalars().first()
 
@@ -42,7 +44,7 @@ async def list_frs(
 
     run_stmt = (
         select(Run)
-        .where(Run.project_path == snapshot.project_path)
+        .where(Run.project_id == snapshot.project_id)
         .order_by(Run.started_at.desc())
         .limit(1)
     )
@@ -77,7 +79,7 @@ async def list_frs(
     # not just that it is.
     import datetime as _dt
     waiver_rows = (await session.execute(
-        select(Waiver).where(Waiver.project_path == snapshot.project_path)
+        select(Waiver).where(Waiver.project_id == snapshot.project_id)
     )).scalars().all()
     now = _dt.datetime.now(_dt.timezone.utc)
     waiver_by_fr: dict[str, Waiver] = {}
@@ -91,7 +93,7 @@ async def list_frs(
     satisfies_by_fr: dict[str, list[dict]] = {}
     mapping_stmt = (
         select(ComplianceMapping)
-        .where(ComplianceMapping.project_path == snapshot.project_path)
+        .where(ComplianceMapping.project_id == snapshot.project_id)
         .order_by(ComplianceMapping.loaded_at.desc())
         .limit(1)
     )
@@ -145,7 +147,7 @@ async def list_frs(
 
     return {
         "catalogue": {
-            "project": snapshot.project_path,
+            "project_id": snapshot.project_id,
             "catalogue_version": snapshot.catalogue_version,
             "fr_count": len(fr_rows),
             "snapshot_id": snapshot.id,

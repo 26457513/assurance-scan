@@ -12,6 +12,8 @@ etc.). Here we verify the REGISTRATION and SHAPE — the tool surface contract.
 """
 from __future__ import annotations
 
+import inspect
+
 import pytest
 from fastapi import FastAPI
 
@@ -93,3 +95,24 @@ def test_no_unexpected_extra_tools_registered(mcp_server) -> None:
     assert not extras, (
         f"new MCP tools registered — update FR-MCP-SERVER count + this test: {extras}"
     )
+
+
+def test_project_selecting_tools_require_durable_project_id(mcp_server) -> None:
+    """MCP must not reintroduce path, basename, or github-string identity."""
+    names = {
+        "load_fr_catalog",
+        "save_catalogue",
+        "save_mapping",
+        "start_scan",
+        "get_project_findings",
+        "add_waiver",
+        "revoke_waiver",
+        "save_checkout_mapping",
+        "bootstrap",
+    }
+    for name in names:
+        function = mcp_server._tool_manager._tools[name].fn
+        parameters = inspect.signature(function).parameters
+        assert "project_id" in parameters, name
+        assert parameters["project_id"].default is inspect.Parameter.empty, name
+        assert "project_path" not in parameters, name

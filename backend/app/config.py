@@ -21,6 +21,18 @@ def _env_int(name: str, default: int) -> int:
     return int(raw)
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    normalized = raw.strip().casefold()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"invalid boolean value for {name}")
+
+
 def _env_path(name: str, default: Path) -> Path:
     return Path(_env(name, str(default)))
 
@@ -86,6 +98,10 @@ class Settings:
     github_poll_token: str
     github_org: str
 
+    # Version-one local upload remains closed until the WS2 ingest adapter is
+    # deployed and explicitly enabled by the operator.
+    local_ingest_enabled: bool
+
 
 def load_settings() -> Settings:
     """Build a Settings instance from the current environment."""
@@ -100,6 +116,7 @@ def load_settings() -> Settings:
         poll_interval_seconds=_env_int("POLL_INTERVAL_SECONDS", 60),
         github_poll_token=_env("GITHUB_POLL_TOKEN", ""),
         github_org=_env("GITHUB_ORG", ""),
+        local_ingest_enabled=_env_bool("LOCAL_INGEST_ENABLED"),
         db_url=f"sqlite+aiosqlite:///{db_path.as_posix()}",
         db_url_sync=f"sqlite:///{db_path.as_posix()}",
         project_root=project_root,

@@ -34,6 +34,7 @@ async def client(tmp_path):
 
 async def test_drift_classifies_missing_refs_and_patterns(client, tmp_path) -> None:
     from app.infrastructure.db.connection import get_sessionmaker
+    from app.infrastructure.db.models import Project
     from app.infrastructure.db.repositories.catalogue_snapshots import CatalogueSnapshotRepository
 
     (tmp_path / "backend/app").mkdir(parents=True)
@@ -45,7 +46,7 @@ async def test_drift_classifies_missing_refs_and_patterns(client, tmp_path) -> N
     (tmp_path / "backend/tests").mkdir(parents=True)
     (tmp_path / "backend/tests/test_nested.py").write_text("def test_ok():\n    assert True\n")
 
-    project = str(tmp_path)
+    project_path = str(tmp_path)
     catalogue = {
         "schema_version": 3,
         "catalogue_version": "test-v1",
@@ -90,14 +91,19 @@ async def test_drift_classifies_missing_refs_and_patterns(client, tmp_path) -> N
 
     factory = get_sessionmaker()
     async with factory() as session:
+        project = Project(tag="drift", local_path=project_path)
+        session.add(project)
+        await session.flush()
         await CatalogueSnapshotRepository(session).store(
-            project_path=project,
+            project_id=project.id,
             catalogue=catalogue,
             catalogue_version="test-v1",
         )
         await session.commit()
 
-    res = await client.get("/api/catalogue/drift", params={"project_path": project})
+        project_id = project.id
+
+    res = await client.get("/api/catalogue/drift", params={"project_id": project_id})
     assert res.status_code == 200
     body = res.json()
 
@@ -111,5 +117,5 @@ async def test_drift_classifies_missing_refs_and_patterns(client, tmp_path) -> N
 
 
 async def test_drift_unknown_project_404(client, tmp_path) -> None:
-    res = await client.get("/api/catalogue/drift", params={"project_path": str(tmp_path)})
+    res = await client.get("/api/catalogue/drift", params={"project_id": 999_999})
     assert res.status_code == 404

@@ -1,6 +1,6 @@
 """Config viewer endpoint — returns the config artefacts driving a scan.
 
-GET /api/config?project_path=...
+GET /api/config?project_id=...
 
 Returns the FR catalogue and compliance mapping from the DB (both are
 DB-resident; every load path — MCP save, scan-time file load — stores a
@@ -11,12 +11,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping
+from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping, Project
 from app.modules.shared.paths import RESOURCES_ROOT
 
 
@@ -28,14 +28,17 @@ _PACK_DIR_APP = RESOURCES_ROOT / "compliance-packs"
 
 @router.get("/config")
 async def get_config(
-    project_path: str = Query(..., description="absolute project root"),
+    project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Return the catalogue, mapping, and referenced packs for inspection."""
+    project = await session.get(Project, project_id)
+    if project is None or project.hidden:
+        raise HTTPException(status_code=404, detail="project not found")
     snapshot = (
         await session.execute(
             sa_select(CatalogueSnapshot)
-            .where(CatalogueSnapshot.project_path == project_path)
+            .where(CatalogueSnapshot.project_id == project_id)
             .order_by(CatalogueSnapshot.created_at.desc())
             .limit(1)
         )
@@ -45,7 +48,7 @@ async def get_config(
     mapping_row = (
         await session.execute(
             sa_select(ComplianceMapping)
-            .where(ComplianceMapping.project_path == project_path)
+            .where(ComplianceMapping.project_id == project_id)
             .order_by(ComplianceMapping.loaded_at.desc())
             .limit(1)
         )

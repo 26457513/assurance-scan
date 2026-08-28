@@ -144,7 +144,8 @@ async def test_result_persister_uses_only_its_explicit_port() -> None:
     persistence = Persistence()
     record = RunRecord(
         run_id="gh-42",
-        project_path="github:owner/repo",
+        project_id=42,
+        origin="github-actions",
         options_json="{}",
         status="completed",
         started_at=None,

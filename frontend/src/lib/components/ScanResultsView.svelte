@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
   import FindingsTable from './FindingsTable.svelte';
+  import ScanOriginBadge from './ScanOriginBadge.svelte';
   import type { ScanStatus, FindingsListResponse, ScanSummary } from '$lib/types';
   import { SCANNER_DESCRIPTIONS } from '$lib/scannerDescriptions';
 
@@ -121,7 +122,9 @@
         </div>
         <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.4fr)_90px_100px_80px] gap-3 px-3 py-2 items-center border-b border-line-hairline">
           <div class="text-ink-primary truncate" title={detail.run_id}>{detail.run_id}</div>
-          <div class="text-ink-muted truncate" title={detail.project_path}>{detail.project_path}</div>
+          <div class="flex items-center gap-2 text-ink-muted truncate">
+            <span>#{detail.project_id}</span><ScanOriginBadge origin={detail.origin} />
+          </div>
           <div style="color: {scannerColor(detail.status)}">{detail.status}</div>
           <div class="text-ink-muted">{fmtShort(detail.started_at)}</div>
           <div class="text-ink-muted tabular-nums">{fmtDuration()}</div>

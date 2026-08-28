@@ -21,7 +21,7 @@
 
   async function load() {
     try {
-      config = await api.getConfig(scan.project_path);
+      config = await api.getConfig(scan.project_id);
     } catch (e) {
       error = String(e);
     } finally {

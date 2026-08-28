@@ -160,45 +160,47 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
     async with get_sessionmaker()() as session:
         rows = (await session.execute(
-            sa_select(Run).where(Run.project_path.in_(
-                sa_select(Project.local_path).where(Project.hidden.is_(False))
+            sa_select(Run).where(Run.project_id.in_(
+                sa_select(Project.id).where(Project.hidden.is_(False))
             )).order_by(Run.started_at.desc())
         )).scalars().all()
         # runs grouped per project (for PR/branch context) and per
         # (project, branch) — the top table shows one row per branch that
         # has been scanned in the last 7 days.
-        recent: dict[str, list[Run]] = {}
-        branch_runs: dict[tuple[str, str], list[Run]] = {}
+        recent: dict[int, list[Run]] = {}
+        branch_runs: dict[tuple[int, str], list[Run]] = {}
         for run in rows:  # newest first
-            recent.setdefault(run.project_path, []).append(run)
+            recent.setdefault(run.project_id, []).append(run)
             if run.git_branch:
-                branch_runs.setdefault((run.project_path, run.git_branch), []).append(run)
-        registry = {r.local_path: r for r in (await session.execute(
+                branch_runs.setdefault((run.project_id, run.git_branch), []).append(run)
+        registry = {r.id: r for r in (await session.execute(
             sa_select(Project).where(Project.hidden.is_(False))
         )).scalars().all()}
-        hidden_names = {p.split("/")[-1] for p in (await session.execute(
-            sa_select(Project.local_path).where(Project.hidden.is_(True))
-        )).scalars().all()}
 
-        def scoped(path: str) -> bool:
-            if path.replace("github:", "").split("/")[-1] in hidden_names:
-                return False
-            reg_row = registry.get(path)
-            owner = (reg_row.github_repo if reg_row is not None and reg_row.github_repo
-                     else (path.split(":")[1] if path.startswith("github:") else ""))
+        def scoped(project_id: int) -> bool:
+            reg_row = registry.get(project_id)
+            owner = reg_row.github_repo if reg_row is not None and reg_row.github_repo else ""
             org = owner.split("/")[0] if "/" in owner else ""
             return not allowed_orgs or org.lower() in allowed_orgs
+
+        def project_name(project_id: int) -> str:
+            project = registry[project_id]
+            if project.github_repo:
+                return project.github_repo.rsplit("/", 1)[-1]
+            if project.local_path:
+                return project.local_path.rstrip("/").rsplit("/", 1)[-1]
+            return project.tag
 
         summary = {"projects": 0, "critical": 0, "high": 0, "failed_runs": 0}
         table_rows: list[list[str]] = []
         pr_projects: list[tuple[str, str, list[str]]] = []
-        seen_projects: set[str] = set()
+        seen_projects: set[int] = set()
         cutoff = now - dt.timedelta(days=7)
 
-        for (path, branch), brs in sorted(
+        for (project_id, branch), brs in sorted(
                 branch_runs.items(),
                 key=lambda kv: (kv[0][0], kv[1][0].started_at or now), reverse=True):
-            if not scoped(path):
+            if not scoped(project_id):
                 continue
             run, prev = brs[0], (brs[1] if len(brs) > 1 else None)
             started = run.started_at
@@ -206,7 +208,7 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 started = started.replace(tzinfo=dt.timezone.utc)
             if started is None or started < cutoff:
                 continue  # only branches scanned in the last 7 days
-            base = path.replace("github:", "").split("/")[-1]
+            base = project_name(project_id)
             count_rows = (await session.execute(
                 sa_select(Finding.severity, func.count()).where(Finding.run_id == run.run_id)
                 .group_by(Finding.severity)
@@ -217,8 +219,8 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
             summary["high"] += high
             if run.status == "failed":
                 summary["failed_runs"] += 1
-            if path not in seen_projects:
-                seen_projects.add(path)
+            if project_id not in seen_projects:
+                seen_projects.add(project_id)
                 summary["projects"] += 1
 
             scan_cell = f"{run.started_at.strftime('%d %b %H:%M')} ({run.status})"
@@ -249,12 +251,12 @@ async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:
                 delta, fr_cell,
             ])
 
-        for path, runs_ in recent.items():
-            if not scoped(path):
+        for project_id, runs_ in recent.items():
+            if not scoped(project_id):
                 continue
-            reg_row = registry.get(path)
+            reg_row = registry.get(project_id)
             if reg_row is not None and reg_row.github_repo:
-                base = path.replace("github:", "").split("/")[-1]
+                base = project_name(project_id)
                 pr_projects.append((base, reg_row.github_repo,
                                     [r.git_branch for r in runs_ if r.git_branch]))
 

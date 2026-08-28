@@ -38,7 +38,7 @@ from app.project_tests import discover as discover_tests, run_suite
 from app.state.matcher import TestCaseRecord
 from app.modules.atomic.scanning.finding_parser import parser_for
 from app.modules.atomic.scanning.test_result_parser import parse as parse_junit
-from app.vcs import git_branch, git_head
+from app.vcs import git_branch, git_head, git_worktree_dirty
 
 
 log = logging.getLogger(__name__)
@@ -71,7 +71,8 @@ class ScanOrchestrator:
     async def execute(
         self,
         run_id: str,
-        project_path: str,
+        project_id: int,
+        local_path: str,
         options: dict[str, Any],
     ) -> None:
         """Top-level scan lifecycle."""
@@ -81,15 +82,15 @@ class ScanOrchestrator:
 
             # Try reading catalogue from file first.
             if catalogue_path and Path(catalogue_path).exists():
-                catalogue = load_catalogue(Path(catalogue_path), project_path)
+                catalogue = load_catalogue(Path(catalogue_path), local_path)
                 snapshot = await self.snapshots.store(
-                    project_path=project_path,
+                    project_id=project_id,
                     catalogue=catalogue.doc,
                     catalogue_version=catalogue.doc.get("catalogue_version"),
+                    source_root=local_path,
                 )
                 await self.frs_repo.bulk_insert_for_snapshot(
                     catalogue_snapshot_id=snapshot.id,
-                    project_path=project_path,
                     frs=catalogue.doc.get("frs", []),
                 )
                 run = await self.runs.get(run_id)
@@ -99,13 +100,13 @@ class ScanOrchestrator:
 
             # If no file was found, check DB for a previously-saved snapshot
             # (via save_catalogue MCP tool). Use the latest snapshot for this
-            # project_path.
+            # project.
             if catalogue is None:
                 from app.infrastructure.db.models import CatalogueSnapshot
                 from sqlalchemy import select as sa_select
                 snap_row = (await self.session.execute(
                     sa_select(CatalogueSnapshot)
-                    .where(CatalogueSnapshot.project_path == project_path)
+                    .where(CatalogueSnapshot.project_id == project_id)
                     .order_by(CatalogueSnapshot.created_at.desc())
                     .limit(1)
                 )).scalars().first()
@@ -115,7 +116,7 @@ class ScanOrchestrator:
                     catalogue = LoadedCatalogue(
                         doc=catalogue_doc,
                         path=Path("(db-snapshot)"),
-                        project_path=project_path,
+                        project_path=local_path,
                         content_hash=snap_row.content_hash,
                         generated_at=snap_row.created_at,
                     )
@@ -125,12 +126,12 @@ class ScanOrchestrator:
                     await self.session.flush()
                     log.info(
                         "loaded catalogue from DB snapshot %s (project=%s, %d FRs)",
-                        snap_row.id, project_path, len(catalogue_doc.get("frs", [])),
+                        snap_row.id, project_id, len(catalogue_doc.get("frs", [])),
                     )
 
             # Load the compliance mapping.
             # Check DB first (saved via save_mapping MCP tool).
-            mapping_row = await self.mappings_repo.get_for_project(project_path)
+            mapping_row = await self.mappings_repo.get_for_project(project_id)
             mapping_path = options.get("compliance_mapping_path")
             if not mapping_path and catalogue_path:
                 candidate = Path(catalogue_path).parent / "fr-compliance-mapping.json"
@@ -143,9 +144,9 @@ class ScanOrchestrator:
                 mapping_hash = mapping_row.content_hash
             elif mapping_path and Path(mapping_path).exists():
                 try:
-                    mapping = load_mapping(Path(mapping_path), project_path)
+                    mapping = load_mapping(Path(mapping_path), local_path)
                     await self.mappings_repo.upsert(
-                        project_path=project_path,
+                        project_id=project_id,
                         content_hash=mapping.content_hash,
                         mapping_doc=mapping.doc,
                     )
@@ -165,43 +166,48 @@ class ScanOrchestrator:
                 run.mapping_hash = mapping_hash
             await self.session.flush()
 
-            head = await git_head(project_path)
-            branch = await git_branch(project_path)
+            head = await git_head(local_path)
+            branch = await git_branch(local_path)
+            dirty = await git_worktree_dirty(local_path)
             run = await self.runs.get(run_id)
-            if run is not None and head:
+            if run is not None:
                 run.commit_sha = head
+                run.git_object_format = (
+                    "sha1" if head and len(head) == 40 else "sha256" if head and len(head) == 64 else None
+                )
                 run.git_branch = branch
+                run.working_tree_dirty = dirty
 
             await self.runs.mark_running(run_id)
             await self.session.commit()
 
             events.publish_scan_started(
                 run_id=run_id,
-                project_path=project_path,
+                project_id=project_id,
                 scanner_kinds=[s.kind for s in self.scanners],
             )
 
             scanner_status: dict[str, str] = {}
             for scanner in self.scanners:
-                status = await self._run_scanner(scanner, run_id, project_path)
+                status = await self._run_scanner(scanner, run_id)
                 scanner_status[scanner.kind] = status
 
             test_cases = await self._run_project_tests(
                 run_id=run_id,
-                project_path=project_path,
+                project_path=local_path,
             )
 
             if catalogue is not None:
                 await evaluate_tests_and_compute_states(
                     session=self.session,
                     run_id=run_id,
-                    project_path=project_path,
+                    project_id=project_id,
                     catalogue=catalogue,
                     test_cases=test_cases,
                 )
 
             findings_json = await self._publish_findings(
-                run_id, project_path, scanner_status, options
+                run_id, project_id, scanner_status, options
             )
             await self.runs.mark_completed(run_id, findings_json)
             await self.session.commit()
@@ -220,10 +226,13 @@ class ScanOrchestrator:
         self,
         scanner: ScannerConfig,
         run_id: str,
-        project_path: str,
     ) -> str:
         events.publish_scanner_started(run_id, scanner.kind)
-        scanner_run = await self.scanner_runs.create(run_id, scanner.kind)
+        scanner_run = await self.scanner_runs.create(
+            run_id,
+            scanner.kind,
+            image_reference=scanner.image,
+        )
         await self.scanner_runs.mark_running(scanner_run.id)
         await self.session.commit()
 
@@ -340,7 +349,7 @@ class ScanOrchestrator:
     async def _publish_findings(
         self,
         run_id: str,
-        project_path: str,
+        project_id: int,
         scanner_status: dict[str, str],
         options: dict[str, Any],
     ) -> str:
@@ -356,7 +365,7 @@ class ScanOrchestrator:
         payload = {
             "schema_version": 1,
             "run_id": run_id,
-            "project": project_path,
+            "project_id": project_id,
             "started_at": run.started_at.isoformat() if run else None,
             "completed_at": run.completed_at.isoformat() if run and run.completed_at else None,
             "scanner_status": scanner_status,

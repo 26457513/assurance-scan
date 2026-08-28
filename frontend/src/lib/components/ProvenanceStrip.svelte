@@ -5,7 +5,7 @@
   import type { CatalogueDriftResponse, ScanProvenance } from '$lib/types';
 
   export let provenance: ScanProvenance;
-  export let projectPath: string;
+  export let projectId: number;
 
   const short = (hash: string | null | undefined) => (hash ? `${hash.slice(0, 8)}…` : null);
 
@@ -28,7 +28,7 @@
 
   onMount(async () => {
     try {
-      drift = await api.getCatalogueDrift(projectPath);
+      drift = await api.getCatalogueDrift(projectId);
     } catch {
       drift = null;
     }
@@ -36,7 +36,7 @@
 
   async function copyRegenerate() {
     const cmd = mcpPrompt([
-      { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_path: projectPath }) } },
+      { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_id: projectId }) } },
     ]);
     try {
       await navigator.clipboard.writeText(cmd);

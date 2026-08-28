@@ -10,7 +10,7 @@
   let loading = false;
   let error: string | null = null;
 
-  $: project = $selectedProject ?? '';
+  $: project = $selectedProject;
 
   const SERIES = [
     { key: 'CRITICAL', label: 'critical', color: 'var(--state-failed)' },
@@ -144,7 +144,7 @@
       <div class="text-[15px] text-ink-primary mb-1">Trends</div>
       <div class="text-[12px] text-ink-secondary">
         {#if project}
-          <span class="font-mono">{project.replace(/^github:/, '')}</span>
+          <span class="font-mono">project #{project}</span>
           <span class="text-ink-muted"> · findings over scan history{branch ? ` · ${branch}` : ''}</span>
         {:else}
           Select a project in the top bar to see its trends.

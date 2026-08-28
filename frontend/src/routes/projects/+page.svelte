@@ -3,7 +3,7 @@
   import { pushToast } from '$lib/stores/toasts';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
-  import { selectProject, projectSlug } from '$lib/stores/selectedProject';
+  import { selectProject } from '$lib/stores/selectedProject';
   import type { ProjectSummary } from '$lib/types';
 
   let projects: ProjectSummary[] = [];
@@ -14,7 +14,6 @@
   let page = 0;
   let addOpen = false;
   let newTag = '';
-  let newPath = '';
   let newRepo = '';
   let adding = false;
   let availableRepos: { full_name: string; org?: string; pushed_at?: string }[] = [];
@@ -70,30 +69,24 @@
 
   let editOpen = false;
   let editId: number | null = null;
-  let selected = new Set<string>();
+  let selected = new Set<number>();
   let deleteModalOpen = false;
   $: selectedCount = selected.size;
 
-  function toggleRow(path: string) {
-    if (selected.has(path)) selected.delete(path);
-    else selected.add(path);
+  function toggleRow(projectId: number) {
+    if (selected.has(projectId)) selected.delete(projectId);
+    else selected.add(projectId);
     selected = new Set(selected);
   }
 
   async function confirmDelete() {
-    const rows = projects.filter((p) => selected.has(p.project_path));
+    const rows = projects.filter((p) => selected.has(p.id));
     for (const row of rows) {
       try {
-        await api.deleteAllScans(row.project_path);
-        if (row.github_project) await api.deleteAllScans(row.github_project);
-        if (row.id) {
-          await api.deleteProject(row.id);
-        } else {
-          // No registry row to delete — tombstone so it stays gone.
-          await api.hideProject(row.project_path);
-        }
+        await api.deleteAllScans(row.id);
+        await api.deleteProject(row.id);
       } catch (e) {
-        pushToast('error', `Delete failed for ${row.tag ?? row.project_path}: ${e}`);
+        pushToast('error', `Delete failed for ${row.tag}: ${e}`);
       }
     }
     selected = new Set();
@@ -107,23 +100,21 @@
   let editRepo = '';
   let editing = false;
 
-  // Editing a derived (unregistered) row registers it on save.
   let editingProject: ProjectSummary | null = null;
 
   function openEdit(p: ProjectSummary) {
     editingProject = p;
-    editId = p.id ?? null;
-    editTag = p.tag ?? '';
-    editPath = p.project_path;
-    editRepo = p.github_project ? `https://github.com/${p.github_project.replace('github:', '')}` : '';
+    editId = p.id;
+    editTag = p.tag;
+    editPath = p.local_path ?? '';
+    editRepo = p.github_repo ?? '';
     editOpen = true;
   }
 
   async function removeProject(p: ProjectSummary) {
-    if (!p.id) return;
     try {
       await api.deleteProject(p.id);
-      pushToast('success', `Project "${p.tag ?? p.project_path}" removed`);
+      pushToast('success', `Project "${p.tag}" removed`);
       editOpen = false;
       loading = true;
       await load();
@@ -135,13 +126,11 @@
   async function saveEdit() {
     editing = true;
     try {
-      if (editId == null) {
-        await api.createProject(editTag.trim(), editPath.trim(), editRepo.trim());
-      } else {
+      if (editId != null) {
         await api.updateProject(editId, {
           tag: editTag.trim(),
-          local_path: editPath.trim(),
-          github_url: editRepo.trim()
+          local_path: editPath.trim() || null,
+          github_repo: editRepo.trim() || null
         });
       }
       pushToast('success', 'Project saved');
@@ -158,12 +147,11 @@
   async function addProject() {
     adding = true;
     try {
-      const repoUrl = selectedBranch ? `${newRepo.trim()}#${selectedBranch}` : newRepo.trim();
       const tag = newTag.trim() || repoFullName().split('/').pop() || '';
-      await api.createProject(tag, '', repoUrl);
+      await api.createProject(tag, null, repoFullName(), selectedBranch || null);
       pushToast('success', `Project "${newTag.trim()}" registered`);
       addOpen = false;
-      newTag = newPath = newRepo = '';
+      newTag = newRepo = '';
       loading = true;
       await load();
     } catch (e) {
@@ -177,48 +165,15 @@
   $: visible = projects.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   function open(p: ProjectSummary) {
-    selectProject(p.project_path);
-    goto(`/projects/${projectSlug(p.project_path)}`);
+    selectProject(p.id);
+    goto(`/projects/${p.id}`);
   }
 
   async function load() {
     try {
-      // Local DB first — the table renders immediately; the GitHub org
-      // listing is slow and only enriches rows with unscanned repos.
       const data = await api.listProjects();
       projects = data.projects;
-      const excluded = new Set(data.excluded ?? []);
       loading = false;
-      const gh = await api.githubRepos().catch(() => ({ repos: [] as { full_name: string; pushed_at?: string | null }[] }));
-      // Org repos with no scans yet still belong in the list; ones already
-      // scanned arrive via the projects API as github:{full_name}. A repo
-      // matching a local project's folder name tags that row instead of
-      // adding a duplicate. Deleted (tombstoned) repos never resurface.
-      const known = new Set(
-        projects.flatMap((p) => [p.project_path, p.github_project].filter(Boolean) as string[])
-      );
-      const byBase = new Map(
-        projects
-          .filter((p) => !p.project_path.startsWith('github:'))
-          .map((p) => [p.project_path.replace(/\/$/, '').split('/').pop() ?? '', p])
-      );
-      const unscanned: typeof projects = [];
-      for (const r of gh.repos) {
-        const ghPath = `github:${r.full_name}`;
-        if (known.has(ghPath) || excluded.has(ghPath)) continue;
-        const local = byBase.get(r.full_name.split('/').pop() ?? '');
-        if (local && !local.github_project) {
-          local.github_project = ghPath;
-          continue;
-        }
-        unscanned.push({
-          project_path: ghPath,
-          run_count: 0,
-          last_scan_at: r.pushed_at ?? null,
-          has_catalogue: false
-        });
-      }
-      projects = [...projects, ...unscanned];
     } catch (e) {
       error = String(e);
       loading = false;
@@ -239,7 +194,7 @@
     <div>
       <div class="text-[15px] text-ink-primary mb-1">Projects</div>
       <div class="text-[12px] text-ink-secondary">
-        Registered projects and discovered leftovers — select one to browse its scans, FRs, and compliance.
+        Registered projects — select one to browse its scans, FRs, and compliance.
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -253,7 +208,7 @@
       {/if}
       <button
         type="button"
-        on:click={() => { addOpen = true; newPath = ''; repoPage = 0; loadAvailableRepos(); }}
+        on:click={() => { addOpen = true; repoPage = 0; loadAvailableRepos(); }}
         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
       >
       <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none"><path d="M6 2v8M2 6h8" stroke-linecap="round" /></svg>
@@ -268,7 +223,7 @@
     <div class="text-[12px] text-state-failed font-mono">{error}</div>
   {:else if projects.length === 0}
     <div class="py-12 text-center text-[12px] text-ink-muted font-mono">
-      No projects yet — start a scan from any project folder.
+      No projects yet — register a repository to begin.
     </div>
   {:else}
     <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
@@ -282,7 +237,7 @@
         <div>Catalogue</div>
         <div></div>
       </div>
-      {#each visible as p (p.project_path)}
+      {#each visible as p (p.id)}
         <div
           role="button"
           tabindex="0"
@@ -292,17 +247,17 @@
         >
           <input
             type="checkbox"
-            checked={selected.has(p.project_path)}
-            on:click|stopPropagation={() => toggleRow(p.project_path)}
+            checked={selected.has(p.id)}
+            on:click|stopPropagation={() => toggleRow(p.id)}
             class="cursor-pointer"
-            aria-label="Select {p.tag ?? p.project_path}"
+            aria-label="Select {p.tag}"
           />
           <span class="text-ink-primary truncate">
-            {p.tag ?? p.project_path.replace(/\/$/, '').split('/').pop()}
+            {p.tag}
           </span>
-          <span class="text-ink-secondary truncate" title={p.project_path}>{p.project_path}</span>
-          <span class="text-ink-muted truncate" title={p.github_project ?? ''}>
-            {p.github_project ? p.github_project.replace('github:', '') : '—'}
+          <span class="text-ink-secondary truncate" title={p.local_path ?? ''}>{p.local_path ?? '—'}</span>
+          <span class="text-ink-muted truncate" title={p.github_repo ?? ''}>
+            {p.github_repo ?? '—'}
           </span>
           <span class="text-right text-ink-secondary tabular-nums">{p.run_count}</span>
           <span class="text-ink-muted">{fmtDate(p.last_scan_at)}</span>
@@ -312,7 +267,7 @@
           <button
             type="button"
             on:click|stopPropagation={() => openEdit(p)}
-            title={p.id ? 'Edit project' : 'Register project (edit + save)'}
+            title="Edit project"
             class="text-ink-secondary hover:text-accent transition-colors p-1"
           >
             <svg class="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4">
@@ -381,8 +336,8 @@
               class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
           </div>
           <div>
-            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-repo">GitHub repo URL (empty clears)</label>
-            <input id="ep-repo" type="text" bind:value={editRepo} placeholder="https://github.com/org/project"
+            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="ep-repo">GitHub repository (empty clears)</label>
+            <input id="ep-repo" type="text" bind:value={editRepo} placeholder="org/project"
               class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
           </div>
         </div>

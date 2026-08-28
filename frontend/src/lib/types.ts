@@ -8,9 +8,32 @@ export interface HealthResponse {
   uptime_seconds: number;
 }
 
+export type ScanTokenExpiryDays = 30 | 90 | 180;
+
+export interface ScanToken {
+  id: string;
+  label: string;
+  created_at: string;
+  expires_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+export interface ScanTokenListResponse {
+  tokens: ScanToken[];
+  csrf_token: string;
+}
+
+export interface ScanTokenCreateResponse {
+  token: string;
+}
+
+export type ScanOrigin = 'github-actions' | 'local' | 'server';
+
 export interface ScanSummary {
   run_id: string;
-  project_path: string;
+  project_id: number;
+  origin: ScanOrigin;
   status: string;
   started_at: string;
   completed_at: string | null;
@@ -20,6 +43,9 @@ export interface ScanSummary {
   actor?: string | null;
   display_title?: string | null;
   git_branch?: string | null;
+  commit_sha?: string | null;
+  working_tree_dirty?: boolean | null;
+  repository?: string | null;
 }
 
 export interface ScannerStatus {
@@ -47,7 +73,7 @@ export interface ScanProvenance {
 }
 
 export interface CatalogueDriftResponse {
-  project_path: string;
+  project_id: number;
   catalogue_snapshot_id: string;
   catalogue_version: string | null;
   catalogue_content_hash: string;
@@ -60,7 +86,7 @@ export interface CatalogueDriftResponse {
 }
 
 export interface CatalogueVersion {
-  project_path?: string;
+  project_id: number;
   tag?: string | null;
   snapshot_id: string;
   version: string | null;
@@ -86,12 +112,11 @@ export interface CompliancePack {
 }
 
 export interface ProjectSummary {
-  id?: number | null;
+  id: number;
   default_scan_ref?: string | null;
-  tag?: string | null;
-  registered?: boolean;
-  github_project?: string | null;
-  project_path: string;
+  tag: string;
+  local_path: string | null;
+  github_repo: string | null;
   run_count: number;
   last_scan_at: string | null;
   has_catalogue: boolean;
@@ -99,7 +124,8 @@ export interface ProjectSummary {
 
 export interface ScanStatus {
   run_id: string;
-  project_path: string;
+  project_id: number;
+  origin: ScanOrigin;
   status: string;
   started_at: string;
   completed_at: string | null;
@@ -109,11 +135,14 @@ export interface ScanStatus {
   provenance: ScanProvenance | null;
   git_branch: string | null;
   commit_sha: string | null;
+  working_tree_dirty: boolean | null;
+  repository: string | null;
 }
 
 export interface ScanResponse {
   run_id: string;
-  project_path: string;
+  project_id: number;
+  origin: ScanOrigin;
   status: string;
   queued_at: string;
 }
@@ -197,7 +226,7 @@ export interface FrDetailResponse {
   tests: TestSpecWithResult[];
   satisfies: ComplianceRef[];
   depends_on: string[];
-  project_path: string;
+  project_id: number;
   run_id: string;
   state: string;
   reason: Record<string, unknown>;
@@ -250,7 +279,7 @@ export interface ComplianceRow {
 
 export interface ComplianceMatrixResponse {
   framework: string;
-  project_path: string;
+  project_id: number;
   mapping_loaded_at: string;
   mapping_hash: string;
   run_id: string | null;
@@ -274,7 +303,8 @@ export interface GapFrClassification {
 
 export interface TrendEntry {
   run_id: string;
-  project_path: string;
+  project_id: number;
+  origin: ScanOrigin;
   status: string;
   started_at: string | null;
   total_findings: number;

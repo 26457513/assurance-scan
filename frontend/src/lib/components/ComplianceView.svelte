@@ -18,7 +18,7 @@
   export let initialFramework: string | null = null;
   $: mappingPrompt = mcpPrompt([
     { tool: 'get_workflow', args: { name: 'author-fr-compliance-map', parameters: JSON.stringify({ framework: selectedFramework ?? 'ASVS' }) } },
-    { tool: 'save_mapping', args: { project_path: scan.project_path } },
+    { tool: 'save_mapping', args: { project_id: scan.project_id } },
   ]);
 
   let frameworks: ComplianceFrameworkSummary[] = [];
@@ -44,8 +44,8 @@
   async function loadMappingVersions() {
     try {
       const [mv, cv] = await Promise.all([
-        api.listMappingVersions(scan.project_path),
-        api.listCatalogueVersions(scan.project_path)
+        api.listMappingVersions(scan.project_id),
+        api.listCatalogueVersions(scan.project_id)
       ]);
       mappingVersions = mv.versions;
       currentCatalogueHash = cv.versions[0]?.content_hash ?? '';
@@ -61,7 +61,7 @@
     try {
       matrix = await api.getComplianceMatrix(
         selectedFramework,
-        undefined,
+        scan.project_id,
         mappingVersions.length > 1 ? selectedMappingHash || undefined : undefined
       );
       error = null;
@@ -80,7 +80,7 @@
 
   async function loadFrList() {
     try {
-      frList = await api.listFRs(scan.project_path);
+      frList = await api.listFRs(scan.project_id);
     } catch (e) {
       /* silent */
     }

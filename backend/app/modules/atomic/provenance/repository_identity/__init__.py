@@ -1,11 +1,13 @@
 """Public API for canonical repository identity handling."""
 
-from .models import InvalidRepositoryIdentityError, ProjectSummary
-from .service import merge_github_aliases, parse_github_repository
+from .models import InvalidRepositoryIdentityError
+from .service import (
+    normalize_github_repository_key,
+    parse_github_repository,
+)
 
 __all__ = [
     "InvalidRepositoryIdentityError",
-    "ProjectSummary",
-    "merge_github_aliases",
+    "normalize_github_repository_key",
     "parse_github_repository",
 ]

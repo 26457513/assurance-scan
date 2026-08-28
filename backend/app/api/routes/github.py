@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, HTTPException, Request
 
 from app.api.deps import SessionDep
-from app.github_poller import GitHubClient
+from app.github_poller import GitHubClient, resolve_registered_repository
 
 
 router = APIRouter(prefix="/github", tags=["github"])
@@ -47,13 +47,24 @@ async def list_repos(request: Request, session: AsyncSession = SessionDep) -> di
         except Exception as exc:
             errors.append(f"{org}: {exc}")
             continue
-        repos.extend({
-            "full_name": r["full_name"],
-            "name": r.get("name"),
-            "org": org,
-            "pushed_at": r.get("pushed_at"),
-            "html_url": r.get("html_url"),
-        } for r in listed)
+        for repository in listed:
+            try:
+                full_name, repository_id, project_id, resolution = (
+                    await resolve_registered_repository(session, repository)
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                errors.append(f"{org}: invalid repository identity ({exc})")
+                continue
+            repos.append({
+                "id": repository_id,
+                "full_name": full_name,
+                "name": full_name.rsplit("/", 1)[-1],
+                "org": org,
+                "pushed_at": repository.get("pushed_at"),
+                "html_url": repository.get("html_url"),
+                "project_id": project_id,
+                "registration": resolution,
+            })
     repos.sort(key=lambda r: r["full_name"])
     return {"org": settings.github_org, "repos": repos, "errors": errors}
 

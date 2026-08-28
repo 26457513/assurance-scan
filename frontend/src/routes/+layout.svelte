@@ -20,7 +20,8 @@
       const status = await api.getScan(runId);
       selectScan({
         run_id: status.run_id,
-        project_path: status.project_path,
+        project_id: status.project_id,
+        origin: status.origin,
         status: status.status,
         started_at: status.started_at,
         completed_at: status.completed_at,

@@ -1,10 +1,10 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { selectedProject, projectSlug } from '$lib/stores/selectedProject';
+  import { selectedProject } from '$lib/stores/selectedProject';
 
   // Project-scoped items are disabled until a project is in focus (set by
   // clicking a row in the Projects table or the header dropdown).
-  $: projectBase = $selectedProject ? `/projects/${projectSlug($selectedProject)}` : null;
+  $: projectBase = $selectedProject != null ? `/projects/${$selectedProject}` : null;
 
   const nav = [
     { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup', scoped: false, divider: true },

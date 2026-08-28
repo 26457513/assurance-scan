@@ -12,8 +12,7 @@
     try {
       // getScan lazy-pulls un-ingested gh- runs server-side.
       const scan = await api.getScan(runId);
-      const slug = encodeURIComponent(scan.project_path);
-      goto(`/projects/${slug}?run=${runId}`, { replaceState: true });
+      goto(`/projects/${scan.project_id}?run=${runId}`, { replaceState: true });
     } catch {
       goto('/projects', { replaceState: true });
     }

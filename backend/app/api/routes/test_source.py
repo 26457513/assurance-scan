@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
+from app.infrastructure.db.models import Project
 
 
 router = APIRouter(tags=["test-source"])
@@ -22,14 +23,14 @@ router = APIRouter(tags=["test-source"])
 @router.get("/test-source")
 async def get_test_source(
     name_pattern: str = Query(..., description="pytest-style name_pattern, e.g. tests.phase1.test_matcher::*"),
-    project_path: str = Query(..., description="absolute project root"),
+    project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict:
     """Return the source code for a test file derived from a name_pattern.
 
     The `name_pattern` is the dotted Python module path (`tests.phase1.test_matcher::*`).
     We split on `::`, take the module portion, replace dots with slashes, append `.py`.
-    The resolved path must be inside `project_path` or we 403.
+    The resolved path must be inside the project's registered checkout.
     """
     if "::" in name_pattern:
         module = name_pattern.split("::", 1)[0]
@@ -38,7 +39,14 @@ async def get_test_source(
     if not module:
         raise HTTPException(status_code=400, detail="could not derive module from name_pattern")
 
-    root = Path(project_path).resolve()
+    project = await session.get(Project, project_id)
+    if project is None or project.hidden:
+        raise HTTPException(status_code=404, detail="project not found")
+    if project.local_path is None:
+        raise HTTPException(status_code=422, detail="project has no server checkout")
+    root = Path(project.local_path).resolve()
+    if not root.is_dir():
+        raise HTTPException(status_code=422, detail="project server checkout is unavailable")
 
     # Try multiple extensions. Python (pytest dotted module path) is the
     # primary case; JS/TS fall back via the same module → path derivation

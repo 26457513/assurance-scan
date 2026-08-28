@@ -31,4 +31,21 @@ async def git_branch(project_path: str) -> str | None:
         return None
     if proc.returncode != 0:
         return None
-    return out.decode("utf-8", "replace").strip()[:64] or None
+    branch = out.decode("utf-8", "replace").strip()[:512]
+    return None if branch in {"", "HEAD"} else branch
+
+
+async def git_worktree_dirty(project_path: str) -> bool | None:
+    """Return tracked/untracked worktree state, or None outside a Git checkout."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-C", project_path, "status", "--porcelain=v1", "--untracked-files=normal",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        out, _ = await proc.communicate()
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    return bool(out)

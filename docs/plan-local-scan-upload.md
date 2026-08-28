@@ -1,6 +1,6 @@
 # Plan: local scan runner and authenticated result upload
 
-Status: clean-cutover plan; WSQ/WS0 complete, ready for WS1 — 2026-08-28
+Status: clean-cutover plan; WSQ/WS0/WS1 complete, ready for WS2 — 2026-08-28
 
 Implementation must not begin until the repository-readiness gate in **WSQ**
 passes. The structural refactor and initial quality cleanup are complete enough
@@ -1359,6 +1359,24 @@ measurements; those observations cannot change the locked ceilings silently.
 Acceptance: a user can create/revoke a labelled token, and GitHub and synthetic
 local runs for the same repository resolve to one `Project.id`, with origin and
 branch independently visible.
+
+WS1 verification on 2026-08-28: migration `0021` performs a deterministic,
+forward-only identity preflight and removes persisted path identity across the
+project-scoped graph. GitHub resolution uses immutable repository IDs first and
+the normalized full name only as a bootstrap key. Scan APIs, MCP tools,
+workflow templates and the frontend use mandatory numeric `project_id`; local
+checkout paths remain locators only. Labelled scan-upload tokens use one-time
+`asu_v1` plaintext, stored secret digests, scoped bearer authentication,
+expiry/revocation/disabled-user enforcement, an active-token limit, exact
+origin plus signed double-submit CSRF for browser mutation, and a Settings UI.
+The scan table renders explicit GitHub Actions, Local and Server origins and
+branch provenance. A boundary test proves synthetic local and GitHub runs for
+the same repository share one project ID. `LOCAL_INGEST_ENABLED` defaults to
+false pending WS2. The complete quality gate passed: Ruff, Mypy (169 files),
+396 backend tests, schema fixtures, compilation, shell syntax, Semgrep (15
+rules, 317 targets, zero findings), frontend audit/check/15 tests/build,
+Dockerfile/Compose validation, both image builds and entrypoint/import smokes,
+diff whitespace and source hygiene.
 
 ### WS2 — source-neutral, atomic ingest API
 

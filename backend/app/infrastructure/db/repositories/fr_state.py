@@ -18,14 +18,12 @@ class FrStateRepository(BaseRepository[FrState]):
 
     async def upsert(
         self,
-        project_path: str,
         fr_id: str,
         run_id: str,
         state: str,
         reason: dict[str, Any],
     ) -> FrState:
         row = FrState(
-            project_path=project_path,
             fr_id=fr_id,
             run_id=run_id,
             state=state,

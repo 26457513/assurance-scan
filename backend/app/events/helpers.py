@@ -4,10 +4,10 @@ from __future__ import annotations
 from app.events import bus
 
 
-def publish_scan_started(run_id: str, project_path: str, scanner_kinds: list[str]) -> None:
+def publish_scan_started(run_id: str, project_id: int, scanner_kinds: list[str]) -> None:
     bus.publish(run_id, "scan_started", {
         "run_id": run_id,
-        "project_path": project_path,
+        "project_id": project_id,
         "scanners": scanner_kinds,
     })
 

@@ -35,16 +35,19 @@ async def _seed(project_path: str, catalogue_versions: list[str], run_pinned_to:
     import datetime as dt
 
     from app.infrastructure.db.connection import get_sessionmaker
-    from app.infrastructure.db.models import Run
+    from app.infrastructure.db.models import Project, Run
     from app.infrastructure.db.repositories.catalogue_snapshots import CatalogueSnapshotRepository
 
     factory = get_sessionmaker()
     async with factory() as session:
+        project = Project(tag=run_id, local_path=project_path)
+        session.add(project)
+        await session.flush()
         snaps = []
         repo = CatalogueSnapshotRepository(session)
         for i, version in enumerate(catalogue_versions):
             snap = await repo.store(
-                project_path=project_path,
+                project_id=project.id,
                 catalogue={"schema_version": 3, "catalogue_version": version, "frs": [{"id": f"FR-T-{i}"}]},
                 catalogue_version=version,
             )
@@ -52,13 +55,14 @@ async def _seed(project_path: str, catalogue_versions: list[str], run_pinned_to:
             snaps.append(snap)
         run = Run(
             run_id=run_id,
-            project_path=project_path,
+            project_id=project.id,
+            origin="server",
             catalogue_snapshot_id=snaps[run_pinned_to].id if run_pinned_to is not None else None,
             status="completed",
         )
         session.add(run)
         await session.commit()
-        return run.run_id, snaps[-1].content_hash
+        return run.run_id, snaps[-1].content_hash, project.id
 
 
 async def test_provenance_flags_stale_catalogue(client) -> None:
@@ -67,12 +71,12 @@ async def test_provenance_flags_stale_catalogue(client) -> None:
     from app.infrastructure.db.models import Run
     from app.infrastructure.db.repositories.compliance_mappings import ComplianceMappingRepository
 
-    run_id, latest_hash = await _seed("/proj/stale", ["v1", "v2"], run_pinned_to=0, run_id="run-stale")
+    run_id, latest_hash, project_id = await _seed("/proj/stale", ["v1", "v2"], run_pinned_to=0, run_id="run-stale")
 
     factory = get_sessionmaker()
     async with factory() as session:
         await ComplianceMappingRepository(session).upsert(
-            project_path="/proj/stale",
+            project_id=project_id,
             content_hash="sha256:map-current",
             mapping_doc={"framework": "ASVS"},
         )
@@ -97,7 +101,7 @@ async def test_provenance_flags_stale_catalogue(client) -> None:
 
 async def test_provenance_current_catalogue_not_stale(client) -> None:
     """Run pinned to the latest snapshot → catalogue_stale=false, mapping unknown."""
-    run_id, _ = await _seed("/proj/fresh", ["v1"], run_pinned_to=0, run_id="run-fresh")
+    run_id, _, _ = await _seed("/proj/fresh", ["v1"], run_pinned_to=0, run_id="run-fresh")
 
     res = await client.get(f"/api/scans/{run_id}")
     assert res.status_code == 200
@@ -111,7 +115,7 @@ async def test_provenance_current_catalogue_not_stale(client) -> None:
 
 async def test_provenance_absent_when_nothing_pinned(client) -> None:
     """Run with no catalogue and no mapping → refs null, staleness unknown."""
-    run_id, _ = await _seed("/proj/unpinned", ["v1"], run_pinned_to=None, run_id="run-unpinned")
+    run_id, _, _ = await _seed("/proj/unpinned", ["v1"], run_pinned_to=None, run_id="run-unpinned")
 
     res = await client.get(f"/api/scans/{run_id}")
     assert res.status_code == 200

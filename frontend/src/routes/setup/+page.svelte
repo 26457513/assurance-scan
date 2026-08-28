@@ -5,6 +5,7 @@
   import { api } from '$lib/api';
   import GuideSteps from '$lib/components/GuideSteps.svelte';
   import CopyButton from '$lib/components/CopyButton.svelte';
+  import ScanTokensPanel from '$lib/components/ScanTokensPanel.svelte';
   import { pushToast } from '$lib/stores/toasts';
 
   const ORG_STEPS = [
@@ -497,6 +498,8 @@
         </div>
       </div>
     {/if}
+
+    <ScanTokensPanel />
 
   {:else if tab === 'agent'}
     <div class="border border-line-hairline rounded-sm bg-surface-panel p-5 mb-4">

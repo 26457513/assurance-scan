@@ -18,7 +18,6 @@ class TestResultRepository(BaseRepository[TestResult]):
     async def upsert(
         self,
         run_id: str,
-        project_path: str,
         fr_id: str,
         test_id: str,
         test_type: str,
@@ -39,7 +38,6 @@ class TestResultRepository(BaseRepository[TestResult]):
 
         tr = TestResult(
             run_id=run_id,
-            project_path=project_path,
             fr_id=fr_id,
             test_id=test_id,
             test_type=test_type,

@@ -4,13 +4,16 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
+from pathlib import Path
+from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import SessionDep, QueueDep, get_settings
+from app.api.deps import QueueDep, SessionDep
 from app.api.schemas.scan import (
     ScanRequest,
+    ScanOrigin,
     ScanResponse,
     ScanStatus,
     ScanSummary,
@@ -18,7 +21,7 @@ from app.api.schemas.scan import (
 )
 from app.infrastructure.db.repositories.findings import FindingRepository
 from app.infrastructure.db.repositories.runs import RunRepository
-from app.infrastructure.db.models import Run
+from app.infrastructure.db.models import Project, Run
 from app.infrastructure.db.repositories.scanner_runs import ScannerRunRepository
 from app.worker.queue import ScanQueue
 
@@ -32,25 +35,38 @@ async def start_scan(
     body: ScanRequest,
     session: AsyncSession = SessionDep,
     queue: ScanQueue = QueueDep,
-    settings=Depends(get_settings),
 ) -> ScanResponse:
     """Enqueue a scan. Returns immediately with the run_id."""
-    project_path = body.project_path or str(settings.project_root)
+    project = await session.get(Project, body.project_id)
+    if project is None or project.hidden:
+        raise HTTPException(status_code=404, detail="project not found")
+    if project.local_path is None or not Path(project.local_path).is_dir():
+        raise HTTPException(
+            status_code=422,
+            detail="project has no available server checkout",
+        )
     options_json = json.dumps(body.options)
 
     runs = RunRepository(session)
-    run_id = queue.enqueue(project_path=project_path, options=body.options)
+    run_id = queue.enqueue(
+        project_id=project.id,
+        local_path=project.local_path,
+        options=body.options,
+    )
 
-    await runs.create(
+    run = await runs.create(
         run_id=run_id,
-        project_path=project_path,
+        project_id=project.id,
+        origin="server",
         options_json=options_json,
     )
+    run.repository_full_name_at_scan = project.github_repo
     await session.commit()
 
     return ScanResponse(
         run_id=run_id,
-        project_path=project_path,
+        project_id=project.id,
+        origin="server",
         status="queued",
         queued_at=dt.datetime.now(dt.timezone.utc),
     )
@@ -58,13 +74,18 @@ async def start_scan(
 
 @router.get("", response_model=list[ScanSummary])
 async def list_scans(
+    project_id: int | None = Query(default=None, gt=0),
     limit: int = Query(default=50, ge=1, le=500),
     session: AsyncSession = SessionDep,
 ) -> list[ScanSummary]:
     """List recent scans with finding counts."""
     runs = RunRepository(session)
     findings = FindingRepository(session)
-    rows = await runs.list_recent(limit=limit)
+    if project_id is not None:
+        project = await session.get(Project, project_id)
+        if project is None or project.hidden:
+            raise HTTPException(status_code=404, detail="project not found")
+    rows = await runs.list_recent(limit=limit, project_id=project_id)
 
     summaries: list[ScanSummary] = []
     for run in rows:
@@ -73,7 +94,8 @@ async def list_scans(
         summaries.append(
             ScanSummary(
                 run_id=run.run_id,
-                project_path=run.project_path,
+                project_id=run.project_id,
+                origin=cast(ScanOrigin, run.origin),
                 status=run.status,
                 started_at=run.started_at,
                 completed_at=run.completed_at,
@@ -85,41 +107,30 @@ async def list_scans(
 
 
 def _ci_display_fields(run: Run) -> dict:
-    """GitHub run display metadata from options_json (empty for local runs)."""
+    """Return source-neutral display metadata with legacy option fallbacks."""
     import json as _json
 
-    if not run.run_id.startswith("gh-"):
-        return {}
     try:
         opts = _json.loads(run.options_json or "{}")
     except ValueError:
         return {}
     fields = {
-        k: opts.get(k)
-        for k in ("run_number", "event", "actor", "display_title")
+        "run_number": run.github_run_number or opts.get("run_number"),
+        "event": run.github_event or opts.get("event"),
+        "actor": run.github_actor or opts.get("actor"),
+        "display_title": opts.get("display_title"),
     }
     fields["git_branch"] = run.git_branch
+    fields["commit_sha"] = run.commit_sha
+    fields["working_tree_dirty"] = run.working_tree_dirty
+    fields["repository"] = run.repository_full_name_at_scan
     return fields
 
 
 @router.get("/{run_id}", response_model=ScanStatus)
-async def get_scan(run_id: str, request: Request, session: AsyncSession = SessionDep) -> ScanStatus:
-    """Get full detail for one scan, including per-scanner status + provenance.
-
-    A gh- run that isn't ingested yet (link clicked before the poller cycle)
-    triggers one on-demand poll so deep links work immediately.
-    """
+async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatus:
+    """Get full detail for one persisted scan and its provenance."""
     from sqlalchemy import select as sa_select
-
-    if await RunRepository(session).get(run_id) is None and run_id.startswith("gh-"):
-        settings = request.app.state.settings
-        if settings.github_poll_token:
-            from app.infrastructure.db.connection import get_sessionmaker
-            from app.github_poller import GitHubClient, poll_cycle, resolve_repos
-
-            client = GitHubClient(settings.github_poll_token)
-            repos = resolve_repos(client, settings.poll_repos, settings.github_org)
-            await poll_cycle(get_sessionmaker(settings), client, repos)
 
     from app.api.schemas.scan import CatalogueRef, ScanProvenance
     from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping
@@ -160,7 +171,7 @@ async def get_scan(run_id: str, request: Request, session: AsyncSession = Sessio
     latest_snap = (
         await session.execute(
             sa_select(CatalogueSnapshot)
-            .where(CatalogueSnapshot.project_path == run.project_path)
+            .where(CatalogueSnapshot.project_id == run.project_id)
             .order_by(CatalogueSnapshot.created_at.desc())
             .limit(1)
         )
@@ -168,7 +179,7 @@ async def get_scan(run_id: str, request: Request, session: AsyncSession = Sessio
     latest_map = (
         await session.execute(
             sa_select(ComplianceMapping)
-            .where(ComplianceMapping.project_path == run.project_path)
+            .where(ComplianceMapping.project_id == run.project_id)
             .order_by(ComplianceMapping.loaded_at.desc())
             .limit(1)
         )
@@ -202,7 +213,8 @@ async def get_scan(run_id: str, request: Request, session: AsyncSession = Sessio
 
     return ScanStatus(
         run_id=run.run_id,
-        project_path=run.project_path,
+        project_id=run.project_id,
+        origin=cast(ScanOrigin, run.origin),
         status=run.status,
         started_at=run.started_at,
         completed_at=run.completed_at,
@@ -212,6 +224,8 @@ async def get_scan(run_id: str, request: Request, session: AsyncSession = Sessio
         provenance=provenance,
         git_branch=run.git_branch,
         commit_sha=run.commit_sha,
+        working_tree_dirty=run.working_tree_dirty,
+        repository=run.repository_full_name_at_scan,
     )
 
 
@@ -229,47 +243,52 @@ async def delete_scan(run_id: str, session: AsyncSession = SessionDep) -> dict:
 
 @router.delete("")
 async def delete_all_scans(
-    project_path: str | None = Query(default=None),
+    project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict:
     """Delete all scans + project-level data (catalogue, FRs, mapping, acceptances, waivers).
 
-    When project_path is given, also cleans up CatalogueSnapshot, Fr,
+    Also cleans up CatalogueSnapshot,
     ComplianceMapping, FindingAcceptance, and Waiver rows for that project —
     so a "delete all" truly resets the project to a blank state.
     """
     from sqlalchemy import select as sa_select
     from app.infrastructure.db.models import (
-        CatalogueSnapshot, ComplianceMapping, FindingAcceptance, Fr, Waiver,
+        CatalogueSnapshot,
+        ComplianceMapping,
+        ComplianceMappingSnapshot,
+        FindingAcceptance,
+        Project,
+        Waiver,
     )
 
-    stmt = sa_select(Run)
-    if project_path:
-        stmt = stmt.where(Run.project_path == project_path)
+    project = await session.get(Project, project_id)
+    if project is None or project.hidden:
+        raise HTTPException(status_code=404, detail="project not found")
+
+    stmt = sa_select(Run).where(Run.project_id == project_id)
     rows = (await session.execute(stmt)).scalars().all()
     scan_count = len(rows)
     for run in rows:
         await session.delete(run)
 
-    # Clean up project-level data when a specific project is targeted.
     cleaned = {}
-    if project_path:
-        for model, label in [
-            (CatalogueSnapshot, "catalogue_snapshots"),
-            (Fr, "frs"),
-            (ComplianceMapping, "compliance_mappings"),
-            (FindingAcceptance, "finding_acceptances"),
-            (Waiver, "waivers"),
-        ]:
-            project_path_column = getattr(model, "project_path")
-            result = await session.execute(
-                sa_select(model).where(project_path_column == project_path)
-            )
-            model_rows = result.scalars().all()
-            for row in model_rows:
-                await session.delete(row)
-            if model_rows:
-                cleaned[label] = len(model_rows)
+    for model, label in [
+        (CatalogueSnapshot, "catalogue_snapshots"),
+        (ComplianceMapping, "compliance_mappings"),
+        (ComplianceMappingSnapshot, "compliance_mapping_snapshots"),
+        (FindingAcceptance, "finding_acceptances"),
+        (Waiver, "waivers"),
+    ]:
+        project_id_column = getattr(model, "project_id")
+        result = await session.execute(
+            sa_select(model).where(project_id_column == project_id)
+        )
+        model_rows = result.scalars().all()
+        for row in model_rows:
+            await session.delete(row)
+        if model_rows:
+            cleaned[label] = len(model_rows)
 
     await session.commit()
     return {"status": "deleted", "scans": scan_count, "cleaned_up": cleaned}

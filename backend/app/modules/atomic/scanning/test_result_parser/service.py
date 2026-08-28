@@ -1,4 +1,4 @@
-"""Parse JUnit XML output into per-testcase evidence records.
+"""Parse JUnit XML output into normalized per-testcase results.
 
 JUnit XML is the de-facto interchange format. pytest, jest (via
 jest-junit), gradle, maven surefire, and many others all emit it.
@@ -13,7 +13,6 @@ import logging
 from defusedxml import ElementTree as ET  # type: ignore[import-untyped]
 from defusedxml.common import DefusedXmlException  # type: ignore[import-untyped]
 from dataclasses import dataclass
-from typing import Any
 
 
 log = logging.getLogger(__name__)
@@ -93,41 +92,3 @@ def _parse_case(case: ET.Element, suite_id: str) -> TestCaseResult:
         elapsed_seconds=elapsed,
         failure_message=message,
     )
-
-
-def to_evidence_records(
-    results: list[TestCaseResult],
-    run_id: str,
-    project_path: str,
-    mapping_index: dict[str, str],
-) -> list[dict[str, Any]]:
-    """Convert test results into evidence record dicts.
-
-    `mapping_index` is a dict of (test name pattern from mapping pack) → fr_id.
-    We use fnmatch to test each result's qualified_name against each pattern;
-    a single test can map to multiple FRs.
-
-    Returns dicts shaped for EvidenceRepository.insert().
-    """
-    import fnmatch
-
-    out: list[dict[str, Any]] = []
-    for r in results:
-        for pattern, fr_id in mapping_index.items():
-            if fnmatch.fnmatchcase(r.qualified_name, pattern):
-                out.append({
-                    "project_path": project_path,
-                    "fr_id": fr_id,
-                    "run_id": run_id,
-                    "type": "unit-test",  # suite.type would be more accurate
-                    "source": {
-                        "kind": "pytest",
-                        "test_name": r.qualified_name,
-                        "suite_id": r.suite_id,
-                        "run_kind": "worker-run",
-                        "run_id": run_id,
-                    },
-                    "result": "pass" if r.result == "pass" else "fail",
-                    "notes": (r.failure_message or "")[:500] or None,
-                })
-    return out

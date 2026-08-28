@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_REVISION = "0016_project_scan_ref"
-HEAD_REVISION = "0020_snapshot_source_branch"
+HEAD_REVISION = "0021_project_identity_provenance"
 
 
 def _alembic(database: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -207,7 +207,8 @@ def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_p
     assert _revision(dry_run_copy) == HEAD_REVISION
     with sqlite3.connect(dry_run_copy) as connection:
         migrated = connection.execute(
-            "SELECT project_path, commit_sha, git_branch FROM runs WHERE run_id = ?",
+            "SELECT project_id, origin, commit_sha, git_branch, working_tree_dirty "
+            "FROM runs WHERE run_id = ?",
             ("migration-safety-run",),
         ).fetchone()
         related_counts = {
@@ -223,7 +224,7 @@ def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_p
                 "users",
             )
         }
-    assert migrated == ("/projects/representative", "a" * 40, "main")
+    assert migrated == (1, "server", "a" * 40, "main", None)
     assert all(count >= 1 for count in related_counts.values())
 
     # Exercise SQLite's online backup API, then restore into a distinct file.
@@ -234,11 +235,11 @@ def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_p
     assert _revision(restored) == HEAD_REVISION
     with sqlite3.connect(restored) as connection:
         restored_row = connection.execute(
-            "SELECT status, project_path FROM runs WHERE run_id = ?",
+            "SELECT status, project_id, origin FROM runs WHERE run_id = ?",
             ("migration-safety-run",),
         ).fetchone()
         integrity = connection.execute("PRAGMA integrity_check").fetchone()
         foreign_key_violations = connection.execute("PRAGMA foreign_key_check").fetchall()
-    assert restored_row == ("completed", "/projects/representative")
+    assert restored_row == ("completed", 1, "server")
     assert integrity == ("ok",)
     assert foreign_key_violations == []

@@ -7,7 +7,7 @@ from sqlalchemy import select as sa_select
 
 from app.api.routes.frs import SaveCatalogueBody, save_catalogue
 from app.catalogue.loader import load_catalogue_from_dict
-from app.infrastructure.db.models import CatalogueSnapshot
+from app.infrastructure.db.models import CatalogueSnapshot, Project
 
 V3_CATALOGUE = {
     "schema_version": 3,
@@ -32,10 +32,22 @@ V3_CATALOGUE = {
 }
 
 
+async def _project(session) -> Project:
+    project = Project(
+        tag="doc2context",
+        github_repo="26457513/doc2context",
+        github_repo_key="26457513/doc2context",
+    )
+    session.add(project)
+    await session.flush()
+    return project
+
+
 async def test_save_catalogue_stores_snapshot(session) -> None:
+    project = await _project(session)
     raw = json.dumps(V3_CATALOGUE)
     res = await save_catalogue(
-        project_path="github:26457513/doc2context",
+        project_id=project.id,
         body=SaveCatalogueBody(catalogue_json=raw),
         session=session,
     )
@@ -44,7 +56,7 @@ async def test_save_catalogue_stores_snapshot(session) -> None:
 
     snaps = (await session.execute(
         sa_select(CatalogueSnapshot).where(
-            CatalogueSnapshot.project_path == "github:26457513/doc2context"
+            CatalogueSnapshot.project_id == project.id
         )
     )).scalars().all()
     assert len(snaps) == 1
@@ -57,7 +69,7 @@ async def test_save_catalogue_rejects_invalid_json(session) -> None:
 
     try:
         await save_catalogue(
-            project_path="p", body=SaveCatalogueBody(catalogue_json="{not json"), session=session
+            project_id=999, body=SaveCatalogueBody(catalogue_json="{not json"), session=session
         )
         raise AssertionError("expected 400")
     except HTTPException as exc:
@@ -67,9 +79,13 @@ async def test_save_catalogue_rejects_invalid_json(session) -> None:
 async def test_save_catalogue_rejects_invalid_schema(session) -> None:
     from fastapi import HTTPException
 
+    project = await _project(session)
+
     try:
         await save_catalogue(
-            project_path="p", body=SaveCatalogueBody(catalogue_json=json.dumps({"schema_version": 99})), session=session
+            project_id=project.id,
+            body=SaveCatalogueBody(catalogue_json=json.dumps({"schema_version": 99})),
+            session=session,
         )
         raise AssertionError("expected 422")
     except HTTPException as exc:

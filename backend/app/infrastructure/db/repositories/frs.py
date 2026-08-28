@@ -18,7 +18,6 @@ class FrRepository(BaseRepository[Fr]):
     async def bulk_insert_for_snapshot(
         self,
         catalogue_snapshot_id: str,
-        project_path: str,
         frs: Sequence[dict[str, Any]],
     ) -> int:
         """Idempotent: skips FRs that already exist for this snapshot.
@@ -41,7 +40,6 @@ class FrRepository(BaseRepository[Fr]):
             self.session.add(
                 Fr(
                     catalogue_snapshot_id=catalogue_snapshot_id,
-                    project_path=project_path,
                     fr_id=fr["id"],
                     title=fr["title"],
                     description=fr["description"],

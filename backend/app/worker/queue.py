@@ -38,7 +38,8 @@ def _new_run_id() -> str:
 @dataclass
 class _PendingScan:
     run_id: str
-    project_path: str
+    project_id: int
+    local_path: str
     options: dict[str, Any] = field(default_factory=dict)
 
 
@@ -73,18 +74,20 @@ class ScanQueue:
 
     def enqueue(
         self,
-        project_path: str,
+        project_id: int,
+        local_path: str,
         options: dict[str, Any] | None = None,
     ) -> str:
         """Add a scan to the queue. Returns the assigned run_id immediately."""
         run_id = _new_run_id()
         scan = _PendingScan(
             run_id=run_id,
-            project_path=project_path,
+            project_id=project_id,
+            local_path=local_path,
             options=options or {},
         )
         self._queue.put_nowait(scan)
-        log.info("scan enqueued run_id=%s project=%s", run_id, project_path)
+        log.info("scan enqueued run_id=%s project_id=%s", run_id, project_id)
         return run_id
 
     async def _consume(self) -> None:
@@ -102,10 +105,11 @@ class ScanQueue:
         """Create a session, build an orchestrator, run the scan."""
         assert self._sessionmaker is not None
         async with self._sessionmaker() as session:
-            runner = DockerRunner(project_path=scan.project_path)
+            runner = DockerRunner(project_path=scan.local_path)
             orchestrator = ScanOrchestrator(session=session, runner=runner)
             await orchestrator.execute(
                 run_id=scan.run_id,
-                project_path=scan.project_path,
+                project_id=scan.project_id,
+                local_path=scan.local_path,
                 options=scan.options,
             )

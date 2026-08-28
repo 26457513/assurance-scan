@@ -4,7 +4,7 @@
   import type { TestSpecWithResult, TestSourceResponse } from '$lib/types';
 
   export let test: TestSpecWithResult;
-  export let projectPath: string | null = null;
+  export let projectId: number | null = null;
 
   let expanded = false;
   let inputExampleOpen = false;
@@ -89,11 +89,11 @@
       sourceVisible = false;
       return;
     }
-    if (!projectPath || !test.name_pattern) return;
+    if (projectId == null || !test.name_pattern) return;
     sourceLoading = true;
     sourceError = null;
     try {
-      source = await api.getTestSource(test.name_pattern, projectPath);
+      source = await api.getTestSource(test.name_pattern, projectId);
       sourceVisible = true;
     } catch (e) {
       sourceError = String(e);
@@ -138,7 +138,7 @@
     if (test.scanner && ['grype', 'trivy-fs', 'syft'].includes(test.scanner)) return 'image';
     return 'code';
   })();
-  $: canShowSource = !!projectPath && !!test.name_pattern && test.name_pattern.includes('::');
+  $: canShowSource = projectId != null && !!test.name_pattern && test.name_pattern.includes('::');
   $: sourceLines = source ? source.content.split('\n') : [];
   $: inputEntries = test.display?.input ? Object.entries(test.display.input) : [];
   $: outputEntries = test.display?.output ? Object.entries(test.display.output) : [];

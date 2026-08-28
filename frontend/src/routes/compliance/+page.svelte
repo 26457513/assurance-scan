@@ -15,7 +15,7 @@
   let versionJson = '';
   const versionCache = new Map<string, string>();
 
-  $: project = $selectedProject ?? '';
+  $: project = $selectedProject;
 
   async function loadVersions() {
     if (!project) {
@@ -54,7 +54,8 @@
       return;
     }
     try {
-      const doc = await api.getMappingVersion(v.snapshot_id);
+      if (project == null) return;
+      const doc = await api.getMappingVersion(project, v.snapshot_id);
       const text = JSON.stringify(doc, null, 2);
       versionCache.set(v.snapshot_id, text);
       versionJson = text;
@@ -81,9 +82,9 @@
   function buildPrompt(): string {
     if (!project) return '';
     return mcpPrompt([
-      { tool: 'bootstrap', args: { project_path: project }, note: 'confirm a catalogue exists — if not, stop and tell the user' },
+      { tool: 'bootstrap', args: { project_id: project }, note: 'confirm a catalogue exists — if not, stop and tell the user' },
       { tool: 'get_workflow', args: { name: 'author-fr-compliance-map', parameters: JSON.stringify({ framework: framework.trim() || 'ASVS' }) } },
-      { tool: 'save_mapping', args: { project_path: project } },
+      { tool: 'save_mapping', args: { project_id: project } },
     ]);
   }
 
@@ -120,7 +121,7 @@
     <div class="text-[15px] text-ink-primary mb-1">Compliance mapping</div>
     <div class="text-[12px] text-ink-secondary">
       {#if project}
-        <span class="font-mono">{project}</span>
+        <span class="font-mono">project #{project}</span>
         {#if latest}
           <span class="text-ink-muted">
             · {latest.packs.map((p) => `${p.ruleset}${p.version ? ` ${p.version}` : ''}`).join(', ') || 'no pack'} · saved {fmtDate(latest.loaded_at)}

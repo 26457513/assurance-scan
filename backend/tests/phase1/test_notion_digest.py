@@ -14,15 +14,33 @@ async def seeded():
 
     engine = get_engine()
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
     from app.infrastructure.db.models import Finding, Project, Run
 
     factory = get_sessionmaker()
     async with factory() as session:
-        session.add(Project(tag="p1", local_path="github:org/p1", github_repo="org/p1"))
-        session.add(Run(run_id="nd-1", project_path="github:org/p1", status="completed",
-                        git_branch="main", started_at=dt.datetime.now(dt.timezone.utc)))
+        session.add(Project(
+            id=1,
+            tag="p1",
+            local_path=None,
+            github_repo="org/p1",
+            github_repo_key="org/p1",
+        ))
+        session.add(Run(
+            run_id="nd-1",
+            project_id=1,
+            origin="github-actions",
+            status="completed",
+            working_tree_dirty=False,
+            commit_sha="a" * 40,
+            git_object_format="sha1",
+            git_branch="main",
+            github_run_id=1,
+            github_head_sha="a" * 40,
+            started_at=dt.datetime.now(dt.timezone.utc),
+        ))
         await session.commit()
         session.add_all([
             Finding(run_id="nd-1", severity="CRITICAL", scanner_kind="semgrep", message="c"),

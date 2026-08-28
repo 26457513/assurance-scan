@@ -10,13 +10,24 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping, Fr, FrState, Run, TestResult, Waiver
+from app.infrastructure.db.models import (
+    CatalogueSnapshot,
+    ComplianceMapping,
+    Fr,
+    FrState,
+    Project,
+    Run,
+    TestResult,
+    Waiver,
+)
 
 
 router = APIRouter(tags=["frs"])
 
 
-async def _derive_satisfies(session: AsyncSession, project_path: str, fr_id: str) -> list[dict]:
+async def _derive_satisfies(
+    session: AsyncSession, project_id: int, fr_id: str
+) -> list[dict]:
     """Derive compliance-row references for an FR from the mapping table.
 
     The mapping file owns ASVS↔FR relationships now; the catalogue no longer
@@ -25,7 +36,7 @@ async def _derive_satisfies(session: AsyncSession, project_path: str, fr_id: str
     """
     mapping_stmt = (
         select(ComplianceMapping)
-        .where(ComplianceMapping.project_path == project_path)
+        .where(ComplianceMapping.project_id == project_id)
         .order_by(ComplianceMapping.loaded_at.desc())
         .limit(1)
     )
@@ -55,7 +66,7 @@ class SaveCatalogueBody(BaseModel):
 @router.post("/catalogue")
 async def save_catalogue(
     body: SaveCatalogueBody,
-    project_path: str = Query(...),
+    project_id: int = Query(...),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Validate and store an FR catalogue snapshot for a project.
@@ -72,27 +83,33 @@ async def save_catalogue(
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail=f"invalid JSON: {exc}") from exc
 
+    project = await session.get(Project, project_id)
+    if project is None or project.hidden:
+        raise HTTPException(status_code=404, detail="project not found")
+    source_locator = project.local_path or project.github_repo or project.tag
     try:
-        catalogue = load_catalogue_from_dict(doc, project_path)
+        catalogue = load_catalogue_from_dict(doc, source_locator)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"catalogue validation failed: {exc}") from exc
 
     snap_repo = CatalogueSnapshotRepository(session)
     fr_repo = FrRepository(session)
     snapshot = await snap_repo.store(
-        project_path=project_path,
+        project_id=project_id,
         catalogue=catalogue.doc,
         catalogue_version=catalogue.doc.get("catalogue_version"),
         tag=body.tag,
         source_commit=body.source_commit,
         source_branch=body.source_branch,
+        source_root=project.local_path,
     )
     await fr_repo.bulk_insert_for_snapshot(
-        snapshot.id, project_path, catalogue.doc.get("frs", [])
+        snapshot.id, catalogue.doc.get("frs", [])
     )
     await session.commit()
     return {
         "status": "saved",
+        "project_id": project_id,
         "tag": snapshot.tag,
         "project": catalogue.doc.get("project"),
         "catalogue_version": catalogue.doc.get("catalogue_version"),
@@ -104,12 +121,19 @@ async def save_catalogue(
 @router.get("/frs/{fr_id}")
 async def get_fr_detail(
     fr_id: str,
+    project_id: int = Query(...),
     run_id: str | None = Query(default=None),
     session: AsyncSession = SessionDep,
 ) -> dict:
     """Full per-FR detail: tests, evaluated results, state."""
     # Get the FR row from any snapshot (latest wins).
-    stmt = select(Fr).where(Fr.fr_id == fr_id).order_by(Fr.id.desc()).limit(1)
+    stmt = (
+        select(Fr)
+        .join(CatalogueSnapshot, CatalogueSnapshot.id == Fr.catalogue_snapshot_id)
+        .where(Fr.fr_id == fr_id, CatalogueSnapshot.project_id == project_id)
+        .order_by(Fr.id.desc())
+        .limit(1)
+    )
     result = await session.execute(stmt)
     fr = result.scalars().first()
     if fr is None:
@@ -117,7 +141,11 @@ async def get_fr_detail(
 
     # Load tests from the catalogue snapshot JSON.
     snapshot = await session.get(CatalogueSnapshot, fr.catalogue_snapshot_id)
-    snapshot_doc = json.loads(snapshot.snapshot_json) if snapshot else {}
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="catalogue snapshot not found")
+    if snapshot.project_id != project_id:
+        raise HTTPException(status_code=404, detail=f"FR {fr_id} not found")
+    snapshot_doc = json.loads(snapshot.snapshot_json)
     tests_for_fr: list[dict[str, Any]] = []
     for fr_doc in snapshot_doc.get("frs", []):
         if fr_doc.get("id") == fr_id:
@@ -128,7 +156,7 @@ async def get_fr_detail(
     if run_id is None:
         run_stmt = (
             select(Run)
-            .where(Run.project_path == fr.project_path)
+            .where(Run.project_id == project_id)
             .order_by(Run.started_at.desc())
             .limit(1)
         )
@@ -161,7 +189,7 @@ async def get_fr_detail(
         now = _dt.datetime.now(_dt.timezone.utc)
         waiver_rows = (await session.execute(
             select(Waiver)
-            .where(Waiver.project_path == fr.project_path, Waiver.fr_id == fr_id)
+            .where(Waiver.project_id == project_id, Waiver.fr_id == fr_id)
             .order_by(Waiver.waived_at.desc())
         )).scalars().all()
         for w in waiver_rows:
@@ -183,9 +211,9 @@ async def get_fr_detail(
             }
             for test in tests_for_fr
         ],
-        "satisfies": await _derive_satisfies(session, fr.project_path, fr.fr_id),
+        "satisfies": await _derive_satisfies(session, project_id, fr.fr_id),
         "depends_on": json.loads(fr.depends_on_json or "[]"),
-        "project_path": fr.project_path,
+        "project_id": project_id,
         "run_id": run_id,
         "state": state_row.state if state_row else "untested",
         "reason": json.loads(state_row.reason_json) if state_row else {},
@@ -198,6 +226,7 @@ async def get_fr_detail(
 @router.get("/frs/{fr_id}/history")
 async def get_fr_history(
     fr_id: str,
+    project_id: int = Query(...),
     limit: int = Query(default=50, ge=1, le=500),
     session: AsyncSession = SessionDep,
 ) -> dict:
@@ -205,7 +234,7 @@ async def get_fr_history(
     stmt = (
         select(FrState, Run)
         .join(Run, FrState.run_id == Run.run_id)
-        .where(FrState.fr_id == fr_id)
+        .where(FrState.fr_id == fr_id, Run.project_id == project_id)
         .order_by(FrState.computed_at.desc())
         .limit(limit)
     )

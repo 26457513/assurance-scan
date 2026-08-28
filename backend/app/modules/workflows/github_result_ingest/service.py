@@ -32,16 +32,33 @@ async def ingest_ci_run(
     """Create one CI run from a findings payload and GitHub run metadata."""
 
     bundle = validate_bundle(payload, meta, blobs)
-    github_run_id = str((payload or {}).get("github_run_id") or meta["github_run_id"])
+    github_run_id = str(meta["github_run_id"])
     run_id = f"gh-{github_run_id}"
     if await run_exists(persistence, run_id):
         return "exists"
 
-    repo = (payload or {}).get("repo") or meta["repo"]
+    repo = str(meta["repo"])
+    if payload is not None:
+        payload_run_id = payload.get("github_run_id")
+        if payload_run_id is not None and str(payload_run_id) != github_run_id:
+            raise ValueError("result bundle GitHub run ID does not match poller metadata")
+        payload_repo = payload.get("repo")
+        if payload_repo is not None and str(payload_repo).casefold() != repo.casefold():
+            raise ValueError("result bundle repository does not match poller metadata")
+    project = await persistence.resolve_github_project(repo)
+    if project is None:
+        raise ValueError(f"GitHub repository is not a visible registered project: {repo}")
     failed = meta.get("conclusion") == "failure"
+    scanned_commit = (payload or {}).get("commit") or meta.get("head_sha")
+    git_object_format = (
+        "sha1" if scanned_commit and len(str(scanned_commit)) == 40
+        else "sha256" if scanned_commit and len(str(scanned_commit)) == 64
+        else None
+    )
     record = RunRecord(
         run_id=run_id,
-        project_path=f"github:{repo}",
+        project_id=project.project_id,
+        origin="github-actions",
         options_json=json.dumps({
             "source": "github-actions",
             "repo": repo,
@@ -54,10 +71,20 @@ async def ingest_ci_run(
         status="failed" if failed else "completed",
         started_at=meta.get("started_at"),
         completed_at=meta.get("completed_at"),
-        commit_sha=(payload or {}).get("commit") or meta.get("head_sha"),
-        git_branch=(payload or {}).get("branch") or meta.get("head_branch"),
+        commit_sha=scanned_commit,
+        git_branch=meta.get("head_branch") or (payload or {}).get("branch"),
         error_message="GitHub workflow run failed" if failed else None,
         findings_json=json.dumps(payload) if payload is not None else None,
+        repository_full_name_at_scan=project.repository,
+        git_object_format=git_object_format,
+        working_tree_dirty=False,
+        github_run_id=int(github_run_id),
+        github_run_number=meta.get("run_number"),
+        github_run_attempt=meta.get("run_attempt"),
+        github_run_url=meta.get("run_url"),
+        github_event=meta.get("event"),
+        github_actor=meta.get("actor"),
+        github_head_sha=meta.get("head_sha"),
     )
     findings = normalize_findings(run_id, (payload or {}).get("findings", []))
     await persist_result_bundle(persistence, record, bundle, findings)

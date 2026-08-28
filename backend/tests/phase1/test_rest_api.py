@@ -95,7 +95,7 @@ async def test_list_frs_returns_catalogue_shape(client) -> None:
     Without a catalogue snapshot in the test DB, catalogue is null and frs
     is empty — but the response shape is stable.
     """
-    res = await client.get("/api/frs")
+    res = await client.get("/api/frs", params={"project_id": 999})
     assert res.status_code == 200
     body = res.json()
     assert "catalogue" in body
@@ -105,7 +105,9 @@ async def test_list_frs_returns_catalogue_shape(client) -> None:
 
 
 async def test_fr_detail_unknown_id_returns_404(client) -> None:
-    res = await client.get("/api/frs/FR-DOES-NOT-EXIST")
+    res = await client.get(
+        "/api/frs/FR-DOES-NOT-EXIST", params={"project_id": 999}
+    )
     assert res.status_code == 404
 
 
@@ -123,7 +125,7 @@ async def test_list_compliance_frameworks_returns_array(client) -> None:
 
 
 async def test_compliance_matrix_unknown_framework_returns_404(client) -> None:
-    res = await client.get("/api/compliance/BOGUS")
+    res = await client.get("/api/compliance/BOGUS", params={"project_id": 999})
     assert res.status_code == 404
 
 

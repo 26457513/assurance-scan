@@ -17,7 +17,6 @@ class EvidenceRepository(BaseRepository[Evidence]):
 
     async def insert(self, item: dict[str, Any]) -> Evidence:
         ev = Evidence(
-            project_path=item["project_path"],
             fr_id=item["fr_id"],
             run_id=item["run_id"],
             type=item["type"],
@@ -45,11 +44,10 @@ class EvidenceRepository(BaseRepository[Evidence]):
         )
         return result.scalars().all()
 
-    async def list_for_fr(self, project_path: str, fr_id: str, run_id: str) -> Sequence[Evidence]:
+    async def list_for_fr(self, fr_id: str, run_id: str) -> Sequence[Evidence]:
         result = await self.session.execute(
             select(Evidence)
             .where(
-                Evidence.project_path == project_path,
                 Evidence.fr_id == fr_id,
                 Evidence.run_id == run_id,
             )

@@ -3,12 +3,13 @@
   import { selectScan } from '$lib/stores/selectedScan';
   import ScanResultsView from './ScanResultsView.svelte';
   import ProvenanceStrip from './ProvenanceStrip.svelte';
-  import type { ScanStatus, ScanSummary } from '$lib/types';
+  import type { ProjectSummary, ScanStatus, ScanSummary } from '$lib/types';
 
   export let runId: string;
 
   let scan: ScanSummary | null = null;
   let status: ScanStatus | null = null;
+  let project: ProjectSummary | null = null;
   let loading = true;
   let error: string | null = null;
 
@@ -16,9 +17,11 @@
     try {
       const fetched: ScanStatus = await api.getScan(runId);
       status = fetched;
+      project = (await api.listProjects()).projects.find((item) => item.id === fetched.project_id) ?? null;
       scan = {
         run_id: fetched.run_id,
-        project_path: fetched.project_path,
+        project_id: fetched.project_id,
+        origin: fetched.origin,
         status: fetched.status,
         started_at: fetched.started_at,
         completed_at: fetched.completed_at,
@@ -40,9 +43,7 @@
     ? `#${status.options.run_number}${status.options.display_title ? ' · ' + status.options.display_title : ''}`
     : runId;
 
-  $: ghRepo = status?.project_path?.startsWith('github:')
-    ? status.project_path.slice('github:'.length)
-    : null;
+  $: ghRepo = project?.github_repo ?? null;
   $: ghCommit = status?.commit_sha ?? null;
 
   // Reactive so switching rows in the scans list reloads the detail view
@@ -75,7 +76,7 @@
 </div>
 
 {#if status?.provenance}
-  <ProvenanceStrip provenance={status.provenance} projectPath={status.project_path} />
+  <ProvenanceStrip provenance={status.provenance} projectId={status.project_id} />
 {/if}
 
 <div>

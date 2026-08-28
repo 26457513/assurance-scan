@@ -6,8 +6,6 @@
   import type { CatalogueVersion } from '$lib/types';
 
   let versions: CatalogueVersion[] = [];
-  // Registered/local projects carry their checkout path at setup; only
-  // github:-only selections need the user to supply one.
   let pastedJson = '';
   let catalogueTag = '';
   let loading = true;
@@ -36,7 +34,7 @@
       return;
     }
     try {
-      const doc = await api.getCatalogueVersion(v.snapshot_id);
+      const doc = await api.getCatalogueVersion(v.project_id, v.snapshot_id);
       const text = JSON.stringify(doc, null, 2);
       versionCache.set(v.snapshot_id, text);
       versionJson = text;
@@ -54,7 +52,7 @@
   }
 
 
-  $: project = $selectedProject ?? '';
+  $: project = $selectedProject;
 
 
   async function loadVersions() {
@@ -63,7 +61,6 @@
       return;
     }
     try {
-      // The server expands identities (registry pair + org alias).
       versions = (await api.listCatalogueVersions(project)).versions;
     } catch {
       versions = [];
@@ -96,9 +93,9 @@
   function buildPrompt(): string {
     if (!project) return '';
     return mcpPrompt([
-      { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_path: project }) } },
-      { tool: 'bootstrap', args: { project_path: project }, note: 'only if the checkout is unknown — use checkout_path or the current directory' },
-      { tool: 'save_catalogue', args: { project_path: project, source_commit: '<checkout git HEAD>', source_branch: '<checkout git branch>' } },
+      { tool: 'get_workflow', args: { name: 'author-fr-catalogue', parameters: JSON.stringify({ project_id: project }) } },
+      { tool: 'bootstrap', args: { project_id: project }, note: 'use the project’s registered checkout path or the current directory' },
+      { tool: 'save_catalogue', args: { project_id: project, source_commit: '<checkout git HEAD>', source_branch: '<checkout git branch>' } },
     ]);
   }
 
@@ -275,9 +272,7 @@
               <span class="text-ink-primary truncate">{v.tag ?? '—'}</span>
               <span class="text-ink-secondary truncate">{v.version ?? '(unversioned)'}</span>
               <span class="text-right text-ink-secondary tabular-nums">{v.fr_count}</span>
-              <span class="text-ink-muted truncate" title={v.project_path ?? ''}>
-                {v.project_path?.startsWith('github:') ? 'repo' : 'local'}
-              </span>
+              <span class="text-ink-muted truncate">project #{v.project_id}</span>
               <span
                 class="font-mono truncate {v.source_commit_sha ? 'text-ink-secondary' : 'text-ink-muted opacity-60'}"
                 title={v.source_commit_sha ?? 'provenance not captured'}

@@ -26,6 +26,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.modules.atomic.ingestion.result_persister._adapters import (
     SqlAlchemyIngestPersistence,
 )
+from app.modules.atomic.provenance.repository_identity import (
+    InvalidRepositoryIdentityError,
+    normalize_github_repository_key,
+    parse_github_repository,
+)
 from app.modules.workflows.github_result_ingest import ingest_ci_run
 
 
@@ -100,7 +105,7 @@ class GitHubClient:
             return resp.read()
 
     def org_repos(self, org: str) -> list[dict[str, Any]]:
-        """Full names of the org's non-archived repos, paginated to completion."""
+        """GitHub identity documents for non-archived organisation repositories."""
         repos: list[dict[str, Any]] = []
         page = 1
         while True:
@@ -112,6 +117,10 @@ class GitHubClient:
             page += 1
             if page > 20:  # ponytail: 2000 repos is plenty; raise if an org exceeds it
                 return repos
+
+    def repository(self, repo: str) -> dict[str, Any]:
+        """Return GitHub's authoritative repository identity document."""
+        return self._get(f"{API_ROOT}/repos/{repo}")
 
     def file_contents(self, repo: str, commit: str, path: str) -> bytes:
         """Raw file bytes at a commit. Raises urllib.error.HTTPError on 404/403."""
@@ -206,15 +215,33 @@ class GitHubClient:
             }
 
 
-def _meta_from_run(repo: str, run: dict[str, Any]) -> dict[str, Any]:
+def _meta_from_run(repo: str, repository_id: int, run: dict[str, Any]) -> dict[str, Any]:
+    run_repository = run.get("repository") or {}
+    if int(run_repository.get("id", 0)) != repository_id:
+        raise ValueError("workflow run repository ID does not match polled repository")
+    run_repo = parse_github_repository(str(run_repository.get("full_name", "")))
+    if (
+        run_repo is None
+        or normalize_github_repository_key(run_repo)
+        != normalize_github_repository_key(repo)
+    ):
+        raise ValueError("workflow run repository name does not match polled repository")
+    github_run_id = int(run["id"])
+    if github_run_id <= 0:
+        raise ValueError("workflow run ID must be a positive integer")
+    head_sha = str(run.get("head_sha") or "").lower()
+    if len(head_sha) not in {40, 64} or any(ch not in "0123456789abcdef" for ch in head_sha):
+        raise ValueError("workflow run head SHA is invalid")
     return {
-        "github_run_id": run["id"],
+        "github_run_id": github_run_id,
+        "github_repository_id": repository_id,
         "repo": repo,
         "conclusion": run.get("conclusion"),
         "head_branch": run.get("head_branch"),
-        "head_sha": run.get("head_sha"),
+        "head_sha": head_sha,
         "run_url": run.get("html_url"),
         "run_number": run.get("run_number"),
+        "run_attempt": run.get("run_attempt"),
         "event": run.get("event"),
         "actor": (run.get("actor") or {}).get("login"),
         "display_title": run.get("display_title"),
@@ -229,26 +256,89 @@ def _parse_ts(raw: str | None) -> datetime | None:
     return datetime.fromisoformat(raw.replace("Z", "+00:00"))
 
 
+async def resolve_registered_repository(
+    session: AsyncSession,
+    repository: dict[str, Any],
+) -> tuple[str, int, int | None, str]:
+    """Resolve GitHub identity to a visible project and safely record renames.
+
+    The immutable repository ID is authoritative once known. The normalized
+    name is only a bootstrap fallback for projects registered before GitHub's
+    numeric ID was observed.
+    """
+    from app.infrastructure.db.models import Project
+
+    repository_id = int(repository["id"])
+    repo = parse_github_repository(str(repository["full_name"]))
+    if repository_id <= 0 or repo is None:
+        raise ValueError("GitHub repository identity is incomplete")
+    repo_key = normalize_github_repository_key(repo)
+
+    project = (
+        await session.execute(
+            sa_select(Project).where(Project.github_repository_id == repository_id)
+        )
+    ).scalars().first()
+    if project is not None:
+        if project.hidden:
+            return repo, repository_id, None, "hidden"
+        key_owner = (
+            await session.execute(
+                sa_select(Project).where(
+                    Project.github_repo_key == repo_key,
+                    Project.id != project.id,
+                )
+            )
+        ).scalars().first()
+        if key_owner is not None:
+            return repo, repository_id, None, "identity_conflict"
+        if project.github_repo != repo or project.github_repo_key != repo_key:
+            project.github_repo = repo
+            project.github_repo_key = repo_key
+            await session.commit()
+        return repo, repository_id, project.id, "registered"
+
+    project = (
+        await session.execute(
+            sa_select(Project).where(Project.github_repo_key == repo_key)
+        )
+    ).scalars().first()
+    if project is None:
+        return repo, repository_id, None, "unregistered"
+    if project.hidden:
+        return repo, repository_id, None, "hidden"
+    if (
+        project.github_repository_id is not None
+        and project.github_repository_id != repository_id
+    ):
+        return repo, repository_id, None, "identity_conflict"
+    project.github_repository_id = repository_id
+    project.github_repo = repo
+    project.github_repo_key = repo_key
+    await session.commit()
+    return repo, repository_id, project.id, "registered"
+
+
 async def poll_cycle(
     session_factory: async_sessionmaker[AsyncSession],
     client: GitHubClient,
-    repos: tuple[str, ...],
+    repos: tuple[dict[str, Any], ...],
 ) -> dict[str, Any]:
     """One poll pass. Per-repo/per-run failures are logged, never raised."""
     result: dict[str, Any] = {"repos": {}, "ingested": 0, "skipped": 0, "failed": 0}
-    # Deleted (tombstoned) projects are not re-ingested.
-    from app.infrastructure.db.models import Project
-
-    async with session_factory() as session:
-        hidden = (
-            await session.execute(
-                sa_select(Project.github_repo).where(Project.hidden, Project.github_repo.isnot(None))
-            )
-        ).scalars().all()
-    excluded = {f"github:{r}" for r in hidden}
-    for repo in repos:
-        if f"github:{repo}" in excluded:
-            result["repos"][repo] = {"skipped_hidden": 1}
+    for repository in repos:
+        try:
+            async with session_factory() as session:
+                repo, repository_id, _project_id, resolution = (
+                    await resolve_registered_repository(session, repository)
+                )
+        except (KeyError, TypeError, ValueError, InvalidRepositoryIdentityError) as exc:
+            log.warning("skipping malformed GitHub repository document: %s", exc)
+            result["failed"] += 1
+            continue
+        if resolution != "registered":
+            result["repos"][repo] = {f"skipped_{resolution}": 1}
+            result["failed" if resolution == "identity_conflict" else "skipped"] += 1
             continue
         counts = {"ingested": 0, "skipped": 0, "failed": 0}
         try:
@@ -280,7 +370,7 @@ async def poll_cycle(
                     status = await ingest_ci_run(
                         SqlAlchemyIngestPersistence(session),
                         payload,
-                        _meta_from_run(repo, run),
+                        _meta_from_run(repo, repository_id, run),
                         blobs,
                     )
                     counts["ingested" if status == "ingested" else "skipped"] += 1
@@ -298,12 +388,14 @@ _repo_cache: dict[Any, Any] = {}
 _REPO_CACHE_TTL = 3600.0
 
 
-def resolve_repos(client: GitHubClient, poll_repos: tuple[str, ...], org: str) -> tuple[str, ...]:
-    """Manual POLL_REPOS wins; otherwise the org's repos, cached 1h."""
+def resolve_repos(
+    client: GitHubClient, poll_repos: tuple[str, ...], org: str
+) -> tuple[dict[str, Any], ...]:
+    """Resolve configured names or an organisation to GitHub identity documents."""
     import time as _time
 
     if poll_repos:
-        return poll_repos
+        return tuple(client.repository(repo) for repo in poll_repos)
     if not org:
         return ()
     key = ("org", org)
@@ -311,7 +403,7 @@ def resolve_repos(client: GitHubClient, poll_repos: tuple[str, ...], org: str) -
     cached = _repo_cache.get(key)
     if cached and now - cached["at"] < _REPO_CACHE_TTL:
         return cached["repos"]
-    repos = tuple(r["full_name"] for r in client.org_repos(org))
+    repos = tuple(client.org_repos(org))
     _repo_cache[key] = {"repos": repos, "at": now}
     return repos
 

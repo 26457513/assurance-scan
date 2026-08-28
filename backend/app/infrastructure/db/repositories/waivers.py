@@ -17,14 +17,14 @@ class WaiverRepository(BaseRepository[Waiver]):
 
     async def create(
         self,
-        project_path: str,
+        project_id: int,
         fr_id: str,
         reason: str,
         waived_by: str,
         expires_at: dt.datetime | None = None,
     ) -> Waiver:
         waiver = Waiver(
-            project_path=project_path,
+            project_id=project_id,
             fr_id=fr_id,
             reason=reason,
             waived_by=waived_by,
@@ -37,10 +37,10 @@ class WaiverRepository(BaseRepository[Waiver]):
 
     async def list_for_project(
         self,
-        project_path: str,
+        project_id: int,
         include_expired: bool = False,
     ) -> Sequence[Waiver]:
-        stmt = select(Waiver).where(Waiver.project_path == project_path)
+        stmt = select(Waiver).where(Waiver.project_id == project_id)
         if not include_expired:
             now = dt.datetime.now(dt.timezone.utc)
             stmt = stmt.where(
@@ -52,12 +52,12 @@ class WaiverRepository(BaseRepository[Waiver]):
 
     async def list_for_fr(
         self,
-        project_path: str,
+        project_id: int,
         fr_id: str,
         include_expired: bool = False,
     ) -> Sequence[Waiver]:
         stmt = select(Waiver).where(
-            Waiver.project_path == project_path,
+            Waiver.project_id == project_id,
             Waiver.fr_id == fr_id,
         )
         if not include_expired:

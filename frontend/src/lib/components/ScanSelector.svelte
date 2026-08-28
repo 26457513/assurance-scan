@@ -6,6 +6,7 @@
   import { pushToast } from '$lib/stores/toasts';
   import { api } from '$lib/api';
   import type { ScanSummary } from '$lib/types';
+  import ScanOriginBadge from './ScanOriginBadge.svelte';
 
   let open = false;
   let recent: ScanSummary[] = [];
@@ -13,32 +14,19 @@
   const PAGE_SIZE = 10;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  // Same identity join as the project page: a scan belongs to the project
-  // when its path matches exactly or its github repo folder name does.
-  function isProjectScan(scan: ScanSummary, project: string): boolean {
-    if (!project) return true;
-    if (scan.project_path === project) return true;
-    const base = project.replace(/\/$/, '').split('/').pop();
-    return (
-      scan.project_path.startsWith('github:') &&
-      (scan.project_path.split('/').pop() ?? '') === base
-    );
-  }
-
   async function loadRecent() {
     try {
       // Fetch a deep window so quieter projects still have scans after the
       // project filter (the global top-15 often has none).
-      const all = await api.listScans(200);
-      if ($selectedProject) {
-        recent = all.filter((s) => isProjectScan(s, $selectedProject));
+      if ($selectedProject != null) {
+        recent = await api.listScans($selectedProject, 200);
         // Follow the project: adopt its newest scan when the current
         // selection doesn't belong to it.
-        if (!$selectedScan || !isProjectScan($selectedScan, $selectedProject)) {
+        if (!$selectedScan || $selectedScan.project_id !== $selectedProject) {
           selectScan(recent[0] ?? null);
         }
       } else {
-        recent = all.slice(0, 15);
+        recent = await api.listScans(undefined, 15);
       }
     } catch (e) {
       /* silent */
@@ -58,7 +46,8 @@
       const fresh = await api.getScan(s.run_id);
       selectScan({
         run_id: fresh.run_id,
-        project_path: fresh.project_path,
+        project_id: fresh.project_id,
+        origin: fresh.origin,
         status: fresh.status,
         started_at: fresh.started_at,
         completed_at: fresh.completed_at,
@@ -173,8 +162,9 @@
         <span>Scans</span>
         <span class="normal-case tracking-normal">newest first · click to select</span>
       </div>
-      <div class="grid grid-cols-[minmax(0,1fr)_110px_80px_70px_60px] gap-3 px-3 py-1.5 border-b border-line-hairline text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted">
+      <div class="grid grid-cols-[minmax(0,1fr)_92px_110px_80px_70px_60px] gap-3 px-3 py-1.5 border-b border-line-hairline text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted">
         <div>Scan</div>
+        <div>Origin</div>
         <div>Branch</div>
         <div>Status</div>
         <div class="text-right">When</div>
@@ -185,10 +175,11 @@
           <button
             type="button"
             on:click={() => pick(scan)}
-            class="w-full text-left px-3 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_110px_80px_70px_60px] gap-3 items-center"
+            class="w-full text-left px-3 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_92px_110px_80px_70px_60px] gap-3 items-center"
             class:bg-accent-subtle={$selectedScan?.run_id === scan.run_id}
           >
             <span class="font-mono text-[11px] text-ink-primary truncate" title={scan.run_id}>{scanLabel(scan)}</span>
+            <ScanOriginBadge origin={scan.origin} />
             <span class="font-mono text-[11px] text-ink-secondary truncate">{scan.git_branch ?? '—'}</span>
             <span class="font-mono text-[10px] uppercase tracking-[0.08em] flex items-center gap-1.5">
               {#if scan.status === 'queued' || scan.status === 'running'}

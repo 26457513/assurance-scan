@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import Finding, Run
+from app.infrastructure.db.models import Finding, Project, Run
 
 
 router = APIRouter(tags=["trends"])
@@ -18,7 +18,7 @@ router = APIRouter(tags=["trends"])
 
 @router.get("/trends")
 async def trends(
-    project_path: str | None = Query(default=None),
+    project_id: int | None = Query(default=None, gt=0),
     limit: int = Query(default=20, ge=1, le=200),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -28,8 +28,13 @@ async def trends(
     can draw a sparkline. Each entry includes count + severity breakdown.
     """
     run_stmt = select(Run)
-    if project_path:
-        run_stmt = run_stmt.where(Run.project_path == project_path)
+    if project_id is not None:
+        project = await session.get(Project, project_id)
+        if project is None or project.hidden:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="project not found")
+        run_stmt = run_stmt.where(Run.project_id == project_id)
     run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(limit)
     runs = list((await session.execute(run_stmt)).scalars().all())
     runs.reverse()  # chronological
@@ -67,12 +72,16 @@ async def trends(
         total = sum(counts.values())
         entries.append({
             "run_id": run.run_id,
-            "project_path": run.project_path,
+            "project_id": run.project_id,
+            "origin": run.origin,
             "status": run.status,
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "total_findings": total,
             "by_severity": dict(counts),
             "git_branch": run.git_branch,
+            "commit_sha": run.commit_sha,
+            "working_tree_dirty": run.working_tree_dirty,
+            "repository": run.repository_full_name_at_scan,
             "tribal": tribal_by_run.get(run.run_id, 0),
         })
 
@@ -103,7 +112,7 @@ def _compute_delta(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 @router.get("/trends/commits")
 async def trend_commits(
-    project_path: str = Query(...),
+    project_id: int = Query(..., gt=0),
     branch: str = Query(default=""),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -111,16 +120,16 @@ async def trend_commits(
     for the activity strip under the trends chart."""
     import datetime as dt
 
-    from app.infrastructure.db.models import Organisation, Project
+    from app.infrastructure.db.models import Organisation
     from app.github_poller import GitHubClient
     from app.secrets import decrypt
 
-    reg = (await session.execute(
-        select(Project).where(Project.local_path == project_path)
-    )).scalars().first()
-    repo = reg.github_repo if reg is not None and reg.github_repo else (
-        project_path.split(":")[1] if project_path.startswith("github:") else ""
-    )
+    reg = await session.get(Project, project_id)
+    if reg is None or reg.hidden:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="project not found")
+    repo = reg.github_repo or ""
     if not repo:
         return {"repo": "", "days": []}
 

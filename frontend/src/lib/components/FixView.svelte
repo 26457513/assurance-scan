@@ -32,9 +32,9 @@
   async function refresh() {
     try {
       const [fr, fi, acc] = await Promise.all([
-        api.listFRs(scan.project_path),
+        api.listFRs(scan.project_id),
         api.listFindings(scan.run_id),
-        api.listAcceptedFindings(scan.project_path).catch(() => ({ acceptances: [] }))
+        api.listAcceptedFindings(scan.project_id).catch(() => ({ acceptances: [] }))
       ]);
       frList = fr;
       findingsResp = fi;
@@ -166,7 +166,7 @@
     if (!acceptTarget || !acceptRationale.trim()) return;
     try {
       await api.acceptFinding({
-        project_path: scan.project_path,
+        project_id: scan.project_id,
         scanner_kind: acceptTarget.scanner_kind,
         rule_id: acceptTarget.rule_id || '',
         risk_level: 'not-applicable',
@@ -205,7 +205,7 @@
     lines.push('');
     lines.push(`Catalogue: ./fr-catalog.json`);
     lines.push(`Reference run: ${scan.run_id}`);
-    lines.push(`Project: ${scan.project_path}`);
+    lines.push(`Project ID: ${scan.project_id}`);
     lines.push('');
     lines.push('## Findings to fix');
     const byFile = new Map<string, FindingResponse[]>();

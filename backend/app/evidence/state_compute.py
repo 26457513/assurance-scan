@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 async def evaluate_tests_and_compute_states(
     session: AsyncSession,
     run_id: str,
-    project_path: str,
+    project_id: int,
     catalogue: LoadedCatalogue,
     test_cases: list[TestCaseRecord],
 ) -> dict[str, str]:
@@ -55,7 +55,7 @@ async def evaluate_tests_and_compute_states(
     # Clear any previously-computed state for this run (idempotent recompute).
     await state_repo.delete_for_run(run_id)
 
-    snapshot_id = _snapshot_id_for(catalogue)
+    snapshot_id = _snapshot_id_for(catalogue, project_id)
     fr_rows = await frs_repo.list_for_snapshot(snapshot_id)
     if not fr_rows:
         log.warning(
@@ -79,13 +79,13 @@ async def evaluate_tests_and_compute_states(
     ]
 
     # Pre-fetch waivers.
-    all_waivers = await waivers_repo.list_for_project(project_path)
+    all_waivers = await waivers_repo.list_for_project(project_id)
     waiver_frs: set[str] = {w.fr_id for w in all_waivers}
 
     # Pre-fetch finding acceptances (per-finding risk triage).
     now = _dt.datetime.now(_dt.timezone.utc)
     acceptance_rows = (await session.execute(
-        select(FindingAcceptance).where(FindingAcceptance.project_path == project_path)
+        select(FindingAcceptance).where(FindingAcceptance.project_id == project_id)
     )).scalars().all()
     accepted_keys: set[tuple[str, str]] = set()
     for acc in acceptance_rows:
@@ -206,7 +206,6 @@ async def evaluate_tests_and_compute_states(
                     ev = evaluations[test_id]
                     await test_results_repo.upsert(
                         run_id=run_id,
-                        project_path=project_path,
                         fr_id=fr.fr_id,
                         test_id=test_id,
                         test_type=test.get("type", "unknown"),
@@ -223,7 +222,6 @@ async def evaluate_tests_and_compute_states(
                 )
                 states_by_id[fr.fr_id] = state.state
                 await state_repo.upsert(
-                    project_path=project_path,
                     fr_id=fr.fr_id,
                     run_id=run_id,
                     state=state.state,
@@ -237,7 +235,6 @@ async def evaluate_tests_and_compute_states(
     # Cycle safety net.
     for fr in pending:
         await state_repo.upsert(
-            project_path=project_path,
             fr_id=fr.fr_id,
             run_id=run_id,
             state="blocked",
@@ -249,13 +246,13 @@ async def evaluate_tests_and_compute_states(
     return states_by_id
 
 
-def _snapshot_id_for(catalogue: LoadedCatalogue) -> str:
+def _snapshot_id_for(catalogue: LoadedCatalogue, project_id: int) -> str:
     import hashlib
 
     # Must match the persisted snapshot identity algorithm. SHA-1 is used only
     # as a stable compact identifier here, never for authentication or integrity.
     digest = hashlib.sha1(  # nosemgrep: python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1
-        f"{catalogue.project_path}|{catalogue.content_hash}".encode()
+        f"{project_id}|{catalogue.content_hash}".encode()
     ).hexdigest()[:16]
     return f"snap_{digest}"
 

@@ -2,17 +2,19 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+ScanOrigin = Literal["github-actions", "local", "server"]
+
 
 class ScanRequest(BaseModel):
-    """Body for POST /api/scans. All fields optional; defaults to scanning $PWD."""
+    """Body for POST /api/scans."""
 
-    project_path: str | None = Field(
-        default=None,
-        description="Absolute host path to scan. Defaults to the server's $PWD.",
+    project_id: int = Field(
+        gt=0,
+        description="Registered project to scan using its server checkout.",
     )
     options: dict[str, Any] = Field(
         default_factory=dict,
@@ -24,7 +26,8 @@ class ScanResponse(BaseModel):
     """Returned immediately on enqueue."""
 
     run_id: str
-    project_path: str
+    project_id: int
+    origin: ScanOrigin
     status: str
     queued_at: dt.datetime
 
@@ -66,7 +69,8 @@ class ScanStatus(BaseModel):
     """Detail view for one scan."""
 
     run_id: str
-    project_path: str
+    project_id: int
+    origin: ScanOrigin
     status: str
     started_at: dt.datetime
     completed_at: dt.datetime | None = None
@@ -76,6 +80,8 @@ class ScanStatus(BaseModel):
     provenance: ScanProvenance | None = None
     git_branch: str | None = None
     commit_sha: str | None = None
+    working_tree_dirty: bool | None = None
+    repository: str | None = None
 
 
 class ScanSummary(BaseModel):
@@ -87,9 +93,13 @@ class ScanSummary(BaseModel):
     actor: str | None = None
     display_title: str | None = None
     git_branch: str | None = None
+    commit_sha: str | None = None
+    working_tree_dirty: bool | None = None
+    repository: str | None = None
 
     run_id: str
-    project_path: str
+    project_id: int
+    origin: ScanOrigin
     status: str
     started_at: dt.datetime
     completed_at: dt.datetime | None = None

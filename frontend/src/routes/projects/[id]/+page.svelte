@@ -2,23 +2,29 @@
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import { pushToast } from '$lib/stores/toasts';
-  import { selectProject, slugToProject } from '$lib/stores/selectedProject';
+  import { selectProject } from '$lib/stores/selectedProject';
   import { selectedScan, selectScan } from '$lib/stores/selectedScan';
   import ScanDetail from '$lib/components/ScanDetail.svelte';
-  import type { ScanSummary } from '$lib/types';
+  import ScanOriginBadge from '$lib/components/ScanOriginBadge.svelte';
+  import type { ProjectSummary, ScanSummary } from '$lib/types';
 
-  $: projectPath = slugToProject($page.params.slug ?? '');
+  $: projectId = Number($page.params.id);
+  let project: ProjectSummary | null = null;
   let scans: ScanSummary[] = [];
   let selectedRunId = '';
   let loading = true;
   let error: string | null = null;
   let polling = false;
-  let scanRepo = '';
   let scanRef = '';
   let dispatching = false;
   let scanConfirmOpen = false;
   let scanBranches: string[] = [];
   let scanBranchError = false;
+
+  $: if (!Number.isInteger(projectId) || projectId <= 0) {
+    loading = false;
+    error = 'Invalid project ID';
+  }
 
   async function loadScanBranches(repo: string) {
     scanBranchError = false;
@@ -68,21 +74,9 @@
   $: pageCount = Math.max(1, Math.ceil(projectScans.length / pageSize));
   $: visible = projectScans.slice(pg * pageSize, (pg + 1) * pageSize);
 
-  // Path-derived identity: the same project exists locally and as
-  // github:{org}/{folder} — join by folder name.
-  $: baseName = projectPath.replace(/\/$/, '').split('/').pop() ?? '';
-  function isProjectScan(s: ScanSummary): boolean {
-    if (s.project_path === projectPath) return true;
-    return (
-      s.project_path.startsWith('github:') &&
-      (s.project_path.split('/').pop() ?? '') === baseName
-    );
-  }
-
   async function loadScans() {
     try {
-      const all = await api.listScans(200);
-      scans = all.filter(isProjectScan);
+      scans = await api.listScans(projectId, 200);
       // A ?run= deep link selects its run; if it isn't ingested yet, one
       // getScan triggers the server's lazy pull, then we reload.
       const wanted = $page.url.searchParams.get('run');
@@ -97,7 +91,7 @@
         if (!selectWanted()) {
           try {
             await api.getScan(wanted);  // lazy pull for un-ingested runs
-            scans = (await api.listScans(200)).filter(isProjectScan);
+            scans = await api.listScans(projectId, 200);
             selectWanted();
           } catch {
             /* unknown run id — fall through to default selection */
@@ -113,18 +107,18 @@
   }
 
   // Reactive, not onMount: SvelteKit keeps this component alive across
-  // /projects/a → /projects/b param changes, so switching project in the
+  // /projects/1 → /projects/2 param changes, so switching project in the
   // header dropdown must reload the table.
-  $: if (projectPath) {
-    selectProject(projectPath);
+  $: if (Number.isInteger(projectId) && projectId > 0) {
+    selectProject(projectId);
     selectedRunId = '';
     pg = 0;
     loading = true;
     loadScans();
     api.listProjects()
       .then((r) => {
-        const me = r.projects.find((p) => p.project_path === projectPath);
-        defaultScanRef = (me as { default_scan_ref?: string | null })?.default_scan_ref ?? null;
+        project = r.projects.find((p) => p.id === projectId) ?? null;
+        defaultScanRef = project?.default_scan_ref ?? null;
       })
       .catch(() => (defaultScanRef = null));
   }
@@ -151,37 +145,30 @@
   );
   $: latestFailed = latestScan?.status === 'failed' ? latestScan : null;
 
-  // Repo for Scan now: the project's own github identity, or the first
-  // joined scan's (local-path projects ingest github: runs too).
-  $: projectRepo = (() => {
-    if (projectPath.startsWith('github:')) return projectPath.replace('github:', '');
-    const gh = scans.find((s) => s.project_path.startsWith('github:'));
-    return gh ? gh.project_path.replace('github:', '') : '';
-  })();
+  $: projectRepo = project?.github_repo ?? '';
 
   // Seed the Scan-now ref with the project's default branch preference
   // (from the registry) the first time the field is still empty.
-  $: if (defaultScanRef && !scanRef && !scanRepo && !dispatching) {
+  $: if (defaultScanRef && !scanRef && !dispatching) {
     scanRef = defaultScanRef;
   }
   let defaultScanRef: string | null = null;
 
   function confirmScan() {
     scanConfirmOpen = true;
-    loadScanBranches(scanRepo.trim() || projectRepo);
+    loadScanBranches(projectRepo);
   }
 
   async function scanNow() {
     scanConfirmOpen = false;
     dispatching = true;
     try {
-      const res = await api.scanRemote(scanRepo.trim() || projectRepo, scanRef.trim());
+      const res = await api.scanRemote(projectId, scanRef.trim());
       if (res.warning) {
         pushToast('error', `Dispatched to ${res.repo}@${res.ref}, but: ${res.warning}`);
       } else {
         pushToast('success', `Scan dispatched to ${res.repo}@${res.ref} — watch the scans table`);
       }
-      scanRepo = '';
       scanRef = '';
     } catch (e) {
       pushToast('error', `${(e as Error).message ?? e}`);
@@ -214,11 +201,6 @@
     const secs = Math.max(1, Math.round((new Date(s.completed_at).getTime() - new Date(s.started_at).getTime()) / 1000));
     if (secs < 60) return `${secs}s`;
     return `${Math.floor(secs / 60)}m ${secs % 60}s`;
-  }
-
-  function repoName(s: ScanSummary): string {
-    const parts = s.project_path.replace(/^github:/, '').split('/').filter(Boolean);
-    return parts[parts.length - 1] ?? s.project_path;
   }
 
   function eventLabel(s: ScanSummary): string {
@@ -260,7 +242,7 @@
       <button
         type="button"
         on:click={confirmScan}
-        disabled={dispatching || (!scanRepo.trim() && !projectRepo)}
+        disabled={dispatching || !projectRepo}
         title="Scan now — dispatches this repo's own assurance-scan workflow (stub required)"
         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
       >
@@ -303,7 +285,7 @@
         <div class="grid grid-cols-[26px_minmax(0,1.8fr)_1fr_1fr_1.3fr_80px_100px_70px_70px] gap-4 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
           <div></div>
           <div>Run</div>
-          <div>Repo</div>
+          <div>Origin</div>
           <div>Branch</div>
           <div>Trigger</div>
           <div>Status</div>
@@ -330,7 +312,7 @@
             <span class="text-ink-primary truncate" title={s.run_id}>
               {#if s.run_number != null}#{s.run_number} · {s.display_title || s.run_id}{:else}{s.run_id}{/if}
             </span>
-            <span class="font-mono text-[11px] text-ink-secondary truncate" title={s.project_path}>{repoName(s)}</span>
+            <ScanOriginBadge origin={s.origin} />
             <span class="font-mono text-[11px] text-ink-secondary truncate" title={s.git_branch ?? ''}>{s.git_branch ?? '—'}</span>
             <span class="text-[11px] text-ink-muted truncate">{eventLabel(s) || '—'}</span>
             <span class={s.status === 'completed'
@@ -395,14 +377,9 @@
         <div class="space-y-3 mb-4">
           <div>
             <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="scan-repo">Repository</label>
-            <input
-              id="scan-repo"
-              type="text"
-              bind:value={scanRepo}
-              on:blur={() => loadScanBranches(scanRepo.trim() || projectRepo)}
-              placeholder={projectRepo || 'owner/repo'}
-              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-            />
+            <div id="scan-repo" class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-inset font-mono text-[11px] text-ink-secondary">
+              {projectRepo}
+            </div>
           </div>
           <div>
             <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="scan-branch">Branch (defaults to the project's preference or repo default)</label>

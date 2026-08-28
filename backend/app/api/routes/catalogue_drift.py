@@ -13,12 +13,12 @@ import json
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import CatalogueSnapshot
+from app.infrastructure.db.models import CatalogueSnapshot, Project
 from app.vcs import git_head
 
 
@@ -39,7 +39,7 @@ class UnresolvedPattern(BaseModel):
 
 
 class DriftResponse(BaseModel):
-    project_path: str
+    project_id: int
     status: str = "ok"
     reason: str | None = None
     catalogue_snapshot_id: str | None = None
@@ -48,9 +48,9 @@ class DriftResponse(BaseModel):
     snapshot_commit: str | None = None
     current_commit: str | None = None
     code_moved: bool | None = None
-    missing_files: list[MissingFile] = []
-    unresolved_patterns: list[UnresolvedPattern] = []
-    drifted_fr_ids: list[str] = []
+    missing_files: list[MissingFile] = Field(default_factory=list)
+    unresolved_patterns: list[UnresolvedPattern] = Field(default_factory=list)
+    drifted_fr_ids: list[str] = Field(default_factory=list)
 
 
 def _module_resolves(root: Path, name_pattern: str) -> bool:
@@ -93,31 +93,28 @@ def _ref_exists(root: Path, ref: str) -> bool:
 
 @router.get("/drift", response_model=DriftResponse)
 async def get_catalogue_drift(
-    project_path: str = Query(..., description="absolute project root"),
+    project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> DriftResponse:
-    root = Path(project_path).resolve()
-    if project_path.startswith("github:"):
-        # Remote identity: no local working tree to diff against — drift is
-        # undefined for projects whose code lives on GitHub only.
-        return DriftResponse(
-            project_path=project_path,
-            status="unavailable",
-            reason="remote project (no local working tree)",
-        )
+    project = await session.get(Project, project_id)
+    if project is None or project.hidden:
+        raise HTTPException(status_code=404, detail="project not found")
+    if project.local_path is None:
+        raise HTTPException(status_code=422, detail="project has no server checkout")
+    root = Path(project.local_path).resolve()
     if not root.is_dir():
-        raise HTTPException(status_code=400, detail=f"project path not found: {project_path}")
+        raise HTTPException(status_code=422, detail="project server checkout is unavailable")
 
     snapshot = (
         await session.execute(
             sa_select(CatalogueSnapshot)
-            .where(CatalogueSnapshot.project_path == project_path)
+            .where(CatalogueSnapshot.project_id == project_id)
             .order_by(CatalogueSnapshot.created_at.desc())
             .limit(1)
         )
     ).scalars().first()
     if snapshot is None:
-        raise HTTPException(status_code=404, detail=f"no catalogue snapshot for {project_path}")
+        raise HTTPException(status_code=404, detail="no catalogue snapshot for project")
 
     doc = json.loads(snapshot.snapshot_json)
     missing_files: list[MissingFile] = []
@@ -145,7 +142,7 @@ async def get_catalogue_drift(
                 )
                 drifted.add(fr_id)
 
-    current_commit = await git_head(project_path)
+    current_commit = await git_head(project.local_path)
     snapshot_commit = snapshot.source_commit_sha
     code_moved = (
         snapshot_commit != current_commit
@@ -154,7 +151,7 @@ async def get_catalogue_drift(
     )
 
     return DriftResponse(
-        project_path=project_path,
+        project_id=project_id,
         catalogue_snapshot_id=snapshot.id,
         catalogue_version=snapshot.catalogue_version,
         catalogue_content_hash=snapshot.content_hash,

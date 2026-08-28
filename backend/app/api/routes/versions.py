@@ -10,13 +10,13 @@ import json
 import re
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import CatalogueSnapshot
+from app.infrastructure.db.models import CatalogueSnapshot, Project
 from app.infrastructure.db.repositories.compliance_mappings import ComplianceMappingRepository
 from app.modules.shared.paths import RESOURCES_ROOT
 
@@ -28,37 +28,16 @@ _PACK_DIR = RESOURCES_ROOT / "compliance-packs"
 
 @router.get("/catalogue/versions")
 async def list_catalogue_versions(
-    request: Request,
-    project_path: str = Query(..., description="project identity (local path or github:repo)"),
+    project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
-    """Versions across ALL of the project's identities (registry pair +
-    org-derived alias), so any selection surface shows the full list."""
-    from pathlib import PurePath
-
-    from app.infrastructure.db.models import Project
-
-    identities = {project_path}
-    reg = (
-        await session.execute(
-            sa_select(Project).where(
-                (Project.local_path == project_path)
-                | ("github:" + Project.github_repo == project_path)
-            )
-        )
-    ).scalars().first()
-    if reg is not None:
-        identities.add(reg.local_path)
-        if reg.github_repo:
-            identities.add(f"github:{reg.github_repo}")
-    org = request.app.state.settings.github_org
-    if org and not project_path.startswith("github:"):
-        identities.add(f"github:{org}/{PurePath(project_path).name}")
+    """List immutable catalogue versions for one registered project."""
+    await _visible_project(session, project_id)
 
     rows = (
         await session.execute(
             sa_select(CatalogueSnapshot)
-            .where(CatalogueSnapshot.project_path.in_(identities))
+            .where(CatalogueSnapshot.project_id == project_id)
             .order_by(CatalogueSnapshot.created_at.desc())
         )
     ).scalars().all()
@@ -72,7 +51,7 @@ async def list_catalogue_versions(
                 "source_branch": r.source_branch,
                 "created_at": r.created_at.isoformat(),
                 "tag": r.tag,
-                "project_path": r.project_path,
+                "project_id": r.project_id,
                 "fr_count": len(json.loads(r.snapshot_json).get("frs", [])),
             }
             for r in rows
@@ -81,21 +60,27 @@ async def list_catalogue_versions(
 
 
 @router.get("/catalogue/versions/{snapshot_id}")
-async def get_catalogue_version(snapshot_id: str, session: AsyncSession = SessionDep) -> dict[str, Any]:
+async def get_catalogue_version(
+    snapshot_id: str,
+    project_id: int = Query(..., gt=0),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
     """The full catalogue JSON for one snapshot."""
     snapshot = await session.get(CatalogueSnapshot, snapshot_id)
-    if snapshot is None:
+    if snapshot is None or snapshot.project_id != project_id:
         raise HTTPException(status_code=404, detail="snapshot not found")
+    await _visible_project(session, project_id)
     return json.loads(snapshot.snapshot_json)
 
 
 @router.get("/mappings/versions")
 async def list_mapping_versions(
-    project_path: str = Query(..., description="absolute project root"),
+    project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
+    await _visible_project(session, project_id)
     repo = ComplianceMappingRepository(session)
-    rows = await repo.list_snapshots(project_path)
+    rows = await repo.list_snapshots(project_id)
     return {
         "versions": [
             {
@@ -111,11 +96,16 @@ async def list_mapping_versions(
 
 
 @router.get("/mappings/versions/{snapshot_id}")
-async def get_mapping_version(snapshot_id: str, session: AsyncSession = SessionDep) -> dict[str, Any]:
+async def get_mapping_version(
+    snapshot_id: str,
+    project_id: int = Query(..., gt=0),
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
     repo = ComplianceMappingRepository(session)
     snapshot = await repo.get_snapshot(snapshot_id)
-    if snapshot is None:
+    if snapshot is None or snapshot.project_id != project_id:
         raise HTTPException(status_code=404, detail="snapshot not found")
+    await _visible_project(session, project_id)
     return json.loads(snapshot.mapping_doc_json)
 
 
@@ -126,7 +116,7 @@ class SaveMappingBody(BaseModel):
 @router.post("/mappings")
 async def save_mapping(
     body: SaveMappingBody,
-    project_path: str = Query(...),
+    project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Validate and store a compliance mapping for a project.
@@ -136,29 +126,38 @@ async def save_mapping(
     """
     from app.mapping import load_mapping_from_dict
 
+    project = await _visible_project(session, project_id)
+
     try:
         doc = json.loads(body.mapping_json)
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail=f"invalid JSON: {exc}") from exc
 
     try:
-        mapping = load_mapping_from_dict(doc, project_path)
+        mapping = load_mapping_from_dict(doc, project.local_path or project.tag)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"mapping validation failed: {exc}") from exc
 
     repo = ComplianceMappingRepository(session)
     await repo.upsert(
-        project_path=project_path,
+        project_id=project_id,
         content_hash=mapping.content_hash,
         mapping_doc=mapping.doc,
     )
     await session.commit()
     return {
         "status": "saved",
-        "project_path": project_path,
+        "project_id": project_id,
         "content_hash": mapping.content_hash,
         "mapping_count": len(mapping.doc.get("mappings", [])),
     }
+
+
+async def _visible_project(session: AsyncSession, project_id: int) -> Project:
+    project = await session.get(Project, project_id)
+    if project is None or project.hidden:
+        raise HTTPException(status_code=404, detail="project not found")
+    return project
 
 
 @router.get("/compliance/packs")

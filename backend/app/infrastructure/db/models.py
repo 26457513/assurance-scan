@@ -9,7 +9,9 @@ from __future__ import annotations
 import datetime as dt
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -42,14 +44,20 @@ class CatalogueSnapshot(Base):
     __tablename__ = "catalogue_snapshots"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
     catalogue_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tag: Mapped[str | None] = mapped_column(String(128), nullable=True)
     snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     source_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    source_branch: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_branch: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        Index("ix_catalogue_snapshots_project_created", "project_id", "created_at"),
+    )
 
 
 class Fr(Base):
@@ -63,7 +71,6 @@ class Fr(Base):
         ForeignKey("catalogue_snapshots.id", ondelete="CASCADE"),
         nullable=False,
     )
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     fr_id: Mapped[str] = mapped_column(String(64), nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -76,7 +83,6 @@ class Fr(Base):
 
     __table_args__ = (
         UniqueConstraint("catalogue_snapshot_id", "fr_id", name="uq_frs_snapshot_fr"),
-        Index("ix_frs_project", "project_path"),
         Index("ix_frs_snapshot", "catalogue_snapshot_id"),
     )
 
@@ -87,21 +93,37 @@ class Fr(Base):
 
 
 class Project(Base):
-    """User-declared project: tag + local path + optional GitHub repo.
-
-    The registry is the identity source of truth; runs/snapshots keyed by
-    either identity (local path or github:{owner}/{repo}) fold into it.
-    """
+    """Durable project identity with optional local and GitHub locators."""
 
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tag: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
-    local_path: Mapped[str] = mapped_column(String(1024), nullable=False, unique=True)
+    local_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     github_repo: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    github_repo_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    github_repository_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     default_scan_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
     hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        CheckConstraint(
+            "local_path IS NOT NULL OR github_repo_key IS NOT NULL",
+            name="ck_projects_has_locator",
+        ),
+        CheckConstraint(
+            "github_repository_id IS NULL OR github_repo_key IS NOT NULL",
+            name="ck_projects_repository_id_has_key",
+        ),
+        Index("uq_projects_local_path", "local_path", unique=True),
+        Index("uq_projects_github_repo_key", "github_repo_key", unique=True),
+        Index(
+            "uq_projects_github_repository_id",
+            "github_repository_id",
+            unique=True,
+        ),
+    )
 
 
 class Run(Base):
@@ -110,7 +132,9 @@ class Run(Base):
     __tablename__ = "runs"
 
     run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
     catalogue_snapshot_id: Mapped[str | None] = mapped_column(
         String(64),
         ForeignKey("catalogue_snapshots.id", ondelete="SET NULL"),
@@ -121,7 +145,30 @@ class Run(Base):
     started_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    git_branch: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    git_branch: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    git_object_format: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    origin: Mapped[str] = mapped_column(String(24), nullable=False)
+    repository_full_name_at_scan: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    working_tree_dirty: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    source_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_manifest_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    submitted_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
+    submitting_token_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("api_tokens.id", ondelete="RESTRICT"), nullable=True
+    )
+    payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    client_provenance_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    client_provenance_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    github_run_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    github_run_number: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    github_run_attempt: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    github_run_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    github_event: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    github_actor: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    github_head_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mapping_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
     findings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_bundle_json: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -131,6 +178,50 @@ class Run(Base):
         back_populates="run",
         cascade="all, delete-orphan",
         order_by="ScannerRun.scanner_kind",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "origin IN ('github-actions', 'local', 'server')",
+            name="ck_runs_origin",
+        ),
+        CheckConstraint(
+            "(commit_sha IS NULL AND git_object_format IS NULL) OR "
+            "(git_object_format = 'sha1' AND length(commit_sha) = 40 "
+            "AND commit_sha NOT GLOB '*[^0-9a-f]*') OR "
+            "(git_object_format = 'sha256' AND length(commit_sha) = 64 "
+            "AND commit_sha NOT GLOB '*[^0-9a-f]*')",
+            name="ck_runs_commit_object_format",
+        ),
+        CheckConstraint(
+            "source_content_hash IS NULL OR "
+            "(length(source_content_hash) = 64 "
+            "AND source_content_hash NOT GLOB '*[^0-9a-f]*')",
+            name="ck_runs_source_content_hash",
+        ),
+        CheckConstraint(
+            "payload_hash IS NULL OR (length(payload_hash) = 64 "
+            "AND payload_hash NOT GLOB '*[^0-9a-f]*')",
+            name="ck_runs_payload_hash",
+        ),
+        CheckConstraint(
+            "origin != 'github-actions' OR (working_tree_dirty = 0 "
+            "AND commit_sha IS NOT NULL AND github_run_id IS NOT NULL)",
+            name="ck_runs_github_provenance",
+        ),
+        CheckConstraint(
+            "origin != 'local' OR (working_tree_dirty IS NOT NULL "
+            "AND source_content_hash IS NOT NULL "
+            "AND source_manifest_version IS NOT NULL "
+            "AND submitted_by_user_id IS NOT NULL "
+            "AND submitting_token_id IS NOT NULL "
+            "AND commit_sha IS NOT NULL)",
+            name="ck_runs_local_provenance",
+        ),
+        Index("ix_runs_project_started", "project_id", "started_at", "run_id"),
+        Index("ix_runs_project_origin_started", "project_id", "origin", "started_at", "run_id"),
+        Index("ix_runs_project_commit", "project_id", "commit_sha"),
+        Index("uq_runs_github_run_id", "github_run_id", unique=True),
     )
 
 
@@ -158,10 +249,44 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_login_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    disabled_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # SHA-256 of the user's MCP bearer token; the plaintext is shown once
     # at generation/rotation and never stored.
     mcp_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mcp_token_generated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ApiToken(Base):
+    """Soft-revocable, scoped API token. Only the secret digest is stored."""
+
+    __tablename__ = "api_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    label_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    selector: Mapped[str] = mapped_column(String(16), nullable=False)
+    secret_digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    scope: Mapped[str] = mapped_column(String(64), nullable=False)
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    last_used_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("selector", name="uq_api_tokens_selector"),
+        CheckConstraint(
+            "length(id) = 36",
+            name="ck_api_tokens_id",
+        ),
+        CheckConstraint("length(secret_digest) = 32", name="ck_api_tokens_secret_digest"),
+        CheckConstraint("token_version > 0", name="ck_api_tokens_version"),
+        Index("ix_api_tokens_user_label", "user_id", "label_key"),
+        Index("ix_api_tokens_user_revoked", "user_id", "revoked_at"),
+    )
 
 
 class ProjectCheckout(Base):
@@ -171,13 +296,17 @@ class ProjectCheckout(Base):
     __tablename__ = "project_checkouts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_email: Mapped[str] = mapped_column(String(256), nullable=False, default="")
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     checkout_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     __table_args__ = (
-        UniqueConstraint("user_email", "project_path", name="uq_project_checkouts_user_project"),
-        Index("ix_project_checkouts_project", "project_path"),
+        UniqueConstraint("user_id", "project_id", name="uq_project_checkouts_user_project"),
+        Index("ix_project_checkouts_project", "project_id"),
     )
 
 
@@ -210,6 +339,52 @@ class ScanJob(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class IngestRequest(Base):
+    """Durable, leased idempotency claim for an authenticated local upload."""
+
+    __tablename__ = "ingest_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    submitted_by_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    client_request_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("runs.run_id", ondelete="CASCADE"), nullable=True
+    )
+    lease_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "submitted_by_user_id",
+            "client_request_id",
+            name="uq_ingest_requests_user_request",
+        ),
+        UniqueConstraint("run_id", name="uq_ingest_requests_run"),
+        CheckConstraint(
+            "state IN ('processing', 'completed', 'failed')",
+            name="ck_ingest_requests_state",
+        ),
+        CheckConstraint(
+            "length(payload_hash) = 64 AND payload_hash NOT GLOB '*[^0-9a-f]*'",
+            name="ck_ingest_requests_payload_hash",
+        ),
+        CheckConstraint(
+            "state != 'completed' OR run_id IS NOT NULL",
+            name="ck_ingest_requests_completed_run",
+        ),
+        Index("ix_ingest_requests_project_created", "project_id", "created_at"),
+        Index("ix_ingest_requests_state_lease", "state", "lease_expires_at"),
+    )
+
+
 class ScannerRun(Base):
     """Per-scanner execution record within a run."""
 
@@ -226,6 +401,10 @@ class ScannerRun(Base):
     started_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_reference: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    image_digest: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    tool_version: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    database_version_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     run: Mapped[Run] = relationship(back_populates="scanner_runs")
     artifact: Mapped["ScannerArtifact | None"] = relationship(
@@ -235,6 +414,13 @@ class ScannerRun(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint("run_id", "scanner_kind", name="uq_scanner_runs_run_kind"),
+        CheckConstraint(
+            "image_digest IS NULL OR (length(image_digest) = 71 "
+            "AND substr(image_digest, 1, 7) = 'sha256:' "
+            "AND substr(image_digest, 8) NOT GLOB '*[^0-9a-f]*')",
+            name="ck_scanner_runs_image_digest",
+        ),
         Index("ix_scanner_runs_run_kind", "run_id", "scanner_kind"),
     )
 
@@ -310,7 +496,6 @@ class TestResult(Base):
         ForeignKey("runs.run_id", ondelete="CASCADE"),
         nullable=False,
     )
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     fr_id: Mapped[str] = mapped_column(String(64), nullable=False)
     test_id: Mapped[str] = mapped_column(String(128), nullable=False)
     test_type: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -322,7 +507,6 @@ class TestResult(Base):
         UniqueConstraint("run_id", "fr_id", "test_id", name="uq_test_results_run_fr_test"),
         Index("ix_test_results_run", "run_id"),
         Index("ix_test_results_run_fr", "run_id", "fr_id"),
-        Index("ix_test_results_project_fr", "project_path", "fr_id"),
     )
 
 
@@ -338,7 +522,6 @@ class Evidence(Base):
     __tablename__ = "evidence"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     fr_id: Mapped[str] = mapped_column(String(64), nullable=False)
     run_id: Mapped[str] = mapped_column(
         String(64),
@@ -356,7 +539,6 @@ class Evidence(Base):
 
     __table_args__ = (
         Index("ix_evidence_run_fr", "run_id", "fr_id"),
-        Index("ix_evidence_project_fr", "project_path", "fr_id"),
     )
 
 
@@ -371,7 +553,6 @@ class FrState(Base):
     __tablename__ = "fr_state"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     fr_id: Mapped[str] = mapped_column(String(64), nullable=False)
     run_id: Mapped[str] = mapped_column(
         String(64),
@@ -383,7 +564,6 @@ class FrState(Base):
     computed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
-        Index("ix_fr_state_project", "project_path"),
         Index("ix_fr_state_run", "run_id"),
     )
 
@@ -394,7 +574,9 @@ class Waiver(Base):
     __tablename__ = "waivers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     fr_id: Mapped[str] = mapped_column(String(64), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     waived_by: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -402,7 +584,7 @@ class Waiver(Base):
     expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        Index("ix_waivers_project_fr", "project_path", "fr_id"),
+        Index("ix_waivers_project_fr", "project_id", "fr_id"),
     )
 
 
@@ -415,7 +597,9 @@ class FindingAcceptance(Base):
     __tablename__ = "finding_acceptances"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     scanner_kind: Mapped[str] = mapped_column(String(64), nullable=False)
     rule_id: Mapped[str] = mapped_column(String(256), nullable=False)
     risk_level: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -427,7 +611,7 @@ class FindingAcceptance(Base):
     expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        Index("ix_finding_acceptances_lookup", "project_path", "scanner_kind", "rule_id"),
+        Index("ix_finding_acceptances_lookup", "project_id", "scanner_kind", "rule_id"),
     )
 
 
@@ -442,7 +626,9 @@ class AgentAction(Base):
     __tablename__ = "agent_actions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
     run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     action_kind: Mapped[str] = mapped_column(String(64), nullable=False)
     actor: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -469,13 +655,15 @@ class ComplianceMapping(Base):
     __tablename__ = "compliance_mappings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     mapping_doc_json: Mapped[str] = mapped_column(Text, nullable=False)
     loaded_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
-        Index("ix_compliance_mappings_project", "project_path"),
+        Index("ix_compliance_mappings_project", "project_id"),
     )
 
 
@@ -487,7 +675,9 @@ class ComplianceMappingSnapshot(Base):
     __tablename__ = "compliance_mapping_snapshots"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    project_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
     content_hash: Mapped[str] = mapped_column(String(80), nullable=False)
     catalogue_content_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
     packs_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
@@ -495,16 +685,23 @@ class ComplianceMappingSnapshot(Base):
     loaded_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
-        Index("ix_compliance_mapping_snapshots_project", "project_path"),
+        Index("ix_compliance_mapping_snapshots_project", "project_id", "loaded_at"),
     )
 
 
 __all__ = [
     "Base",
     "CatalogueSnapshot",
+    "Project",
     "Fr",
     "Run",
+    "Organisation",
+    "User",
+    "ApiToken",
+    "ProjectCheckout",
+    "GithubAccount",
     "ScanJob",
+    "IngestRequest",
     "ScannerRun",
     "ScannerArtifact",
     "Finding",
@@ -512,6 +709,7 @@ __all__ = [
     "Evidence",  # deprecated v2 table
     "FrState",
     "Waiver",
+    "FindingAcceptance",
     "AgentAction",
     "ComplianceMapping",
     "ComplianceMappingSnapshot",

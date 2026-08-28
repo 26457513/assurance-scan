@@ -14,6 +14,9 @@ import type {
   HealthResponse,
   MappingVersion,
   ProjectSummary,
+  ScanTokenCreateResponse,
+  ScanTokenExpiryDays,
+  ScanTokenListResponse,
   ScanResponse,
   ScanStatus,
   ScanSummary,
@@ -41,9 +44,12 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => getJson<HealthResponse>('/health'),
 
-  listScans: (limit?: number) => {
-    const qs = limit ? `?limit=${limit}` : '';
-    return getJson<ScanSummary[]>(`/api/scans${qs}`);
+  listScans: (projectId?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (projectId != null) params.set('project_id', String(projectId));
+    if (limit != null) params.set('limit', String(limit));
+    const qs = params.toString();
+    return getJson<ScanSummary[]>(`/api/scans${qs ? `?${qs}` : ''}`);
   },
 
   listScansForSelector: () => getJson<ScanSummary[]>('/api/scans?limit=15'),
@@ -56,35 +62,39 @@ export const api = {
 
   getTrendsForScanList: () => getJson<TrendsResponse>('/api/trends?limit=30'),
 
-  getTrendCommits: (projectPath: string, branch = '') =>
-    getJson<TrendCommits>(`/api/trends/commits?project_path=${encodeURIComponent(projectPath)}&branch=${encodeURIComponent(branch)}`),
+  getTrendCommits: (projectId: number, branch = '') =>
+    getJson<TrendCommits>(`/api/trends/commits?project_id=${projectId}&branch=${encodeURIComponent(branch)}`),
 
   getScan: (runId: string) => getJson<ScanStatus>(`/api/scans/${runId}`),
 
-  getCatalogueDrift: (projectPath: string) =>
+  getCatalogueDrift: (projectId: number) =>
     getJson<CatalogueDriftResponse>(
-      `/api/catalogue/drift?project_path=${encodeURIComponent(projectPath)}`
+      `/api/catalogue/drift?project_id=${projectId}`
     ),
 
-  getCatalogueVersion: (snapshotId: string) =>
-    getJson<Record<string, unknown>>(`/api/catalogue/versions/${encodeURIComponent(snapshotId)}`),
+  getCatalogueVersion: (projectId: number, snapshotId: string) =>
+    getJson<Record<string, unknown>>(
+      `/api/catalogue/versions/${encodeURIComponent(snapshotId)}?project_id=${projectId}`
+    ),
 
-  listCatalogueVersions: (projectPath: string) =>
+  listCatalogueVersions: (projectId: number) =>
     getJson<{ versions: CatalogueVersion[] }>(
-      `/api/catalogue/versions?project_path=${encodeURIComponent(projectPath)}`
+      `/api/catalogue/versions?project_id=${projectId}`
     ),
 
-  listMappingVersions: (projectPath: string) =>
+  listMappingVersions: (projectId: number) =>
     getJson<{ versions: MappingVersion[] }>(
-      `/api/mappings/versions?project_path=${encodeURIComponent(projectPath)}`
+      `/api/mappings/versions?project_id=${projectId}`
     ),
 
-  getMappingVersion: (snapshotId: string) =>
-    getJson<Record<string, unknown>>(`/api/mappings/versions/${encodeURIComponent(snapshotId)}`),
+  getMappingVersion: (projectId: number, snapshotId: string) =>
+    getJson<Record<string, unknown>>(
+      `/api/mappings/versions/${encodeURIComponent(snapshotId)}?project_id=${projectId}`
+    ),
 
-  saveMapping: (projectPath: string, mappingJson: string) =>
-    getJson<{ status: string; project_path?: string; content_hash?: string; mapping_count?: number }>(
-      `/api/mappings?project_path=${encodeURIComponent(projectPath)}`,
+  saveMapping: (projectId: number, mappingJson: string) =>
+    getJson<{ status: string; project_id?: number; content_hash?: string; mapping_count?: number }>(
+      `/api/mappings?project_id=${projectId}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,12 +102,12 @@ export const api = {
       }
     ),
 
-  complianceGrid: (projectPath: string) =>
+  complianceGrid: (projectId: number) =>
     getJson<{
       versions: { snapshot_id: string; tag: string | null; version: string | null; source_branch: string | null; source_commit_sha: string | null; created_at: string }[];
       branches: string[];
       cells: Record<string, { run_id: string; started_at: string | null; ok: number; gaps: number; states: Record<string, number> }>;
-    }>(`/api/compliance/grid?project_path=${encodeURIComponent(projectPath)}`),
+    }>(`/api/compliance/grid?project_id=${projectId}`),
 
   listCompliancePacks: () =>
     getJson<{ packs: CompliancePack[] }>('/api/compliance/packs'),
@@ -105,7 +115,7 @@ export const api = {
   getCompliancePack: (file: string) =>
     getJson<Record<string, unknown>>(`/api/compliance/packs/${encodeURIComponent(file)}`),
 
-  listProjects: () => getJson<{ projects: ProjectSummary[]; excluded?: string[] }>('/api/projects'),
+  listProjects: () => getJson<{ projects: ProjectSummary[] }>('/api/projects'),
 
   githubBranches: (repo: string) =>
     getJson<{ repo: string; branches: string[] }>(`/api/github/branches?repo=${encodeURIComponent(repo)}`),
@@ -126,18 +136,28 @@ export const api = {
       lines?: { n: number; text: string }[];
     }>(`/api/github/source?repo=${encodeURIComponent(repo)}&commit=${encodeURIComponent(commit)}&path=${encodeURIComponent(path)}${line ? `&line=${line}` : ''}`),
 
-  createProject: (tag: string, localPath: string, githubUrl: string) =>
-    getJson<{ status: string; tag: string; local_path: string; github_repo: string | null }>(
+  createProject: (
+    tag: string,
+    localPath: string | null,
+    githubRepo: string | null,
+    defaultScanRef: string | null = null
+  ) =>
+    getJson<ProjectSummary>(
       '/api/projects',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tag, local_path: localPath, github_url: githubUrl })
+        body: JSON.stringify({
+          tag,
+          local_path: localPath,
+          github_repo: githubRepo,
+          default_scan_ref: defaultScanRef
+        })
       }
     ),
 
-  updateProject: (id: number, fields: { tag?: string; local_path?: string; github_url?: string }) =>
-    getJson<{ status: string; tag: string; local_path: string; github_repo: string | null }>(
+  updateProject: (id: number, fields: { tag?: string; local_path?: string | null; github_repo?: string | null }) =>
+    getJson<ProjectSummary>(
       `/api/projects/${id}`,
       {
         method: 'PATCH',
@@ -149,16 +169,9 @@ export const api = {
   deleteProject: (id: number) =>
     getJson<{ status: string }>(`/api/projects/${id}`, { method: 'DELETE' }),
 
-  hideProject: (projectPath: string) =>
-    getJson<{ status: string }>('/api/projects/hide', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_path: projectPath })
-    }),
-
-  saveCatalogue: (projectPath: string, catalogueJson: string, tag = '') =>
-    getJson<{ status: string; project?: string; catalogue_version?: string; fr_count?: number; content_hash?: string }>(
-      `/api/catalogue?project_path=${encodeURIComponent(projectPath)}`,
+  saveCatalogue: (projectId: number, catalogueJson: string, tag = '') =>
+    getJson<{ status: string; project_id?: number; catalogue_version?: string; fr_count?: number; content_hash?: string }>(
+      `/api/catalogue?project_id=${projectId}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -190,6 +203,28 @@ export const api = {
 
   revokeMcpToken: () =>
     getJson<{ status: string }>('/api/users/me/mcp-token', { method: 'DELETE' }),
+
+  listScanTokens: () =>
+    getJson<ScanTokenListResponse>('/api/users/me/scan-tokens'),
+
+  createScanToken: (label: string, expiresInDays: ScanTokenExpiryDays, csrfToken: string) =>
+    getJson<ScanTokenCreateResponse>('/api/users/me/scan-tokens', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify({ label, expires_in_days: expiresInDays })
+    }),
+
+  revokeScanToken: (tokenId: string, csrfToken: string) =>
+    getJson<{ status: string }>(
+      `/api/users/me/scan-tokens/${encodeURIComponent(tokenId)}`,
+      {
+        method: 'DELETE',
+        headers: { 'X-CSRF-Token': csrfToken }
+      }
+    ),
 
   me: () => getJson<{ email: string; role: string }>('/api/users/me'),
 
@@ -226,11 +261,11 @@ export const api = {
   deleteGithubToken: () =>
     getJson<{ configured: boolean }>('/api/github/token', { method: 'DELETE' }),
 
-  scanRemote: (repo: string, ref = '') =>
+  scanRemote: (projectId: number, ref = '') =>
     getJson<{ status: string; mode: string; repo: string; ref: string; warning?: string; detail?: string }>('/api/scans/remote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ repo, ref })
+      body: JSON.stringify({ project_id: projectId, ref })
     }),
 
   pollNow: () =>
@@ -242,16 +277,14 @@ export const api = {
   deleteScan: (runId: string) =>
     getJson<{ status: string; run_id: string }>(`/api/scans/${runId}`, { method: 'DELETE' }),
 
-  deleteAllScans: (projectPath?: string) => {
-    const qs = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : '';
-    return getJson<{ status: string; count: number }>(`/api/scans${qs}`, { method: 'DELETE' });
-  },
+  deleteAllScans: (projectId: number) =>
+    getJson<{ status: string; count: number }>(`/api/scans?project_id=${projectId}`, { method: 'DELETE' }),
 
-  startScan: (projectPath?: string, options?: Record<string, unknown>) =>
+  startScan: (projectId: number, options?: Record<string, unknown>) =>
     getJson<ScanResponse>('/api/scans', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ project_path: projectPath, options: options ?? {} })
+      body: JSON.stringify({ project_id: projectId, options: options ?? {} })
     }),
 
   listFolders: (path?: string) => {
@@ -270,20 +303,25 @@ export const api = {
     return res.text();
   },
 
-  getFr: (frId: string, runId?: string) => {
-    const qs = runId ? `?run_id=${encodeURIComponent(runId)}` : '';
-    return getJson<FrDetailResponse>(`/api/frs/${encodeURIComponent(frId)}${qs}`);
+  getFr: (frId: string, projectId: number, runId?: string) => {
+    const params = new URLSearchParams({ project_id: String(projectId) });
+    if (runId) params.set('run_id', runId);
+    return getJson<FrDetailResponse>(
+      `/api/frs/${encodeURIComponent(frId)}?${params.toString()}`
+    );
   },
 
-  getFrHistory: (frId: string) =>
-    getJson<FrHistoryResponse>(`/api/frs/${encodeURIComponent(frId)}/history`),
+  getFrHistory: (frId: string, projectId: number) =>
+    getJson<FrHistoryResponse>(
+      `/api/frs/${encodeURIComponent(frId)}/history?project_id=${projectId}`
+    ),
 
   listComplianceFrameworks: () =>
     getJson<ComplianceListResponse>('/api/compliance'),
 
-  getComplianceMatrix: (framework: string, projectPath?: string, mappingHash?: string) => {
+  getComplianceMatrix: (framework: string, projectId?: number, mappingHash?: string) => {
     const params = new URLSearchParams();
-    if (projectPath) params.set('project_path', projectPath);
+    if (projectId != null) params.set('project_id', String(projectId));
     if (mappingHash) params.set('mapping_hash', mappingHash);
     const qs = params.toString();
     return getJson<ComplianceMatrixResponse>(
@@ -291,36 +329,36 @@ export const api = {
     );
   },
 
-  getTrends: (projectPath?: string, limit = 20) => {
+  getTrends: (projectId?: number, limit = 20) => {
     const params = new URLSearchParams();
-    if (projectPath) params.set('project_path', projectPath);
+    if (projectId != null) params.set('project_id', String(projectId));
     params.set('limit', String(limit));
     return getJson<TrendsResponse>(`/api/trends?${params.toString()}`);
   },
 
-  listFRs: (projectPath?: string, snapshotId?: string) => {
+  listFRs: (projectId?: number, snapshotId?: string) => {
     const params = new URLSearchParams();
-    if (projectPath) params.set('project_path', projectPath);
+    if (projectId != null) params.set('project_id', String(projectId));
     if (snapshotId) params.set('snapshot_id', snapshotId);
     const qs = params.toString();
     return getJson<FrListResponse>(`/api/frs${qs ? `?${qs}` : ''}`);
   },
 
-  getTestSource: (namePattern: string, projectPath: string) => {
+  getTestSource: (namePattern: string, projectId: number) => {
     const params = new URLSearchParams({
       name_pattern: namePattern,
-      project_path: projectPath
+      project_id: String(projectId)
     });
     return getJson<TestSourceResponse>(`/api/test-source?${params.toString()}`);
   },
 
-  getConfig: (projectPath: string) => {
-    const params = new URLSearchParams({ project_path: projectPath });
+  getConfig: (projectId: number) => {
+    const params = new URLSearchParams({ project_id: String(projectId) });
     return getJson<ConfigResponse>(`/api/config?${params.toString()}`);
   },
 
   acceptFinding: (params: {
-    project_path: string;
+    project_id: number;
     scanner_kind: string;
     rule_id: string;
     risk_level: string;
@@ -337,8 +375,8 @@ export const api = {
   unacceptFinding: (id: number) =>
     getJson<{ status: string }>(`/api/findings/accept/${id}`, { method: 'DELETE' }),
 
-  listAcceptedFindings: (projectPath: string) => {
-    const params = new URLSearchParams({ project_path: projectPath });
+  listAcceptedFindings: (projectId: number) => {
+    const params = new URLSearchParams({ project_id: String(projectId) });
     return getJson<{ acceptances: FindingAcceptance[] }>(`/api/findings/accepted?${params.toString()}`);
   }
 };
