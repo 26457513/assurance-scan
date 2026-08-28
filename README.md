@@ -45,6 +45,9 @@ The backend module boundaries are documented in
 [`docs/module-architecture.md`](docs/module-architecture.md); feature design
 notes live in `docs/plan-*.md`.
 
+Operators releasing the public local CLI or enabling local ingest must follow
+the [local scan rollout and rollback runbook](docs/runbooks/local-scan-rollout.md).
+
 ## Local deployment
 
 Prerequisites: Docker.
@@ -62,8 +65,9 @@ docker socket and `~/Development`.
 ### Development
 
 Work on `develop`, test locally (`docker compose up -d --build` picks up the
-working tree), merge to `main` when happy — merges deploy automatically (see
-below). Backend tests: `cd backend && python3 -m pytest tests/ -q`; frontend:
+working tree), and merge to `main` only after the quality gate passes. A main
+build publishes an immutable candidate; production deployment remains an
+operator-reviewed maintenance-window action. Backend tests: `cd backend && python3 -m pytest tests/ -q`; frontend:
 `cd frontend && npx svelte-check`.
 
 ## Droplet deployment (DigitalOcean)
@@ -103,7 +107,8 @@ GOOGLE_DOMAIN=yourdomain.com
 SESSION_SECRET=<random 32+ chars>
 PUBLIC_BASE_URL=https://scan.yourdomain.com
 TOKEN_ENCRYPTION_KEY=<random 32+ chars>   # encrypts user + org tokens
-LOCAL_INGEST_ENABLED=true                # account-bound local upload API
+SCAN_TOKEN_CREATION_ENABLED=false        # enable only for reviewed account canaries
+LOCAL_INGEST_ENABLED=false               # enable only for reviewed repository canaries
 # APP_AUTH_USER / APP_AUTH_PASSWORD      # optional Basic Auth fallback
 ```
 
@@ -125,11 +130,12 @@ out. Basic Auth (the two `APP_AUTH_*` vars) remains valid for curl/API use.
 
 ### Deploying updates
 
-Merging `develop → main` and pushing: `publish-app-image` builds and pushes
-`ghcr.io/26457513/assurance-scan-app`, then the deploy job SSHes the droplet
-(`DEPLOY_SSH_KEY` repo secret) to `git pull && docker compose pull && up -d`.
-A 5-minute cron on the droplet is the safety net; `@daily docker system
-prune` keeps the disk clear. Small droplets must never build locally.
+Merging `develop → main` builds, signs, attests, and publicly verifies an
+immutable `assurance-scan-app` candidate. It does not mutate `latest` or deploy
+production. Record the matching app, CI, and CLI digests, then use the
+[local scan rollout and rollback runbook](docs/runbooks/local-scan-rollout.md)
+for the maintenance-window backup, migration, exact-digest cutover, canary,
+and rollback procedure. Small droplets must never build locally.
 
 **Backup**: the SQLite file in the `assurance-data` volume is the only copy
 of catalogues, registry, and waivers — schedule a daily `docker cp` + copy

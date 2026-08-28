@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
+from app.config import account_identity_is_ready, normalize_account_email
 from app.infrastructure.db.models import ApiToken, User
 from app.infrastructure.db.repositories.api_tokens import (
     SecureScanTokenRandom,
@@ -63,15 +64,7 @@ async def require_google_scan_token_user(
 ) -> BrowserScanTokenUser:
     """Require an existing, enabled user authenticated by Google session."""
     settings = request.app.state.settings
-    google_on = all(
-        (
-            settings.google_client_id,
-            settings.google_client_secret,
-            settings.session_secret,
-            settings.public_base_url,
-        )
-    )
-    if not google_on:
+    if not account_identity_is_ready(settings):
         raise HTTPException(status_code=401, detail="Google sign-in is required")
     email = verify_session(request.cookies.get("as_session"), settings.session_secret)
     if not email:
@@ -107,6 +100,7 @@ async def list_scan_tokens(
         {
             "tokens": [_audit(row, now) for row in rows],
             "csrf_token": csrf_token,
+            "creation_enabled": _creation_enabled_for_user(settings, user.email),
         },
         headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
     )
@@ -130,6 +124,19 @@ async def issue_scan_token(
     session: AsyncSession = SessionDep,
 ) -> JSONResponse:
     """Create a token and return its plaintext exactly once."""
+    settings = request.app.state.settings
+    if not getattr(settings, "scan_token_creation_enabled", False):
+        raise HTTPException(
+            status_code=503,
+            detail="Scan-token creation is disabled.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    if not _creation_enabled_for_user(settings, user.email):
+        raise HTTPException(
+            status_code=403,
+            detail="Scan-token creation is not enabled for this account.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
     _require_csrf(request, user)
     repository = SqlAlchemyScanTokenRepository(session)
     clock = SystemScanTokenClock()
@@ -166,6 +173,22 @@ async def issue_scan_token(
             "Referrer-Policy": "no-referrer",
         },
     )
+
+
+def _creation_enabled_for_user(settings: object, email: str) -> bool:
+    if not getattr(settings, "scan_token_creation_enabled", False):
+        return False
+    user_allowlist: frozenset[str] = getattr(
+        settings,
+        "scan_token_creation_user_allowlist",
+        frozenset(),
+    )
+    if not user_allowlist:
+        return True
+    try:
+        return normalize_account_email(email) in user_allowlist
+    except ValueError:
+        return False
 
 
 @router.delete("/{token_id}")

@@ -25,6 +25,7 @@ export interface ScanToken {
 export interface ScanTokenListResponse {
   tokens: ScanToken[];
   csrf_token: string;
+  creation_enabled: boolean;
 }
 
 export interface ScanTokenCreateResponse {

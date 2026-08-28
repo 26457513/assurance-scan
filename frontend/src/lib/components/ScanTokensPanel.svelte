@@ -14,6 +14,7 @@
 
   let tokens: ScanToken[] = [];
   let csrfToken = '';
+  let creationEnabled = false;
   let loading = true;
   let loadError = '';
   let label = '';
@@ -65,6 +66,7 @@
       const response = await api.listScanTokens();
       tokens = response.tokens;
       csrfToken = response.csrf_token;
+      creationEnabled = response.creation_enabled;
     } catch (error) {
       loadError = errorMessage(error);
     } finally {
@@ -74,7 +76,7 @@
 
   async function createToken() {
     const cleanLabel = label.trim();
-    if (!cleanLabel || creating) return;
+    if (!creationEnabled || !cleanLabel || creating) return;
 
     creating = true;
     createError = '';
@@ -129,6 +131,13 @@
     </span>
   </div>
 
+  {#if !loading && !loadError && !creationEnabled}
+    <p class="text-[11px] text-ink-secondary leading-relaxed mb-4" role="status">
+      Token creation is not enabled for this account during the current rollout. Existing tokens
+      remain visible and can still be revoked.
+    </p>
+  {/if}
+
   <form class="grid grid-cols-[minmax(0,1fr)_110px_auto] gap-2 items-end mb-4" on:submit|preventDefault={createToken}>
     <label class="block min-w-0">
       <span class="block text-[10px] font-mono uppercase tracking-[0.1em] text-ink-muted mb-1">Machine label</span>
@@ -139,6 +148,7 @@
         autocomplete="off"
         placeholder="e.g. work laptop"
         aria-label="Machine label"
+        disabled={!creationEnabled}
         class="w-full px-2.5 py-1.5 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-accent"
       />
     </label>
@@ -147,6 +157,7 @@
       <select
         bind:value={expiryDays}
         aria-label="Token expiry"
+        disabled={!creationEnabled}
         class="w-full px-2 py-1.5 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary focus:outline-none focus:border-accent"
       >
         {#each EXPIRY_OPTIONS as option (option.days)}
@@ -156,7 +167,7 @@
     </label>
     <button
       type="submit"
-      disabled={creating || !label.trim() || !csrfToken}
+      disabled={!creationEnabled || creating || !label.trim() || !csrfToken}
       class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
     >{creating ? 'Creating…' : 'Create token'}</button>
   </form>

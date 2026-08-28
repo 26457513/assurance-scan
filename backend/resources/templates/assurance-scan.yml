@@ -50,7 +50,7 @@ jobs:
             -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_RUN_ID \
             -e GITHUB_REF_NAME -e GITHUB_SHA \
             -e ASSURANCE_SCAN_URL=https://scan.squease.ai \
-            ghcr.io/26457513/assurance-scan-ci:latest \
+            ghcr.io/26457513/assurance-scan-ci@sha256:f43efcff106ad6a16ed23f151e33ee32b09fbd695a78ad2d7156b9be29d062f4 \
             "$PWD" --sarif "$PWD/assurance.sarif" --image assurance-scan-target:ci
           cat "$PWD/summary.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

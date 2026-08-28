@@ -32,7 +32,7 @@ from app.modules.atomic.access.scan_token import (
 
 
 PUBLIC_ORIGIN = "https://scan.example.test"
-SESSION_SECRET = "test-session-secret"
+SESSION_SECRET = "test-session-secret-at-least-32-bytes"
 
 
 @dataclass
@@ -92,6 +92,8 @@ async def harness(tmp_path) -> RouteHarness:
         google_client_secret="google-secret",
         session_secret=SESSION_SECRET,
         public_base_url=PUBLIC_ORIGIN,
+        scan_token_creation_enabled=True,
+        scan_token_creation_user_allowlist=frozenset(),
     )
     app = FastAPI()
     app.state.settings = settings
@@ -117,6 +119,7 @@ async def test_get_mints_bound_http_only_strict_csrf_cookie(harness: RouteHarnes
     response = await harness.client.get("/api/users/me/scan-tokens")
     assert response.status_code == 200
     assert response.json()["tokens"] == []
+    assert response.json()["creation_enabled"] is True
     csrf = response.json()["csrf_token"]
     cookie = response.headers["set-cookie"]
     assert f"as_csrf={csrf}" in cookie
@@ -124,6 +127,59 @@ async def test_get_mints_bound_http_only_strict_csrf_cookie(harness: RouteHarnes
     assert "SameSite=strict" in cookie
     assert "Secure" in cookie
     assert response.headers["cache-control"] == "no-store"
+
+
+async def test_creation_flag_fails_closed_but_list_and_revoke_remain_available(
+    harness: RouteHarness,
+) -> None:
+    harness.sign_in("alice@example.test")
+    issued = await harness.issue("Before rollout closes")
+    assert issued.status_code == 201
+    token_id = issued.json()["audit"]["id"]
+    harness.settings.scan_token_creation_enabled = False
+
+    blocked = await harness.issue("Blocked")
+    assert blocked.status_code == 503
+    assert blocked.json() == {"detail": "Scan-token creation is disabled."}
+    assert blocked.headers["cache-control"] == "no-store"
+
+    listed = await harness.client.get("/api/users/me/scan-tokens")
+    assert listed.status_code == 200
+    assert listed.json()["creation_enabled"] is False
+    assert [token["id"] for token in listed.json()["tokens"]] == [token_id]
+    csrf = listed.json()["csrf_token"]
+    revoked = await harness.client.delete(
+        f"/api/users/me/scan-tokens/{token_id}",
+        headers={"Origin": PUBLIC_ORIGIN, "X-CSRF-Token": csrf},
+    )
+    assert revoked.status_code == 200
+
+
+async def test_creation_user_canary_denies_without_echoing_account_or_allowlist(
+    harness: RouteHarness,
+) -> None:
+    harness.sign_in("alice@example.test")
+    harness.settings.scan_token_creation_user_allowlist = frozenset(
+        {"admin@example.test"}
+    )
+    response = await harness.issue("Blocked canary")
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Scan-token creation is not enabled for this account."
+    }
+    assert "alice@example.test" not in response.text
+    assert "admin@example.test" not in response.text
+    assert response.headers["cache-control"] == "no-store"
+
+    listed = await harness.client.get("/api/users/me/scan-tokens")
+    assert listed.json()["creation_enabled"] is False
+
+    harness.settings.scan_token_creation_user_allowlist = frozenset(
+        {"alice@example.test"}
+    )
+    listed = await harness.client.get("/api/users/me/scan-tokens")
+    assert listed.json()["creation_enabled"] is True
+    assert (await harness.issue("Allowed canary")).status_code == 201
 
 
 async def test_issue_returns_plaintext_once_and_persists_only_digest(

@@ -8,25 +8,86 @@ on:
       - backend/scripts/ci-scan.py
       - backend/app/worker/**
       - backend/app/modules/**
+      - backend/resources/scanners/**
       - .github/workflows/publish-ghcr.yml
 
 permissions:
   contents: read
-  packages: write
+
+env:
+  IMAGE: ghcr.io/26457513/assurance-scan-ci
+
+concurrency:
+  group: publish-ci-image
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  build-candidate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
+      - name: Build, attest, and push immutable CI candidate
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: backend/Dockerfile.ci
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          sbom: true
+          provenance: mode=max
+      - uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+      - name: Keyless-sign the immutable CI digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
+      - name: Verify anonymous pull, signature, SBOM, and provenance
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          IMAGE=ghcr.io/26457513/assurance-scan-ci
-          docker build -f backend/Dockerfile.ci -t "$IMAGE:latest" -t "$IMAGE:${GITHUB_SHA::12}" .
-          docker push "$IMAGE:latest"
-          docker push "$IMAGE:${GITHUB_SHA::12}"
+          docker logout ghcr.io
+          test "$(docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          cosign verify "$IMAGE@$DIGEST" \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          cosign verify-attestation --type spdxjson "$IMAGE@$DIGEST" \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          cosign verify-attestation --type slsaprovenance "$IMAGE@$DIGEST" \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Move candidate to the verified digest without rebuilding
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"
+          test "$(docker buildx imagetools inspect "$IMAGE:candidate" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+      - name: Record immutable CI candidate
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            printf '### CI candidate\n\n'
+            printf -- '- Revision: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Immutable image: `%s@%s`\n' "$IMAGE" "$DIGEST"
+            printf -- '- Public pull, signature, SBOM, provenance, and candidate equality: passed\n'
+            printf -- '- No stable or latest tag was changed.\n'
+          } >> "$GITHUB_STEP_SUMMARY"

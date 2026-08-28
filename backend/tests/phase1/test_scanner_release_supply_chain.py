@@ -19,6 +19,9 @@ from app.modules.atomic.scanning.scanner_catalog import (
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = ROOT / ".github" / "workflows" / "publish-cli-image.yml"
+APP_WORKFLOW = ROOT / ".github" / "workflows" / "publish-app-image.yml"
+CI_WORKFLOW = ROOT / ".github" / "workflows" / "publish-ghcr.yml"
+CI_TEMPLATE = ROOT / "backend" / "resources" / "templates" / "assurance-scan.yml"
 DOCKERFILE = ROOT / "backend" / "Dockerfile.cli"
 EXPECTED_IMAGES = {
     "semgrep/semgrep@sha256:f1f7b71861c7b28b6e0f661225a2c4f58a484f5d0f182465c6d6b3b22f972ade",
@@ -88,7 +91,9 @@ def test_release_workflow_builds_then_promotes_the_same_signed_digest() -> None:
     source = WORKFLOW.read_text()
     workflow = yaml.safe_load(source)
     assert workflow[True]["push"]["tags"] == ["v*.*.*"]
-    assert source.count(r"^v[0-9]+\.[0-9]+\.[0-9]+$") == 2
+    # Tag build plus both dispatch validation gates independently reject a
+    # mutable or non-canonical release selector.
+    assert source.count(r"^v[0-9]+\.[0-9]+\.[0-9]+$") == 3
     assert "linux/amd64,linux/arm64" in source
     assert "needs: quality-gate" in source
     assert "Verify every pinned scanner index has both qualified platforms" in source
@@ -103,3 +108,27 @@ def test_release_workflow_builds_then_promotes_the_same_signed_digest() -> None:
     assert "imagetools create --tag \"$IMAGE:stable\" \"$IMAGE@$DIGEST\"" in promote
     action_refs = re.findall(r"uses:\s+[^@\s]+@([^\s#]+)", source)
     assert action_refs and all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
+
+
+def test_app_and_ci_workflows_publish_verified_candidates_without_deploying() -> None:
+    for workflow_path in (APP_WORKFLOW, CI_WORKFLOW):
+        source = workflow_path.read_text()
+        assert "tags: ${{ env.IMAGE }}:sha-${{ github.sha }}" in source
+        assert "sbom: true" in source
+        assert "provenance: mode=max" in source
+        assert "cosign sign --yes" in source
+        assert 'imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"' in source
+        assert ":latest" not in source
+        assert "ssh " not in source
+        assert "deploy" not in yaml.safe_load(source)["jobs"]
+        action_refs = re.findall(r"uses:\s+[^@\s]+@([^\s#]+)", source)
+        assert action_refs and all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
+
+
+def test_vendored_ci_template_uses_an_immutable_scanner_digest() -> None:
+    source = CI_TEMPLATE.read_text()
+    assert re.search(
+        r"ghcr\.io/26457513/assurance-scan-ci@sha256:[0-9a-f]{64}",
+        source,
+    )
+    assert "assurance-scan-ci:latest" not in source

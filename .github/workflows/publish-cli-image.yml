@@ -5,6 +5,14 @@ on:
     tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
+      promotion_mode:
+        description: "Promote current canary, or restore a previously qualified immutable release"
+        required: true
+        default: promote_canary
+        type: choice
+        options:
+          - promote_canary
+          - rollback_previous
       source_digest:
         description: "Previously built and signed sha256 digest to promote"
         required: true
@@ -13,12 +21,37 @@ on:
         description: "Immutable v<semver> tag already referring to source_digest"
         required: true
         type: string
+      automated_evidence_url:
+        description: "Successful tag-build Actions run URL for this exact version"
+        required: true
+        type: string
+      macos_evidence_url:
+        description: "Sanitized GitHub evidence URL for the qualified macOS canary run"
+        required: true
+        type: string
+      linux_evidence_url:
+        description: "Sanitized GitHub evidence URL for the qualified Linux canary run"
+        required: true
+        type: string
+      previous_stable_digest:
+        description: "Current stable sha256 digest, or 'none' for the first promotion"
+        required: true
+        type: string
+      qualification_complete:
+        description: "Confirm canary evidence was reviewed and rollback is ready"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 env:
   IMAGE: ghcr.io/26457513/assurance-scan-cli
+
+concurrency:
+  group: publish-cli-image
+  cancel-in-progress: false
 
 jobs:
   quality-gate:
@@ -48,6 +81,7 @@ jobs:
     if: github.event_name == 'push'
     needs: quality-gate
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -116,14 +150,38 @@ jobs:
         run: |
           docker run --rm --platform linux/amd64 "$IMAGE@$DIGEST" --version
           docker run --rm --platform linux/arm64 "$IMAGE@$DIGEST" --version
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Move canary to the fully verified digest without rebuilding
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:canary" "$IMAGE@$DIGEST"
+          test "$(docker buildx imagetools inspect "$IMAGE:canary" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+      - name: Record candidate evidence summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            printf '### CLI canary candidate\n\n'
+            printf -- '- Version: `%s`\n' "$GITHUB_REF_NAME"
+            printf -- '- Immutable index: `%s@%s`\n' "$IMAGE" "$DIGEST"
+            printf -- '- Canary equality, public pull, signature, SBOM/provenance, and architecture smokes: passed\n'
+            printf -- '- Stable was not changed by this tag build.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   promote-stable:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
+      actions: read
       contents: read
       packages: write
-      id-token: write
+    environment: cli-stable
     steps:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -132,6 +190,52 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+      - name: Require reviewed canary evidence and unchanged stable baseline
+        env:
+          ACKNOWLEDGED: ${{ inputs.qualification_complete }}
+          AUTOMATED_EVIDENCE_URL: ${{ inputs.automated_evidence_url }}
+          MACOS_EVIDENCE_URL: ${{ inputs.macos_evidence_url }}
+          LINUX_EVIDENCE_URL: ${{ inputs.linux_evidence_url }}
+          EXPECTED_PREVIOUS: ${{ inputs.previous_stable_digest }}
+          DIGEST: ${{ inputs.source_digest }}
+          VERSION: ${{ inputs.source_version }}
+          MODE: ${{ inputs.promotion_mode }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$ACKNOWLEDGED" = "true"
+          case "$DIGEST" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 2 ;; esac
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$AUTOMATED_EVIDENCE_URL" =~ ^https://github\.com/26457513/assurance-scan/actions/runs/[0-9]+$ ]]
+          valid_manual_evidence_url() {
+            [[ "$1" =~ ^https://github\.com/26457513/assurance-scan/(actions/runs/[0-9]+|issues/[0-9]+(#issuecomment-[0-9]+)?)$ ]]
+          }
+          valid_manual_evidence_url "$MACOS_EVIDENCE_URL"
+          valid_manual_evidence_url "$LINUX_EVIDENCE_URL"
+          test "$MACOS_EVIDENCE_URL" != "$LINUX_EVIDENCE_URL"
+
+          run_id="${AUTOMATED_EVIDENCE_URL##*/}"
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          test "$(gh api "repos/26457513/assurance-scan/actions/runs/$run_id" --jq .conclusion)" = "success"
+          test "$(gh api "repos/26457513/assurance-scan/actions/runs/$run_id" --jq '.path | startswith(".github/workflows/publish-cli-image.yml")')" = "true"
+          test "$(gh api "repos/26457513/assurance-scan/actions/runs/$run_id" --jq .event)" = "push"
+          test "$(gh api "repos/26457513/assurance-scan/actions/runs/$run_id" --jq .head_sha)" = \
+            "$(gh api "repos/26457513/assurance-scan/commits/$VERSION" --jq .sha)"
+
+          if [[ "$EXPECTED_PREVIOUS" != "none" ]]; then
+            case "$EXPECTED_PREVIOUS" in sha256:????????????????????????????????????????????????????????????????) ;; *) exit 2 ;; esac
+          fi
+          if current="$(docker buildx imagetools inspect "$IMAGE:stable" --format '{{.Manifest.Digest}}' 2>/dev/null)"; then
+            test "$EXPECTED_PREVIOUS" != "none"
+            test "$current" = "$EXPECTED_PREVIOUS"
+          else
+            test "$EXPECTED_PREVIOUS" = "none"
+          fi
+          if [[ "$MODE" = "promote_canary" ]]; then
+            test "$(docker buildx imagetools inspect "$IMAGE:canary" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          else
+            test "$MODE" = "rollback_previous"
+            test "$EXPECTED_PREVIOUS" != "$DIGEST"
+          fi
       - name: Validate immutable source release
         env:
           DIGEST: ${{ inputs.source_digest }}
@@ -155,3 +259,34 @@ jobs:
         run: |
           docker buildx imagetools create --tag "$IMAGE:stable" "$IMAGE@$DIGEST"
           test "$(docker buildx imagetools inspect "$IMAGE:stable" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+      - name: Verify stable is publicly retrievable and still has release evidence
+        env:
+          DIGEST: ${{ inputs.source_digest }}
+        run: |
+          docker logout ghcr.io
+          test "$(docker buildx imagetools inspect "$IMAGE:stable" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          cosign verify "$IMAGE@$DIGEST" \
+            --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          cosign verify-attestation --type spdxjson "$IMAGE@$DIGEST" \
+            --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          cosign verify-attestation --type slsaprovenance "$IMAGE@$DIGEST" \
+            --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      - name: Record stable promotion summary
+        env:
+          DIGEST: ${{ inputs.source_digest }}
+          VERSION: ${{ inputs.source_version }}
+          PREVIOUS: ${{ inputs.previous_stable_digest }}
+          MODE: ${{ inputs.promotion_mode }}
+        run: |
+          {
+            printf '### CLI stable promotion\n\n'
+            printf -- '- Version: `%s`\n' "$VERSION"
+            printf -- '- Stable digest: `%s`\n' "$DIGEST"
+            printf -- '- Previous stable digest: `%s`\n' "$PREVIOUS"
+            printf -- '- Operation: `%s`\n' "$MODE"
+            printf -- '- Stable/source equality and public release-evidence verification: passed\n'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -7,14 +7,23 @@ Single-user, localhost-only. All defaults assume the canonical
 from __future__ import annotations
 
 import os
+import ipaddress
+import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from app.modules.shared.contracts.local_scan import (
     UPLOAD_LIMITS,
     USAGE_LIMITS,
     UploadLimits,
     UsageLimits,
+)
+from app.modules.atomic.provenance.repository_identity import (
+    InvalidRepositoryIdentityError,
+    normalize_github_repository_key,
+    parse_github_repository,
 )
 
 
@@ -48,8 +57,118 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raise ValueError(f"invalid boolean value for {name}")
 
 
+def _env_repository_allowlist(name: str) -> frozenset[str]:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return frozenset()
+    values = raw.split(",")
+    normalized: set[str] = set()
+    for value in values:
+        if value != value.strip() or not value:
+            raise ValueError(f"{name} must contain comma-separated canonical owner/repository values")
+        try:
+            parsed = parse_github_repository(value)
+            if parsed != value:
+                raise ValueError
+            key = normalize_github_repository_key(value)
+        except (InvalidRepositoryIdentityError, ValueError) as exc:
+            raise ValueError(
+                f"{name} must contain comma-separated canonical owner/repository values"
+            ) from exc
+        if key in normalized:
+            raise ValueError(f"{name} contains a duplicate repository")
+        normalized.add(key)
+    return frozenset(normalized)
+
+
+_EMAIL_LOCAL = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}")
+_EMAIL_DOMAIN_LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
+
+
+def normalize_account_email(value: str) -> str:
+    """Normalize one conservative Google-account email for rollout matching."""
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    local, separator, domain = normalized.partition("@")
+    labels = domain.split(".")
+    if (
+        not separator
+        or "@" in domain
+        or len(normalized) > 254
+        or not _EMAIL_LOCAL.fullmatch(local)
+        or len(labels) < 2
+        or any(not _EMAIL_DOMAIN_LABEL.fullmatch(label) for label in labels)
+    ):
+        raise ValueError("invalid account email")
+    return normalized
+
+
+def _env_email_allowlist(name: str) -> frozenset[str]:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return frozenset()
+    normalized: set[str] = set()
+    for value in raw.split(","):
+        if not value or value != value.strip():
+            raise ValueError(f"{name} must contain comma-separated account emails")
+        try:
+            email = normalize_account_email(value)
+        except ValueError as exc:
+            raise ValueError(f"{name} must contain comma-separated account emails") from exc
+        if email in normalized:
+            raise ValueError(f"{name} contains a duplicate account email")
+        normalized.add(email)
+    return frozenset(normalized)
+
+
 def _env_path(name: str, default: Path) -> Path:
     return Path(_env(name, str(default)))
+
+
+def account_identity_is_ready(settings: object) -> bool:
+    """Return whether account-bound browser and bearer-token features are ready."""
+    client_id = getattr(settings, "google_client_id", "")
+    client_secret = getattr(settings, "google_client_secret", "")
+    session_secret = getattr(settings, "session_secret", "")
+    public_base_url = getattr(settings, "public_base_url", "")
+    if not all(isinstance(value, str) and value.strip() for value in (client_id, client_secret)):
+        return False
+    if (
+        not isinstance(session_secret, str)
+        or len(session_secret) < 32
+        or not session_secret.strip()
+    ):
+        return False
+    if not isinstance(public_base_url, str):
+        return False
+    try:
+        parsed = urlsplit(public_base_url)
+        port = parsed.port
+    except ValueError:
+        return False
+    hostname = parsed.hostname
+    secure_origin = parsed.scheme == "https"
+    loopback_development_origin = parsed.scheme == "http" and bool(
+        hostname and _is_loopback_host(hostname)
+    )
+    return bool(
+        (secure_origin or loopback_development_origin)
+        and hostname
+        and parsed.username is None
+        and parsed.password is None
+        and parsed.path in ("", "/")
+        and not parsed.query
+        and not parsed.fragment
+        and (port is None or 1 <= port <= 65535)
+    )
+
+
+def _is_loopback_host(hostname: str) -> bool:
+    if hostname.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 @dataclass(frozen=True)
@@ -115,7 +234,10 @@ class Settings:
 
     # Version-one local upload remains closed until explicitly enabled by an
     # operator with account-bound Google/session identity configured.
+    scan_token_creation_enabled: bool
+    scan_token_creation_user_allowlist: frozenset[str]
     local_ingest_enabled: bool
+    local_ingest_repository_allowlist: frozenset[str]
     local_ingest_upload_limits: UploadLimits
     local_ingest_usage_limits: UsageLimits
 
@@ -133,7 +255,14 @@ def load_settings() -> Settings:
         poll_interval_seconds=_env_int("POLL_INTERVAL_SECONDS", 60),
         github_poll_token=_env("GITHUB_POLL_TOKEN", ""),
         github_org=_env("GITHUB_ORG", ""),
+        scan_token_creation_enabled=_env_bool("SCAN_TOKEN_CREATION_ENABLED"),
+        scan_token_creation_user_allowlist=_env_email_allowlist(
+            "SCAN_TOKEN_CREATION_USER_ALLOWLIST"
+        ),
         local_ingest_enabled=_env_bool("LOCAL_INGEST_ENABLED"),
+        local_ingest_repository_allowlist=_env_repository_allowlist(
+            "LOCAL_INGEST_REPOSITORY_ALLOWLIST"
+        ),
         local_ingest_upload_limits=UploadLimits(
             wire_bytes=_env_lower_limit("LOCAL_INGEST_WIRE_BYTES", UPLOAD_LIMITS.wire_bytes),
             parsed_bytes=_env_lower_limit("LOCAL_INGEST_PARSED_BYTES", UPLOAD_LIMITS.parsed_bytes),

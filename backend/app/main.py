@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
@@ -43,6 +44,10 @@ from app.config import Settings, load_settings
 from app.infrastructure.db.connection import dispose_engine
 from app.mcp import build_mcp_server, mount_mcp_on_app
 from app.modules.atomic.access.auth_failure_limiter import AuthenticationFailureLimiter
+from app.modules.atomic.ingestion.operational_signals import (
+    LocalIngestRetentionSignal,
+    render_retention_signal,
+)
 from app.worker.queue import ScanQueue
 
 
@@ -88,12 +93,27 @@ async def _lifespan(app: FastAPI):
         from app.infrastructure.db.retention import run_retention_cleanup
 
         while True:
+            started = time.monotonic()
             try:
                 async with get_sessionmaker(settings)() as session:
                     result = await run_retention_cleanup(session)
-                logging.getLogger(__name__).info("local-ingest retention cleanup: %s", result)
+                signal = LocalIngestRetentionSignal(
+                    outcome="completed",
+                    duration_ms=max(0, round((time.monotonic() - started) * 1000)),
+                    raw_artifacts=result.raw_artifacts,
+                    normalized_runs=result.runs,
+                    token_audits=result.token_audits,
+                    tombstones=result.tombstones,
+                )
+                logging.getLogger(__name__).info(render_retention_signal(signal))
             except Exception:
-                logging.getLogger(__name__).exception("local-ingest retention cleanup failed")
+                # Exception messages and tracebacks may contain database paths.
+                # The operations signal intentionally records only the failure.
+                signal = LocalIngestRetentionSignal(
+                    outcome="failed",
+                    duration_ms=max(0, round((time.monotonic() - started) * 1000)),
+                )
+                logging.getLogger(__name__).error(render_retention_signal(signal))
             await asyncio.sleep(6 * 60 * 60)
 
     retention_task = asyncio.create_task(_retention_loop())

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 
 from app.api.deps_scan_token import require_scan_token_principal
 from app.api.deps import SessionDep
+from app.config import account_identity_is_ready
 from app.api.problem_details import (
     IngestProblem,
     problem_from_http_exception,
@@ -36,6 +38,15 @@ from app.api.schemas.local_ingest import (
     LocalScanWorkflowError,
 )
 from app.modules.atomic.access.scan_token import ScanTokenPrincipal
+from app.modules.atomic.ingestion.data_redactor import redact_json
+from app.modules.atomic.ingestion.operational_signals import (
+    LocalIngestRequestSignal,
+    render_request_signal,
+)
+from app.modules.atomic.provenance.repository_identity import (
+    InvalidRepositoryIdentityError,
+    normalize_github_repository_key,
+)
 from app.modules.shared.contracts.local_scan import SCHEMA_VERSION, UPLOAD_LIMITS, UploadLimits
 
 
@@ -65,13 +76,18 @@ class IngestAPIRoute(APIRoute):
         original = super().get_route_handler()
 
         async def handler(request: Request) -> Response:
+            request.state.local_ingest_started = time.monotonic()
             try:
                 return await original(request)
             except IngestProblem as exc:
+                _log_rejection(request, status=exc.status, code=exc.code)
                 return problem_response(request, exc)
             except HTTPException as exc:
-                return problem_response(request, problem_from_http_exception(exc))
+                problem = problem_from_http_exception(exc)
+                _log_rejection(request, status=problem.status, code=problem.code)
+                return problem_response(request, problem)
             except LocalScanWorkflowError as exc:
+                _log_rejection(request, status=exc.status, code=exc.code)
                 headers = {}
                 if exc.retry_after_seconds is not None:
                     headers["Retry-After"] = str(exc.retry_after_seconds)
@@ -88,7 +104,7 @@ class IngestAPIRoute(APIRoute):
                     ),
                 )
             except Exception:
-                _LOGGER.exception("unexpected local-ingest HTTP failure")
+                _log_rejection(request, status=500, code="internal_error")
                 return problem_response(
                     request,
                     IngestProblem(
@@ -113,16 +129,7 @@ router = APIRouter(
 def require_local_ingest_enabled(request: Request) -> None:
     """Fail closed until an operator explicitly enables local ingest."""
     settings = request.app.state.settings
-    account_identity_ready = all(
-        getattr(settings, name, "")
-        for name in (
-            "google_client_id",
-            "google_client_secret",
-            "session_secret",
-            "public_base_url",
-        )
-    )
-    if not settings.local_ingest_enabled or not account_identity_ready:
+    if not settings.local_ingest_enabled or not account_identity_is_ready(settings):
         raise IngestProblem(
             status=503,
             code="local_ingest_disabled",
@@ -222,9 +229,13 @@ async def upload_local_scan(
             title="Idempotency key does not match metadata",
             detail="Idempotency-Key must equal metadata.request_id.",
         )
+    _require_canary_repository(request, metadata)
+    optional_documents: list[Any] = []
     for artifact in ("sarif", "sbom"):
         if artifact in parts:
-            _load_json_value(parts[artifact], part=artifact, json_depth=limits.json_depth)
+            optional_documents.append(
+                _load_json_value(parts[artifact], part=artifact, json_depth=limits.json_depth)
+            )
 
     payload_hash = _payload_hash(metadata, parts)
     result = await workflow.ingest_local_scan(
@@ -239,6 +250,18 @@ async def upload_local_scan(
             sbom_bytes=parts.get("sbom"),
             payload_hash=payload_hash,
         )
+    )
+    redaction_count = redact_json(findings).replacements
+    redaction_count += sum(
+        redact_json(document).replacements for document in optional_documents
+    )
+    _log_success(
+        request,
+        result=result,
+        wire_bytes=upload.wire_bytes,
+        finding_count=len(cast(list[Any], findings["findings"])),
+        scanner_count=len(cast(list[Any], findings["scanners"])),
+        redaction_count=redaction_count,
     )
     return _success_response(result)
 
@@ -670,8 +693,80 @@ def _retry_after_seconds(lease_expires_at: Any) -> int:
     return max(1, min(300, round((lease_expires_at - datetime.now(timezone.utc)).total_seconds())))
 
 
+def _duration_ms(request: Request) -> int:
+    started = getattr(request.state, "local_ingest_started", time.monotonic())
+    return max(0, round((time.monotonic() - started) * 1000))
+
+
+def _log_rejection(request: Request, *, status: int, code: str) -> None:
+    _LOGGER.info(
+        render_request_signal(
+            LocalIngestRequestSignal(
+                outcome="rejected",
+                status_code=status,
+                duration_ms=_duration_ms(request),
+                code=code,
+            )
+        )
+    )
+
+
+def _log_success(
+    request: Request,
+    *,
+    result: LocalScanIngestResult,
+    wire_bytes: int,
+    finding_count: int,
+    scanner_count: int,
+    redaction_count: int,
+) -> None:
+    status_code = 201
+    if result.outcome is LocalScanIngestOutcome.REPLAYED:
+        status_code = 200
+    elif result.outcome is LocalScanIngestOutcome.IN_PROGRESS:
+        status_code = 202
+    _LOGGER.info(
+        render_request_signal(
+            LocalIngestRequestSignal(
+                outcome=result.outcome.value,
+                status_code=status_code,
+                duration_ms=_duration_ms(request),
+                code=f"scan_{result.outcome.value}",
+                wire_bytes=wire_bytes,
+                finding_count=finding_count,
+                scanner_count=scanner_count,
+                redaction_count=redaction_count,
+                project_id=result.project_id,
+                replayed=result.outcome is LocalScanIngestOutcome.REPLAYED,
+            )
+        )
+    )
+
+
 def _request_upload_limits(request: Request) -> UploadLimits:
     return getattr(request.app.state.settings, "local_ingest_upload_limits", UPLOAD_LIMITS)
+
+
+def _require_canary_repository(request: Request, metadata: Mapping[str, Any]) -> None:
+    allowlist: frozenset[str] = getattr(
+        request.app.state.settings,
+        "local_ingest_repository_allowlist",
+        frozenset(),
+    )
+    if not allowlist:
+        return
+    target = metadata.get("project_override") or metadata.get("repository")
+    try:
+        key = normalize_github_repository_key(str(target))
+    except InvalidRepositoryIdentityError as exc:
+        raise _schema_problem("metadata") from exc
+    if key not in allowlist:
+        raise IngestProblem(
+            status=403,
+            code="repository_not_enabled",
+            title="Repository is not enabled for local ingest",
+            detail="This repository is outside the current local-ingest rollout.",
+        )
 
 
 __all__ = [

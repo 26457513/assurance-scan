@@ -1,6 +1,6 @@
 # Plan: local scan runner and authenticated result upload
 
-Status: clean-cutover plan; WSQ/WS0/WS1/WS2/WS3/WS4 complete, ready for WS5 — 2026-08-28
+Status: WSQ/WS0/WS1/WS2/WS3/WS4 complete; WS5 implementation complete and production rollout pending operator execution — 2026-08-28
 
 The repository-readiness gate in **WSQ** passed before feature implementation
 began. The structural refactor and initial quality cleanup exposed the remaining
@@ -1499,6 +1499,32 @@ validation, all three image builds/smokes, diff whitespace and source hygiene
 (628 text files).
 
 ### WS5 — staged rollout and operations
+
+Implementation completed on 2026-08-28. Token creation and local ingest now
+fail closed behind independent global and canary allowlist controls; disabled
+token creation still permits recovery-safe listing and revocation. The HTTP and
+retention paths emit bounded JSON operational signals containing only
+allowlisted machine codes, timings and counts, with tests proving that secrets,
+host paths, repositories and account identities are absent. The Setup UI shows
+the effective token-creation rollout state instead of inviting a request that
+the server will reject.
+
+Recoverable SQLite operator tooling now provides read-only identity/schema/
+retention preflight, verified online backup plus manifest, backup verification,
+and guarded dry-run/execute restore with fresh stopped-writer evidence, exact
+digest-bound confirmation, race checks and a recoverable original copy. App and
+CI workflows publish signed, attested immutable candidates without changing
+`latest` or deploying; CLI canary and stable promotion use the same tested
+digest with evidence and stale-baseline gates. The operator runbook ties the
+matching app/CI/CLI digest set to maintenance, canary, monitoring, kill-switch,
+cleanup and rollback procedures.
+
+The repository implementation and full quality gate are complete. Production
+backup/migration/deployment, public candidate publication, macOS/Linux canary
+qualification, stable promotion and a real recovery exercise remain explicitly
+pending the reviewed maintenance window. Until those actions are performed and
+their sanitized evidence is recorded, the operational acceptance criterion
+below is not claimed as complete.
 
 1. Enter a maintenance window, stop writers, take and verify a database backup,
    run the migration dry-run, resolve every ambiguity, apply the clean-cutover

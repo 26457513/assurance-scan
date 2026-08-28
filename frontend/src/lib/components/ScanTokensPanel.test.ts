@@ -30,7 +30,8 @@ describe('ScanTokensPanel', () => {
     vi.setSystemTime(new Date('2026-08-28T10:00:00Z'));
     apiMocks.listScanTokens.mockReset().mockResolvedValue({
       tokens: [activeToken],
-      csrf_token: 'csrf-value'
+      csrf_token: 'csrf-value',
+      creation_enabled: true
     });
     apiMocks.createScanToken.mockReset();
     apiMocks.revokeScanToken.mockReset();
@@ -83,6 +84,7 @@ describe('ScanTokensPanel', () => {
   it('shows nearing-expiry, last-used, expired, and revoked audit states', async () => {
     apiMocks.listScanTokens.mockResolvedValue({
       csrf_token: 'csrf-value',
+      creation_enabled: true,
       tokens: [
         {
           ...activeToken,
@@ -120,5 +122,26 @@ describe('ScanTokensPanel', () => {
     expect(screen.getByRole('button', { name: 'Revoke Travel laptop' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Revoke Old workstation' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Revoke Retired laptop' })).not.toBeInTheDocument();
+  });
+
+  it('explains a disabled rollout while preserving token revocation', async () => {
+    apiMocks.listScanTokens.mockResolvedValue({
+      tokens: [activeToken],
+      csrf_token: 'csrf-value',
+      creation_enabled: false
+    });
+    apiMocks.revokeScanToken.mockResolvedValue({ status: 'revoked' });
+    render(ScanTokensPanel);
+
+    expect(
+      await screen.findByText(/Token creation is not enabled for this account/)
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Machine label')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Create token' })).toBeDisabled();
+    await fireEvent.click(screen.getByRole('button', { name: 'Revoke Work laptop' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke Work laptop' }));
+    await waitFor(() => {
+      expect(apiMocks.revokeScanToken).toHaveBeenCalledWith('token-active', 'csrf-value');
+    });
   });
 });

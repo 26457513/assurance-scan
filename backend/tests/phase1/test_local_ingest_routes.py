@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -71,8 +72,9 @@ async def harness() -> RouteHarness:
         local_ingest_enabled=True,
         google_client_id="client",
         google_client_secret="secret",
-        session_secret="session-secret",
+        session_secret="session-secret-at-least-32-bytes-long",
         public_base_url="https://scan.example.test",
+        local_ingest_repository_allowlist=frozenset(),
     )
     workflow = FakeWorkflow(commands=[])
     app.include_router(router, prefix="/api")
@@ -217,6 +219,78 @@ async def test_valid_upload_calls_narrow_workflow_with_validated_bundle(
     assert command.accepted_bytes > len(command.findings_bytes)
     assert command.payload_hash and len(command.payload_hash) == 64
     assert command.sarif_bytes is None and command.sbom_bytes is None
+
+
+async def test_upload_signal_reports_counts_without_secret_or_host_path(
+    harness: RouteHarness,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    canary = "AS_CANARY_SECRET_DO_NOT_PERSIST_signal"
+    host_path = "/Users/private-user/source/app.py"
+    findings = json.loads((FIXTURES / "valid" / "findings.json").read_text())
+    findings["findings"][0]["message"] = f"{canary} at {host_path}"
+    caplog.set_level(logging.INFO, logger="app.api.routes.local_ingest")
+
+    response = await _upload(
+        harness.client,
+        files=_valid_parts(findings=json.dumps(findings).encode()),
+    )
+
+    assert response.status_code == 201
+    signals = [
+        json.loads(record.message)
+        for record in caplog.records
+        if '"event":"local_ingest_request"' in record.message
+    ]
+    assert signals == [
+        {
+            "code": "scan_created",
+            "duration_ms": signals[0]["duration_ms"],
+            "event": "local_ingest_request",
+            "finding_count": 1,
+            "outcome": "created",
+            "project_id": 42,
+            "redaction_count": 2,
+            "replayed": False,
+            "scanner_count": 1,
+            "status_code": 201,
+            "wire_bytes": signals[0]["wire_bytes"],
+        }
+    ]
+    rendered = json.dumps(signals)
+    assert canary not in rendered
+    assert host_path not in rendered
+    assert "26457513/assurance-scan" not in rendered
+
+
+async def test_canary_allowlist_blocks_other_repositories_without_echoing_identity(
+    harness: RouteHarness,
+) -> None:
+    harness.app.state.settings.local_ingest_repository_allowlist = frozenset({"other/repository"})
+    response = await _upload(harness.client)
+    body = _assert_problem(response, status=403, code="repository_not_enabled")
+    assert "26457513/assurance-scan" not in response.text
+    assert body["retryable"] is False
+    assert harness.workflow.commands == []
+
+
+async def test_canary_allowlist_uses_effective_project_override(
+    harness: RouteHarness,
+) -> None:
+    harness.app.state.settings.local_ingest_repository_allowlist = frozenset(
+        {"26457513/assurance-scan"}
+    )
+    metadata = json.loads((FIXTURES / "valid" / "metadata.json").read_text())
+    metadata["repository"] = "developer/assurance-scan-fork"
+    metadata["project_override"] = "26457513/assurance-scan"
+
+    response = await _upload(
+        harness.client,
+        files=_valid_parts(metadata=json.dumps(metadata).encode()),
+    )
+
+    assert response.status_code == 201, response.text
+    assert harness.workflow.commands[0].metadata["repository"] == "developer/assurance-scan-fork"
 
 
 async def test_request_status_endpoint_is_owned_and_returns_durable_state(
@@ -382,7 +456,7 @@ async def test_outer_auth_middleware_allows_ingest_dependency_to_decide() -> Non
         local_ingest_enabled=True,
         google_client_id="client",
         google_client_secret="secret",
-        session_secret="session-secret",
+        session_secret="session-secret-at-least-32-bytes-long",
         public_base_url="https://scan.example.test",
     )
     app = create_app(settings)

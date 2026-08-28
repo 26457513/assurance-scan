@@ -18,41 +18,80 @@ on:
 
 permissions:
   contents: read
-  packages: write
+
+env:
+  IMAGE: ghcr.io/26457513/assurance-scan-app
+
+concurrency:
+  group: publish-app-image
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  build-candidate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
-        run: |
-          IMAGE=ghcr.io/26457513/assurance-scan-app
-          docker build -t "$IMAGE:latest" -t "$IMAGE:${GITHUB_SHA::12}" .
-          docker push "$IMAGE:latest"
-          docker push "$IMAGE:${GITHUB_SHA::12}"
-
-  deploy:
-    needs: publish
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to droplet
+      - name: Build, attest, and push immutable application candidate
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          sbom: true
+          provenance: mode=max
+      - uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+      - name: Keyless-sign the immutable application digest
         env:
-          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-        if: ${{ env.DEPLOY_KEY != '' }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
+      - name: Verify immutable digest, signature, SBOM, and provenance
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-          ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/id_ed25519 root@165.232.106.224 '
-            cd /root/assurance-scan &&
-            git pull --ff-only --quiet &&
-            docker image prune -af >/dev/null &&
-            docker builder prune -af >/dev/null &&
-            docker compose --profile public pull -q &&
-            docker compose --profile public up -d --remove-orphans
-          '
+          test "$(docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          cosign verify "$IMAGE@$DIGEST" \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-app-image.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          cosign verify-attestation --type spdxjson "$IMAGE@$DIGEST" \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-app-image.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          cosign verify-attestation --type slsaprovenance "$IMAGE@$DIGEST" \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-app-image.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Move candidate to the verified digest without rebuilding
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"
+          test "$(docker buildx imagetools inspect "$IMAGE:candidate" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+      - name: Record immutable application candidate
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            printf '### Application candidate\n\n'
+            printf -- '- Revision: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Immutable image: `%s@%s`\n' "$IMAGE" "$DIGEST"
+            printf -- '- Registry retrieval, signature, SBOM, provenance, and candidate equality: passed\n'
+            printf -- '- No production tag was changed and no deployment was performed.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
