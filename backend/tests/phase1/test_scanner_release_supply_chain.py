@@ -145,4 +145,5 @@ def test_ci_workflow_promotes_latest_only_after_verifying_the_digest() -> None:
 def test_vendored_ci_template_defaults_to_latest_and_documents_digest_pinning() -> None:
     source = CI_TEMPLATE.read_text()
     assert "ghcr.io/26457513/assurance-scan-ci:latest" in source
+    assert ":sha-<full-git-commit>" in source
     assert "@sha256:<digest>" in source

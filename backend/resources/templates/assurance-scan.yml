@@ -8,7 +8,8 @@
 # Manual-only variant: delete the pull_request and push triggers to scan
 # exclusively via the UI's "Scan now" button (zero minutes until clicked).
 # The default image tracks the latest fully verified CI release. Replace
-# `:latest` with `@sha256:<digest>` when an immutable scanner pin is required.
+# `:latest` with `:sha-<full-git-commit>` for a release revision or with
+# `@sha256:<digest>` for a content-addressed immutable pin.
 
 name: assurance-scan
 

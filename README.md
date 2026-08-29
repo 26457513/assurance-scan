@@ -150,8 +150,9 @@ public `ghcr.io/26457513/assurance-scan-ci:latest` image. No GHCR grant or
 secret is required.
 
 `latest` advances only after the image passes its release checks. Repositories
-that require an immutable scanner version can replace `:latest` with the
-qualified `@sha256:<digest>` shown in the release evidence.
+that require a fixed scanner version can replace `:latest` with
+`:sha-<full-git-commit>`, or use the qualified `@sha256:<digest>` shown in the
+release evidence for a content-addressed immutable pin.
 
 Each run produces a Step Summary (per-tool severity matrix, runtimes, deep
 link to the hosted UI) and an `assurance-scan-results` artifact (SARIF,
