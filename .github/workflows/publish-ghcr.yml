@@ -69,9 +69,9 @@ jobs:
             --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
           docker buildx imagetools inspect "$IMAGE@$DIGEST" \
-            --format '{{ json (index .SBOM "linux/amd64").SPDX }}' > sbom.json
+            --format '{{ json .SBOM.SPDX }}' > sbom.json
           docker buildx imagetools inspect "$IMAGE@$DIGEST" \
-            --format '{{ json (index .Provenance "linux/amd64").SLSA }}' > provenance.json
+            --format '{{ json .Provenance.SLSA }}' > provenance.json
           python - "$GITHUB_SHA" "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" <<'PY'
           import json
           import sys
