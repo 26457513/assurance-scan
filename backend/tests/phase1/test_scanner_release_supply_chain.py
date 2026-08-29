@@ -119,6 +119,18 @@ def test_app_workflow_publishes_a_verified_candidate_without_deploying() -> None
     assert "sbom: true" in source
     assert "provenance: mode=max" in source
     assert "cosign sign --yes" in source
+    assert "cosign verify-attestation" not in source
+    assert "manifest.json" in source
+    assert "exactly one linux/amd64 manifest" in source
+    assert "{{ json .SBOM.SPDX }}" in source
+    assert "{{ json .Provenance.SLSA }}" in source
+    assert 'request_args.get("build-arg:REVISION") == expected_sha' in source
+    assert 'request_args.get("build-arg:VERSION") == f"sha-{expected_sha}"' in source
+    assert "builder == expected_builder" in source
+    assert '"$IMAGE@$platform_digest" --help' in source
+    verification = source.index("Verify immutable digest, signature, SBOM, and provenance")
+    promotion = source.index("Move candidate to the verified digest without rebuilding")
+    assert verification < promotion
     assert 'imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"' in source
     assert ":latest" not in source
     assert "ssh " not in source

@@ -40,6 +40,8 @@ RUN python3 -m venv /opt/venv \
 FROM docker:29-cli
 
 ARG COMPOSE_VERSION=v5.4.0
+ARG VERSION=dev
+ARG REVISION=unknown
 
 # Compose as a CLI plugin from the upstream release. Avoids the Alpine
 # docker-cli-compose apk which drags in an older apk-packaged docker-cli
@@ -72,7 +74,9 @@ LABEL org.opencontainers.image.source="https://github.com/jondowson/assurance-sc
       org.opencontainers.image.url="https://github.com/jondowson/assurance-scan" \
       org.opencontainers.image.documentation="https://github.com/jondowson/assurance-scan/blob/main/docs/mcp-stack-plan.md" \
       org.opencontainers.image.title="assurance-scan" \
-      org.opencontainers.image.description="Single-user, locally-running assurance service exposing scans via REST + MCP and a SvelteKit UI."
+      org.opencontainers.image.description="Single-user, locally-running assurance service exposing scans via REST + MCP and a SvelteKit UI." \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
 
 # Built frontend
 COPY --from=frontend /app/build /opt/assurance-scan/backend/app/static
