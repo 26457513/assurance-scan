@@ -173,8 +173,10 @@ jobs:
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          docker run --rm --platform linux/amd64 "$IMAGE@$DIGEST" --version
-          docker run --rm --platform linux/arm64 "$IMAGE@$DIGEST" --version
+          for platform in linux/amd64 linux/arm64; do
+            platform_digest=$(python -c 'import json, sys; data=json.load(open("manifest.json")); os_name, architecture=sys.argv[1].split("/"); print(next(item["digest"] for item in data["manifests"] if item.get("platform", {}).get("os") == os_name and item.get("platform", {}).get("architecture") == architecture))' "$platform")
+            test "$(docker run --rm --platform "$platform" "$IMAGE@$platform_digest" --version)" = "assurance-scan $GITHUB_REF_NAME"
+          done
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
