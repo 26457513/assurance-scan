@@ -110,25 +110,39 @@ def test_release_workflow_builds_then_promotes_the_same_signed_digest() -> None:
     assert action_refs and all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
 
 
-def test_app_and_ci_workflows_publish_verified_candidates_without_deploying() -> None:
-    for workflow_path in (APP_WORKFLOW, CI_WORKFLOW):
-        source = workflow_path.read_text()
-        assert "tags: ${{ env.IMAGE }}:sha-${{ github.sha }}" in source
-        assert "sbom: true" in source
-        assert "provenance: mode=max" in source
-        assert "cosign sign --yes" in source
-        assert 'imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"' in source
-        assert ":latest" not in source
-        assert "ssh " not in source
-        assert "deploy" not in yaml.safe_load(source)["jobs"]
-        action_refs = re.findall(r"uses:\s+[^@\s]+@([^\s#]+)", source)
-        assert action_refs and all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
+def test_app_workflow_publishes_a_verified_candidate_without_deploying() -> None:
+    source = APP_WORKFLOW.read_text()
+    assert "tags: ${{ env.IMAGE }}:sha-${{ github.sha }}" in source
+    assert "sbom: true" in source
+    assert "provenance: mode=max" in source
+    assert "cosign sign --yes" in source
+    assert 'imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"' in source
+    assert ":latest" not in source
+    assert "ssh " not in source
+    assert "deploy" not in yaml.safe_load(source)["jobs"]
+    action_refs = re.findall(r"uses:\s+[^@\s]+@([^\s#]+)", source)
+    assert action_refs and all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
 
 
-def test_vendored_ci_template_uses_an_immutable_scanner_digest() -> None:
+def test_ci_workflow_promotes_latest_only_after_verifying_the_digest() -> None:
+    source = CI_WORKFLOW.read_text()
+    assert "tags: ${{ env.IMAGE }}:sha-${{ github.sha }}" in source
+    assert "sbom: true" in source
+    assert "provenance: mode=max" in source
+    assert "cosign sign --yes" in source
+    verification = source.index("Verify anonymous pull, signature, SBOM, and provenance")
+    promotion = source.index("Move candidate and latest to the verified digest without rebuilding")
+    assert verification < promotion
+    assert 'imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"' in source
+    assert 'imagetools create --tag "$IMAGE:latest" "$IMAGE@$DIGEST"' in source
+    assert "docker/build-push-action" not in source[promotion:]
+    assert "ssh " not in source
+    assert "deploy" not in yaml.safe_load(source)["jobs"]
+    action_refs = re.findall(r"uses:\s+[^@\s]+@([^\s#]+)", source)
+    assert action_refs and all(re.fullmatch(r"[0-9a-f]{40}", ref) for ref in action_refs)
+
+
+def test_vendored_ci_template_defaults_to_latest_and_documents_digest_pinning() -> None:
     source = CI_TEMPLATE.read_text()
-    assert re.search(
-        r"ghcr\.io/26457513/assurance-scan-ci@sha256:[0-9a-f]{64}",
-        source,
-    )
-    assert "assurance-scan-ci:latest" not in source
+    assert "ghcr.io/26457513/assurance-scan-ci:latest" in source
+    assert "@sha256:<digest>" in source

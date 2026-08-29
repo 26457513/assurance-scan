@@ -7,6 +7,8 @@
 #
 # Manual-only variant: delete the pull_request and push triggers to scan
 # exclusively via the UI's "Scan now" button (zero minutes until clicked).
+# The default image tracks the latest fully verified CI release. Replace
+# `:latest` with `@sha256:<digest>` when an immutable scanner pin is required.
 
 name: assurance-scan
 
@@ -50,7 +52,7 @@ jobs:
             -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_RUN_ID \
             -e GITHUB_REF_NAME -e GITHUB_SHA \
             -e ASSURANCE_SCAN_URL=https://scan.squease.ai \
-            ghcr.io/26457513/assurance-scan-ci@sha256:f43efcff106ad6a16ed23f151e33ee32b09fbd695a78ad2d7156b9be29d062f4 \
+            ghcr.io/26457513/assurance-scan-ci:latest \
             "$PWD" --sarif "$PWD/assurance.sarif" --image assurance-scan-target:ci
           cat "$PWD/summary.md" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5

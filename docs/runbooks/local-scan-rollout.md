@@ -59,13 +59,14 @@ or paths. Publish only a sanitized evidence comment for workflow inputs.
    immutable `sha-<full revision>` candidates. Each must attach SBOM and SLSA
    provenance and keyless-sign the digest. The private app candidate must be
    verified with registry authentication; the public CI candidate must also be
-   anonymously retrievable. Only the mutable `candidate` tag moves to the
-   verified digest. Neither workflow changes `latest`, deploys, or promotes a
-   production tag.
+   anonymously retrievable. The CI workflow moves both `candidate` and the
+   user-facing `latest` tag to the verified digest without rebuilding. The app
+   workflow changes only `candidate`; neither workflow deploys the application.
 3. Record each workflow URL, full source revision, and immutable app/CI digest.
    Verify the chosen revisions contain the intended matching scanner release
-   set and API contract. A mutable `candidate` tag is discovery metadata only;
-   never put it in the rollout record or deployment configuration.
+   set and API contract. Mutable `candidate` and `latest` tags are discovery
+   and convenience metadata only; use the digest in rollout records and pinned
+   repository workflows.
 4. Push one canonical CLI tag such as `v1.2.3`. Do not reuse or move a release
    tag. The `publish-cli-image` tag workflow must:
    - build `linux/amd64` and `linux/arm64` once;

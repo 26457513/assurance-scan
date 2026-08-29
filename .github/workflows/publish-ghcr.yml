@@ -46,6 +46,9 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          build-args: |
+            VERSION=sha-${{ github.sha }}
+            REVISION=${{ github.sha }}
           sbom: true
           provenance: mode=max
       - uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
@@ -60,34 +63,58 @@ jobs:
           docker logout ghcr.io
           test "$(docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" --format '{{.Manifest.Digest}}')" = "$DIGEST"
           test "$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{json .Manifest}}' > manifest.json
+          python -c 'import json; data=json.load(open("manifest.json")); matches=[item for item in data.get("manifests", []) if item.get("platform", {}).get("os") == "linux" and item.get("platform", {}).get("architecture") == "amd64"]; assert len(matches) == 1, "release must contain exactly one linux/amd64 manifest"; print(matches[0]["digest"])' > platform-digest.txt
           cosign verify "$IMAGE@$DIGEST" \
             --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
-          cosign verify-attestation --type spdxjson "$IMAGE@$DIGEST" \
-            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com
-          cosign verify-attestation --type slsaprovenance "$IMAGE@$DIGEST" \
-            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
-            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          docker buildx imagetools inspect "$IMAGE@$DIGEST" \
+            --format '{{ json (index .SBOM "linux/amd64").SPDX }}' > sbom.json
+          docker buildx imagetools inspect "$IMAGE@$DIGEST" \
+            --format '{{ json (index .Provenance "linux/amd64").SLSA }}' > provenance.json
+          python - "$GITHUB_SHA" "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" <<'PY'
+          import json
+          import sys
+
+          expected_sha, expected_builder = sys.argv[1:]
+          with open("sbom.json", encoding="utf-8") as stream:
+              sbom = json.load(stream)
+          assert sbom.get("SPDXID") == "SPDXRef-DOCUMENT", "invalid SPDX SBOM"
+          assert sbom.get("packages"), "SPDX SBOM contains no packages"
+
+          with open("provenance.json", encoding="utf-8") as stream:
+              provenance = json.load(stream)
+          definition = provenance.get("buildDefinition", {})
+          request_args = definition.get("externalParameters", {}).get("request", {}).get("args", {})
+          builder = provenance.get("runDetails", {}).get("builder", {}).get("id")
+          assert definition.get("buildType"), "SLSA provenance has no build type"
+          assert request_args.get("build-arg:REVISION") == expected_sha, "provenance revision mismatch"
+          assert request_args.get("build-arg:VERSION") == f"sha-{expected_sha}", "provenance version mismatch"
+          assert builder == expected_builder, "provenance builder mismatch"
+          PY
+          platform_digest=$(cat platform-digest.txt)
+          docker run --rm --platform linux/amd64 "$IMAGE@$platform_digest" --help | grep -q 'Run the assurance-scan CI scanner subset'
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Move candidate to the verified digest without rebuilding
+      - name: Move candidate and latest to the verified digest without rebuilding
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           docker buildx imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"
+          docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
           test "$(docker buildx imagetools inspect "$IMAGE:candidate" --format '{{.Manifest.Digest}}')" = "$DIGEST"
-      - name: Record immutable CI candidate
+          test "$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+      - name: Record verified CI release
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           {
-            printf '### CI candidate\n\n'
+            printf '### CI release\n\n'
             printf -- '- Revision: `%s`\n' "$GITHUB_SHA"
             printf -- '- Immutable image: `%s@%s`\n' "$IMAGE" "$DIGEST"
-            printf -- '- Public pull, signature, SBOM, provenance, and candidate equality: passed\n'
-            printf -- '- No stable or latest tag was changed.\n'
+            printf -- '- Public pull, signature, SBOM, provenance, runtime smoke, and tag equality: passed\n'
+            printf -- '- `candidate` and `latest` now refer to this exact verified digest.\n'
           } >> "$GITHUB_STEP_SUMMARY"

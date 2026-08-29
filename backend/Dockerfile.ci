@@ -2,6 +2,15 @@
 # stock public images via the docker socket (option A — see docs/).
 FROM python:3.12-slim
 
+ARG VERSION=development
+ARG REVISION=unknown
+
+LABEL org.opencontainers.image.title="Assurance Scan CI" \
+      org.opencontainers.image.description="Container-based GitHub Actions security scanner" \
+      org.opencontainers.image.source="https://github.com/26457513/assurance-scan" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.revision="$REVISION"
+
 # The runner drives sibling scanner containers via the docker CLI over the
 # mounted socket; python-slim has no docker binary.
 COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker

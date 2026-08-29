@@ -143,29 +143,15 @@ off-box.
 
 ## Adding CI scanning to a repo
 
-Add `.github/workflows/assurance-scan.yml` to the repo — the same stub for
-every org, home or external (the referenced repo and image are public):
+Add the self-contained `backend/resources/templates/assurance-scan.yml` as
+`.github/workflows/assurance-scan.yml` in the repository. The same workflow
+scans pull requests and the configured default branch and directly pulls the
+public `ghcr.io/26457513/assurance-scan-ci:latest` image. No GHCR grant or
+secret is required.
 
-```yaml
-name: assurance-scan
-on:
-  workflow_dispatch:
-  pull_request:
-    types: [opened, synchronize]
-  push:
-    branches: [<default branch>]
-permissions:
-  contents: read
-  actions: write
-  pull-requests: write
-jobs:
-  scan:
-    uses: 26457513/assurance-scan-ci/.github/workflows/scan.yml@main
-```
-
-Orgs whose Actions policy blocks external references use the self-contained
-copy at `github.com/26457513/assurance-scan-ci` → `templates/assurance-scan.yml`.
-No GHCR grants or secrets are needed — the scanner image is public.
+`latest` advances only after the image passes its release checks. Repositories
+that require an immutable scanner version can replace `:latest` with the
+qualified `@sha256:<digest>` shown in the release evidence.
 
 Each run produces a Step Summary (per-tool severity matrix, runtimes, deep
 link to the hosted UI) and an `assurance-scan-results` artifact (SARIF,
