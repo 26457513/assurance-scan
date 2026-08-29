@@ -4,7 +4,11 @@
   import FindingsTable from './FindingsTable.svelte';
   import ScanOriginBadge from './ScanOriginBadge.svelte';
   import type { ScanStatus, FindingsListResponse, ScanSummary } from '$lib/types';
-  import { SCANNER_DESCRIPTIONS } from '$lib/scannerDescriptions';
+  import {
+    SCANNER_DESCRIPTIONS,
+    scannerCategory,
+    summarizeScannerStatuses,
+  } from '$lib/scannerDescriptions';
 
   export let scan: ScanSummary;
   export let repo: string | null = null;
@@ -95,13 +99,7 @@
           ? 'var(--accent)'
           : 'var(--state-untested)';
 
-  function scanLevel(scanner: string): 'code' | 'image' {
-    if (['syft', 'grype', 'trivy-fs'].includes(scanner)) return 'image';
-    return 'code';
-  }
-
-  $: codeScanners = detail?.scanner_status.filter((s) => scanLevel(s.kind) === 'code') ?? [];
-  $: imageScanners = detail?.scanner_status.filter((s) => scanLevel(s.kind) === 'image') ?? [];
+  $: scannerSummary = summarizeScannerStatuses(detail?.scanner_status ?? []);
   let scannersExpanded = false;
 </script>
 
@@ -131,7 +129,7 @@
         </div>
         <button
           type="button"
-          class="w-full px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-left hover:bg-surface-elevated transition-colors"
+          class="w-full min-w-0 px-3 py-2 grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 text-left hover:bg-surface-elevated transition-colors"
           on:click={() => (scannersExpanded = !scannersExpanded)}
           aria-expanded={scannersExpanded}
         >
@@ -139,25 +137,26 @@
           <svg class="h-3 w-3 text-ink-muted transition-transform duration-150 {scannersExpanded ? '' : '-rotate-90'}" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M3 4.5l3 3 3-3" stroke-linecap="round" />
           </svg>
-          {#each codeScanners as s (s.kind)}
-            <span
-              class="truncate"
-              style="color: {scannerColor(s.status)}"
-              title={s.error_message ?? s.status}
-            >{s.status === 'completed' ? '✓' : s.status === 'failed' ? '✗' : s.status === 'running' ? '▸' : '·'} {s.kind}</span>
-          {/each}
-          {#if codeScanners.length > 0 && imageScanners.length > 0}
-            <span class="text-ink-muted">|</span>
-          {/if}
-          {#each imageScanners as s (s.kind)}
-            <span
-              class="truncate"
-              style="color: {scannerColor(s.status)}"
-              title={s.error_message ?? s.status}
-            >{s.status === 'completed' ? '✓' : s.status === 'failed' ? '✗' : s.status === 'running' ? '▸' : '·'} {s.kind}</span>
-          {/each}
-          {#if codeScanners.length === 0 && imageScanners.length === 0}
-            <span class="text-ink-muted">no scanners yet</span>
+          <span class="min-w-0 flex items-center gap-4 overflow-hidden whitespace-nowrap">
+            {#if scannerSummary.total === 0}
+              <span class="text-ink-muted">no scanners yet</span>
+            {:else}
+              <span style="color: var(--state-passed)">✓ {scannerSummary.completed} complete</span>
+              {#if scannerSummary.failed > 0}
+                <span style="color: var(--state-failed)">✕ {scannerSummary.failed} failed</span>
+              {/if}
+              {#if scannerSummary.running > 0}
+                <span style="color: var(--accent)">▸ {scannerSummary.running} running</span>
+              {/if}
+              {#if scannerSummary.pending > 0}
+                <span class="text-ink-muted">· {scannerSummary.pending} pending</span>
+              {/if}
+            {/if}
+          </span>
+          {#if scannerSummary.artifactTotal > 0}
+            <span class="whitespace-nowrap border-l border-line-hairline pl-3 text-ink-muted">
+              {scannerSummary.artifactCompleted}/{scannerSummary.artifactTotal} artifacts
+            </span>
           {/if}
         </button>
         {#if scannersExpanded && detail}
@@ -166,7 +165,7 @@
             <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_70px_90px] gap-3 px-3 py-1.5 bg-surface-inset text-[10px] uppercase tracking-[0.14em] text-ink-muted items-center">
               <div>Scanner</div>
               <div>Description</div>
-              <div>Level</div>
+              <div>Type</div>
               <div class="text-right">s</div>
               <div class="text-right">Status</div>
             </div>
@@ -176,8 +175,8 @@
                 title={s.error_message ?? ''}
               >
                 <span class="text-ink-primary truncate">{s.kind}</span>
-                <span class="text-ink-muted truncate">{SCANNER_DESCRIPTIONS[s.kind] ?? '·'}</span>
-                <span class="text-ink-muted">{scanLevel(s.kind)}</span>
+                <span class="text-ink-muted truncate" title={SCANNER_DESCRIPTIONS[s.kind] ?? ''}>{SCANNER_DESCRIPTIONS[s.kind] ?? '·'}</span>
+                <span class="text-ink-muted">{scannerCategory(s.kind)}</span>
                 <span class="text-right text-ink-muted tabular-nums">{s.duration_seconds ?? '·'}</span>
                 <span class="text-right" style="color: {scannerColor(s.status)}">{s.status}</span>
               </div>
