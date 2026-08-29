@@ -22,6 +22,7 @@ from app.modules.atomic.scanning.result_builder import (
     SCANNER_DESCRIPTIONS,
     build_sarif,
     ci_payload,
+    github_branch,
     github_run_url,
     summary_markdown,
 )
@@ -51,7 +52,7 @@ def main() -> int:
         repo=repo,
         run_url=github_run_url(),
         github_run_id=os.environ.get("GITHUB_RUN_ID"),
-        branch=os.environ.get("GITHUB_REF_NAME"),
+        branch=github_branch(),
         commit=os.environ.get("GITHUB_SHA"),
     )
     sarif_path.with_name("findings.json").write_text(json.dumps(payload, indent=2))

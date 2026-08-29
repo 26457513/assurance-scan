@@ -5,7 +5,7 @@ import hashlib
 import os
 import urllib.parse
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .models import Finding
@@ -206,6 +206,12 @@ def github_run_url() -> str | None:
     if server and repo and run_id:
         return f"{server}/{repo}/actions/runs/{run_id}"
     return None
+
+
+def github_branch(environ: Mapping[str, str] | None = None) -> str | None:
+    """Return the source branch for PRs and the ref branch for other runs."""
+    values = os.environ if environ is None else environ
+    return values.get("GITHUB_HEAD_REF") or values.get("GITHUB_REF_NAME")
 
 
 def ci_payload(

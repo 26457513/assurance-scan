@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.modules.atomic.scanning.finding_parser import ParsedFinding
-from app.modules.atomic.scanning.result_builder import build_sarif, fingerprint
+from app.modules.atomic.scanning.result_builder import build_sarif, fingerprint, github_branch
 
 
 def _finding(**overrides) -> ParsedFinding:
@@ -64,6 +64,13 @@ def test_findings_without_location_omit_locations() -> None:
     result = doc["runs"][0]["results"][0]
     assert "locations" not in result
     assert result["partialFingerprints"]["primaryLocationLineHash"] == fingerprint("rule-a", None, None)
+
+
+def test_github_branch_prefers_the_pull_request_source_branch() -> None:
+    assert github_branch({"GITHUB_HEAD_REF": "feature/local-scans", "GITHUB_REF_NAME": "42/merge"}) == (
+        "feature/local-scans"
+    )
+    assert github_branch({"GITHUB_HEAD_REF": "", "GITHUB_REF_NAME": "main"}) == "main"
 
 
 def test_summary_matrix_and_run_link(monkeypatch) -> None:

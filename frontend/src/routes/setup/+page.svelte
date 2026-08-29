@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
+  import CiWorkflowSetupPanel from '$lib/components/CiWorkflowSetupPanel.svelte';
   import GuideSteps from '$lib/components/GuideSteps.svelte';
   import LocalScanSetupPanel from '$lib/components/LocalScanSetupPanel.svelte';
   import CopyButton from '$lib/components/CopyButton.svelte';
@@ -103,7 +104,7 @@
   const PIPELINE_STEPS = [
     {
       title: 'A repo adopts the workflow',
-      detail: 'The 6-line stub (from the public <code>assurance-scan-ci</code> repo) goes into <code>.github/workflows/</code> on the default branch. Every push and PR then scans automatically — on that repo’s own GitHub compute.'
+      detail: 'Copy the complete workflow from <em>My account</em> into <code>.github/workflows/assurance-scan.yml</code> on the default branch. Pull requests and the default branch then scan on that repo’s own GitHub compute.'
     },
     {
       title: 'The workflow runs the scanners',
@@ -500,6 +501,7 @@
       </div>
     {/if}
 
+    <CiWorkflowSetupPanel />
     <ScanTokensPanel />
     <LocalScanSetupPanel />
 
