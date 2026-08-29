@@ -13,6 +13,8 @@ def build_docker_argv(project_path: str, scanner: ScannerConfig) -> list[str]:
         "-v", f"{project_path}:{PROJECT_MOUNT_TARGET}:ro",
         "-w", scanner.working_dir,
     ]
+    if scanner.requires_stdin:
+        argv.append("--interactive")
     for key, value in scanner.env.items():
         argv.extend(["-e", f"{key}={value}"])
     for source, target in scanner.extra_mounts.items():

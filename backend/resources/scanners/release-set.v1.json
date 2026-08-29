@@ -15,7 +15,7 @@
   },
   "semgrep_policy": {
     "path": "backend/resources/scanners/semgrep-reviewed.yml",
-    "container_path": "-",
+    "container_path": "/tmp/assurance-scan-semgrep-policy.yml",
     "sha256": "4d564385eae92a019c06b08d4838239908bb96fb13a0e6e543e618742068a126"
   },
   "scanners": [

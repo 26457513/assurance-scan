@@ -71,7 +71,7 @@ class DockerLocalScannerRunner:
                         timeout_seconds=scanner.timeout_seconds,
                         stdout_limit=self.limits.stdout_bytes,
                         stderr_limit=self.limits.stderr_bytes,
-                        stdin_payload=policy_payload if scanner.kind == "semgrep" else None,
+                        stdin_payload=policy_payload if scanner.requires_stdin else None,
                     )
                     if returncode not in scanner.success_exit_codes:
                         error_code = "scanner_exit_nonzero"

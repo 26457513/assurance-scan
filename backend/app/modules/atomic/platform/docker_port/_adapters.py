@@ -45,11 +45,11 @@ class DockerRunner:
 
         proc = await asyncio.create_subprocess_exec(
             *argv,
-            stdin=asyncio.subprocess.PIPE if scanner.kind == "semgrep" else asyncio.subprocess.DEVNULL,
+            stdin=asyncio.subprocess.PIPE if scanner.requires_stdin else asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        policy = _reviewed_policy() if scanner.kind == "semgrep" else None
+        policy = _reviewed_policy() if scanner.requires_stdin else None
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(policy), timeout=timeout)
         except asyncio.TimeoutError:

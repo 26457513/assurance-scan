@@ -17,6 +17,7 @@ class ScannerConfig:
     extra_mounts: dict[str, str] = field(default_factory=dict)
     working_dir: str = "/src"
     env: dict[str, str] = field(default_factory=dict)
+    requires_stdin: bool = False
     produces_findings: bool = True
     group: str = "code"
     tool_version: str = ""

@@ -41,6 +41,8 @@ def build_local_scanner_argv(
         "--memory", f"{scanner.memory_mib}m",
         "--cpus", str(scanner.cpus),
     ]
+    if scanner.requires_stdin:
+        argv.append("--interactive")
     if scanner.read_only:
         argv.append("--read-only")
     if scanner.network == "none":

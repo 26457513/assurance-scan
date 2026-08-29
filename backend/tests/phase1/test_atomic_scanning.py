@@ -2,10 +2,16 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
-from app.modules.atomic.platform.docker_port import build_docker_argv, named_volumes
-from app.modules.atomic.scanning.scanner_catalog import GRYPE, ScannerConfig, TRIVY_IMAGE
+from app.modules.atomic.platform.docker_port import (
+    ScannerResult,
+    build_docker_argv,
+    named_volumes,
+    scanner_failure_detail,
+)
+from app.modules.atomic.scanning.scanner_catalog import GRYPE, SEMGREP, ScannerConfig, TRIVY_IMAGE
 from app.modules.atomic.scanning.result_builder import build_sarif
 from app.modules.workflows.github_scan_execution import run_scanners
 from app.modules.atomic.scanning.finding_parser import ParsedFinding
@@ -48,6 +54,43 @@ def test_atomic_result_builder_renders_normalized_findings() -> None:
 
     sarif = build_sarif([finding])
     assert sarif["runs"][0]["results"][0]["ruleId"] == "semgrep/python.lang.correctness"
+
+
+def test_semgrep_materializes_the_reviewed_stdin_policy_before_scanning() -> None:
+    command = " ".join(SEMGREP.command)
+
+    assert SEMGREP.requires_stdin
+    assert SEMGREP.command[:3] == ("sh", "-eu", "-c")
+    assert 'cat > "$policy_path"' in command
+    assert 'semgrep scan --config "$policy_path"' in command
+    assert "/tmp/assurance-scan-semgrep-policy.yml" in command
+    assert "--interactive" in build_docker_argv("/repo", SEMGREP)
+
+
+def test_failed_sarif_scanner_prefers_structured_error_over_docker_stderr() -> None:
+    stdout = json.dumps({
+        "runs": [{
+            "invocations": [{
+                "toolExecutionNotifications": [{
+                    "level": "error",
+                    "message": {"text": "invalid configuration\nfile"},
+                }],
+            }],
+        }],
+    }).encode()
+    result = ScannerResult(
+        returncode=7,
+        stdout=stdout,
+        stderr=b"Pulling layer\nPull complete",
+    )
+
+    assert scanner_failure_detail(result) == "invalid configuration file"
+
+
+def test_failed_non_sarif_scanner_uses_bounded_stderr_tail() -> None:
+    result = ScannerResult(returncode=2, stdout=b"", stderr=b"pull noise: actual failure")
+
+    assert scanner_failure_detail(result, limit=14) == "…ctual failure"
 
 
 def test_ci_script_delegates_scanner_execution_to_workflow() -> None:

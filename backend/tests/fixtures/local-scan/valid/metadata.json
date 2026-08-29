@@ -15,7 +15,7 @@
   "cli_image_digest": "ghcr.io/26457513/assurance-scan-cli@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "project_override": null,
   "scanner_manifest_version": 1,
-  "scanner_manifest_digest": "ac50f031ad791f87fb6c278de073b3743a04cfa0192fc3697097ea235823b6b2",
+  "scanner_manifest_digest": "9383cc0576dbcd4be451fa976f80e84b0e234ec835bb9e0cd0e3a917aec48f26",
   "scanner_image_digests": {
     "semgrep": "semgrep/semgrep@sha256:f1f7b71861c7b28b6e0f661225a2c4f58a484f5d0f182465c6d6b3b22f972ade",
     "gitleaks": "zricethezav/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f"

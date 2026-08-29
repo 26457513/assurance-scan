@@ -87,9 +87,16 @@ SCANNER_RELEASE_SET = ScannerReleaseSet(
 
 SEMGREP = _config(
     "semgrep",
-    ("semgrep", "scan", "--config", SCANNER_RELEASE_SET.semgrep_policy_container_path,
-     "--timeout", "30", "--sarif", "--quiet", PROJECT_MOUNT_TARGET),
+    (
+        "sh", "-eu", "-c",
+        "umask 077; "
+        f"policy_path={SCANNER_RELEASE_SET.semgrep_policy_container_path}; "
+        'cat > "$policy_path"; '
+        'exec semgrep scan --config "$policy_path" '
+        f"--timeout 30 --sarif --quiet {PROJECT_MOUNT_TARGET}",
+    ),
     "sarif",
+    requires_stdin=True,
 )
 GITLEAKS = _config(
     "gitleaks",

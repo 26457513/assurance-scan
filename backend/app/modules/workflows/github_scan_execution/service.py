@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from app.modules.atomic.platform.docker_port import DockerRunner
+from app.modules.atomic.platform.docker_port import DockerRunner, scanner_failure_detail
 from app.modules.atomic.scanning.finding_parser import ParsedFinding, parser_for
 from app.modules.atomic.scanning.scanner_catalog import ScannerConfig, ci_scanner_set
 from app.modules.atomic.scanning.tribal_checks import TRIBAL_FILENAME, load_checks, run_checks
@@ -78,9 +78,9 @@ async def _run_one(
         print(f"[{scanner.kind}] ERROR {exc}", file=sys.stderr)
         return
     if result.returncode not in scanner.success_exit_codes:
-        err = result.stderr.decode("utf-8", "replace")[:300]
-        status[scanner.kind] = f"exit={result.returncode}"
-        print(f"[{scanner.kind}] FAILED exit={result.returncode}: {err}", file=sys.stderr)
+        detail = scanner_failure_detail(result)
+        status[scanner.kind] = f"exit={result.returncode}: {detail}"
+        print(f"[{scanner.kind}] FAILED exit={result.returncode}: {detail}", file=sys.stderr)
         return
     if scanner.output_kind == "cyclonedx-json" and sbom_path is not None:
         sbom_path.write_bytes(result.stdout)

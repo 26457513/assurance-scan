@@ -56,7 +56,10 @@ def test_manifest_and_reviewed_semgrep_policy_are_content_addressed() -> None:
     assert hashlib.sha256(policy_bytes).hexdigest() == SCANNER_RELEASE_SET.semgrep_policy_sha256
     assert yaml.safe_load(policy_bytes)["rules"]
     assert "auto" not in SEMGREP.command
-    assert SCANNER_RELEASE_SET.semgrep_policy_container_path in SEMGREP.command
+    assert any(
+        SCANNER_RELEASE_SET.semgrep_policy_container_path in argument
+        for argument in SEMGREP.command
+    )
 
 
 def test_release_manifest_locks_public_promotion_and_attestation_semantics() -> None:

@@ -37,6 +37,7 @@ def test_scanner_command_is_request_scoped_pinned_and_hardened() -> None:
         argv.index("--security-opt") : argv.index("--security-opt") + 2
     ]
     assert "ALL" in argv and "@sha256:" in SEMGREP.image
+    assert "--interactive" in argv
     assert f"dev.assurance-scan.request-id={REQUEST_ID}" in argv
     assert not any("compose.project" in item for item in argv)
     assert not any("docker.sock" in item for item in argv)

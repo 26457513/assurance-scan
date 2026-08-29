@@ -94,6 +94,17 @@ jobs:
           PY
           platform_digest=$(cat platform-digest.txt)
           docker run --rm --platform linux/amd64 "$IMAGE@$platform_digest" --help | grep -q 'Run the assurance-scan CI scanner subset'
+          docker run --rm --interactive --platform linux/amd64 --entrypoint python3 \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:$PWD" -w "$PWD" \
+            "$IMAGE@$platform_digest" - <<'PY'
+          import asyncio
+          from app.modules.atomic.platform.docker_port import DockerRunner
+          from app.modules.atomic.scanning.scanner_catalog import SEMGREP
+
+          result = asyncio.run(DockerRunner(".").run(SEMGREP, timeout=300))
+          assert result.returncode == 0, (result.stdout + result.stderr).decode("utf-8", "replace")[-2000:]
+          PY
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
