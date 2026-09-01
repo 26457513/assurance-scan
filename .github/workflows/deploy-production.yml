@@ -57,21 +57,26 @@ jobs:
       - name: Stop writers, preflight, and create verified backup
         env:
           REVISION: ${{ steps.release.outputs.revision }}
+          ROLLOUT_ID: ${{ github.run_id }}
         run: |
-          ssh "$DEPLOY_HOST" bash -s -- "$REVISION" <<'REMOTE'
+          ssh "$DEPLOY_HOST" bash -s -- "$REVISION" "$ROLLOUT_ID" <<'REMOTE'
           set -Eeuo pipefail
           set +x
           umask 077
 
           revision="$1"
+          rollout_id="$2"
           case "$revision" in
             *[!0-9a-f]*|'') exit 2 ;;
           esac
           test "${#revision}" -eq 40
+          case "$rollout_id" in
+            *[!0-9]*|'') exit 2 ;;
+          esac
 
           repository=/root/assurance-scan
           candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
-          evidence_dir="/root/assurance-scan-backups/cutover-$revision"
+          evidence_dir="/root/assurance-scan-backups/cutover-$revision-$rollout_id"
           cutover_tool=/opt/assurance-scan/backend/scripts/local-cutover.py
           server_stopped=0
 
@@ -109,6 +114,12 @@ jobs:
           server_stopped=1
           test -z "$(docker compose ps --status running -q server)"
 
+          docker run --rm \
+            -v "$data_volume:/data" \
+            --entrypoint /opt/venv/bin/python "$candidate_ref" \
+            -c 'import json, sqlite3; connection = sqlite3.connect("/data/db.sqlite"); result = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone(); connection.close(); assert result and result[0] == 0, result; print(json.dumps({"busy": result[0], "log_frames": result[1], "checkpointed_frames": result[2]}))' \
+            > "$evidence_dir/wal-checkpoint.json"
+
           docker run --rm --read-only \
             -v "$data_volume:/data:ro" \
             -v "$evidence_dir:/evidence" \
@@ -142,14 +153,15 @@ jobs:
       - name: Copy verified backup to the private runner
         env:
           REVISION: ${{ steps.release.outputs.revision }}
+          ROLLOUT_ID: ${{ github.run_id }}
         run: |
           install -d -m 700 "$RUNNER_TEMP/production-backup"
-          scp -r "$DEPLOY_HOST:/root/assurance-scan-backups/cutover-$REVISION/." \
+          scp -r "$DEPLOY_HOST:/root/assurance-scan-backups/cutover-$REVISION-$ROLLOUT_ID/." \
             "$RUNNER_TEMP/production-backup/"
       - name: Preserve encrypted-at-rest off-host backup
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
-          name: production-backup-${{ steps.release.outputs.revision }}
+          name: production-backup-${{ steps.release.outputs.revision }}-${{ github.run_id }}
           path: ${{ runner.temp }}/production-backup
           if-no-files-found: error
           retention-days: 30
@@ -176,15 +188,17 @@ jobs:
       - name: Migrate and deploy the immutable application image
         env:
           REVISION: ${{ needs.prepare-backup.outputs.revision }}
+          ROLLOUT_ID: ${{ github.run_id }}
         run: |
-          ssh "$DEPLOY_HOST" bash -s -- "$REVISION" <<'REMOTE'
+          ssh "$DEPLOY_HOST" bash -s -- "$REVISION" "$ROLLOUT_ID" <<'REMOTE'
           set -Eeuo pipefail
           set +x
 
           revision="$1"
+          rollout_id="$2"
           repository=/root/assurance-scan
           candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
-          evidence_dir="/root/assurance-scan-backups/cutover-$revision"
+          evidence_dir="/root/assurance-scan-backups/cutover-$revision-$rollout_id"
 
           cd "$repository"
           test "$(git rev-parse HEAD)" = "$revision"
