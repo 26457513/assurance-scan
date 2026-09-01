@@ -3,12 +3,14 @@
   import { pushToast } from '$lib/stores/toasts';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
+  import { isPrivilegedUser, loadCurrentUser } from '$lib/stores/currentUser';
   import { selectProject } from '$lib/stores/selectedProject';
   import type { ProjectSummary } from '$lib/types';
 
   let projects: ProjectSummary[] = [];
   let loading = true;
   let error: string | null = null;
+  let canRegisterProjects = false;
 
   const PAGE_SIZE = 5;
   let page = 0;
@@ -180,7 +182,14 @@
     }
   }
 
-  onMount(load);
+  async function loadIdentity() {
+    canRegisterProjects = isPrivilegedUser(await loadCurrentUser());
+  }
+
+  onMount(() => {
+    void load();
+    void loadIdentity();
+  });
 
   function fmtDate(iso: string | null): string {
     if (!iso) return '—';
@@ -194,7 +203,7 @@
     <div>
       <div class="text-[15px] text-ink-primary mb-1">Projects</div>
       <div class="text-[12px] text-ink-secondary">
-        Registered projects — select one to browse its scans, FRs, and compliance.
+        Registered projects — select one to browse its scans and trends.
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -206,14 +215,14 @@
           style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent); background: color-mix(in srgb, var(--state-failed) 8%, transparent);"
         >Delete {selectedCount} selected</button>
       {/if}
-      <button
+      {#if canRegisterProjects}<button
         type="button"
         on:click={() => { addOpen = true; repoPage = 0; loadAvailableRepos(); }}
         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
       >
       <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none"><path d="M6 2v8M2 6h8" stroke-linecap="round" /></svg>
         Add project
-      </button>
+      </button>{/if}
     </div>
   </div>
 
@@ -223,18 +232,19 @@
     <div class="text-[12px] text-state-failed font-mono">{error}</div>
   {:else if projects.length === 0}
     <div class="py-12 text-center text-[12px] text-ink-muted font-mono">
-      No projects yet — register a repository to begin.
+      {canRegisterProjects
+        ? 'No projects yet — register a repository to begin.'
+        : 'No accessible projects. Connect GitHub in Setup or ask a project administrator for access.'}
     </div>
   {:else}
     <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
-      <div class="grid grid-cols-[26px_110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_90px_32px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
+      <div class="grid grid-cols-[26px_110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_32px] gap-3 px-4 py-2 bg-surface-inset border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted items-center">
         <div></div>
         <div>Project</div>
         <div>Local path</div>
         <div>GitHub repo</div>
         <div class="text-right">Runs</div>
         <div>Last scan</div>
-        <div>Catalogue</div>
         <div></div>
       </div>
       {#each visible as p (p.id)}
@@ -243,15 +253,17 @@
           tabindex="0"
           on:click={() => open(p)}
           on:keydown={(e) => e.key === 'Enter' && open(p)}
-          class="w-full text-left grid grid-cols-[26px_110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_90px_32px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
+          class="w-full text-left grid grid-cols-[26px_110px_minmax(0,1.6fr)_minmax(0,1fr)_70px_110px_32px] gap-3 px-4 py-2 border-b border-line-hairline last:border-0 transition-colors hover:bg-surface-elevated font-mono text-[12px] items-center cursor-pointer"
         >
-          <input
-            type="checkbox"
-            checked={selected.has(p.id)}
-            on:click|stopPropagation={() => toggleRow(p.id)}
-            class="cursor-pointer"
-            aria-label="Select {p.tag}"
-          />
+          {#if p.can_manage}
+            <input
+              type="checkbox"
+              checked={selected.has(p.id)}
+              on:click|stopPropagation={() => toggleRow(p.id)}
+              class="cursor-pointer"
+              aria-label="Select {p.tag}"
+            />
+          {:else}<span></span>{/if}
           <span class="text-ink-primary truncate">
             {p.tag}
           </span>
@@ -261,19 +273,18 @@
           </span>
           <span class="text-right text-ink-secondary tabular-nums">{p.run_count}</span>
           <span class="text-ink-muted">{fmtDate(p.last_scan_at)}</span>
-          <span class={p.has_catalogue ? 'text-state-passed' : 'text-ink-muted'}>
-            {p.has_catalogue ? 'yes' : 'none'}
-          </span>
-          <button
-            type="button"
-            on:click|stopPropagation={() => openEdit(p)}
-            title="Edit project"
-            class="text-ink-secondary hover:text-accent transition-colors p-1"
-          >
-            <svg class="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4">
-              <path d="M10.2 2.2l1.6 1.6L4.4 11.2l-2 .4.4-2 7.4-7.4z" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
+          {#if p.can_manage}
+            <button
+              type="button"
+              on:click|stopPropagation={() => openEdit(p)}
+              title="Edit project"
+              class="text-ink-secondary hover:text-accent transition-colors p-1"
+            >
+              <svg class="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4">
+                <path d="M10.2 2.2l1.6 1.6L4.4 11.2l-2 .4.4-2 7.4-7.4z" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          {:else}<span></span>{/if}
         </div>
       {/each}
     </div>

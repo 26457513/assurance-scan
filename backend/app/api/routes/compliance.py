@@ -21,7 +21,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
+from app.api.deps_project_access import ProjectAccessDep
 from app.infrastructure.db.models import ComplianceMapping, FrState, Run
+from app.infrastructure.project_access import require_project, visible_project_ids
 
 
 router = APIRouter(tags=["compliance"])
@@ -42,13 +44,20 @@ _SEVERITY_ORDER: tuple[str, ...] = (
 
 @router.get("/compliance")
 async def list_frameworks(
+    principal: ProjectAccessDep,
     project_id: int | None = Query(default=None),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """List compliance frameworks that appear in any project's mapping."""
     stmt = select(ComplianceMapping)
     if project_id is not None:
+        if await require_project(session, principal, project_id) is None:
+            raise HTTPException(status_code=404, detail="project not found")
         stmt = stmt.where(ComplianceMapping.project_id == project_id)
+    else:
+        allowed_ids = await visible_project_ids(session, principal)
+        if allowed_ids is not None:
+            stmt = stmt.where(ComplianceMapping.project_id.in_(allowed_ids))
     rows = (await session.execute(stmt.order_by(
         ComplianceMapping.loaded_at.desc()
     ))).scalars().all()
@@ -73,6 +82,7 @@ async def list_frameworks(
 
 @router.get("/compliance/grid")
 async def branch_compliance_grid(
+    principal: ProjectAccessDep,
     project_id: int = Query(...),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -82,10 +92,10 @@ async def branch_compliance_grid(
     snapshot, with its FR state counts. Blank cells (absent keys) mean
     the pair has never been measured.
     """
-    from app.infrastructure.db.models import CatalogueSnapshot, FrState, Project, Run
+    from app.infrastructure.db.models import CatalogueSnapshot, FrState, Run
 
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, project_id)
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
 
     snaps = (
@@ -161,6 +171,7 @@ async def branch_compliance_grid(
 @router.get("/compliance/{framework}")
 async def compliance_matrix(
     framework: str,
+    principal: ProjectAccessDep,
     project_id: int = Query(...),
     mapping_hash: str | None = Query(default=None, description="specific mapping snapshot hash; latest when omitted"),
     session: AsyncSession = SessionDep,
@@ -173,6 +184,8 @@ async def compliance_matrix(
       - rationale: from the mapping (agent's reasoning)
       - confidence: agent's self-assessment
     """
+    if await require_project(session, principal, project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
     mapping_doc: dict | None = None
     mapping_project_id: int | None = None
     mapping_loaded_at = None

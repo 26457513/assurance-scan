@@ -13,6 +13,7 @@ from app.api.routes.projects import (
     update_project,
 )
 from app.infrastructure.db.models import Project, Run
+from app.infrastructure.project_access import SYSTEM_PRINCIPAL
 
 
 def test_parse_github_repo_forms_are_strict_and_source_neutral() -> None:
@@ -66,7 +67,7 @@ async def test_registered_project_aggregates_all_origins_by_id(session) -> None:
     )
     await session.commit()
 
-    response = await list_projects(session=session)
+    response = await list_projects(principal=SYSTEM_PRINCIPAL, session=session)
     assert response["projects"] == [
         {
             "id": project.id,
@@ -78,6 +79,7 @@ async def test_registered_project_aggregates_all_origins_by_id(session) -> None:
             "run_count": 2,
             "last_scan_at": response["projects"][0]["last_scan_at"],
             "has_catalogue": False,
+            "can_manage": True,
         }
     ]
 
@@ -89,7 +91,8 @@ async def test_update_project_changes_fields_and_can_clear_locator(session) -> N
 
     response = await update_project(
         project.id,
-        ProjectUpdate(
+        principal=SYSTEM_PRINCIPAL,
+        update=ProjectUpdate(
             tag="new-tag",
             local_path=None,
             github_repo="OpenAI/Example",
@@ -111,7 +114,8 @@ async def test_update_project_rejects_missing_locator(session) -> None:
     try:
         await update_project(
             project.id,
-            ProjectUpdate(local_path=None),
+            principal=SYSTEM_PRINCIPAL,
+            update=ProjectUpdate(local_path=None),
             session=session,
         )
         raise AssertionError("expected 400")
@@ -128,13 +132,17 @@ async def test_delete_project_tombstones_and_deletes_runs_by_id(session) -> None
     )
     await session.commit()
 
-    response = await delete_project(project.id, session=session)
+    response = await delete_project(
+        project.id, principal=SYSTEM_PRINCIPAL, session=session
+    )
     assert response["status"] == "deleted"
     assert project.hidden is True
     assert (await session.execute(select(Run))).scalars().all() == []
 
     try:
-        await delete_project(project.id, session=session)
+        await delete_project(
+            project.id, principal=SYSTEM_PRINCIPAL, session=session
+        )
         raise AssertionError("expected 404")
     except HTTPException as exc:
         assert exc.status_code == 404

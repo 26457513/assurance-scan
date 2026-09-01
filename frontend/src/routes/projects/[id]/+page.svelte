@@ -11,6 +11,7 @@
   import ScanOriginBadge from '$lib/components/ScanOriginBadge.svelte';
   import {
     filterScansByOrigin,
+    scanRunLabel,
     sameCommitComparison,
     shortCommit,
     type ScanOriginFilter
@@ -395,7 +396,7 @@
               aria-label="Select {s.run_id}"
             />
             <span class="text-ink-primary truncate" title={s.run_id}>
-              {#if s.run_number != null}#{s.run_number} · {s.display_title || s.run_id}{:else}{s.run_id}{/if}
+              {scanRunLabel(s)}
             </span>
             <ScanOriginBadge origin={s.origin} />
             <span class="font-mono text-[11px] text-ink-secondary truncate" title={s.git_branch ?? ''}>{s.git_branch ?? '—'}</span>
@@ -407,7 +408,8 @@
                 {#if s.working_tree_dirty === true}
                   <span
                     class="rounded-sm border border-state-pending/40 px-1 py-0.5 text-[8px] uppercase tracking-[0.08em] text-state-pending"
-                    title="Dirty working tree — this local scan includes uncommitted source changes"
+                    title="Dirty working tree — this scan includes uncommitted or untracked local files"
+                    aria-label="Dirty working tree: scan includes uncommitted or untracked local files"
                   >Dirty</span>
                 {/if}
               </span>

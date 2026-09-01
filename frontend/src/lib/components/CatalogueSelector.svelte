@@ -66,7 +66,7 @@
       aria-label="Close dropdown"
     ></button>
     <div
-      class="absolute top-full left-0 mt-1 w-[340px] max-h-[380px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
+      class="absolute top-full left-0 mt-1 w-[460px] max-w-[calc(100vw-2rem)] max-h-[380px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
       style="box-shadow: 0 12px 32px rgba(0,0,0,0.4);"
     >
       <div class="px-3 py-2 border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted">

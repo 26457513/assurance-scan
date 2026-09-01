@@ -11,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, HTTPException, Request
 
 from app.api.deps import SessionDep
+from app.api.deps_project_access import ProjectAccessDep
 from app.github_poller import GitHubClient, resolve_registered_repository
+from app.infrastructure.project_access import require_project
 
 
 router = APIRouter(prefix="/github", tags=["github"])
@@ -21,7 +23,11 @@ CONTEXT_PAD = 3  # lines above/below the flagged line
 
 
 @router.get("/repos")
-async def list_repos(request: Request, session: AsyncSession = SessionDep) -> dict[str, Any]:
+async def list_repos(
+    request: Request,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
     """All repos visible across the home org and every registered org."""
     from sqlalchemy import select as sa_select
 
@@ -29,6 +35,39 @@ async def list_repos(request: Request, session: AsyncSession = SessionDep) -> di
     from app.secrets import decrypt
 
     settings = request.app.state.settings
+    if not principal.sees_all_projects:
+        from sqlalchemy import select as _select
+
+        from app.infrastructure.db.models import Project
+        from app.infrastructure.project_access import project_access_clause
+
+        projects = (
+            await session.execute(
+                _select(Project)
+                .where(
+                    project_access_clause(principal),
+                    Project.github_repo.is_not(None),
+                )
+                .order_by(Project.github_repo)
+            )
+        ).scalars().all()
+        return {
+            "org": settings.github_org,
+            "repos": [
+                {
+                    "id": project.github_repository_id,
+                    "full_name": project.github_repo,
+                    "name": (project.github_repo or "").rsplit("/", 1)[-1],
+                    "org": (project.github_repo or "").split("/", 1)[0],
+                    "pushed_at": None,
+                    "html_url": f"https://github.com/{project.github_repo}",
+                    "project_id": project.id,
+                    "registration": "registered",
+                }
+                for project in projects
+            ],
+            "errors": [],
+        }
     org_tokens: list[tuple[str, str]] = []
     if settings.github_poll_token and settings.github_org:
         org_tokens.append((settings.github_org, settings.github_poll_token))
@@ -71,7 +110,10 @@ async def list_repos(request: Request, session: AsyncSession = SessionDep) -> di
 
 @router.get("/branches")
 async def list_branches(
-    request: Request, session: AsyncSession = SessionDep, repo: str = ""
+    request: Request,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+    repo: str = "",
 ) -> dict[str, Any]:
     """Branches of a repo, resolved with the same token chain as dispatch."""
     from app.api.routes.gh_tokens import resolve_repo_token
@@ -79,6 +121,19 @@ async def list_branches(
 
     if not repo:
         raise _HTTP(status_code=400, detail="repo required")
+    from app.infrastructure.db.models import Project
+    from app.modules.atomic.provenance.repository_identity import normalize_github_repository_key
+    from sqlalchemy import select as _select
+
+    project = (
+        await session.execute(
+            _select(Project).where(
+                Project.github_repo_key == normalize_github_repository_key(repo)
+            )
+        )
+    ).scalar_one_or_none()
+    if project is None or await require_project(session, principal, project.id) is None:
+        raise _HTTP(status_code=404, detail="project not found")
     token, source = await resolve_repo_token(request, session, repo)
     if not token:
         raise _HTTP(status_code=422, detail="no credential can read this repo")
@@ -127,11 +182,26 @@ def _fetch_file(token: str, repo: str, commit: str, path: str) -> str | None:
 @router.get("/source")
 async def source_peek(
     request: Request,
+    principal: ProjectAccessDep,
     repo: str,
     commit: str,
     path: str,
+    session: AsyncSession = SessionDep,
     line: int | None = None,
 ) -> dict[str, Any]:
+    from app.infrastructure.db.models import Project
+    from app.modules.atomic.provenance.repository_identity import normalize_github_repository_key
+    from sqlalchemy import select as _select
+
+    project = (
+        await session.execute(
+            _select(Project).where(
+                Project.github_repo_key == normalize_github_repository_key(repo)
+            )
+        )
+    ).scalar_one_or_none()
+    if project is None or await require_project(session, principal, project.id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
     settings = request.app.state.settings
     if not settings.github_poll_token:
         raise HTTPException(status_code=503, detail="GitHub token not configured")

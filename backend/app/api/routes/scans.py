@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import QueueDep, SessionDep
+from app.api.deps_project_access import ProjectAccessDep
 from app.api.schemas.scan import (
     ScanRequest,
     ScanOrigin,
@@ -21,9 +22,10 @@ from app.api.schemas.scan import (
 )
 from app.infrastructure.db.repositories.findings import FindingRepository
 from app.infrastructure.db.repositories.runs import RunRepository
-from app.infrastructure.db.models import Project, Run
+from app.infrastructure.db.models import Run
 from app.infrastructure.db.retention import prepare_runs_for_deletion
 from app.infrastructure.db.repositories.scanner_runs import ScannerRunRepository
+from app.infrastructure.project_access import require_project, require_run, visible_project_ids
 from app.worker.queue import ScanQueue
 
 
@@ -34,12 +36,13 @@ router = APIRouter(prefix="/scans", tags=["scans"])
 @router.post("", response_model=ScanResponse, status_code=202)
 async def start_scan(
     body: ScanRequest,
+    principal: ProjectAccessDep,
     session: AsyncSession = SessionDep,
     queue: ScanQueue = QueueDep,
 ) -> ScanResponse:
     """Enqueue a scan. Returns immediately with the run_id."""
-    project = await session.get(Project, body.project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, body.project_id, "upload")
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     if project.local_path is None or not Path(project.local_path).is_dir():
         raise HTTPException(
@@ -75,6 +78,7 @@ async def start_scan(
 
 @router.get("", response_model=list[ScanSummary])
 async def list_scans(
+    principal: ProjectAccessDep,
     project_id: int | None = Query(default=None, gt=0),
     limit: int = Query(default=50, ge=1, le=500),
     session: AsyncSession = SessionDep,
@@ -83,10 +87,15 @@ async def list_scans(
     runs = RunRepository(session)
     findings = FindingRepository(session)
     if project_id is not None:
-        project = await session.get(Project, project_id)
-        if project is None or project.hidden:
+        project = await require_project(session, principal, project_id)
+        if project is None:
             raise HTTPException(status_code=404, detail="project not found")
-    rows = await runs.list_recent(limit=limit, project_id=project_id)
+    allowed_ids = await visible_project_ids(session, principal)
+    rows = await runs.list_recent(
+        limit=limit,
+        project_id=project_id,
+        project_ids=allowed_ids,
+    )
 
     summaries: list[ScanSummary] = []
     for run in rows:
@@ -116,10 +125,16 @@ def _ci_display_fields(run: Run) -> dict:
     except ValueError:
         return {}
     fields = {
-        "run_number": run.github_run_number or opts.get("run_number"),
+        "run_number": (
+            run.local_run_number
+            if run.origin == "local"
+            else run.github_run_number or opts.get("run_number")
+        ),
         "event": run.github_event or opts.get("event"),
         "actor": run.github_actor or opts.get("actor"),
-        "display_title": opts.get("display_title"),
+        "display_title": (
+            run.local_machine_label if run.origin == "local" else opts.get("display_title")
+        ),
     }
     fields["git_branch"] = run.git_branch
     fields["commit_sha"] = run.commit_sha
@@ -129,17 +144,20 @@ def _ci_display_fields(run: Run) -> dict:
 
 
 @router.get("/{run_id}", response_model=ScanStatus)
-async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatus:
+async def get_scan(
+    run_id: str,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> ScanStatus:
     """Get full detail for one persisted scan and its provenance."""
     from sqlalchemy import select as sa_select
 
     from app.api.schemas.scan import CatalogueRef, ScanProvenance
     from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping
 
-    runs = RunRepository(session)
     scanner_runs = ScannerRunRepository(session)
 
-    run = await runs.get(run_id)
+    run = await require_run(session, principal, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
 
@@ -212,6 +230,11 @@ async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatu
         ),
     )
 
+    detail_options = json.loads(run.options_json or "{}")
+    if run.origin == "local":
+        detail_options["run_number"] = run.local_run_number
+        detail_options["display_title"] = run.local_machine_label
+
     return ScanStatus(
         run_id=run.run_id,
         project_id=run.project_id,
@@ -220,7 +243,7 @@ async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatu
         started_at=run.started_at,
         completed_at=run.completed_at,
         scanner_status=scanner_status,
-        options=json.loads(run.options_json or "{}"),
+        options=detail_options,
         error_message=run.error_message,
         provenance=provenance,
         git_branch=run.git_branch,
@@ -231,10 +254,14 @@ async def get_scan(run_id: str, session: AsyncSession = SessionDep) -> ScanStatu
 
 
 @router.delete("/{run_id}")
-async def delete_scan(run_id: str, session: AsyncSession = SessionDep) -> dict:
+async def delete_scan(
+    run_id: str,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> dict:
     """Delete a scan and all its related data (findings, artifacts, test
     results, FR states). Cascade deletes handle the child rows."""
-    run = await session.get(Run, run_id)
+    run = await require_run(session, principal, run_id, "manage")
     if run is None:
         raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
     await prepare_runs_for_deletion(session, [run_id])
@@ -245,6 +272,7 @@ async def delete_scan(run_id: str, session: AsyncSession = SessionDep) -> dict:
 
 @router.delete("")
 async def delete_all_scans(
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict:
@@ -260,12 +288,11 @@ async def delete_all_scans(
         ComplianceMapping,
         ComplianceMappingSnapshot,
         FindingAcceptance,
-        Project,
         Waiver,
     )
 
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, project_id, "manage")
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
 
     stmt = sa_select(Run).where(Run.project_id == project_id)

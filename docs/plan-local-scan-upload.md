@@ -573,15 +573,25 @@ override is included in audit metadata.
 ### Project authorization
 
 Authentication alone is insufficient. After resolving the project, the ingest
-endpoint must verify that the token's user can upload to it. The current
-application has no tenant, membership or user-active model. The v1 rule is
-therefore precise and explicitly single-tenant: any active authenticated `User`
-row holding a non-expired,
-non-revoked token with `scans:upload` may upload to any non-hidden, registered
-project in this Assurance Scan instance. Hidden and unknown projects are
-rejected. This rule lives in one authorization helper so a future tenant,
-`ProjectMembership` or account-state policy can replace it without changing the
-ingest contract.
+endpoint verifies that the token's user has `upload` or `manage` access to the
+resolved project. `ProjectMembership` is the shared authorization boundary for
+browser APIs, local ingest and per-user MCP calls. A membership grants `view`,
+`upload` or `manage`; permissions are cumulative, and a missing grant fails
+closed with the same not-found response used for an unknown project.
+
+GitHub-derived memberships are synchronized from the repositories accessible
+to the user's connected GitHub account. They expire after a short verification
+window unless refreshed, so a revoked GitHub permission cannot remain an
+indefinite Assurance Scan grant. Manual memberships support local-only projects
+and deliberate cross-repository access and do not expire. Administrators and
+the explicitly configured local service identity can see all non-hidden
+projects. Hidden projects are never visible.
+
+The dashboard, project list, scan history, direct project/run routes and MCP
+tools all use this same policy. This prevents an inaccessible project or scan
+from being discovered by guessing its numeric project ID or run ID. Project
+creation remains an administrator operation; project-specific management is
+available only with `manage` permission.
 
 `User.disabled_at` provides the v1 offboarding switch. A disabled user cannot
 authenticate a scan token or create new tokens; disabling does not erase the
@@ -1327,7 +1337,7 @@ contract work began.
 2. Add canary-secret, oversized, duplicate-key, path-leak, idempotency and
    incompatible-version fixtures before changing persistence.
 3. Encode the selected token, Basic/Auth-off, CSRF, rate, concurrency, quota,
-   retention, deletion and single-tenant project authorization decisions as
+   retention, deletion and membership-based project authorization decisions as
    constants/config contracts with boundary tests.
 4. Check in the initial scanner release-set manifest and validate both required
    platform manifests, tool versions, vendored policy digest and database-age
@@ -1406,7 +1416,7 @@ nothing new.
 
 Completed in WS2. GitHub and local adapters now share the source-neutral
 `result_ingest` workflow, while `local_scan_ingest` coordinates registered
-project resolution, the explicit single-tenant authorization rule, serialized
+project resolution, the shared membership authorization rule, serialized
 quota reservation, fenced leased claims and one-transaction graph/claim
 persistence. The authenticated capabilities, whoami, multipart upload and
 request-status endpoints use uniform problem details, streamed application

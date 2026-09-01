@@ -1,7 +1,7 @@
 """Runtime configuration loaded from environment variables.
 
-Single-user, localhost-only. All defaults assume the canonical
-`docker run -v "$PWD:$PWD" -v "$HOME/.assurance-scan:/data"` invocation.
+Defaults support the canonical local Docker invocation; authenticated hosted
+deployments additionally apply account and project-membership boundaries.
 """
 
 from __future__ import annotations

@@ -14,7 +14,8 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import Project
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.project_access import require_project
 
 
 router = APIRouter(tags=["test-source"])
@@ -22,6 +23,7 @@ router = APIRouter(tags=["test-source"])
 
 @router.get("/test-source")
 async def get_test_source(
+    principal: ProjectAccessDep,
     name_pattern: str = Query(..., description="pytest-style name_pattern, e.g. tests.phase1.test_matcher::*"),
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
@@ -39,8 +41,8 @@ async def get_test_source(
     if not module:
         raise HTTPException(status_code=400, detail="could not derive module from name_pattern")
 
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, project_id)
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     if project.local_path is None:
         raise HTTPException(status_code=422, detail="project has no server checkout")

@@ -1,23 +1,24 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import {
+    currentUser,
+    currentUserResolved,
+    isPrivilegedUser,
+    loadCurrentUser
+  } from '$lib/stores/currentUser';
+  import { visibleNavigation } from '$lib/navigation';
   import { selectedProject } from '$lib/stores/selectedProject';
+
+  onMount(() => void loadCurrentUser());
 
   // Project-scoped items are disabled until a project is in focus (set by
   // clicking a row in the Projects table or the header dropdown).
   $: projectBase = $selectedProject != null ? `/projects/${$selectedProject}` : null;
 
-  const nav = [
-    { href: '/setup', label: 'Setup', glyph: '⚙', match: '/setup', scoped: false, divider: true },
-    { href: '/projects', label: 'Projects', glyph: '❏', match: '/projects', scoped: false, divider: false },
-    { href: '', label: 'Scans', glyph: '⌗', match: '', scoped: true, divider: false },
-    { href: '/trends', label: 'Trends', glyph: '↗', match: '/trends', scoped: true, divider: true },
-    { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes', scoped: false, divider: false },
-    { href: '/frs', label: 'FRs', glyph: '☰', match: '/frs', scoped: true, divider: false },
-    { href: '/compliance', label: 'Compliance', glyph: '⚖', match: '/compliance', scoped: true, divider: false },
-    { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix', scoped: false, divider: true }
-  ];
-
   $: path = $page.url.pathname;
+  $: showPrivileged = $currentUserResolved && isPrivilegedUser($currentUser);
+  $: nav = visibleNavigation(showPrivileged);
   // Exact match: parent nav items highlight only on their own page, not on
   // nested detail pages (e.g. /scans/[id] is owned by the scan selector).
   const isActive = (match: string) => path === match;

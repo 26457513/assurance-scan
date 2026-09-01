@@ -185,22 +185,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             verify_session,
         )
 
-        async def _mcp_user_token_ok(header: str) -> bool:
+        async def _mcp_user_principal(header: str):
             """A per-user MCP token (Setup → My account) matches by hash."""
             import hashlib
 
             if not header.startswith("Bearer "):
-                return False
+                return None
             from app.infrastructure.db.connection import get_sessionmaker
             from app.infrastructure.db.models import User
+            from app.infrastructure.project_access import (
+                ProjectAccessPrincipal,
+                sync_github_memberships,
+            )
 
             h = hashlib.sha256(header[7:].encode()).hexdigest()
             sessionmaker = get_sessionmaker()
             async with sessionmaker() as session:
                 from sqlalchemy import select as _select
 
-                row = (await session.execute(_select(User).where(User.mcp_token_hash == h))).scalars().first()
-                return row is not None
+                row = (
+                    await session.execute(
+                        _select(User).where(
+                            User.mcp_token_hash == h,
+                            User.disabled_at.is_(None),
+                        )
+                    )
+                ).scalars().first()
+                if row is None:
+                    return None
+                if row.role not in {"admin", "superuser"}:
+                    await sync_github_memberships(session, row, settings)
+                return ProjectAccessPrincipal(user_id=row.id, role=row.role)
 
         @app.middleware("http")
         async def _auth(request, call_next):
@@ -218,10 +233,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # service path; per-user tokens come from the users table.
             if path == "/mcp" or path.startswith("/mcp/"):
                 header = request.headers.get("authorization", "")
+                from app.infrastructure.project_access import (
+                    CURRENT_PROJECT_ACCESS,
+                    SYSTEM_PRINCIPAL,
+                )
+
                 if settings.mcp_token and header == f"Bearer {settings.mcp_token}":
-                    return await call_next(request)
-                if await _mcp_user_token_ok(header):
-                    return await call_next(request)
+                    context_token = CURRENT_PROJECT_ACCESS.set(SYSTEM_PRINCIPAL)
+                    try:
+                        return await call_next(request)
+                    finally:
+                        CURRENT_PROJECT_ACCESS.reset(context_token)
+                principal = await _mcp_user_principal(header)
+                if principal is not None:
+                    context_token = CURRENT_PROJECT_ACCESS.set(principal)
+                    try:
+                        return await call_next(request)
+                    finally:
+                        CURRENT_PROJECT_ACCESS.reset(context_token)
                 return JSONResponse(
                     {"detail": "unauthorized: MCP requires a bearer token — generate one in Setup → My account"},
                     status_code=401,

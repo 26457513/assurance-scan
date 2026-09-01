@@ -12,10 +12,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
+from app.api.deps_project_access import ProjectAccessDep
 from app.api.schemas.finding import FindingResponse, FindingsListResponse
-from app.infrastructure.db.models import FindingAcceptance, Project
+from app.infrastructure.db.models import FindingAcceptance
 from app.infrastructure.db.repositories.findings import FindingRepository
-from app.infrastructure.db.repositories.runs import RunRepository
+from app.infrastructure.project_access import require_project, require_run
 
 
 router = APIRouter(tags=["findings"])
@@ -24,15 +25,15 @@ router = APIRouter(tags=["findings"])
 @router.get("/scans/{run_id}/findings", response_model=FindingsListResponse)
 async def list_findings(
     run_id: str,
+    principal: ProjectAccessDep,
     severity: str | None = Query(default=None),
     limit: int = Query(default=1000, ge=1, le=10000),
     session: AsyncSession = SessionDep,
 ) -> FindingsListResponse:
     """List normalized findings for a scan, optionally filtered by severity."""
-    runs = RunRepository(session)
     findings_repo = FindingRepository(session)
 
-    run = await runs.get(run_id)
+    run = await require_run(session, principal, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
 
@@ -51,10 +52,13 @@ async def list_findings(
 
 
 @router.get("/scans/{run_id}/findings.json", response_class=PlainTextResponse)
-async def get_findings_json(run_id: str, session: AsyncSession = SessionDep) -> PlainTextResponse:
+async def get_findings_json(
+    run_id: str,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> PlainTextResponse:
     """Return the agent-facing findings.json payload produced at scan end."""
-    runs = RunRepository(session)
-    run = await runs.get(run_id)
+    run = await require_run(session, principal, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
     if not run.findings_json:
@@ -97,10 +101,13 @@ class AcceptFindingRequest(BaseModel):
 @router.post("/findings/accept")
 async def accept_finding(
     req: AcceptFindingRequest,
+    principal: ProjectAccessDep,
     session: AsyncSession = SessionDep,
 ) -> dict:
     """Accept a finding as non-exploitable. Persists across scans — the
     matcher will filter this (scanner_kind, rule_id) from future evaluations."""
+    if await require_project(session, principal, req.project_id, "manage") is None:
+        raise HTTPException(status_code=404, detail="project not found")
     existing = (await session.execute(
         select(FindingAcceptance).where(
             FindingAcceptance.project_id == req.project_id,
@@ -116,9 +123,6 @@ async def accept_finding(
         existing.accepted_by = req.accepted_by
         existing.accepted_at = dt.datetime.now(dt.timezone.utc)
     else:
-        project = await session.get(Project, req.project_id)
-        if project is None or project.hidden:
-            raise HTTPException(status_code=404, detail="project not found")
         session.add(FindingAcceptance(
             project_id=req.project_id,
             scanner_kind=req.scanner_kind,
@@ -137,11 +141,14 @@ async def accept_finding(
 @router.delete("/findings/accept/{acceptance_id}")
 async def unaccept_finding(
     acceptance_id: int,
+    principal: ProjectAccessDep,
     session: AsyncSession = SessionDep,
 ) -> dict:
     """Undo a finding acceptance. The finding becomes actionable again."""
     row = await session.get(FindingAcceptance, acceptance_id)
     if row is None:
+        raise HTTPException(status_code=404, detail="acceptance not found")
+    if await require_project(session, principal, row.project_id, "manage") is None:
         raise HTTPException(status_code=404, detail="acceptance not found")
     await session.delete(row)
     await session.commit()
@@ -150,10 +157,13 @@ async def unaccept_finding(
 
 @router.get("/findings/accepted")
 async def list_accepted(
+    principal: ProjectAccessDep,
     project_id: int = Query(...),
     session: AsyncSession = SessionDep,
 ) -> dict:
     """List active finding acceptances for a project."""
+    if await require_project(session, principal, project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
     rows = (await session.execute(
         select(FindingAcceptance)
         .where(FindingAcceptance.project_id == project_id)

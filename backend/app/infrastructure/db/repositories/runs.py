@@ -70,12 +70,15 @@ class RunRepository(BaseRepository[Run]):
         limit: int = 50,
         project_id: int | None = None,
         origin: str | None = None,
+        project_ids: set[int] | None = None,
     ) -> Sequence[Run]:
         statement = select(Run)
         if project_id is not None:
             statement = statement.where(Run.project_id == project_id)
         if origin is not None:
             statement = statement.where(Run.origin == origin)
+        if project_ids is not None:
+            statement = statement.where(Run.project_id.in_(project_ids))
         result = await self.session.execute(
             statement.order_by(Run.started_at.desc(), Run.run_id.desc()).limit(limit)
         )

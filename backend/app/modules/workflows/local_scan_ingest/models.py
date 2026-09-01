@@ -22,6 +22,7 @@ class LocalScanCommand:
 
     user_id: int
     token_id: str
+    token_label: str
     token_scopes: frozenset[str]
     request_id: str
     metadata: Mapping[str, Any]
@@ -80,10 +81,11 @@ class ProjectResolution:
 
     project: ResolvedProject | None
     hidden: bool = False
+    can_upload: bool = False
 
 
 class LocalProjectResolverPort(Protocol):
-    async def resolve(self, repository: str) -> ProjectResolution: ...
+    async def resolve(self, repository: str, user_id: int) -> ProjectResolution: ...
 
 
 class ClaimCompletingPersistencePort(ResultPersistencePort, Protocol):

@@ -105,6 +105,9 @@ class Project(Base):
     github_repository_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     default_scan_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
     hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    local_run_counter: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
@@ -169,6 +172,8 @@ class Run(Base):
     github_event: Mapped[str | None] = mapped_column(String(64), nullable=True)
     github_actor: Mapped[str | None] = mapped_column(String(256), nullable=True)
     github_head_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    local_run_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    local_machine_label: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mapping_hash: Mapped[str | None] = mapped_column(String(80), nullable=True)
     findings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_bundle_json: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -218,10 +223,20 @@ class Run(Base):
             "AND commit_sha IS NOT NULL)",
             name="ck_runs_local_provenance",
         ),
+        CheckConstraint(
+            "local_run_number IS NULL OR local_run_number > 0",
+            name="ck_runs_local_run_number_positive",
+        ),
         Index("ix_runs_project_started", "project_id", "started_at", "run_id"),
         Index("ix_runs_project_origin_started", "project_id", "origin", "started_at", "run_id"),
         Index("ix_runs_project_commit", "project_id", "commit_sha"),
         Index("uq_runs_github_run_id", "github_run_id", unique=True),
+        Index(
+            "uq_runs_project_local_number",
+            "project_id",
+            "local_run_number",
+            unique=True,
+        ),
     )
 
 
@@ -254,6 +269,42 @@ class User(Base):
     # at generation/rotation and never stored.
     mcp_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mcp_token_generated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    github_access_synced_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class ProjectMembership(Base):
+    """One source of a user's current authorization for a project."""
+
+    __tablename__ = "project_memberships"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    permission: Mapped[str] = mapped_column(String(16), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    verified_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "project_id", "source", name="uq_project_memberships_source"
+        ),
+        CheckConstraint(
+            "permission IN ('view', 'upload', 'manage')",
+            name="ck_project_memberships_permission",
+        ),
+        CheckConstraint(
+            "source IN ('github', 'manual')",
+            name="ck_project_memberships_source",
+        ),
+        Index("ix_project_memberships_user_project", "user_id", "project_id"),
+        Index("ix_project_memberships_project", "project_id"),
+    )
 
 
 class ApiToken(Base):

@@ -18,7 +18,9 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import CatalogueSnapshot, Project
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.project_access import require_project
+from app.infrastructure.db.models import CatalogueSnapshot
 from app.vcs import git_head
 
 
@@ -93,11 +95,12 @@ def _ref_exists(root: Path, ref: str) -> bool:
 
 @router.get("/drift", response_model=DriftResponse)
 async def get_catalogue_drift(
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> DriftResponse:
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, project_id)
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     if project.local_path is None:
         raise HTTPException(status_code=422, detail="project has no server checkout")

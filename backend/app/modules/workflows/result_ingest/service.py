@@ -185,6 +185,7 @@ def _run_record(envelope: IngestEnvelope, bundle: ResultBundle) -> RunRecord:
         source_manifest_version=envelope.source_manifest_version,
         submitted_by_user_id=envelope.submitted_by_user_id,
         submitting_token_id=envelope.submitting_token_id,
+        local_machine_label=envelope.submitting_token_label,
         payload_hash=envelope.payload_hash,
         client_provenance_version=envelope.client_provenance_version,
         client_provenance_json=json.dumps(

@@ -16,7 +16,9 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping, Project
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping
+from app.infrastructure.project_access import require_project
 from app.modules.shared.paths import RESOURCES_ROOT
 
 
@@ -28,12 +30,13 @@ _PACK_DIR_APP = RESOURCES_ROOT / "compliance-packs"
 
 @router.get("/config")
 async def get_config(
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Return the catalogue, mapping, and referenced packs for inspection."""
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, project_id)
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     snapshot = (
         await session.execute(

@@ -14,7 +14,8 @@ from app.api.schemas.local_ingest import (
     LocalScanIngestResult,
     LocalScanWorkflowError,
 )
-from app.infrastructure.db.models import IngestRequest, Project
+from app.infrastructure.db.models import IngestRequest, Project, User
+from app.infrastructure.project_access import ProjectAccessPrincipal, require_project
 from app.infrastructure.db.repositories.ingest_requests import SqlAlchemyIdempotencyRepository
 from app.infrastructure.db.repositories.ingest_usage import SqlAlchemyUsageQuotaRepository
 from app.modules.atomic.ingestion.idempotency_guard import IdempotencyClaim
@@ -35,7 +36,7 @@ class SqlAlchemyLocalProjectResolver:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def resolve(self, repository: str) -> ProjectResolution:
+    async def resolve(self, repository: str, user_id: int) -> ProjectResolution:
         key = normalize_github_repository_key(repository)
         project = (
             await self._session.execute(select(Project).where(Project.github_repo_key == key))
@@ -46,12 +47,26 @@ class SqlAlchemyLocalProjectResolver:
         if project.hidden or project.github_repo is None:
             await self._session.rollback()
             return ProjectResolution(None, hidden=True)
+        user = await self._session.get(User, user_id)
+        if user is None or user.disabled_at is not None:
+            await self._session.rollback()
+            return ProjectResolution(None, hidden=True)
+        allowed_project = await require_project(
+            self._session,
+            ProjectAccessPrincipal(user_id=user.id, role=user.role),
+            project.id,
+            "upload",
+        )
+        if allowed_project is None:
+            await self._session.rollback()
+            return ProjectResolution(None, hidden=True)
         resolved = ProjectResolution(
             ResolvedProject(
                 project_id=project.id,
                 repository=project.github_repo,
                 github_repository_id=project.github_repository_id,
-            )
+            ),
+            can_upload=True,
         )
         # Quota enforcement starts a serialized write transaction. End the
         # resolver's implicit read transaction before acquiring that lock.
@@ -90,6 +105,15 @@ async def get_local_request_status(
         return None
     claim, project = row
     if project.github_repo is None:
+        return None
+    user = await session.get(User, user_id)
+    if user is None or user.disabled_at is not None:
+        return None
+    if await require_project(
+        session,
+        ProjectAccessPrincipal(user_id=user.id, role=user.role),
+        project.id,
+    ) is None:
         return None
     return LocalRequestStatus(
         state=claim.state,
@@ -158,6 +182,7 @@ class SqlAlchemyLocalScanWorkflow:
                 LocalScanCommand(
                     user_id=command.principal.user_id,
                     token_id=command.principal.token_id,
+                    token_label=command.principal.token_label,
                     token_scopes=frozenset(command.principal.scope.split()),
                     request_id=command.idempotency_key,
                     metadata=command.metadata,

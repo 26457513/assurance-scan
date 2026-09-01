@@ -87,7 +87,8 @@ class ScanStatus(BaseModel):
 class ScanSummary(BaseModel):
     """List view for one scan."""
 
-    # CI-run display metadata (GitHub runs only; None for local scans).
+    # Source-specific display metadata: GitHub workflow number/title or the
+    # persisted per-project local sequence and submitting machine label.
     run_number: int | None = None
     event: str | None = None
     actor: str | None = None

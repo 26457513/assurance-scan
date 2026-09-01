@@ -1,4 +1,4 @@
-"""Current project authorization policy, extracted without feature changes."""
+"""Framework-free authorization rules used by project workflows."""
 
 from __future__ import annotations
 
@@ -8,35 +8,32 @@ from .models import LocalScanProjectContext, ProjectAction, ProjectAuthorization
 
 
 def authorize_project_action(action: ProjectAction) -> ProjectAuthorizationDecision:
-    """Allow project actions after the application's existing auth boundary.
+    """Authorize an internal action after its outer access boundary.
 
-    The application currently has no per-project membership policy. Making
-    that fact explicit creates the atomic extension point needed later while
-    preserving today's behavior exactly. Token scopes and target-project
-    authorization are intentionally deferred to the local-scan workstream.
+    Browser and MCP entry points resolve membership before invoking internal
+    workflows. This helper represents that already-authorized system boundary;
+    local token uploads use ``authorize_local_scan_upload`` below because they
+    carry their own account, scope and project inputs.
     """
     return ProjectAuthorizationDecision(
         allowed=True,
-        reason=f"{action} is allowed by the current application-wide policy",
+        reason=f"{action} passed the outer project-access boundary",
     )
 
 
 def authorize_local_scan_upload(
     context: LocalScanProjectContext,
 ) -> ProjectAuthorizationDecision:
-    """Apply the locked v1 upload rule without framework or database coupling.
-
-    This Assurance Scan release is deliberately single-tenant: every active
-    user with an upload-scoped token can target every visible registered
-    project. Unknown and hidden projects remain indistinguishable to callers.
-    """
+    """Apply project-scoped upload policy without framework or database coupling."""
     if not context.user_active:
         return ProjectAuthorizationDecision(False, "the submitting user is disabled")
     if TOKEN_SCOPE not in context.token_scopes:
         return ProjectAuthorizationDecision(False, "the token lacks the scan-upload scope")
     if not context.project_registered or context.project_hidden:
         return ProjectAuthorizationDecision(False, "the project is not available for upload")
+    if not context.user_can_upload:
+        return ProjectAuthorizationDecision(False, "the user cannot upload to this project")
     return ProjectAuthorizationDecision(
         True,
-        "upload_scan is allowed by the version-one single-tenant project policy",
+        "upload_scan is allowed by project membership",
     )

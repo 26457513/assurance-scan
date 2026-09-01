@@ -48,7 +48,7 @@ async def ingest_local_scan(
     metadata = command.metadata
     detected_repository = str(metadata["repository"])
     selector = str(metadata.get("project_override") or detected_repository)
-    resolution = await dependencies.projects.resolve(selector)
+    resolution = await dependencies.projects.resolve(selector, command.user_id)
     if resolution.hidden:
         raise _error(404, "project_not_found", "Project not found", "The project is not available.")
     if resolution.project is None:
@@ -65,6 +65,7 @@ async def ingest_local_scan(
             token_scopes=command.token_scopes,
             project_registered=True,
             project_hidden=False,
+            user_can_upload=resolution.can_upload,
         )
     )
     if not authorization.allowed:
@@ -141,6 +142,7 @@ async def ingest_local_scan(
         project=project,
         submitted_by_user_id=command.user_id,
         submitting_token_id=command.token_id,
+        submitting_token_label=command.token_label,
         payload_hash=command.payload_hash,
         commit_sha=str(metadata["commit"]),
         git_object_format=metadata["git_object_format"],

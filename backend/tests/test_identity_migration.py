@@ -10,13 +10,21 @@ from pathlib import Path
 
 import pytest
 
-from app.infrastructure.db.models import ApiToken, Base, IngestRequest, Project, Run, User
+from app.infrastructure.db.models import (
+    ApiToken,
+    Base,
+    IngestRequest,
+    Project,
+    ProjectMembership,
+    Run,
+    User,
+)
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_HEAD = "0020_snapshot_source_branch"
-NEW_HEAD = "0022_local_ingest_claims"
+NEW_HEAD = "0024_project_memberships"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -159,6 +167,9 @@ def test_model_metadata_matches_token_and_identity_contract() -> None:
     assert not Run.__table__.c.project_id.nullable
     assert not Run.__table__.c.origin.nullable
     assert Run.__table__.c.working_tree_dirty.nullable
+    assert Run.__table__.c.local_run_number.nullable
+    assert Run.__table__.c.local_machine_label.nullable
+    assert not Project.__table__.c.local_run_counter.nullable
     assert getattr(Run.__table__.c.submitting_token_id.type, "length") == 36
     assert getattr(ApiToken.__table__.c.id.type, "length") == 36
     assert getattr(ApiToken.__table__.c.selector.type, "length") == 16
@@ -173,7 +184,10 @@ def test_model_metadata_matches_token_and_identity_contract() -> None:
         "runs",
         "api_tokens",
         "ingest_requests",
+        "project_memberships",
     }.issubset(Base.metadata.tables)
+    assert not ProjectMembership.__table__.c.user_id.nullable
+    assert not ProjectMembership.__table__.c.project_id.nullable
 
 
 @pytest.mark.parametrize("table", ["runs", "catalogue_snapshots", "waivers"])

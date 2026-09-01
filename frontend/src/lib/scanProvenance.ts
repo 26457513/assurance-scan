@@ -38,3 +38,14 @@ export function sameCommitComparison(
 export function shortCommit(commit: string | null | undefined): string {
   return commit ? commit.slice(0, 8) : '—';
 }
+
+export function scanRunLabel(scan: ScanSummary): string {
+  if (scan.run_number != null) {
+    return `#${scan.run_number} · ${scan.display_title || scan.run_id}`;
+  }
+
+  const localId = scan.run_id.match(/^local-([0-9a-f]{8})[0-9a-f-]*$/i);
+  if (scan.origin === 'local' && localId) return `Local · ${localId[1]}`;
+
+  return scan.run_id;
+}

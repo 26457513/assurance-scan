@@ -19,9 +19,10 @@ class ProjectAuthorizationDecision:
 
 @dataclass(frozen=True)
 class LocalScanProjectContext:
-    """Inputs to the explicit version-one single-tenant upload policy."""
+    """Inputs to project-scoped local upload authorization."""
 
     user_active: bool
     token_scopes: frozenset[str]
     project_registered: bool
     project_hidden: bool
+    user_can_upload: bool

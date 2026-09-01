@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -14,12 +15,14 @@ from app.infrastructure.db.models import (
     Finding,
     IngestRequest,
     Project,
+    ProjectMembership,
     Run,
     ScannerArtifact,
     ScannerRun,
     User,
 )
 from app.infrastructure.local_scan_ingest import SqlAlchemyLocalScanWorkflow
+from app.infrastructure.project_access import SYSTEM_PRINCIPAL
 from app.infrastructure.db.retention import run_retention_cleanup
 from app.api.routes.scans import delete_scan
 from app.modules.atomic.access.scan_token import ScanTokenPrincipal
@@ -46,6 +49,15 @@ async def _seed_identity(session) -> None:
         ]
     )
     await session.commit()
+    session.add(
+        ProjectMembership(
+            user_id=7,
+            project_id=42,
+            permission="upload",
+            source="manual",
+            verified_at=now,
+        )
+    )
     session.add(
         ApiToken(
             id=TOKEN_ID,
@@ -114,9 +126,40 @@ async def test_real_local_workflow_persists_one_graph_and_replays_without_duplic
     assert run.working_tree_dirty is True
     assert run.submitted_by_user_id == 7
     assert run.submitting_token_id == TOKEN_ID
+    assert run.local_run_number == 1
+    assert run.local_machine_label == "laptop"
     assert claim.state == "completed"
     assert claim.run_id == run.run_id
     assert claim.lease_id is None
+
+
+async def test_local_run_numbers_advance_per_project_and_replay_is_stable(session) -> None:
+    await _seed_identity(session)
+    def workflow() -> SqlAlchemyLocalScanWorkflow:
+        return SqlAlchemyLocalScanWorkflow(
+            session, public_base_url="https://scan.example.test"
+        )
+
+    first = await workflow().ingest_local_scan(_command())
+    second = await workflow().ingest_local_scan(
+        replace(
+            _command(),
+            idempotency_key="128f47a2-4c72-4c9e-9f60-780cb70b8fe4",
+            payload_hash="e" * 64,
+        )
+    )
+    replayed = await workflow().ingest_local_scan(_command())
+
+    rows = (
+        await session.execute(select(Run).order_by(Run.local_run_number))
+    ).scalars().all()
+    project = await session.get(Project, 42)
+    assert first.outcome is LocalScanIngestOutcome.CREATED
+    assert second.outcome is LocalScanIngestOutcome.CREATED
+    assert replayed.outcome is LocalScanIngestOutcome.REPLAYED
+    assert [row.local_run_number for row in rows] == [1, 2]
+    assert [row.local_machine_label for row in rows] == ["laptop", "laptop"]
+    assert project is not None and project.local_run_counter == 2
 
 
 async def test_project_override_selects_registered_upstream_and_is_audited(session) -> None:
@@ -194,7 +237,9 @@ async def test_explicit_scan_deletion_preserves_idempotency_tombstone(session) -
         _command()
     )
 
-    response = await delete_scan(created.run_id or "", session)
+    response = await delete_scan(
+        created.run_id or "", SYSTEM_PRINCIPAL, session
+    )
 
     assert response == {"status": "deleted", "run_id": created.run_id}
     claim = (await session.execute(select(IngestRequest))).scalar_one()

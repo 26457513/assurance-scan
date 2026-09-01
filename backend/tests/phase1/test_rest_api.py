@@ -90,18 +90,10 @@ async def test_findings_for_unknown_run_returns_404(client) -> None:
 # FRs
 # ---------------------------------------------------------------------------
 
-async def test_list_frs_returns_catalogue_shape(client) -> None:
-    """GET /api/frs returns catalogue metadata + frs array.
-    Without a catalogue snapshot in the test DB, catalogue is null and frs
-    is empty — but the response shape is stable.
-    """
+async def test_list_frs_rejects_unknown_project(client) -> None:
+    """An unknown project is indistinguishable from an inaccessible one."""
     res = await client.get("/api/frs", params={"project_id": 999})
-    assert res.status_code == 200
-    body = res.json()
-    assert "catalogue" in body
-    assert "run_id" in body
-    assert "frs" in body
-    assert isinstance(body["frs"], list)
+    assert res.status_code == 404
 
 
 async def test_fr_detail_unknown_id_returns_404(client) -> None:

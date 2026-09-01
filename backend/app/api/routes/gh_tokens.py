@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import Depends
 
 from app.api.deps import SessionDep
+from app.api.deps_project_access import ProjectAccessDep
 from app.api.deps_roles import get_current_user, require_admin
 from app.infrastructure.db.models import GithubAccount
 from app.github_poller import GitHubClient
@@ -117,6 +118,14 @@ async def put_token(
     row.token_encrypted = encrypt(token.strip(), settings.token_encryption_key)
     row.login = login
     await session.commit()
+    from app.infrastructure.db.models import User
+    from app.infrastructure.project_access import sync_github_memberships
+
+    user = (
+        await session.execute(sa_select(User).where(User.email == email))
+    ).scalar_one_or_none()
+    if user is not None:
+        await sync_github_memberships(session, user, settings, force=True)
     return {"configured": True, "login": login}
 
 
@@ -130,7 +139,22 @@ async def delete_token(request: Request, session: AsyncSession = SessionDep) -> 
     ).scalars().first()
     if row is not None:
         await session.delete(row)
-        await session.commit()
+    from sqlalchemy import delete as sa_delete
+
+    from app.infrastructure.db.models import ProjectMembership, User
+
+    user = (
+        await session.execute(sa_select(User).where(User.email == email))
+    ).scalar_one_or_none()
+    if user is not None:
+        await session.execute(
+            sa_delete(ProjectMembership).where(
+                ProjectMembership.user_id == user.id,
+                ProjectMembership.source == "github",
+            )
+        )
+        user.github_access_synced_at = None
+    await session.commit()
     return {"configured": False}
 
 
@@ -191,10 +215,34 @@ async def set_user_role(
 
 
 @router.get("/orgs")
-async def list_orgs(request: Request, session: AsyncSession = SessionDep) -> dict[str, Any]:
-    if not _user_email(request):
-        raise HTTPException(status_code=401, detail="sign in")
-    from app.infrastructure.db.models import Organisation
+async def list_orgs(
+    request: Request,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    from app.infrastructure.db.models import Organisation, Project
+
+    if not principal.sees_all_projects:
+        from app.infrastructure.project_access import project_access_clause
+
+        owners = {
+            (repository or "").split("/", 1)[0].casefold()
+            for repository in (
+                await session.execute(
+                    sa_select(Project.github_repo).where(
+                        project_access_clause(principal),
+                        Project.github_repo.is_not(None),
+                    )
+                )
+            ).scalars()
+        }
+        return {
+            "orgs": [
+                {"name": owner, "login": None, "created_at": None, "home": False}
+                for owner in sorted(owners)
+                if owner
+            ]
+        }
 
     rows = (await session.execute(sa_select(Organisation).order_by(Organisation.name))).scalars().all()
     orgs = []
@@ -293,6 +341,7 @@ async def _org_registered(request: Request, session: AsyncSession, repo: str) ->
 @router.post("/scans/remote")
 async def scan_remote(
     request: Request,
+    principal: ProjectAccessDep,
     session: AsyncSession = SessionDep,
     repo: str = Body(...),
     ref: str = Body(default=""),
@@ -304,6 +353,20 @@ async def scan_remote(
     scans on behalf of repos that haven't adopted the workflow.
     """
     import asyncio
+
+    from app.infrastructure.db.models import Project
+    from app.infrastructure.project_access import require_project
+    from app.modules.atomic.provenance.repository_identity import normalize_github_repository_key
+
+    project = (
+        await session.execute(
+            sa_select(Project).where(
+                Project.github_repo_key == normalize_github_repository_key(repo)
+            )
+        )
+    ).scalar_one_or_none()
+    if project is None or await require_project(session, principal, project.id, "upload") is None:
+        raise HTTPException(status_code=404, detail="project not found")
 
     token, source = await resolve_repo_token(request, session, repo)
     if not token:

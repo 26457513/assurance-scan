@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.db.models import Run, ScanJob, ScannerRun
+from app.infrastructure.db.models import Project, Run, ScanJob, ScannerRun
 from app.infrastructure.db.repositories.findings import FindingRepository
 from app.infrastructure.db.repositories.runs import RunRepository
 from app.infrastructure.db.repositories.scanner_artifacts import ScannerArtifactRepository
@@ -31,6 +31,16 @@ class SqlAlchemyIngestPersistence:
         return await self._runs.get(run_id)
 
     async def add_run(self, record: RunRecord) -> None:
+        local_run_number: int | None = None
+        if record.origin == "local":
+            local_run_number = (
+                await self._session.execute(
+                    update(Project)
+                    .where(Project.id == record.project_id)
+                    .values(local_run_counter=Project.local_run_counter + 1)
+                    .returning(Project.local_run_counter)
+                )
+            ).scalar_one()
         self._session.add(Run(
             run_id=record.run_id,
             project_id=record.project_id,
@@ -58,6 +68,8 @@ class SqlAlchemyIngestPersistence:
             github_event=record.github_event,
             github_actor=record.github_actor,
             github_head_sha=record.github_head_sha,
+            local_run_number=local_run_number,
+            local_machine_label=record.local_machine_label,
             error_message=record.error_message,
             findings_json=record.findings_json,
         ))

@@ -10,12 +10,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.project_access import require_project, require_run
 from app.infrastructure.db.models import (
     CatalogueSnapshot,
     ComplianceMapping,
     Fr,
     FrState,
-    Project,
     Run,
     TestResult,
     Waiver,
@@ -66,6 +67,7 @@ class SaveCatalogueBody(BaseModel):
 @router.post("/catalogue")
 async def save_catalogue(
     body: SaveCatalogueBody,
+    principal: ProjectAccessDep,
     project_id: int = Query(...),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -83,8 +85,8 @@ async def save_catalogue(
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail=f"invalid JSON: {exc}") from exc
 
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, project_id, "manage")
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     source_locator = project.local_path or project.github_repo or project.tag
     try:
@@ -121,11 +123,14 @@ async def save_catalogue(
 @router.get("/frs/{fr_id}")
 async def get_fr_detail(
     fr_id: str,
+    principal: ProjectAccessDep,
     project_id: int = Query(...),
     run_id: str | None = Query(default=None),
     session: AsyncSession = SessionDep,
 ) -> dict:
     """Full per-FR detail: tests, evaluated results, state."""
+    if await require_project(session, principal, project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
     # Get the FR row from any snapshot (latest wins).
     stmt = (
         select(Fr)
@@ -164,6 +169,10 @@ async def get_fr_detail(
         if run_row is None:
             raise HTTPException(status_code=404, detail="no runs for this project")
         run_id = run_row.run_id
+    else:
+        run_row = await require_run(session, principal, run_id)
+        if run_row is None or run_row.project_id != project_id:
+            raise HTTPException(status_code=404, detail="run not found")
 
     # Test results for this FR.
     tr_rows = (await session.execute(
@@ -226,11 +235,14 @@ async def get_fr_detail(
 @router.get("/frs/{fr_id}/history")
 async def get_fr_history(
     fr_id: str,
+    principal: ProjectAccessDep,
     project_id: int = Query(...),
     limit: int = Query(default=50, ge=1, le=500),
     session: AsyncSession = SessionDep,
 ) -> dict:
     """State transitions for an FR across recent runs."""
+    if await require_project(session, principal, project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
     stmt = (
         select(FrState, Run)
         .join(Run, FrState.run_id == Run.run_id)

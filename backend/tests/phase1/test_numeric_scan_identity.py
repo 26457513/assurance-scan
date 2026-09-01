@@ -148,6 +148,7 @@ async def test_filesystem_routes_resolve_registered_local_path(
 async def test_github_and_local_origins_share_one_project_identity(session) -> None:
     from app.api.routes.scans import list_scans
     from app.infrastructure.db.models import ApiToken, Project, Run, User
+    from app.infrastructure.project_access import SYSTEM_PRINCIPAL
 
     now = dt.datetime.now(dt.timezone.utc)
     project = Project(
@@ -201,15 +202,25 @@ async def test_github_and_local_origins_share_one_project_identity(session) -> N
                 commit_sha="b" * 40,
                 git_object_format="sha1",
                 git_branch="feature/local-scan",
+                local_run_number=3,
+                local_machine_label="laptop",
                 status="completed",
             ),
         ]
     )
     await session.commit()
 
-    scans = await list_scans(project_id=project.id, limit=50, session=session)
+    scans = await list_scans(
+        principal=SYSTEM_PRINCIPAL,
+        project_id=project.id,
+        limit=50,
+        session=session,
+    )
     assert {scan.project_id for scan in scans} == {project.id}
     assert {(scan.origin, scan.git_branch) for scan in scans} == {
         ("github-actions", "main"),
         ("local", "feature/local-scan"),
     }
+    local_scan = next(scan for scan in scans if scan.origin == "local")
+    assert local_scan.run_number == 3
+    assert local_scan.display_title == "laptop"

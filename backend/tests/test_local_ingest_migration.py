@@ -11,7 +11,7 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 OLD_HEAD = "0021_project_identity_provenance"
-NEW_HEAD = "0022_local_ingest_claims"
+NEW_HEAD = "0024_project_memberships"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -84,3 +84,60 @@ def test_claim_schema_has_quota_fencing_and_tombstone_guards(tmp_path: Path) -> 
     }.issubset(indexes)
     assert any(row[2] == "runs" and row[3] == "run_id" and row[6] == "SET NULL" for row in foreign_keys)
 
+
+def test_local_display_identity_is_backfilled_in_stable_order(tmp_path: Path) -> None:
+    database = tmp_path / "local-display.sqlite"
+    _alembic(database, "upgrade", "0022_local_ingest_claims")
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "INSERT INTO users (id, email, role, created_at) "
+            "VALUES (7, 'owner@example.test', 'user', CURRENT_TIMESTAMP)"
+        )
+        connection.execute(
+            "INSERT INTO projects (id, tag, local_path, hidden, created_at) "
+            "VALUES (42, 'project', '/project', 0, CURRENT_TIMESTAMP)"
+        )
+        connection.execute(
+            "INSERT INTO api_tokens "
+            "(id, user_id, label, label_key, selector, secret_digest, scope, token_version, "
+            "expires_at, created_at) VALUES (?, 7, 'laptop', 'laptop', ?, ?, "
+            "'scans:upload', 1, '2027-01-01 00:00:00', CURRENT_TIMESTAMP)",
+            ("a8e311e0-a983-4bb9-ab55-adc10a6bb715", "abcdefghijklmnop", b"x" * 32),
+        )
+        for run_id, started_at in (("local-later", "2026-09-01 11:00:00"), ("local-earlier", "2026-09-01 10:00:00")):
+            connection.execute(
+                "INSERT INTO runs "
+                "(run_id, project_id, options_json, status, started_at, commit_sha, "
+                "git_object_format, origin, working_tree_dirty, source_content_hash, "
+                "source_manifest_version, submitted_by_user_id, submitting_token_id) "
+                "VALUES (?, 42, '{}', 'completed', ?, ?, 'sha1', 'local', 0, ?, '1', 7, ?)",
+                (
+                    run_id,
+                    started_at,
+                    "a" * 40,
+                    "b" * 64,
+                    "a8e311e0-a983-4bb9-ab55-adc10a6bb715",
+                ),
+            )
+        connection.commit()
+
+    _alembic(database, "upgrade", "head")
+
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute(
+            "SELECT run_id, local_run_number, local_machine_label FROM runs "
+            "ORDER BY local_run_number"
+        ).fetchall()
+        counter = connection.execute(
+            "SELECT local_run_counter FROM projects WHERE id = 42"
+        ).fetchone()
+        indexes = {
+            str(row[1]) for row in connection.execute("PRAGMA index_list(runs)")
+        }
+
+    assert rows == [
+        ("local-earlier", 1, "laptop"),
+        ("local-later", 2, "laptop"),
+    ]
+    assert counter == (2,)
+    assert "uq_runs_project_local_number" in indexes

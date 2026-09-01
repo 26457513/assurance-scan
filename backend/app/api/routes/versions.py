@@ -16,6 +16,9 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.project_access import require_project
+from app.modules.atomic.access.project_membership.service import ProjectPermission
 from app.infrastructure.db.models import CatalogueSnapshot, Project
 from app.infrastructure.db.repositories.compliance_mappings import ComplianceMappingRepository
 from app.modules.shared.paths import RESOURCES_ROOT
@@ -28,11 +31,12 @@ _PACK_DIR = RESOURCES_ROOT / "compliance-packs"
 
 @router.get("/catalogue/versions")
 async def list_catalogue_versions(
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """List immutable catalogue versions for one registered project."""
-    await _visible_project(session, project_id)
+    await _visible_project(session, principal, project_id)
 
     rows = (
         await session.execute(
@@ -62,6 +66,7 @@ async def list_catalogue_versions(
 @router.get("/catalogue/versions/{snapshot_id}")
 async def get_catalogue_version(
     snapshot_id: str,
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -69,16 +74,17 @@ async def get_catalogue_version(
     snapshot = await session.get(CatalogueSnapshot, snapshot_id)
     if snapshot is None or snapshot.project_id != project_id:
         raise HTTPException(status_code=404, detail="snapshot not found")
-    await _visible_project(session, project_id)
+    await _visible_project(session, principal, project_id)
     return json.loads(snapshot.snapshot_json)
 
 
 @router.get("/mappings/versions")
 async def list_mapping_versions(
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
-    await _visible_project(session, project_id)
+    await _visible_project(session, principal, project_id)
     repo = ComplianceMappingRepository(session)
     rows = await repo.list_snapshots(project_id)
     return {
@@ -98,6 +104,7 @@ async def list_mapping_versions(
 @router.get("/mappings/versions/{snapshot_id}")
 async def get_mapping_version(
     snapshot_id: str,
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -105,7 +112,7 @@ async def get_mapping_version(
     snapshot = await repo.get_snapshot(snapshot_id)
     if snapshot is None or snapshot.project_id != project_id:
         raise HTTPException(status_code=404, detail="snapshot not found")
-    await _visible_project(session, project_id)
+    await _visible_project(session, principal, project_id)
     return json.loads(snapshot.mapping_doc_json)
 
 
@@ -116,6 +123,7 @@ class SaveMappingBody(BaseModel):
 @router.post("/mappings")
 async def save_mapping(
     body: SaveMappingBody,
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
@@ -126,7 +134,7 @@ async def save_mapping(
     """
     from app.mapping import load_mapping_from_dict
 
-    project = await _visible_project(session, project_id)
+    project = await _visible_project(session, principal, project_id, "manage")
 
     try:
         doc = json.loads(body.mapping_json)
@@ -153,9 +161,14 @@ async def save_mapping(
     }
 
 
-async def _visible_project(session: AsyncSession, project_id: int) -> Project:
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+async def _visible_project(
+    session: AsyncSession,
+    principal: ProjectAccessDep,
+    project_id: int,
+    permission: ProjectPermission = "view",
+) -> Project:
+    project = await require_project(session, principal, project_id, permission)
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
     return project
 

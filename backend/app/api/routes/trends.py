@@ -10,7 +10,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.models import Finding, Project, Run
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.db.models import Finding, Run
+from app.infrastructure.project_access import require_project, visible_project_ids
 
 
 router = APIRouter(tags=["trends"])
@@ -18,6 +20,7 @@ router = APIRouter(tags=["trends"])
 
 @router.get("/trends")
 async def trends(
+    principal: ProjectAccessDep,
     project_id: int | None = Query(default=None, gt=0),
     limit: int = Query(default=20, ge=1, le=200),
     session: AsyncSession = SessionDep,
@@ -29,12 +32,16 @@ async def trends(
     """
     run_stmt = select(Run)
     if project_id is not None:
-        project = await session.get(Project, project_id)
-        if project is None or project.hidden:
+        project = await require_project(session, principal, project_id)
+        if project is None:
             from fastapi import HTTPException
 
             raise HTTPException(status_code=404, detail="project not found")
         run_stmt = run_stmt.where(Run.project_id == project_id)
+    else:
+        allowed_ids = await visible_project_ids(session, principal)
+        if allowed_ids is not None:
+            run_stmt = run_stmt.where(Run.project_id.in_(allowed_ids))
     run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(limit)
     runs = list((await session.execute(run_stmt)).scalars().all())
     runs.reverse()  # chronological
@@ -112,6 +119,7 @@ def _compute_delta(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
 
 @router.get("/trends/commits")
 async def trend_commits(
+    principal: ProjectAccessDep,
     project_id: int = Query(..., gt=0),
     branch: str = Query(default=""),
     session: AsyncSession = SessionDep,
@@ -124,8 +132,8 @@ async def trend_commits(
     from app.github_poller import GitHubClient
     from app.secrets import decrypt
 
-    reg = await session.get(Project, project_id)
-    if reg is None or reg.hidden:
+    reg = await require_project(session, principal, project_id)
+    if reg is None:
         from fastapi import HTTPException
 
         raise HTTPException(status_code=404, detail="project not found")

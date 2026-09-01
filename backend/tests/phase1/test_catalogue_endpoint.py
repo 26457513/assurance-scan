@@ -6,6 +6,7 @@ import json
 from sqlalchemy import select as sa_select
 
 from app.api.routes.frs import SaveCatalogueBody, save_catalogue
+from app.infrastructure.project_access import SYSTEM_PRINCIPAL
 from app.catalogue.loader import load_catalogue_from_dict
 from app.infrastructure.db.models import CatalogueSnapshot, Project
 
@@ -48,6 +49,7 @@ async def test_save_catalogue_stores_snapshot(session) -> None:
     raw = json.dumps(V3_CATALOGUE)
     res = await save_catalogue(
         project_id=project.id,
+        principal=SYSTEM_PRINCIPAL,
         body=SaveCatalogueBody(catalogue_json=raw),
         session=session,
     )
@@ -69,7 +71,10 @@ async def test_save_catalogue_rejects_invalid_json(session) -> None:
 
     try:
         await save_catalogue(
-            project_id=999, body=SaveCatalogueBody(catalogue_json="{not json"), session=session
+                project_id=999,
+                principal=SYSTEM_PRINCIPAL,
+                body=SaveCatalogueBody(catalogue_json="{not json"),
+                session=session,
         )
         raise AssertionError("expected 400")
     except HTTPException as exc:
@@ -83,7 +88,8 @@ async def test_save_catalogue_rejects_invalid_schema(session) -> None:
 
     try:
         await save_catalogue(
-            project_id=project.id,
+                project_id=project.id,
+                principal=SYSTEM_PRINCIPAL,
             body=SaveCatalogueBody(catalogue_json=json.dumps({"schema_version": 99})),
             session=session,
         )

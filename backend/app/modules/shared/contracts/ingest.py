@@ -94,6 +94,7 @@ class LocalIngestEnvelope:
     project: ResolvedProject
     submitted_by_user_id: int
     submitting_token_id: str
+    submitting_token_label: str
     payload_hash: str
     commit_sha: str
     git_object_format: Literal["sha1", "sha256"]
@@ -142,6 +143,7 @@ class RunRecord:
     github_event: str | None = None
     github_actor: str | None = None
     github_head_sha: str | None = None
+    local_machine_label: str | None = None
 
 
 __all__ = [

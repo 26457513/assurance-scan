@@ -34,6 +34,7 @@ from app.infrastructure.db.repositories.fr_state import FrStateRepository
 from app.infrastructure.db.repositories.runs import RunRepository
 from app.infrastructure.db.repositories.scanner_runs import ScannerRunRepository
 from app.infrastructure.db.repositories.waivers import WaiverRepository
+from app.modules.atomic.access.project_membership.service import ProjectPermission
 from app.state.resolver import GAP_STATES
 from app.worker.queue import ScanQueue
 
@@ -132,31 +133,24 @@ async def _mcp_user(ctx: Any, session: Any) -> Any | None:
     ).scalars().first()
 
 
-async def _visible_project(session: Any, project_id: int) -> Any | None:
+async def _visible_project(
+    session: Any,
+    project_id: int,
+    permission: ProjectPermission = "view",
+) -> Any | None:
     """Resolve one durable, non-hidden project identity."""
-    from app.infrastructure.db.models import Project
+    from app.infrastructure.project_access import CURRENT_PROJECT_ACCESS, require_project
 
-    return (
-        await session.execute(
-            sa_select(Project).where(
-                Project.id == project_id,
-                Project.hidden.is_(False),
-            )
-        )
-    ).scalars().first()
+    return await require_project(
+        session, CURRENT_PROJECT_ACCESS.get(), project_id, permission
+    )
 
 
 async def _visible_run(session: Any, run_id: str) -> Any | None:
     """Resolve a run only through its non-hidden durable project."""
-    from app.infrastructure.db.models import Project, Run
+    from app.infrastructure.project_access import CURRENT_PROJECT_ACCESS, require_run
 
-    return (
-        await session.execute(
-            sa_select(Run)
-            .join(Project, Project.id == Run.project_id)
-            .where(Run.run_id == run_id, Project.hidden.is_(False))
-        )
-    ).scalars().first()
+    return await require_run(session, CURRENT_PROJECT_ACCESS.get(), run_id)
 
 
 async def _lookup_checkout(session: Any, user_id: int, project_id: int) -> str | None:
@@ -253,7 +247,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
 
         sessionmaker = get_sessionmaker(deps.settings)
         async with sessionmaker() as session:
-            project = await _visible_project(session, project_id)
+            project = await _visible_project(session, project_id, "manage")
             if project is None:
                 return {"error": "not_found", "project_id": project_id}
             try:
@@ -306,7 +300,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
 
         sessionmaker = get_sessionmaker(deps.settings)
         async with sessionmaker() as session:
-            project = await _visible_project(session, project_id)
+            project = await _visible_project(session, project_id, "manage")
             if project is None:
                 return {"error": "not_found", "project_id": project_id}
             try:
@@ -346,7 +340,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             return {"error": "queue_not_initialized"}
 
         async with get_sessionmaker()() as session:
-            project = await _visible_project(session, project_id)
+            project = await _visible_project(session, project_id, "upload")
             if project is None:
                 return {"error": "not_found", "project_id": project_id}
             if project.local_path is None or not Path(project.local_path).is_dir():
@@ -420,7 +414,11 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
         """Cancel a running scan. Idempotent."""
         async with get_sessionmaker()() as session:
             runs = RunRepository(session)
-            run = await _visible_run(session, run_id)
+            from app.infrastructure.project_access import CURRENT_PROJECT_ACCESS, require_run
+
+            run = await require_run(
+                session, CURRENT_PROJECT_ACCESS.get(), run_id, "manage"
+            )
             if run is None:
                 return {"error": "not_found", "run_id": run_id}
             if run.status in ("completed", "failed", "cancelled"):
@@ -436,11 +434,16 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
 
         async with get_sessionmaker()() as session:
             findings_repo = FindingRepository(session)
+            from app.infrastructure.project_access import (
+                CURRENT_PROJECT_ACCESS,
+                project_access_clause,
+            )
+
             rows = (
                 await session.execute(
                     sa_select(Run)
                     .join(Project, Project.id == Run.project_id)
-                    .where(Project.hidden.is_(False))
+                    .where(project_access_clause(CURRENT_PROJECT_ACCESS.get()))
                     .order_by(Run.started_at.desc(), Run.run_id.desc())
                     .limit(limit)
                 )
@@ -558,7 +561,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
     ) -> dict[str, Any]:
         """Create a standing waiver for an FR."""
         async with get_sessionmaker()() as session:
-            if await _visible_project(session, project_id) is None:
+            if await _visible_project(session, project_id, "manage") is None:
                 return {"error": "not_found", "project_id": project_id}
             waivers_repo = WaiverRepository(session)
             actions = AgentActionRepository(session)
@@ -591,7 +594,7 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             from app.infrastructure.db.models import Waiver
             from app.infrastructure.db.repositories.waivers import WaiverRepository
 
-            if await _visible_project(session, project_id) is None:
+            if await _visible_project(session, project_id, "manage") is None:
                 return {"error": "not_found", "project_id": project_id}
             waiver = await session.get(Waiver, waiver_id)
             if waiver is None or waiver.project_id != project_id:

@@ -11,13 +11,21 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.project_access import (
+    project_access_clause,
+    require_project,
+    visible_project_ids,
+)
 from app.infrastructure.db.models import (
     CatalogueSnapshot,
     ComplianceMapping,
     ComplianceMappingSnapshot,
     FindingAcceptance,
     Project,
+    ProjectMembership,
     Run,
+    User,
     Waiver,
 )
 from app.modules.atomic.provenance.repository_identity import (
@@ -70,6 +78,7 @@ async def _find_conflict(
 
 @router.post("")
 async def create_project(
+    principal: ProjectAccessDep,
     session: AsyncSession = SessionDep,
     tag: str = Body(...),
     local_path: str | None = Body(default=None),
@@ -77,6 +86,8 @@ async def create_project(
     default_scan_ref: str | None = Body(default=None),
 ) -> dict[str, Any]:
     """Register one durable project with a local and/or GitHub locator."""
+    if not principal.sees_all_projects:
+        raise HTTPException(status_code=403, detail="project management requires an administrator")
     normalized_tag = tag.strip()
     normalized_path = os.path.expanduser((local_path or "").strip()) or None
     raw_url = (github_repo or "").strip()
@@ -129,12 +140,13 @@ class ProjectUpdate(BaseModel):
 @router.patch("/{project_id}")
 async def update_project(
     project_id: int,
+    principal: ProjectAccessDep,
     update: ProjectUpdate,
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Update locators without changing the project's durable identity."""
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, project_id, "manage")
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
 
     tag = project.tag
@@ -185,11 +197,13 @@ async def update_project(
 
 @router.delete("/{project_id}")
 async def delete_project(
-    project_id: int, session: AsyncSession = SessionDep
+    project_id: int,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Delete project-owned scan data and retain an identity tombstone."""
-    project = await session.get(Project, project_id)
-    if project is None or project.hidden:
+    project = await require_project(session, principal, project_id, "manage")
+    if project is None:
         raise HTTPException(status_code=404, detail="project not found")
 
     from app.infrastructure.db.retention import prepare_runs_for_deletion
@@ -213,8 +227,12 @@ async def delete_project(
 
 
 @router.get("")
-async def list_projects(session: AsyncSession = SessionDep) -> dict[str, Any]:
+async def list_projects(
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
     """List visible registered projects; derived path identities do not exist."""
+    manageable_ids = await visible_project_ids(session, principal, "manage")
     run_statistics = (
         select(
             Run.project_id.label("project_id"),
@@ -239,7 +257,7 @@ async def list_projects(session: AsyncSession = SessionDep) -> dict[str, Any]:
             )
             .outerjoin(run_statistics, run_statistics.c.project_id == Project.id)
             .outerjoin(catalogue_projects, catalogue_projects.c.project_id == Project.id)
-            .where(Project.hidden.is_(False))
+            .where(project_access_clause(principal))
             .order_by(run_statistics.c.last_scan_at.desc(), Project.tag)
         )
     ).all()
@@ -250,7 +268,106 @@ async def list_projects(session: AsyncSession = SessionDep) -> dict[str, Any]:
                 run_count=int(run_count or 0),
                 last_scan_at=last_scan_at.isoformat() if last_scan_at else None,
                 has_catalogue=catalogue_project_id is not None,
+                can_manage=(manageable_ids is None or project.id in manageable_ids),
             )
             for project, run_count, last_scan_at, catalogue_project_id in rows
         ]
     }
+
+
+class MembershipUpdate(BaseModel):
+    email: str
+    permission: str
+
+
+@router.get("/{project_id}/members")
+async def list_project_members(
+    project_id: int,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    if await require_project(session, principal, project_id, "manage") is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    rows = (
+        await session.execute(
+            select(ProjectMembership, User)
+            .join(User, User.id == ProjectMembership.user_id)
+            .where(ProjectMembership.project_id == project_id)
+            .order_by(User.email, ProjectMembership.source)
+        )
+    ).all()
+    return {
+        "members": [
+            {
+                "email": user.email,
+                "permission": membership.permission,
+                "source": membership.source,
+                "verified_at": membership.verified_at.isoformat(),
+            }
+            for membership, user in rows
+        ]
+    }
+
+
+@router.put("/{project_id}/members")
+async def put_project_member(
+    project_id: int,
+    principal: ProjectAccessDep,
+    update: MembershipUpdate,
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    if await require_project(session, principal, project_id, "manage") is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    permission = update.permission.strip().lower()
+    if permission not in {"view", "upload", "manage"}:
+        raise HTTPException(status_code=422, detail="permission must be view, upload, or manage")
+    user = (
+        await session.execute(select(User).where(User.email == update.email.strip()))
+    ).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    membership = (
+        await session.execute(
+            select(ProjectMembership).where(
+                ProjectMembership.user_id == user.id,
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.source == "manual",
+            )
+        )
+    ).scalar_one_or_none()
+    if membership is None:
+        membership = ProjectMembership(
+            user_id=user.id,
+            project_id=project_id,
+            permission=permission,
+            source="manual",
+        )
+        session.add(membership)
+    else:
+        membership.permission = permission
+    await session.commit()
+    return {"email": user.email, "permission": permission, "source": "manual"}
+
+
+@router.delete("/{project_id}/members/{email}")
+async def delete_project_member(
+    project_id: int,
+    email: str,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> dict[str, Any]:
+    if await require_project(session, principal, project_id, "manage") is None:
+        raise HTTPException(status_code=404, detail="project not found")
+    user = (
+        await session.execute(select(User).where(User.email == email))
+    ).scalar_one_or_none()
+    if user is not None:
+        await session.execute(
+            delete(ProjectMembership).where(
+                ProjectMembership.user_id == user.id,
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.source == "manual",
+            )
+        )
+        await session.commit()
+    return {"status": "removed", "email": email}

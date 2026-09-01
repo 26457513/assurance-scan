@@ -8,11 +8,13 @@ import json
 from collections import Counter
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.project_access import require_project
 from app.state.resolver import GAP_STATES
 from app.infrastructure.db.models import CatalogueSnapshot, ComplianceMapping, Fr, FrState, Run, TestResult, Waiver
 
@@ -22,11 +24,14 @@ router = APIRouter(tags=["frs"])
 
 @router.get("/frs")
 async def list_frs(
+    principal: ProjectAccessDep,
     project_id: int = Query(...),
     snapshot_id: str | None = Query(default=None, description="specific catalogue snapshot; latest when omitted"),
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Flat list of FRs for a catalogue snapshot (latest by default)."""
+    if await require_project(session, principal, project_id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
     snapshot: CatalogueSnapshot | None = None
     if snapshot_id:
         snapshot = await session.get(CatalogueSnapshot, snapshot_id)

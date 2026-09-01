@@ -20,7 +20,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.infrastructure.db.repositories.runs import RunRepository
+from app.api.deps_project_access import ProjectAccessDep
+from app.infrastructure.project_access import require_run
 from app.events import bus
 
 
@@ -31,11 +32,11 @@ router = APIRouter(tags=["stream"])
 async def stream_scan(
     run_id: str,
     request: Request,
+    principal: ProjectAccessDep,
     session: AsyncSession = SessionDep,
 ) -> StreamingResponse:
     """Stream live scan events as SSE."""
-    runs = RunRepository(session)
-    run = await runs.get(run_id)
+    run = await require_run(session, principal, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
 

@@ -140,6 +140,20 @@ class GitHubClient:
     def user_login(self) -> str:
         return self._get(f"{API_ROOT}/user").get("login") or ""
 
+    def user_repositories(self) -> list[dict[str, Any]]:
+        """Repositories the authenticated user can access directly or via an organisation."""
+        repos: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            doc = self._get(
+                f"{API_ROOT}/user/repos?affiliation=owner,collaborator,organization_member"
+                f"&per_page=100&page={page}"
+            )
+            repos.extend(repository for repository in doc if not repository.get("archived"))
+            if len(doc) < 100 or page >= 20:
+                return repos
+            page += 1
+
     def has_workflow(self, repo: str, filename: str) -> bool:
         import urllib.error
 

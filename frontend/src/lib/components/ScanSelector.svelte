@@ -7,6 +7,7 @@
   import { api } from '$lib/api';
   import { createRequestGate } from '$lib/requestGate';
   import { urlForSelectedRun } from '$lib/scanSelectionUrl';
+  import { scanRunLabel } from '$lib/scanProvenance';
   import type { ScanSummary } from '$lib/types';
   import ScanOriginBadge from './ScanOriginBadge.svelte';
 
@@ -99,8 +100,7 @@
   }
 
   function scanLabel(scan: ScanSummary): string {
-    if (scan.run_number != null) return `#${scan.run_number} ${scan.display_title ?? scan.run_id}`;
-    return scan.run_id;
+    return scanRunLabel(scan);
   }
 
   function fmtWhen(iso: string): string {
@@ -113,11 +113,7 @@
   $: if (pg >= pageCount) pg = pageCount - 1;
   $: pageRows = recent.slice(pg * PAGE_SIZE, pg * PAGE_SIZE + PAGE_SIZE);
 
-  $: scanShort = $selectedScan
-    ? $selectedScan.run_number != null
-      ? `#${$selectedScan.run_number} ${$selectedScan.display_title ?? $selectedScan.run_id}`
-      : shortLabel($selectedScan.run_id)
-    : null;
+  $: scanShort = $selectedScan ? scanRunLabel($selectedScan) : null;
   $: isRunning = $selectedScan && ($selectedScan.status === 'queued' || $selectedScan.status === 'running');
 </script>
 
@@ -149,14 +145,14 @@
       aria-label="Close dropdown"
     ></button>
     <div
-      class="absolute top-full left-0 mt-1 w-[720px] max-h-[480px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
+      class="absolute top-full left-0 mt-1 w-[920px] max-w-[calc(100vw-2rem)] max-h-[480px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
       style="box-shadow: 0 12px 32px rgba(0,0,0,0.4);"
     >
       <div class="px-3 py-2 border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted flex items-center justify-between">
         <span>Scans</span>
         <span class="normal-case tracking-normal">newest first · click to select</span>
       </div>
-      <div class="grid grid-cols-[minmax(0,1fr)_92px_110px_80px_70px_60px] gap-3 px-3 py-1.5 border-b border-line-hairline text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted">
+      <div class="grid grid-cols-[minmax(220px,1fr)_110px_180px_90px_90px_70px] gap-3 px-3 py-1.5 border-b border-line-hairline text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted">
         <div>Scan</div>
         <div>Origin</div>
         <div>Branch</div>
@@ -169,7 +165,7 @@
           <button
             type="button"
             on:click={() => pick(scan)}
-            class="w-full text-left px-3 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_92px_110px_80px_70px_60px] gap-3 items-center"
+            class="w-full text-left px-3 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(220px,1fr)_110px_180px_90px_90px_70px] gap-3 items-center"
             class:bg-accent-subtle={$selectedScan?.run_id === scan.run_id}
           >
             <span class="font-mono text-[11px] text-ink-primary truncate" title={scan.run_id}>{scanLabel(scan)}</span>

@@ -72,17 +72,16 @@
       aria-label="Close dropdown"
     ></button>
     <div
-      class="absolute top-full left-0 mt-1 w-[640px] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
+      class="absolute top-full left-0 mt-1 w-[760px] max-w-[calc(100vw-2rem)] bg-surface-panel border border-line-strong rounded-md overflow-hidden z-50 flex flex-col"
       style="box-shadow: 0 12px 32px rgba(0,0,0,0.4);"
     >
       <div class="px-3 py-2 border-b border-line-hairline text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted flex items-center justify-between">
         <span>Projects</span>
         <span class="normal-case tracking-normal">click to focus</span>
       </div>
-      <div class="grid grid-cols-[minmax(0,1fr)_60px_80px_90px] gap-3 px-3 py-1.5 border-b border-line-hairline text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted">
+      <div class="grid grid-cols-[minmax(0,1fr)_70px_110px] gap-3 px-3 py-1.5 border-b border-line-hairline text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted">
         <div>Project</div>
         <div class="text-right">Runs</div>
-        <div class="text-center">Catalogue</div>
         <div class="text-right">Last scan</div>
       </div>
       <div class="overflow-auto">
@@ -91,14 +90,11 @@
             type="button"
             on:click={() => pick(p)}
             title={`${p.tag} (#${p.id})`}
-            class="w-full text-left px-3 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_60px_80px_90px] gap-3 items-center"
+            class="w-full text-left px-3 py-1.5 hover:bg-surface-elevated transition-colors border-b border-line-hairline last:border-0 grid grid-cols-[minmax(0,1fr)_70px_110px] gap-3 items-center"
             class:bg-accent-subtle={$selectedProject === p.id}
           >
             <span class="font-mono text-[11px] text-ink-primary truncate">{p.tag}</span>
             <span class="text-right font-mono text-[11px] text-ink-secondary tabular-nums">{p.run_count}</span>
-            <span class="text-center font-mono text-[10px] {p.has_catalogue ? 'text-ink-secondary' : 'text-ink-muted opacity-50'}">
-              {p.has_catalogue ? '✓' : '—'}
-            </span>
             <span class="text-right font-mono text-[11px] text-ink-muted tabular-nums whitespace-nowrap">{fmtDate(p.last_scan_at)}</span>
           </button>
         {:else}

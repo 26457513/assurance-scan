@@ -124,6 +124,7 @@ export interface ProjectSummary {
   run_count: number;
   last_scan_at: string | null;
   has_catalogue: boolean;
+  can_manage?: boolean;
 }
 
 export interface ScanStatus {

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from app.api.deps import get_settings
+from app.api.deps_project_access import ProjectAccessDep
 from app.config import Settings
 
 
@@ -58,11 +59,16 @@ def _is_under(path: Path, ancestor: Path) -> bool:
 
 @router.get("", response_model=FoldersResponse)
 async def list_folders(
+    principal: ProjectAccessDep,
     path: str | None = Query(default=None),
     settings: Settings = Depends(get_settings),
 ) -> FoldersResponse:
     """List subdirectories under `path`. If `path` is missing or outside
     the browse root, the browse root itself is listed."""
+    if not principal.sees_all_projects:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=403, detail="folder browsing requires an administrator")
     root = _browse_root(settings)
 
     if path:
