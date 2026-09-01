@@ -103,8 +103,11 @@ def test_release_workflow_builds_then_promotes_the_same_signed_digest() -> None:
     assert "sbom: true" in source
     assert "provenance: mode=max" in source
     assert "cosign sign --yes" in source
-    assert "cosign verify-attestation --type spdxjson" in source
-    assert "cosign verify-attestation --type slsaprovenance" in source
+    assert "cosign verify-attestation" not in source
+    assert source.count('(index .SBOM \\"$platform\\").SPDX') == 3
+    assert source.count('(index .Provenance \\"$platform\\").SLSA') == 3
+    assert source.count('sbom.get("SPDXID") == "SPDXRef-DOCUMENT"') == 3
+    assert source.count('provenance.get("buildDefinition", {}).get("buildType")') == 2
     assert "docker logout ghcr.io" in source  # proves anonymous/public pull expectation
     promote = source[source.index("  promote-stable:") :]
     assert "docker/build-push-action" not in promote

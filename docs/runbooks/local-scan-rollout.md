@@ -237,13 +237,18 @@ docker buildx imagetools inspect "$CANDIDATE_APP_REF"
 cosign verify "$CANDIDATE_APP_REF" \
   --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-app-image.yml@refs/heads/main' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-cosign verify-attestation --type spdxjson "$CANDIDATE_APP_REF" \
-  --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-app-image.yml@refs/heads/main' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-cosign verify-attestation --type slsaprovenance "$CANDIDATE_APP_REF" \
-  --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-app-image.yml@refs/heads/main' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+docker buildx imagetools inspect "$CANDIDATE_APP_REF" \
+  --format '{{ json .SBOM.SPDX }}' > "$ROLLOUT_EVIDENCE_DIR/app-sbom.json"
+docker buildx imagetools inspect "$CANDIDATE_APP_REF" \
+  --format '{{ json .Provenance.SLSA }}' > "$ROLLOUT_EVIDENCE_DIR/app-provenance.json"
 ```
+
+BuildKit attaches its generated SBOM and provenance to the platform manifest;
+they are not separately published Cosign attestations. Confirm that the saved
+SBOM has `SPDXID: SPDXRef-DOCUMENT` and a non-empty `packages` array, and that
+the provenance has a non-empty `buildDefinition.buildType` and
+`runDetails.builder.id`. Compare its `build-arg:REVISION`,
+`build-arg:VERSION`, and builder identity with the recorded application build.
 
 Then remove cached GHCR credentials and prove that CI and CLI are public:
 
@@ -254,22 +259,28 @@ docker buildx imagetools inspect "$CANDIDATE_CLI_REF"
 cosign verify "$CANDIDATE_CI_REF" \
   --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-cosign verify-attestation --type spdxjson "$CANDIDATE_CI_REF" \
-  --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-cosign verify-attestation --type slsaprovenance "$CANDIDATE_CI_REF" \
-  --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+docker buildx imagetools inspect "$CANDIDATE_CI_REF" \
+  --format '{{ json .SBOM.SPDX }}' > "$ROLLOUT_EVIDENCE_DIR/ci-sbom.json"
+docker buildx imagetools inspect "$CANDIDATE_CI_REF" \
+  --format '{{ json .Provenance.SLSA }}' > "$ROLLOUT_EVIDENCE_DIR/ci-provenance.json"
 cosign verify "$CANDIDATE_CLI_REF" \
   --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-cosign verify-attestation --type spdxjson "$CANDIDATE_CLI_REF" \
-  --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-cosign verify-attestation --type slsaprovenance "$CANDIDATE_CLI_REF" \
-  --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+for platform in linux/amd64 linux/arm64; do
+  suffix=${platform//\//-}
+  docker buildx imagetools inspect "$CANDIDATE_CLI_REF" \
+    --format "{{ json (index .SBOM \"$platform\").SPDX }}" \
+    > "$ROLLOUT_EVIDENCE_DIR/cli-sbom-$suffix.json"
+  docker buildx imagetools inspect "$CANDIDATE_CLI_REF" \
+    --format "{{ json (index .Provenance \"$platform\").SLSA }}" \
+    > "$ROLLOUT_EVIDENCE_DIR/cli-provenance-$suffix.json"
+done
 ```
+
+Apply the same structural and recorded-build comparisons to the CI evidence
+and to both CLI platform files. The automated candidate workflows perform
+these checks in full; this independent inspection proves the recorded rollout
+references still expose that evidence before deployment or promotion.
 
 Before expanding the cohort, pin every CI workflow participating in this
 release to `CANDIDATE_CI_REF`; do not consume `candidate` or `latest`. Confirm
