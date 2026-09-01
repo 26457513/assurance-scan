@@ -1,0 +1,226 @@
+name: deploy-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Full main-branch revision whose immutable application image will be deployed
+        required: true
+        type: string
+      confirmation:
+        description: Type deploy-production to confirm the maintenance-window cutover
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: root@165.232.106.224
+  APP_IMAGE: ghcr.io/26457513/assurance-scan-app
+
+jobs:
+  prepare-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      revision: ${{ steps.release.outputs.revision }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - name: Validate immutable release input
+        id: release
+        env:
+          REVISION: ${{ inputs.revision }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          test "$CONFIRMATION" = deploy-production
+          case "$REVISION" in
+            *[!0-9a-f]*|'') exit 2 ;;
+          esac
+          test "${#REVISION}" -eq 40
+          git merge-base --is-ancestor "$REVISION" origin/main
+          test "$(git rev-parse origin/main)" = "$REVISION"
+          printf 'revision=%s\n' "$REVISION" >> "$GITHUB_OUTPUT"
+      - name: Configure production SSH identity
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H 165.232.106.224 >> "$HOME/.ssh/known_hosts"
+      - name: Stop writers, preflight, and create verified backup
+        env:
+          REVISION: ${{ steps.release.outputs.revision }}
+        run: |
+          ssh "$DEPLOY_HOST" bash -s -- "$REVISION" <<'REMOTE'
+          set -Eeuo pipefail
+          set +x
+          umask 077
+
+          revision="$1"
+          case "$revision" in
+            *[!0-9a-f]*|'') exit 2 ;;
+          esac
+          test "${#revision}" -eq 40
+
+          repository=/root/assurance-scan
+          candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
+          evidence_dir="/root/assurance-scan-backups/cutover-$revision"
+          cutover_tool=/opt/assurance-scan/backend/scripts/local-cutover.py
+          server_stopped=0
+
+          restart_previous_on_error() {
+            status=$?
+            if [ "$status" -ne 0 ] && [ "$server_stopped" -eq 1 ]; then
+              cd "$repository"
+              docker compose up -d --no-deps --pull never server || true
+            fi
+            exit "$status"
+          }
+          trap restart_previous_on_error EXIT
+
+          cd "$repository"
+          test -z "$(git status --porcelain)"
+          git fetch --quiet origin main
+          test "$(git rev-parse origin/main)" = "$revision"
+          git checkout --quiet main
+          git merge --ff-only "$revision"
+          if grep -Eq '^[[:space:]]*LOCAL_INGEST_ENABLED[[:space:]]*=[[:space:]]*(1|true|yes|on)[[:space:]]*$' .env; then
+            printf 'LOCAL_INGEST_ENABLED must remain false for the initial cutover\n' >&2
+            exit 1
+          fi
+
+          docker pull --quiet "$candidate_ref" >/dev/null
+          test "$(docker image inspect "$candidate_ref" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
+          previous_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
+          data_volume="$(docker inspect assurance-scan-server-1 --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+          test -n "$data_volume"
+          docker volume inspect "$data_volume" >/dev/null
+          test ! -e "$evidence_dir"
+          install -d -m 700 "$evidence_dir"
+
+          docker compose stop server
+          server_stopped=1
+          test -z "$(docker compose ps --status running -q server)"
+
+          docker run --rm --read-only \
+            -v "$data_volume:/data:ro" \
+            -v "$evidence_dir:/evidence" \
+            --entrypoint /opt/venv/bin/python "$candidate_ref" \
+            "$cutover_tool" preflight --database /data/db.sqlite \
+            > "$evidence_dir/cutover-preflight.json"
+
+          docker run --rm --read-only \
+            -v "$data_volume:/data:ro" \
+            -v "$evidence_dir:/evidence" \
+            --entrypoint /opt/venv/bin/python "$candidate_ref" \
+            "$cutover_tool" backup \
+            --database /data/db.sqlite \
+            --backup /evidence/db.sqlite.pre-cutover \
+            --manifest /evidence/db.sqlite.pre-cutover.json \
+            --application-revision "$previous_image_id" \
+            > "$evidence_dir/backup-create-report.json"
+
+          docker run --rm --read-only \
+            -v "$evidence_dir:/evidence:ro" \
+            --entrypoint /opt/venv/bin/python "$candidate_ref" \
+            "$cutover_tool" verify-backup \
+            --backup /evidence/db.sqlite.pre-cutover \
+            --manifest /evidence/db.sqlite.pre-cutover.json \
+            > "$evidence_dir/backup-verify-report.json"
+
+          printf '%s\n' "$previous_image_id" > "$evidence_dir/previous-image-id.txt"
+          chmod 600 "$evidence_dir"/*
+          trap - EXIT
+          REMOTE
+      - name: Copy verified backup to the private runner
+        env:
+          REVISION: ${{ steps.release.outputs.revision }}
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/production-backup"
+          scp -r "$DEPLOY_HOST:/root/assurance-scan-backups/cutover-$REVISION/." \
+            "$RUNNER_TEMP/production-backup/"
+      - name: Preserve encrypted-at-rest off-host backup
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: production-backup-${{ steps.release.outputs.revision }}
+          path: ${{ runner.temp }}/production-backup
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove runner backup copy
+        if: always()
+        run: find "$RUNNER_TEMP/production-backup" -type f -delete 2>/dev/null || true
+      - name: Restart previous service when preparation or off-host backup fails
+        if: failure()
+        run: ssh "$DEPLOY_HOST" 'cd /root/assurance-scan && docker compose up -d --no-deps --pull never server'
+
+  deploy:
+    needs: prepare-backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Configure production SSH identity
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H 165.232.106.224 >> "$HOME/.ssh/known_hosts"
+      - name: Migrate and deploy the immutable application image
+        env:
+          REVISION: ${{ needs.prepare-backup.outputs.revision }}
+        run: |
+          ssh "$DEPLOY_HOST" bash -s -- "$REVISION" <<'REMOTE'
+          set -Eeuo pipefail
+          set +x
+
+          revision="$1"
+          repository=/root/assurance-scan
+          candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
+          evidence_dir="/root/assurance-scan-backups/cutover-$revision"
+
+          cd "$repository"
+          test "$(git rev-parse HEAD)" = "$revision"
+          test -z "$(docker compose ps --status running -q server)"
+          test -r "$evidence_dir/db.sqlite.pre-cutover"
+          test -r "$evidence_dir/db.sqlite.pre-cutover.json"
+          data_volume="$(docker inspect assurance-scan-server-1 --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+          test -n "$data_volume"
+          docker volume inspect "$data_volume" >/dev/null
+
+          docker run --rm \
+            --env-file .env \
+            -e ASSURANCE_SCAN_DB_PATH=/data/db.sqlite \
+            -v "$data_volume:/data" \
+            -w /opt/assurance-scan/backend \
+            --entrypoint /opt/venv/bin/alembic "$candidate_ref" \
+            -c /opt/assurance-scan/backend/alembic.ini upgrade head
+
+          docker image tag "$candidate_ref" ghcr.io/26457513/assurance-scan-app:latest
+          docker compose up -d --no-deps --pull never server
+
+          healthy=0
+          for _attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8742/health >/dev/null; then
+              healthy=1
+              break
+            fi
+            sleep 2
+          done
+          test "$healthy" -eq 1
+          test "$(docker inspect assurance-scan-server-1 --format '{{.Image}}')" = \
+            "$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
+          docker compose exec -T server \
+            /opt/venv/bin/alembic -c /opt/assurance-scan/backend/alembic.ini current \
+            | grep -q '0024_project_memberships (head)'
+          REMOTE
+      - name: Verify the public health endpoint
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 2 https://scan.squease.ai/health

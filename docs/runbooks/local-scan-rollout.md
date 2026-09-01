@@ -204,9 +204,9 @@ docker run --rm \
   --env-file .env \
   -e ASSURANCE_SCAN_DB_PATH=/data/db.sqlite \
   -v "$DATA_VOLUME:/data" \
-  -w /opt/assurance-scan \
+  -w /opt/assurance-scan/backend \
   --entrypoint /opt/venv/bin/alembic "$CANDIDATE_APP_REF" \
-  -c /opt/assurance-scan/alembic.ini upgrade head
+  -c /opt/assurance-scan/backend/alembic.ini upgrade head
 ```
 
 Do not start an older server against the migrated database.
