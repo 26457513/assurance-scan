@@ -240,8 +240,7 @@ jobs:
             sleep 2
           done
           test "$healthy" -eq 1
-          running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
-          test "$(docker image inspect "$running_image_id" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
+          test "$(docker inspect assurance-scan-server-1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
           docker exec assurance-scan-server-1 \
             /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0024_project_memberships",), row'
           REMOTE
@@ -283,8 +282,7 @@ jobs:
           cd /root/assurance-scan
           test "$(docker inspect assurance-scan-server-1 --format '{{.State.Status}}')" = running
           restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"
-          running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
-          running_revision="$(docker image inspect "$running_image_id" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+          running_revision="$(docker inspect assurance-scan-server-1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
           printf 'restart_count=%s\nrunning_revision=%s\n' "$restart_count" "$running_revision"
           set +e
           schema_revision="$(docker exec assurance-scan-server-1 \
