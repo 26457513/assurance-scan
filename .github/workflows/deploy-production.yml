@@ -283,6 +283,7 @@ jobs:
           cd /root/assurance-scan
           candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
           test "$(docker inspect assurance-scan-server-1 --format '{{.State.Status}}')" = running
+          docker pull --quiet "$candidate_ref" >/dev/null
           restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"
           running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
           candidate_image_id="$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
