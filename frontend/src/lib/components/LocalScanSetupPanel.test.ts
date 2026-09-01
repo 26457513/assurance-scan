@@ -26,6 +26,7 @@ describe('LocalScanSetupPanel', () => {
 
   it('offers explicit qualified host commands', async () => {
     const { container } = render(LocalScanSetupPanel);
+    await fireEvent.click(screen.getByRole('button', { name: 'macOS' }));
     expect(screen.getByRole('button', { name: 'macOS' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(/Native Windows and WSL 2 are not v1 targets/)).toBeInTheDocument();
     expect(container.textContent).toContain('--group-add 0');
@@ -43,6 +44,7 @@ describe('LocalScanSetupPanel', () => {
     });
     render(LocalScanSetupPanel);
 
+    await fireEvent.click(screen.getByRole('button', { name: 'macOS' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Copy scan' }));
     expect(writeText).toHaveBeenCalledTimes(1);
     const copied = writeText.mock.calls[0][0] as string;
