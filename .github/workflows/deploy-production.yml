@@ -240,7 +240,8 @@ jobs:
             sleep 2
           done
           test "$healthy" -eq 1
-          test "$(docker inspect assurance-scan-server-1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
+          test "$(docker inspect assurance-scan-server-1 --format '{{.Image}}')" = \
+            "$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
           docker exec assurance-scan-server-1 \
             /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0024_project_memberships",), row'
           REMOTE
@@ -280,10 +281,13 @@ jobs:
           set -Eeuo pipefail
           revision="$1"
           cd /root/assurance-scan
+          candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
           test "$(docker inspect assurance-scan-server-1 --format '{{.State.Status}}')" = running
           restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"
-          running_revision="$(docker inspect assurance-scan-server-1 --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
-          printf 'restart_count=%s\nrunning_revision=%s\n' "$restart_count" "$running_revision"
+          running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
+          candidate_image_id="$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
+          printf 'restart_count=%s\nrunning_image_id=%s\ncandidate_image_id=%s\n' \
+            "$restart_count" "$running_image_id" "$candidate_image_id"
           set +e
           schema_revision="$(docker exec assurance-scan-server-1 \
             /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); print(row[0] if row else "missing")' 2>&1)"
@@ -296,9 +300,13 @@ jobs:
             docker logs --tail 80 assurance-scan-server-1 >&2
             exit 1
           fi
-          test "$running_revision" = "$revision"
+          test "$running_image_id" = "$candidate_image_id"
           test "$schema_revision" = 0024_project_memberships
           curl --fail --silent --show-error http://127.0.0.1:8742/health >/dev/null
+          sleep 10
+          final_restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"
+          printf 'final_restart_count=%s\n' "$final_restart_count"
+          test "$final_restart_count" = "$restart_count"
           REMOTE
       - name: Verify the public health endpoint
         run: curl --fail --silent --show-error --retry 5 --retry-delay 2 https://scan.squease.ai/health
