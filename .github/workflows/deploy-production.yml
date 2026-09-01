@@ -93,7 +93,7 @@ jobs:
             status=$?
             if [ "$status" -ne 0 ] && [ "$server_stopped" -eq 1 ]; then
               cd "$repository"
-              docker compose up -d --no-deps --pull never server || true
+              docker compose up -d --no-deps --pull never --no-build server || true
             fi
             exit "$status"
           }
@@ -179,7 +179,7 @@ jobs:
         run: find "$RUNNER_TEMP/production-backup" -type f -delete 2>/dev/null || true
       - name: Restart previous service when preparation or off-host backup fails
         if: failure()
-        run: ssh "$DEPLOY_HOST" 'cd /root/assurance-scan && docker compose up -d --no-deps --pull never server'
+        run: ssh "$DEPLOY_HOST" 'cd /root/assurance-scan && docker compose up -d --no-deps --pull never --no-build server'
 
   deploy:
     if: inputs.operation == 'deploy'
@@ -228,7 +228,7 @@ jobs:
             -c /opt/assurance-scan/backend/alembic.ini upgrade head
 
           docker image tag "$candidate_ref" ghcr.io/26457513/assurance-scan-app:latest
-          docker compose up -d --no-deps --pull never server
+          docker compose up -d --no-deps --pull never --no-build server
 
           healthy=0
           for _attempt in $(seq 1 30); do

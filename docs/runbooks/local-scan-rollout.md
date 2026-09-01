@@ -223,7 +223,7 @@ do not rebuild on the host:
 
 ```bash
 docker image tag "$CANDIDATE_APP_REF" ghcr.io/26457513/assurance-scan-app:latest
-docker compose up -d --no-deps --pull never server
+docker compose up -d --no-deps --pull never --no-build server
 ```
 
 Confirm the running container image ID/digest matches the operator record, the
@@ -301,7 +301,7 @@ Edit `.env` to set `LOCAL_INGEST_ENABLED=true`, retain the complete Google
 session configuration, and restart only the candidate server:
 
 ```bash
-docker compose up -d --no-deps --pull never --force-recreate server
+docker compose up -d --no-deps --pull never --no-build --force-recreate server
 ```
 
 Create one short-lived upload token for a dedicated canary account/machine and
@@ -518,7 +518,7 @@ docker run --rm --read-only \
   > "$ROLLOUT_EVIDENCE_DIR/post-restore-preflight.json"
 
 docker image tag "$PREVIOUS_APP_REF" ghcr.io/26457513/assurance-scan-app:latest
-docker compose up -d --no-deps --pull never server
+docker compose up -d --no-deps --pull never --no-build server
 ```
 
 The restore result records the exact `recovery_path` retained beside the
