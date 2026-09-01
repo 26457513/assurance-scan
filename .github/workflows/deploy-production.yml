@@ -242,7 +242,7 @@ jobs:
           test "$healthy" -eq 1
           running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
           test "$(docker image inspect "$running_image_id" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
-          docker compose exec -T server \
+          docker exec assurance-scan-server-1 \
             /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0024_project_memberships",), row'
           REMOTE
       - name: Verify the public health endpoint
@@ -282,11 +282,13 @@ jobs:
           revision="$1"
           cd /root/assurance-scan
           test "$(docker inspect assurance-scan-server-1 --format '{{.State.Status}}')" = running
+          restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"
           running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
           running_revision="$(docker image inspect "$running_image_id" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
-          schema_revision="$(docker compose exec -T server \
+          schema_revision="$(docker exec assurance-scan-server-1 \
             /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); print(row[0] if row else "missing")')"
-          printf 'running_revision=%s\nschema_revision=%s\n' "$running_revision" "$schema_revision"
+          printf 'restart_count=%s\nrunning_revision=%s\nschema_revision=%s\n' \
+            "$restart_count" "$running_revision" "$schema_revision"
           test "$running_revision" = "$revision"
           test "$schema_revision" = 0024_project_memberships
           curl --fail --silent --show-error http://127.0.0.1:8742/health >/dev/null
