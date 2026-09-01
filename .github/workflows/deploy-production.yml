@@ -3,6 +3,14 @@ name: deploy-production
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Deploy with backup and migration, or verify the current production deployment
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - verify
       revision:
         description: Full main-branch revision whose immutable application image will be deployed
         required: true
@@ -25,6 +33,7 @@ env:
 
 jobs:
   prepare-backup:
+    if: inputs.operation == 'deploy'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -173,6 +182,7 @@ jobs:
         run: ssh "$DEPLOY_HOST" 'cd /root/assurance-scan && docker compose up -d --no-deps --pull never server'
 
   deploy:
+    if: inputs.operation == 'deploy'
     needs: prepare-backup
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -222,18 +232,61 @@ jobs:
 
           healthy=0
           for _attempt in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8742/health >/dev/null; then
+            if curl --fail --silent --show-error --retry-connrefused \
+              http://127.0.0.1:8742/health >/dev/null; then
               healthy=1
               break
             fi
             sleep 2
           done
           test "$healthy" -eq 1
-          test "$(docker inspect assurance-scan-server-1 --format '{{.Image}}')" = \
-            "$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
+          running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
+          test "$(docker image inspect "$running_image_id" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
           docker compose exec -T server \
-            /opt/venv/bin/alembic -c /opt/assurance-scan/backend/alembic.ini current \
-            | grep -q '0024_project_memberships (head)'
+            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0024_project_memberships",), row'
+          REMOTE
+      - name: Verify the public health endpoint
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 2 https://scan.squease.ai/health
+
+  verify:
+    if: inputs.operation == 'verify'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - name: Validate immutable release input
+        env:
+          REVISION: ${{ inputs.revision }}
+        run: |
+          case "$REVISION" in
+            *[!0-9a-f]*|'') exit 2 ;;
+          esac
+          test "${#REVISION}" -eq 40
+          git merge-base --is-ancestor "$REVISION" origin/main
+      - name: Configure production SSH identity
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H 165.232.106.224 >> "$HOME/.ssh/known_hosts"
+      - name: Verify running image, schema, and local health
+        env:
+          REVISION: ${{ inputs.revision }}
+        run: |
+          ssh "$DEPLOY_HOST" bash -s -- "$REVISION" <<'REMOTE'
+          set -Eeuo pipefail
+          revision="$1"
+          cd /root/assurance-scan
+          test "$(docker inspect assurance-scan-server-1 --format '{{.State.Status}}')" = running
+          running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
+          test "$(docker image inspect "$running_image_id" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
+          docker compose exec -T server \
+            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0024_project_memberships",), row'
+          curl --fail --silent --show-error http://127.0.0.1:8742/health >/dev/null
           REMOTE
       - name: Verify the public health endpoint
         run: curl --fail --silent --show-error --retry 5 --retry-delay 2 https://scan.squease.ai/health
