@@ -348,7 +348,13 @@ def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
 
 
 def _readonly_connection(path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(f"file:{quote(str(path))}?mode=ro", uri=True)
+    # Cutover callers stop every writer and checkpoint WAL before inspection.
+    # `immutable=1` prevents SQLite from trying to create WAL/SHM files when the
+    # database volume is deliberately mounted read-only for operator checks.
+    connection = sqlite3.connect(
+        f"file:{quote(str(path))}?mode=ro&immutable=1",
+        uri=True,
+    )
     connection.execute("PRAGMA query_only = ON")
     connection.execute("PRAGMA foreign_keys = ON")
     return connection

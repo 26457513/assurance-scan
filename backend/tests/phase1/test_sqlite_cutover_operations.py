@@ -119,6 +119,28 @@ def test_preflight_is_read_only_and_retention_report_counts_without_deleting(tmp
     assert _sha256(database) == before
 
 
+def test_preflight_opens_checkpointed_wal_database_from_read_only_directory(
+    tmp_path: Path,
+) -> None:
+    database = _database(tmp_path / "wal-readonly.sqlite")
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
+        connection.execute("INSERT INTO marker VALUES ('checkpointed')")
+        connection.commit()
+        checkpoint = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        assert checkpoint is not None and checkpoint[0] == 0
+
+    original_mode = stat.S_IMODE(tmp_path.stat().st_mode)
+    tmp_path.chmod(stat.S_IRUSR | stat.S_IXUSR)
+    try:
+        report = inspect_database(database)
+    finally:
+        tmp_path.chmod(original_mode)
+
+    assert report.integrity == "ok"
+    assert report.schema_revision == "0022_local_ingest_claims"
+
+
 def test_backup_is_verified_content_addressed_and_owner_read_only(tmp_path: Path) -> None:
     database = _database(tmp_path / "source.sqlite")
     backup = tmp_path / "backups" / "cutover.sqlite"

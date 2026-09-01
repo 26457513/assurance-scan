@@ -136,6 +136,11 @@ revision `0020_snapshot_source_branch`. Its report can contain private local
 paths, so keep it in the operator directory:
 
 ```bash
+docker run --rm \
+  -v "$DATA_VOLUME:/data" \
+  --entrypoint /opt/venv/bin/python "$CANDIDATE_APP_REF" \
+  -c 'import sqlite3; connection=sqlite3.connect("/data/db.sqlite"); result=connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone(); connection.close(); assert result and result[0] == 0, result'
+
 docker run --rm --read-only \
   -v "$DATA_VOLUME:/data:ro" \
   -v "$ROLLOUT_EVIDENCE_DIR:/evidence" \

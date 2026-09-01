@@ -110,7 +110,10 @@ def _identity_preflight(database: Path, revision: str | None) -> dict[str, Any]:
     """Reuse the migration's deterministic 0021 preflight when applicable."""
     if revision != "0020_snapshot_source_branch":
         return {"status": "not-applicable", "schema_revision": revision}
-    uri = f"sqlite:///file:{database.expanduser().resolve()}?mode=ro&uri=true"
+    uri = (
+        f"sqlite:///file:{database.expanduser().resolve()}"
+        "?mode=ro&immutable=1&uri=true"
+    )
     engine = sa.create_engine(uri)
     try:
         with engine.connect() as connection:
