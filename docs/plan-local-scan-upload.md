@@ -187,9 +187,10 @@ Tokens must never be written into the project, `.assurance-scan.yml`, Docker
 environment variables in the normal interactive flow, scan artifacts, or
 command output. The CLI container can read the token only because `/config` is
 mounted; it must not forward the token to any sibling scanner container.
-`auth login` runs with the host UID/GID so it does not leave a root-owned
-configuration file on Linux. The scan command may retain the image's default
-user so it can access the Docker socket; it mounts the configuration read-only.
+`auth login` and `scan` run with the host UID/GID so they do not leave
+root-owned configuration or cache files. The scan command adds only the Docker
+socket's supplemental group: group `0` on Docker Desktop, or the socket's
+numeric group from `stat -c` on Linux. It mounts the configuration read-only.
 
 ### Scan
 
@@ -197,6 +198,7 @@ From the target repository:
 
 ```bash
 docker run --rm -it --pull=always \
+  --user "$(id -u):$(id -g)" --group-add 0 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$PWD:$PWD:ro" \
   -v "$HOME/.config/assurance-scan:/config:ro" \
@@ -207,6 +209,10 @@ docker run --rm -it --pull=always \
   -w "$PWD" \
   ghcr.io/26457513/assurance-scan-cli:stable scan
 ```
+
+The shown scan command is the macOS Docker Desktop form. Linux replaces
+`--group-add 0` with
+`--group-add "$(stat -c '%g' /var/run/docker.sock)"`.
 
 This is one command and requires no language runtime or locally installed CLI.
 The first release requires invocation from the Git repository root. Its
@@ -289,6 +295,7 @@ Conceptually the user's invocation is:
 
 ```bash
 docker run --rm --pull=always \
+  --user "$(id -u):$(id -g)" --group-add 0 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$REPO_ROOT:$REPO_ROOT:ro" \
   -v "$HOME/.config/assurance-scan:/config:ro" \
@@ -299,6 +306,9 @@ docker run --rm --pull=always \
   -w "$REPO_ROOT" \
   ghcr.io/26457513/assurance-scan-cli:stable scan
 ```
+
+The conceptual command shows the macOS Docker Desktop socket group; Linux uses
+the socket's numeric group as described in the user-facing scan command above.
 
 The repository must be mounted at the same absolute path inside the
 orchestrator container. `DockerRunner` launches sibling scanner containers

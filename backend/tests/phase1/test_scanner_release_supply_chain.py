@@ -104,6 +104,7 @@ def test_release_workflow_builds_then_promotes_the_same_signed_digest() -> None:
     assert "provenance: mode=max" in source
     assert "cosign sign --yes" in source
     assert "cosign verify-attestation" not in source
+    assert "SEMGREP_POLICY_PATH.read_bytes()" in source
     assert source.count('(index .SBOM \\"$platform\\").SPDX') == 3
     assert source.count('(index .Provenance \\"$platform\\").SLSA') == 3
     assert source.count('sbom.get("SPDXID") == "SPDXRef-DOCUMENT"') == 3

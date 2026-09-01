@@ -21,6 +21,7 @@ from app.modules.atomic.local_cli.source_snapshot import (
     create_source_snapshot,
 )
 from app.modules.atomic.local_cli.upload_client import UploadBundle, UploadResult
+from app.modules.atomic.scanning.scanner_catalog import SEMGREP_POLICY_PATH
 from app.modules.workflows.local_scan_execution import (
     DefaultLocalUploadPort,
     GitProvenance,
@@ -215,7 +216,6 @@ def build_local_scan_dependencies(
         expected_gid=host_gid,
     )
     store.prune()
-    policy = Path(__file__).resolve().parents[1] / "resources" / "scanners" / "semgrep-reviewed.yml"
     dependencies = LocalScanExecutionDependencies(
         config=FilesystemConfigPort(
             config_path,
@@ -228,7 +228,7 @@ def build_local_scan_dependencies(
             host_uid=host_uid,
             host_gid=host_gid,
         ),
-        scanners=LocalScannerAdapter(policy),
+        scanners=LocalScannerAdapter(SEMGREP_POLICY_PATH),
         outbox=LocalOutboxAdapter(store),
         uploader=DefaultLocalUploadPort(),
     )

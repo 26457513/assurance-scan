@@ -115,6 +115,8 @@ run_step "CLI image build" docker build \
   --tag "$CLI_IMAGE" \
   -f backend/Dockerfile.cli .
 run_step "CLI entrypoint smoke" docker run --rm "$CLI_IMAGE" --version
+run_step "CLI scanner resource smoke" docker run --rm --entrypoint python3 "$CLI_IMAGE" -c \
+  'import hashlib; from app.modules.atomic.scanning.scanner_catalog import SCANNER_RELEASE_SET, SEMGREP_POLICY_PATH; payload=SEMGREP_POLICY_PATH.read_bytes(); assert hashlib.sha256(payload).hexdigest() == SCANNER_RELEASE_SET.semgrep_policy_sha256'
 
 run_step "Tracked diff whitespace" git diff --check
 run_step "Repository source hygiene" "$PYTHON_BIN" backend/scripts/check-source-hygiene.py

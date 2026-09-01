@@ -11,7 +11,13 @@ from app.modules.atomic.platform.docker_port import (
     named_volumes,
     scanner_failure_detail,
 )
-from app.modules.atomic.scanning.scanner_catalog import GRYPE, SEMGREP, ScannerConfig, TRIVY_IMAGE
+from app.modules.atomic.scanning.scanner_catalog import (
+    GRYPE,
+    SEMGREP,
+    SEMGREP_POLICY_PATH,
+    ScannerConfig,
+    TRIVY_IMAGE,
+)
 from app.modules.atomic.scanning.result_builder import build_sarif
 from app.modules.workflows.github_scan_execution import run_scanners
 from app.modules.atomic.scanning.finding_parser import ParsedFinding
@@ -20,6 +26,8 @@ from app.modules.atomic.scanning.finding_parser import ParsedFinding
 def test_scanner_catalog_exposes_atomic_contracts() -> None:
     assert isinstance(GRYPE, ScannerConfig)
     assert TRIVY_IMAGE.kind == "trivy-image"
+    assert SEMGREP_POLICY_PATH.is_file()
+    assert SEMGREP_POLICY_PATH.name == "semgrep-reviewed.yml"
 
 
 def test_docker_argv_preserves_mount_environment_and_command_order() -> None:

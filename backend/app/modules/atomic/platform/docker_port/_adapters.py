@@ -8,8 +8,8 @@ import shlex
 from collections.abc import Iterable
 
 from app.modules.atomic.scanning.scanner_catalog import (
-    SCANNER_MANIFEST_PATH,
     SCANNER_RELEASE_SET,
+    SEMGREP_POLICY_PATH,
     ScannerConfig,
 )
 
@@ -62,7 +62,7 @@ class DockerRunner:
 
 
 def _reviewed_policy() -> bytes:
-    payload = (SCANNER_MANIFEST_PATH.parent / "semgrep-reviewed.yml").read_bytes()
+    payload = SEMGREP_POLICY_PATH.read_bytes()
     if hashlib.sha256(payload).hexdigest() != SCANNER_RELEASE_SET.semgrep_policy_sha256:
         raise RuntimeError("reviewed Semgrep policy digest does not match the release set")
     return payload

@@ -24,11 +24,15 @@ describe('LocalScanSetupPanel', () => {
     expect(container).toHaveTextContent(/source\s+snapshot and absolute host paths are not uploaded/);
   });
 
-  it('states the qualified platforms without inventing different commands', () => {
+  it('offers explicit qualified host commands', async () => {
     const { container } = render(LocalScanSetupPanel);
-    expect(container.textContent).toContain('macOS · Linux');
+    expect(screen.getByRole('button', { name: 'macOS' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(/Native Windows and WSL 2 are not v1 targets/)).toBeInTheDocument();
-    expect(container.textContent).not.toContain("stat -c '%g'");
+    expect(container.textContent).toContain('--group-add 0');
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Linux' }));
+    expect(screen.getByRole('button', { name: 'Linux' })).toHaveAttribute('aria-pressed', 'true');
+    expect(container.textContent).toContain("--group-add \"$(stat -c '%g' /var/run/docker.sock)\"");
   });
 
   it('copies the full one-command scan invocation', async () => {
@@ -44,6 +48,7 @@ describe('LocalScanSetupPanel', () => {
     const copied = writeText.mock.calls[0][0] as string;
     expect(copied).toContain('ghcr.io/26457513/assurance-scan-cli:stable scan');
     expect(copied).toContain('-v "$PWD:$PWD:ro"');
+    expect(copied).toContain('--user "$(id -u):$(id -g)" --group-add 0');
     expect(copied).not.toContain('asu_v1_');
   });
 });

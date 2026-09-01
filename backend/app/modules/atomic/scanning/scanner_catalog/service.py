@@ -84,6 +84,9 @@ SCANNER_RELEASE_SET = ScannerReleaseSet(
     semgrep_policy_container_path=_required_text(_policy, "container_path"),
     semgrep_policy_sha256=_required_text(_policy, "sha256"),
 )
+SEMGREP_POLICY_PATH = SCANNER_MANIFEST_PATH.parent / Path(
+    SCANNER_RELEASE_SET.semgrep_policy_path,
+).name
 
 SEMGREP = _config(
     "semgrep",
@@ -156,6 +159,6 @@ def ci_scanner_set(image: str | None = None) -> tuple[ScannerConfig, ...]:
 __all__ = [
     "ALL_CACHE_VOLUMES", "CLAMAV_DB_VOLUME", "CODE_SCANNERS", "GITLEAKS", "GRYPE",
     "GRYPE_DB_VOLUME", "OSV_SCANNER", "OSV_SCANNER_DB_VOLUME", "PROJECT_MOUNT_TARGET",
-    "SCANNER_MANIFEST_PATH", "SCANNER_RELEASE_SET", "SEMGREP", "SYFT",
+    "SCANNER_MANIFEST_PATH", "SCANNER_RELEASE_SET", "SEMGREP", "SEMGREP_POLICY_PATH", "SYFT",
     "TRIVY_CACHE_VOLUME", "TRIVY_CONFIG", "TRIVY_FS", "TRIVY_IMAGE", "ci_scanner_set",
 ]

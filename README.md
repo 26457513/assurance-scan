@@ -184,6 +184,7 @@ Then run this from the Git repository root:
 
 ```bash
 docker run --rm -it --pull=always --init \
+  --user "$(id -u):$(id -g)" --group-add 0 \
   --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
   --cap-drop ALL --security-opt no-new-privileges \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -197,8 +198,12 @@ docker run --rm -it --pull=always --init \
   ghcr.io/26457513/assurance-scan-cli:stable scan
 ```
 
-The same command works on supported macOS and Linux hosts. Native Windows and
-WSL 2 are not v1 targets; use a supported host rather than adapting the command.
+The command above is for macOS Docker Desktop. On Linux, replace
+`--group-add 0` with
+`--group-add "$(stat -c '%g' /var/run/docker.sock)"`. The CLI retains the host
+user's identity for owner-only config/cache files while receiving only the
+supplemental group needed to reach the Docker socket. Native Windows and WSL 2
+are not v1 targets; use a supported host rather than adapting the command.
 The exact copyable commands are also available under
 **Setup → My account → Local scanner**.
 

@@ -4,10 +4,14 @@
   import CopyButton from './CopyButton.svelte';
 
   const IMAGE = 'ghcr.io/26457513/assurance-scan-cli:stable';
+  type HostPlatform = 'macos' | 'linux';
+
   let serverUrl = 'https://scan.example.com';
+  let hostPlatform: HostPlatform = 'macos';
 
   onMount(() => {
     serverUrl = window.location.origin;
+    if (/Linux/i.test(window.navigator.userAgent)) hostPlatform = 'linux';
   });
 
 
@@ -19,7 +23,12 @@ docker run --rm -it --pull=always \\
   ${IMAGE} \\
   auth login --url ${serverUrl}`;
 
+  $: dockerSocketGroup = hostPlatform === 'macos'
+    ? '0'
+    : '"$(stat -c \'%g\' /var/run/docker.sock)"';
+
   $: scanCommand = `docker run --rm -it --pull=always --init \\
+  --user "$(id -u):$(id -g)" --group-add ${dockerSocketGroup} \\
   --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
   --cap-drop ALL --security-opt no-new-privileges \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
@@ -68,8 +77,19 @@ docker run --rm -it --pull=always \\
         Git repository. The token is entered at a hidden prompt—not in the command or shell history.
       </p>
     </div>
-    <div class="border border-line-strong rounded-sm bg-surface-inset px-2.5 py-1 text-[9px] font-mono uppercase tracking-[0.1em] text-ink-muted">
-      macOS · Linux
+    <div class="platform-switch" aria-label="Command platform">
+      <button
+        type="button"
+        class:active={hostPlatform === 'macos'}
+        aria-pressed={hostPlatform === 'macos'}
+        on:click={() => hostPlatform = 'macos'}
+      >macOS</button>
+      <button
+        type="button"
+        class:active={hostPlatform === 'linux'}
+        aria-pressed={hostPlatform === 'linux'}
+        on:click={() => hostPlatform = 'linux'}
+      >Linux</button>
     </div>
   </div>
 
@@ -118,6 +138,8 @@ docker run --rm -it --pull=always \\
         <p class="text-[10px] text-ink-muted leading-relaxed mt-2">
           <code>--pull=always</code> checks for a promoted CLI update and reuses unchanged layers.
           Pin an immutable version or digest when your environment requires controlled upgrades.
+          The selected host command grants only the Docker socket's supplemental group while the
+          CLI runs as your user, keeping cache files owner-only on first use.
         </p>
       </div>
     </li>
@@ -243,6 +265,39 @@ docker run --rm -it --pull=always \\
     color: var(--accent);
     font-family: 'Geist Mono', ui-monospace, monospace;
     font-size: 0.6rem;
+  }
+
+  .platform-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 2px;
+    background: var(--bg-inset);
+  }
+
+  .platform-switch button {
+    min-width: 4.25rem;
+    padding: 0.35rem 0.6rem;
+    color: var(--text-muted);
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 0.5625rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .platform-switch button + button {
+    border-left: 1px solid var(--border-hairline);
+  }
+
+  .platform-switch button.active {
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+    color: var(--accent);
+  }
+
+  .platform-switch button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   .command-block {
