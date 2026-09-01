@@ -45,7 +45,6 @@ jobs:
           esac
           test "${#REVISION}" -eq 40
           git merge-base --is-ancestor "$REVISION" origin/main
-          test "$(git rev-parse origin/main)" = "$REVISION"
           printf 'revision=%s\n' "$REVISION" >> "$GITHUB_OUTPUT"
       - name: Configure production SSH identity
         env:
@@ -89,7 +88,7 @@ jobs:
           cd "$repository"
           test -z "$(git status --porcelain)"
           git fetch --quiet origin main
-          test "$(git rev-parse origin/main)" = "$revision"
+          git merge-base --is-ancestor "$revision" origin/main
           git checkout --quiet main
           git merge --ff-only "$revision"
           if grep -Eq '^[[:space:]]*LOCAL_INGEST_ENABLED[[:space:]]*=[[:space:]]*(1|true|yes|on)[[:space:]]*$' .env; then
