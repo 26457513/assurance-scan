@@ -285,10 +285,19 @@ jobs:
           restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"
           running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
           running_revision="$(docker image inspect "$running_image_id" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+          printf 'restart_count=%s\nrunning_revision=%s\n' "$restart_count" "$running_revision"
+          set +e
           schema_revision="$(docker exec assurance-scan-server-1 \
-            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); print(row[0] if row else "missing")')"
-          printf 'restart_count=%s\nrunning_revision=%s\nschema_revision=%s\n' \
-            "$restart_count" "$running_revision" "$schema_revision"
+            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); print(row[0] if row else "missing")' 2>&1)"
+          schema_status=$?
+          set -e
+          printf 'schema_command_status=%s\nschema_revision=%s\n' "$schema_status" "$schema_revision"
+          if [ "$schema_status" -ne 0 ]; then
+            docker inspect assurance-scan-server-1 \
+              --format 'status={{.State.Status}} restarting={{.State.Restarting}} exit_code={{.State.ExitCode}} restart_count={{.RestartCount}} error={{json .State.Error}}' >&2
+            docker logs --tail 80 assurance-scan-server-1 >&2
+            exit 1
+          fi
           test "$running_revision" = "$revision"
           test "$schema_revision" = 0024_project_memberships
           curl --fail --silent --show-error http://127.0.0.1:8742/health >/dev/null
