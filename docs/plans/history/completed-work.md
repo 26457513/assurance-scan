@@ -35,4 +35,16 @@ The candidate gate passed 592 backend tests, 42 frontend tests, Ruff, Mypy,
 Semgrep, schema/shell/frontend validation, and application/CI/CLI container
 builds and smokes. Production release remains governed by the rollout runbook.
 
+## WS7a — frozen v2 ingestion contracts
+
+Added strict source-neutral v2 metadata, findings, source-context and problem
+schemas; code-backed protocol vocabularies and ceilings; RFC 8785 canonical JSON
+and domain-separated envelope hashing; cross-part validation; and golden OIDC,
+JWKS, webhook-HMAC, API-problem and negative fixtures. The review also qualified
+local request/CLI installation names and documented that source-file hashes are
+producer provenance rather than server attestation. No v2 runtime route was
+enabled. The candidate gate passed 616 backend tests, 42 frontend tests, Ruff,
+Mypy, Semgrep with zero findings, schema and shell validation, dependency audit,
+frontend checks/build, and application/CI/CLI container builds and smokes.
+
 Historical counts are evidence from their checkpoints, not the current expected test totals. The current release must pass [Quality gates](../delivery/quality-gates.md).

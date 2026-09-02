@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"target": "header", "operation": "replace", "field": "alg", "value": "HS256", "code": "oidc_invalid"},
+    {"target": "header", "operation": "add", "field": "jku", "value": "https://attacker.example/jwks", "code": "oidc_invalid"},
+    {"target": "header", "operation": "replace", "field": "kid", "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "code": "oidc_invalid"},
+    {"target": "claims", "operation": "replace", "field": "iss", "value": "https://attacker.example", "code": "oidc_invalid"},
+    {"target": "claims", "operation": "replace", "field": "aud", "value": ["https://scan.squease.ai/api/v2/ingest/github-actions"], "code": "oidc_invalid"},
+    {"target": "claims", "operation": "remove", "field": "repository_id", "code": "oidc_invalid"},
+    {"target": "claims", "operation": "replace", "field": "event_name", "value": "pull_request", "code": "unsupported_event"},
+    {"target": "claims", "operation": "replace", "field": "ref", "value": "refs/heads/feature", "code": "non_default_branch"},
+    {"target": "claims", "operation": "replace", "field": "exp", "value": 1788344401, "code": "oidc_invalid"},
+    {"target": "claims", "operation": "replace", "field": "jti", "value": "replayed", "code": "oidc_replayed"}
+  ]
+}

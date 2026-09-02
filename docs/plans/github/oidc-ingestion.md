@@ -45,8 +45,10 @@ Require workflow path `.github/workflows/assurance-scan.yml` in `workflow_ref`
 and require `workflow_sha == sha`. `workflow_ref` must equal
 `{repository}/.github/workflows/assurance-scan.yml@{ref}`. Require `sub` to
 equal `repo:{repository}:ref:{ref}`, using GitHub's percent-encoding rules, and
-require `ref` to equal `refs/heads/{currently_verified_default_branch}`. Numeric
-claims are strict positive base-10 integers within database bounds. Actor fields
+require `ref` to equal `refs/heads/{currently_verified_default_branch}`.
+GitHub's numeric identity/run claims are strict positive base-10 digit strings,
+parsed into integers within database bounds; `iat`, `nbf` and `exp` are JSON
+integers. Actor fields
 are provenance, not authorization: repository installation scope and the signed
 default-branch workflow identity authorize the workload. Do not authorize from
 actor name, repository-name suffix or substring matching.

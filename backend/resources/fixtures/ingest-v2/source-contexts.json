@@ -1,0 +1,7 @@
+{
+  "schema_version": 2,
+  "contexts": [
+    {"context_key": "0872864a-3b74-5e4a-8867-6f7004294ea9", "finding_keys": ["7d1a2ed2-7ec4-58ad-9df6-eef2d06e4f90"], "available": true, "provider": "snapshot", "path": "src/app.py", "window_start": 5, "window_end": 7, "highlight_start": 6, "highlight_end": 6, "highlight_truncated": false, "lines": [{"number": 5, "text": "def handler(value):", "truncated": false}, {"number": 6, "text": "    return eval(value)", "truncated": false}, {"number": 7, "text": "", "truncated": false}], "source_hash": "7777777777777777777777777777777777777777777777777777777777777777", "redaction_version": 1, "redaction_changed": false},
+    {"context_key": "05e344fd-e6c6-5c7f-8dcb-9953021e21ae", "finding_keys": ["d2a79196-d635-5294-8956-83b6d173db4d"], "available": false, "provider": "snapshot", "path": "Dockerfile", "redaction_version": 1, "redaction_changed": false, "unavailable_reason": "missing_line"}
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assurance-scan.dev/schemas/source-contexts.v2.schema.json",
+  "title": "Assurance Scan source contexts v2",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "contexts"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "contexts": {"type": "array", "maxItems": 20000, "items": {"$ref": "#/$defs/context"}}
+  },
+  "$defs": {
+    "path": {"type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\u0000).+$"},
+    "line": {
+      "type": "object", "additionalProperties": false,
+      "required": ["number", "text", "truncated"],
+      "properties": {"number": {"type": "integer", "minimum": 1}, "text": {"type": "string", "maxLength": 1024}, "truncated": {"type": "boolean"}}
+    },
+    "context": {
+      "type": "object", "additionalProperties": false,
+      "required": ["context_key", "finding_keys", "available", "provider", "redaction_version", "redaction_changed"],
+      "properties": {
+        "context_key": {"type": "string", "format": "uuid"},
+        "finding_keys": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "format": "uuid"}},
+        "available": {"type": "boolean"},
+        "provider": {"const": "snapshot"},
+        "path": {"$ref": "#/$defs/path"},
+        "window_start": {"type": "integer", "minimum": 1},
+        "window_end": {"type": "integer", "minimum": 1},
+        "highlight_start": {"type": "integer", "minimum": 1},
+        "highlight_end": {"type": "integer", "minimum": 1},
+        "highlight_truncated": {"type": "boolean"},
+        "lines": {"type": "array", "maxItems": 11, "items": {"$ref": "#/$defs/line"}},
+        "source_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "redaction_version": {"const": 1},
+        "redaction_changed": {"type": "boolean"},
+        "unavailable_reason": {"enum": ["binary", "context_limit", "decode_error", "file_too_large", "invalid_path", "missing_file", "missing_line", "missing_path", "not_uploaded", "request_limit", "untrusted_range"]}
+      },
+      "allOf": [{
+        "if": {"properties": {"available": {"const": true}}, "required": ["available"]},
+        "then": {
+          "required": ["path", "window_start", "window_end", "highlight_start", "highlight_end", "highlight_truncated", "lines", "source_hash"],
+          "properties": {"unavailable_reason": false}
+        },
+        "else": {
+          "required": ["unavailable_reason"],
+          "properties": {
+            "window_start": false,
+            "window_end": false,
+            "highlight_start": false,
+            "highlight_end": false,
+            "highlight_truncated": false,
+            "lines": false,
+            "source_hash": false
+          }
+        }
+      }]
+    }
+  }
+}

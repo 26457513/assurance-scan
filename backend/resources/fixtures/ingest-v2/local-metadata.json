@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "repository": {"provider": "github", "full_name": "26457513/assurance-scan"},
+  "commit": "1111111111111111111111111111111111111111",
+  "git_object_format": "sha1",
+  "branch": "feature/contracts",
+  "ref": "refs/heads/feature/contracts",
+  "working_tree_dirty": true,
+  "source": {"content_hash": "2222222222222222222222222222222222222222222222222222222222222222", "manifest_version": "assurance-snapshot-v1", "lfs_state": "none", "submodules": []},
+  "scanner_release": {"manifest_version": 1, "manifest_digest": "3333333333333333333333333333333333333333333333333333333333333333", "images": {"semgrep": "docker.io/semgrep/semgrep@sha256:4444444444444444444444444444444444444444444444444444444444444444"}},
+  "artifacts": {"sarif": true, "sbom": false},
+  "producer": {"kind": "local-cli", "request_id": "018f47a2-4c72-4c9e-9f60-780cb70b8fe4", "cli_installation_id": "9d729629-2af3-4498-8342-7ed237f44a6f", "cli_version": "v1.2.3", "cli_build_revision": "5555555555555555555555555555555555555555", "cli_image": "ghcr.io/26457513/assurance-scan-cli@sha256:6666666666666666666666666666666666666666666666666666666666666666"}
+}

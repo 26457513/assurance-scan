@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"event": "installation", "action": "created", "fixture": "installation-created.json", "signature": "valid-current", "outcome": "accepted"},
+    {"event": "installation_repositories", "action": "added", "fixture": "repositories-added.json", "signature": "valid-current", "outcome": "accepted"},
+    {"event": "installation", "action": "created", "fixture": "installation-created.json", "signature": "valid-previous-within-overlap", "outcome": "accepted"},
+    {"event": "installation", "action": "created", "fixture": "installation-created.json", "signature": "sha1", "outcome": "invalid_signature"},
+    {"event": "installation", "action": "created", "fixture": "installation-created.json", "signature": "invalid", "outcome": "invalid_signature"},
+    {"event": "installation", "action": "unsupported", "fixture": "installation-created.json", "signature": "valid-current", "outcome": "acknowledged_without_mutation"},
+    {"event": "issues", "action": "opened", "fixture": "installation-created.json", "signature": "valid-current", "outcome": "acknowledged_without_mutation"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "repository": {"provider": "github", "full_name": "26457513/assurance-scan"},
+  "commit": "1111111111111111111111111111111111111111",
+  "git_object_format": "sha1",
+  "branch": "main",
+  "ref": "refs/heads/main",
+  "working_tree_dirty": false,
+  "source": {"content_hash": "2222222222222222222222222222222222222222222222222222222222222222", "manifest_version": "assurance-snapshot-v1", "lfs_state": "none", "submodules": []},
+  "scanner_release": {"manifest_version": 1, "manifest_digest": "3333333333333333333333333333333333333333333333333333333333333333", "images": {"semgrep": "docker.io/semgrep/semgrep@sha256:4444444444444444444444444444444444444444444444444444444444444444"}},
+  "artifacts": {"sarif": true, "sbom": false},
+  "producer": {"kind": "github-actions", "repository_id": 424242, "repository_owner_id": 26457513, "run_id": 123456789, "run_number": 26, "run_attempt": 1, "event_name": "push", "workflow_ref": "26457513/assurance-scan/.github/workflows/assurance-scan.yml@refs/heads/main", "workflow_sha": "1111111111111111111111111111111111111111", "actor": "octocat", "actor_id": 583231}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"fixture": "local-metadata.json", "pointer": "/schema_version", "replacement": 1, "code": "schema_validation_failed"},
+    {"fixture": "local-metadata.json", "pointer": "/producer/kind", "replacement": "github-actions", "code": "schema_validation_failed"},
+    {"fixture": "local-metadata.json", "pointer": "/producer/installation_id", "replacement": "9d729629-2af3-4498-8342-7ed237f44a6f", "code": "schema_validation_failed"},
+    {"fixture": "github-metadata.json", "pointer": "/producer/event_name", "replacement": "pull_request", "code": "unsupported_event"},
+    {"fixture": "github-metadata.json", "pointer": "/working_tree_dirty", "replacement": true, "code": "schema_validation_failed"},
+    {"fixture": "findings.json", "pointer": "/scanners/0/status", "replacement": "running", "code": "schema_validation_failed"},
+    {"fixture": "findings.json", "pointer": "/scanners/0/error_code", "replacement": "raw scanner error", "code": "schema_validation_failed"},
+    {"fixture": "findings.json", "pointer": "/scanners/0/status", "replacement": "failed", "code": "schema_validation_failed"},
+    {"fixture": "findings.json", "pointer": "/findings/0/file_path", "replacement": "../secret", "code": "schema_validation_failed"},
+    {"fixture": "findings.json", "pointer": "/findings/0/line_start", "replacement": null, "code": "schema_validation_failed"},
+    {"fixture": "source-contexts.json", "pointer": "/contexts/0/provider", "replacement": "github", "code": "schema_validation_failed"},
+    {"fixture": "source-contexts.json", "pointer": "/contexts/0/unavailable_reason", "replacement": "missing_file", "code": "schema_validation_failed"},
+    {"fixture": "problem.json", "pointer": "/code", "replacement": "accepted", "code": "schema_validation_failed"}
+  ]
+}

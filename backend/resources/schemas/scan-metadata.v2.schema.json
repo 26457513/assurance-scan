@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assurance-scan.dev/schemas/scan-metadata.v2.schema.json",
+  "title": "Assurance Scan source-neutral upload metadata v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "repository", "commit", "git_object_format",
+    "branch", "ref", "working_tree_dirty", "source", "scanner_release",
+    "artifacts", "producer"
+  ],
+  "properties": {
+    "schema_version": {"const": 2},
+    "repository": {"$ref": "#/$defs/repository"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+    "git_object_format": {"enum": ["sha1", "sha256"]},
+    "branch": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},
+    "ref": {"type": ["string", "null"], "maxLength": 527, "pattern": "^refs/heads/[^\\u0000\\r\\n]+$"},
+    "working_tree_dirty": {"type": "boolean"},
+    "source": {"$ref": "#/$defs/source"},
+    "scanner_release": {"$ref": "#/$defs/scannerRelease"},
+    "artifacts": {"$ref": "#/$defs/artifacts"},
+    "producer": {
+      "oneOf": [
+        {"$ref": "#/$defs/localProducer"},
+        {"$ref": "#/$defs/githubProducer"}
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"git_object_format": {"const": "sha1"}}},
+      "then": {"properties": {"commit": {"pattern": "^[0-9a-f]{40}$"}}},
+      "else": {"properties": {"commit": {"pattern": "^[0-9a-f]{64}$"}}}
+    },
+    {
+      "if": {"properties": {"producer": {"properties": {"kind": {"const": "github-actions"}}, "required": ["kind"]}}},
+      "then": {
+        "properties": {
+          "working_tree_dirty": {"const": false},
+          "producer": {"$ref": "#/$defs/githubProducer"}
+        }
+      },
+      "else": {"properties": {"producer": {"$ref": "#/$defs/localProducer"}}}
+    }
+  ],
+  "$defs": {
+    "uuid4": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "repositoryName": {"type": "string", "minLength": 3, "maxLength": 256, "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38}[A-Za-z0-9])?/[A-Za-z0-9_.-]{1,100}$"},
+    "repositoryPath": {"type": "string", "minLength": 1, "maxLength": 1024, "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\u0000).+$"},
+    "imageDigest": {"type": "string", "maxLength": 512, "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$"},
+    "repository": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "full_name"],
+      "properties": {
+        "provider": {"const": "github"},
+        "full_name": {"$ref": "#/$defs/repositoryName"}
+      }
+    },
+    "submodule": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "commit", "initialized"],
+      "properties": {
+        "path": {"$ref": "#/$defs/repositoryPath"},
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"},
+        "initialized": {"type": "boolean"}
+      }
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["content_hash", "manifest_version", "lfs_state", "submodules"],
+      "properties": {
+        "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "manifest_version": {"const": "assurance-snapshot-v1"},
+        "lfs_state": {"enum": ["none", "pointers", "hydrated", "mixed"]},
+        "submodules": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/submodule"}}
+      }
+    },
+    "scannerRelease": {
+      "type": "object", "additionalProperties": false,
+      "required": ["manifest_version", "manifest_digest", "images"],
+      "properties": {
+        "manifest_version": {"const": 1},
+        "manifest_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "images": {
+          "type": "object", "minProperties": 1, "maxProperties": 32,
+          "propertyNames": {"enum": ["semgrep", "gitleaks", "trivy-fs", "trivy-config", "trivy-image", "syft", "grype", "osv-scanner", "tribal"]},
+          "additionalProperties": {"$ref": "#/$defs/imageDigest"}
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sarif", "sbom"],
+      "properties": {"sarif": {"type": "boolean"}, "sbom": {"type": "boolean"}}
+    },
+    "localProducer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "request_id", "cli_installation_id", "cli_version", "cli_build_revision", "cli_image"],
+      "properties": {
+        "kind": {"const": "local-cli"},
+        "request_id": {"$ref": "#/$defs/uuid4"},
+        "cli_installation_id": {"$ref": "#/$defs/uuid4"},
+        "cli_version": {"type": "string", "minLength": 1, "maxLength": 64},
+        "cli_build_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "cli_image": {"$ref": "#/$defs/imageDigest"}
+      }
+    },
+    "githubProducer": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "repository_id", "repository_owner_id", "run_id", "run_number", "run_attempt", "event_name", "workflow_ref", "workflow_sha", "actor", "actor_id"],
+      "properties": {
+        "kind": {"const": "github-actions"},
+        "repository_id": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "repository_owner_id": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "run_id": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "run_number": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "run_attempt": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+        "event_name": {"const": "push"},
+        "workflow_ref": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "workflow_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "actor": {"type": "string", "minLength": 1, "maxLength": 128},
+        "actor_id": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+      }
+    }
+  }
+}

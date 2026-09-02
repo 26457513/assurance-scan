@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "secrets": {
+    "current": "assurance-scan-current-test-secret",
+    "previous": "assurance-scan-previous-test-secret"
+  },
+  "vectors": [
+    {
+      "fixture": "installation-created.json",
+      "body_sha256": "c4b7c6b7cbf4beab8511eb9fda54b2f14348186d908a920b811576e85f12e069",
+      "current_signature": "sha256=de5a1424049c38155307eda6d632bf5013b9e5c6a4f7414deee09b9035cedf32",
+      "previous_signature": "sha256=8040d477d0a24ec8ceb8c0743fb7a27dbaa398d086723b0b7c19d58cade3eac2"
+    },
+    {
+      "fixture": "repositories-added.json",
+      "body_sha256": "c44ed6b6da93e54f88cc73e34fa8f2bdbc20bdbc1a25afd685564b0e0a9aee49",
+      "current_signature": "sha256=5a0a939f23f60eab6f08939f364402e427ecdc3c9728172d2d8e24cb85413497",
+      "previous_signature": "sha256=b37efde4347bd2015e23f2f624b67a4e498e5603fdc26e220b1b6a4bf8d3791e"
+    }
+  ]
+}

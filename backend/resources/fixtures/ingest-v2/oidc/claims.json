@@ -1,0 +1,22 @@
+{
+  "iss": "https://token.actions.githubusercontent.com",
+  "aud": "https://scan.squease.ai/api/v2/ingest/github-actions",
+  "sub": "repo:26457513/assurance-scan:ref:refs/heads/main",
+  "repository_id": "424242",
+  "repository_owner_id": "26457513",
+  "repository": "26457513/assurance-scan",
+  "run_id": "123456789",
+  "run_number": "26",
+  "run_attempt": "1",
+  "sha": "1111111111111111111111111111111111111111",
+  "ref": "refs/heads/main",
+  "event_name": "push",
+  "actor": "octocat",
+  "actor_id": "583231",
+  "workflow_ref": "26457513/assurance-scan/.github/workflows/assurance-scan.yml@refs/heads/main",
+  "workflow_sha": "1111111111111111111111111111111111111111",
+  "iat": 1788343200,
+  "nbf": 1788343140,
+  "exp": 1788343800,
+  "jti": "5f8634ce-45ef-45bb-909e-090f692dd58f"
+}

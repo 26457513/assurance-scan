@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "canonical_json": [
+    {"name": "object-order", "value": {"z": 0, "a": 1, "😀": 2, "דּ": 3}, "canonical": "{\"a\":1,\"z\":0,\"😀\":2,\"דּ\":3}"},
+    {"name": "integer-profile", "value": {"negative": -42, "null": null, "positive": 9007199254740991, "truth": true}, "canonical": "{\"negative\":-42,\"null\":null,\"positive\":9007199254740991,\"truth\":true}"},
+    {"name": "escaping", "value": {"text": "line\nquote\"slash\\tab\t"}, "canonical": "{\"text\":\"line\\nquote\\\"slash\\\\tab\\t\"}"}
+  ],
+  "envelope": {
+    "parts": {
+      "metadata": {"schema_version": 2},
+      "findings": {"schema_version": 2, "findings": [], "scanners": []},
+      "source_contexts": {"schema_version": 2, "contexts": []},
+      "sarif": {"version": "2.1.0", "runs": []},
+      "sbom": null
+    },
+    "payload_hash": "319d583b17e3ad6ff3696c300845024e1aecfbd2db5d485335bab72db3d27a2b"
+  }
+}

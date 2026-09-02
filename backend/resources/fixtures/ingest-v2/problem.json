@@ -1,0 +1,11 @@
+{
+  "type": "https://assurance-scan.dev/problems/schema-validation-failed",
+  "title": "Schema validation failed",
+  "status": 422,
+  "detail": "Part 'findings' does not satisfy the version-two schema.",
+  "instance": "/api/v2/ingest/local-scans",
+  "code": "schema_validation_failed",
+  "retryable": false,
+  "correlation_id": "b63fe9e1-1083-4c8c-89cb-c0eca5087fa5",
+  "limits": {}
+}

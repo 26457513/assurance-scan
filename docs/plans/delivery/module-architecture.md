@@ -15,6 +15,7 @@ backend/app/modules/
       repository_entitlement/
       scan_token/              # existing token capability, extended
     ingestion/
+      envelope_contract/      # frozen JCS/hash primitive, currently disabled
       ingest_attempt/
       source_context/
       result_persister/        # existing persistence boundary, extended
@@ -28,6 +29,7 @@ backend/app/modules/
     github_oidc_ingest/
     local_scan_ingest/         # existing workflow, extended
     result_ingest/             # existing common workflow, extended
+    result_ingest_v2_contract/ # disabled cross-part contract coordinator
     setup_bootstrap/
   shared/
     contracts/                 # existing source-neutral contracts

@@ -1,0 +1,3 @@
+{
+  "keys": [{"kty": "RSA", "use": "sig", "alg": "RS256", "kid": "assurance-scan-test-key-1", "n": "wy4aYwp7-_ewg6tdhEounErzeTZBLjhH0qcuTMwsyjQP0upxWidot9Ot5WYTGx68FJWyKhZeiPOY6dACxSo1t6SdytCTCeoFIcBRAsPQHwSifYGLo5AA62vkpVg3r14IwnUrOaMeRZOsOkzbwePCTqPbF3PcIRMhCuIea7g6M0JbeZhUmL7hYw4x7ke4VLj-bsSXX2J3z5fD0tx00_bnjLYtJrSuCP8pVJlD7M82vHbijq1NRuaT4BvSeO3mKH_fV8YkUTZvWbx4xE3lr1oDVvIOWC_XH21Y089TcizI06_yowb3bWdYkP6flu6TW6frsLJlUwdPnrSmUpZOE-eaAQ", "e": "AQAB"}]
+}

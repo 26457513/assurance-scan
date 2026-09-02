@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "headers": {"Content-Type": "application/problem+json"},
+      "body": {"type": "https://assurance-scan.dev/problems/invalid-credential", "title": "Invalid credential", "status": 401, "detail": "The supplied upload credential is invalid.", "instance": "/api/v2/ingest/local-scans", "code": "invalid_credential", "retryable": false, "correlation_id": "2fac8aca-6834-42c7-a034-bb7605550b76", "limits": {}}
+    },
+    {
+      "headers": {"Content-Type": "application/problem+json"},
+      "body": {"type": "https://assurance-scan.dev/problems/idempotency-conflict", "title": "Idempotency conflict", "status": 409, "detail": "The request key was previously used with different content.", "instance": "/api/v2/ingest/local-scans", "code": "idempotency_conflict", "retryable": false, "correlation_id": "050f3c67-65a2-493e-8d75-cf48e04776a3", "limits": {}}
+    },
+    {
+      "headers": {"Content-Type": "application/problem+json"},
+      "body": {"type": "https://assurance-scan.dev/problems/wire-limit-exceeded", "title": "Wire limit exceeded", "status": 413, "detail": "The request exceeds the maximum wire size.", "instance": "/api/v2/ingest/github-actions", "code": "wire_limit_exceeded", "retryable": false, "correlation_id": "ebf87e1c-83f7-4187-b15e-949e522868b6", "limits": {"wire_bytes": 33554432}}
+    },
+    {
+      "headers": {"Content-Type": "application/problem+json", "Retry-After": "3600"},
+      "body": {"type": "https://assurance-scan.dev/problems/quota-exceeded", "title": "Quota exceeded", "status": 429, "detail": "The upload quota has been reached.", "instance": "/api/v2/ingest/github-actions", "code": "quota_exceeded", "retryable": true, "correlation_id": "876482fc-0c50-49dc-82ca-58a81e454cd4", "limits": {"uploads_per_repository_hour": 30}}
+    },
+    {
+      "headers": {"Content-Type": "application/problem+json", "Retry-After": "30"},
+      "body": {"type": "https://assurance-scan.dev/problems/github-verification-failed", "title": "GitHub verification failed", "status": 503, "detail": "Repository authorization could not be verified.", "instance": "/api/v2/ingest/github-actions", "code": "github_verification_failed", "retryable": true, "correlation_id": "a9a50ddb-feae-4f57-b0cf-67d3f46aab8e", "limits": {}}
+    },
+    {
+      "headers": {"Content-Type": "application/problem+json"},
+      "body": {"type": "https://assurance-scan.dev/problems/storage-quota-exceeded", "title": "Storage quota exceeded", "status": 507, "detail": "Retained local scan storage is exhausted.", "instance": "/api/v2/ingest/local-scans", "code": "storage_quota_exceeded", "retryable": false, "correlation_id": "50266896-1720-43d7-b1a1-c1606a08794f", "limits": {"retained_bytes_per_user": 1073741824}}
+    }
+  ]
+}

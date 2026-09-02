@@ -1,6 +1,6 @@
 # Delivery workstreams
 
-Status: WS6a–WS6b are implemented and quality-gated. WS7a–WS7g remain;
+Status: WS6a–WS7a are implemented and quality-gated. WS7b–WS7g remain;
 production activation of the new result contract stays deferred to WS7e/WS7g.
 
 ## Completed foundation
@@ -41,6 +41,9 @@ manifest/image, stale wrapper, remote daemon, unsafe path and inaccessible socke
 all fail before scanner execution.
 
 ## WS7a — frozen contracts and security fixtures
+
+Status: complete in the disabled candidate code path (2 September 2026). No v2
+transport route, producer, authentication adapter or persistence path is enabled.
 
 Freeze v2 JSON Schemas, JCS hashing vectors, OIDC/JWKS fixtures, webhook fixtures,
 ingest-attempt reason codes, quotas and API problem responses. No runtime path is

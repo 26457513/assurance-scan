@@ -30,8 +30,9 @@ the upload envelope is v1.
 
 Limits are enforced at TLS proxy and application boundaries while streaming:
 
-- 32 MiB total wire; 64 MiB parsed/decompressed aggregate;
-- 64 KiB metadata, 10 MiB findings, 16 MiB SARIF, 16 MiB SBOM;
+- 32 MiB total wire; 64 MiB parsed aggregate;
+- 64 KiB metadata, 10 MiB findings, 10 MiB source contexts, 16 MiB SARIF,
+  16 MiB SBOM;
 - 20,000 findings, 32 scanner records, JSON depth 20;
 - paths 1,024 characters; messages 8,192 characters;
 - source-context limits are owned by `source-context.md`.
@@ -60,12 +61,13 @@ Local key: `(submitted_by_user_id, client_request_uuid)`.
 GitHub key: `(github_repository_id, github_run_id, run_attempt)`.
 
 JSON schemas forbid non-integer numbers. Canonical JSON uses RFC 8785/JCS UTF-8.
-`payload_hash` is SHA-256 over the ASCII domain separator
-`assurance-scan-envelope-v2`, followed by NUL-delimited tuples in fixed order
-`metadata`, `findings`, `source_contexts`, `sarif`, `sbom`; each tuple contains
-part name, byte length and SHA-256 of its validated canonical bytes. Missing
-optional parts use an explicit `absent` tuple. Matching replay returns the existing run;
-different content returns `409 idempotency_conflict`. A five-minute fenced
+`payload_hash` is SHA-256 over the ASCII domain separator and NUL byte
+`assurance-scan-envelope-v2\0`, followed in fixed order by `metadata`,
+`findings`, `source_contexts`, `sarif`, `sbom`. A present part contributes
+`name\0decimal-byte-length\0lowercase-sha256-hex\0`; an absent optional part
+contributes `name\0absent\0`. Length and digest cover the validated JCS bytes,
+not multipart headers or raw formatting. Matching replay returns the existing
+run; different content returns `409 idempotency_conflict`. A five-minute fenced
 lease with heartbeat protects in-progress ingestion. After run deletion, a
 content-free tombstone rejects key reuse for 30 days.
 

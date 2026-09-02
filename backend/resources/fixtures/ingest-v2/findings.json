@@ -1,0 +1,8 @@
+{
+  "schema_version": 2,
+  "scanners": [{"kind": "semgrep", "status": "completed", "duration_ms": 1250, "image": "docker.io/semgrep/semgrep@sha256:4444444444444444444444444444444444444444444444444444444444444444", "tool_version": "1.130.0", "database_version": null, "error_code": null}],
+  "findings": [
+    {"finding_key": "7d1a2ed2-7ec4-58ad-9df6-eef2d06e4f90", "scanner": "semgrep", "rule_id": "python.lang.security.audit.eval-detected", "severity": "HIGH", "file_path": "src/app.py", "line_start": 6, "line_end": 6, "message": "Avoid dynamic evaluation.", "theme": "code", "fix_strategy": "code-change", "compliance_tags": ["ASVS-5.3.4"]},
+    {"finding_key": "d2a79196-d635-5294-8956-83b6d173db4d", "scanner": "semgrep", "rule_id": "dockerfile.security.missing-user", "severity": "MEDIUM", "file_path": "Dockerfile", "line_start": null, "line_end": null, "message": "Set a non-root runtime user.", "theme": "misconfiguration", "fix_strategy": "config-only", "compliance_tags": []}
+  ]
+}

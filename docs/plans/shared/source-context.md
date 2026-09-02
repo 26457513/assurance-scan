@@ -12,9 +12,10 @@ normalized path, original range, message fingerprint and stable occurrence
 ordinal. Findings and contexts carry the same key through filtering,
 deduplication and persistence; orphan or duplicate keys reject the bundle.
 Available entries contain repository-relative path, inclusive source window,
-original highlight range, numbered lines, provider, source-content hash,
+original highlight range, numbered lines, provider, source-file SHA-256,
 `redaction_version` and `redaction_changed`. Unavailable entries contain no
-source text and one stable reason.
+source text or source hash and one stable reason; they may retain the validated
+repository-relative path.
 
 An available context contains at most eleven total lines:
 
@@ -29,7 +30,9 @@ findings. File-only findings never receive a guessed line.
 
 ## Safety limits
 
-- 500 unique windows/request;
+- 20,000 total context records/request, matching the finding ceiling, with at
+  most 500 available source windows; unavailable records do not consume the
+  available-window allowance;
 - 11 lines/window, 1 KiB UTF-8/line and 8 KiB UTF-8/window; the window cap wins
   and truncation occurs on a Unicode boundary with an explicit marker;
 - 2 MiB decoded context text/request.
@@ -39,8 +42,11 @@ unavailable reasons. Exceeding context limits never drops the finding.
 
 Client extraction removes incidental scanner snippets and applies a versioned,
 deterministic redaction policy before outbox/network writes. The server requires
-a supported version, validates that every context hash matches the run source
-manifest, and re-redacts before persistence. Tests cover every supported secret
+a supported version, validates all cross-part links and hashes the complete
+context part into the idempotent envelope, then re-redacts before persistence.
+The per-file hash is producer provenance, not independent server attestation;
+OIDC authenticates the workflow but cannot prove the uploaded working bytes.
+Tests cover every supported secret
 detector, absolute-path removal, boundary truncation and representative full-file
 exfiltration attempts; the contract does not claim detection of every possible
 unknown secret format.

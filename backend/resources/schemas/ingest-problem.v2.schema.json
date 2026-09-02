@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assurance-scan.dev/schemas/ingest-problem.v2.schema.json",
+  "title": "Assurance Scan ingest problem v2",
+  "type": "object", "additionalProperties": false,
+  "required": ["type", "title", "status", "detail", "instance", "code", "retryable", "correlation_id", "limits"],
+  "properties": {
+    "type": {"type": "string", "pattern": "^https://assurance-scan\\.dev/problems/[a-z0-9-]+$"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 128},
+    "status": {"type": "integer", "minimum": 400, "maximum": 599},
+    "detail": {"type": "string", "minLength": 1, "maxLength": 512},
+    "instance": {"enum": ["/api/v2/ingest/local-scans", "/api/v2/ingest/github-actions", "/api/v2/github/webhook"]},
+    "code": {"enum": ["artifact_mismatch", "authentication_rate_limited", "capacity_exceeded", "duplicate_json_key", "duplicate_part", "github_verification_failed", "idempotency_conflict", "insufficient_scope", "internal_persistence_failed", "invalid_content_type", "invalid_credential", "invalid_json", "invalid_part_media_type", "malformed_multipart", "non_default_branch", "oidc_invalid", "oidc_replayed", "project_not_enabled", "quota_exceeded", "repository_not_authorized", "schema_validation_failed", "stale_entitlement", "storage_quota_exceeded", "unexpected_part", "unsupported_content_encoding", "unsupported_event", "wire_limit_exceeded"]},
+    "retryable": {"type": "boolean"},
+    "correlation_id": {"type": "string", "format": "uuid"},
+    "limits": {"type": "object", "maxProperties": 16, "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,63}$"}, "additionalProperties": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}}
+  }
+}
