@@ -160,6 +160,40 @@ def authorize_default_branch_push(
         _invalid()
 
 
+def validate_github_payload_metadata(
+    claims: GithubOidcClaims,
+    metadata: Mapping[str, Any],
+) -> None:
+    """Bind every duplicated bundle identity field to its signed OIDC claim."""
+    repository = metadata.get("repository")
+    producer = metadata.get("producer")
+    if not isinstance(repository, Mapping) or not isinstance(producer, Mapping):
+        raise OidcValidationError("artifact_mismatch")
+    expected_producer = {
+        "kind": "github-actions",
+        "repository_id": claims.repository_id,
+        "repository_owner_id": claims.repository_owner_id,
+        "run_id": claims.run_id,
+        "run_number": claims.run_number,
+        "run_attempt": claims.run_attempt,
+        "event_name": claims.event_name,
+        "workflow_ref": claims.workflow_ref,
+        "workflow_sha": claims.workflow_sha,
+        "actor": claims.actor,
+        "actor_id": claims.actor_id,
+    }
+    if (
+        repository.get("provider") != "github"
+        or repository.get("full_name") != claims.repository
+        or metadata.get("commit") != claims.sha
+        or metadata.get("ref") != claims.ref
+        or metadata.get("branch") != claims.ref.removeprefix("refs/heads/")
+        or metadata.get("working_tree_dirty") is not False
+        or dict(producer) != expected_producer
+    ):
+        raise OidcValidationError("artifact_mismatch")
+
+
 async def consume_github_oidc_jti(
     claims: GithubOidcClaims,
     *,
@@ -280,4 +314,5 @@ __all__ = [
     "authorize_default_branch_push",
     "consume_github_oidc_jti",
     "github_oidc_audience",
+    "validate_github_payload_metadata",
 ]

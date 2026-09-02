@@ -29,6 +29,10 @@ from app.modules.atomic.access.github_membership_projection import (
     GithubProjectPermission,
     GithubRepositoryEntitlement,
 )
+from app.modules.atomic.provenance.repository_identity import (
+    InvalidRepositoryIdentityError,
+    parse_github_repository,
+)
 
 
 GITHUB_API_ROOT = "https://api.github.com"
@@ -274,6 +278,48 @@ def fetch_authoritative_installation(
         return validate_installation_snapshot(snapshot)
     except ValueError as exc:
         raise GithubAppApiError("GitHub returned inconsistent installation metadata") from exc
+
+
+def fetch_authoritative_repository(
+    *,
+    github_app_id: str,
+    private_key_pem: bytes,
+    github_installation_id: int,
+    repository_full_name: str,
+    now: dt.datetime,
+    http: GithubHttpPort | None = None,
+) -> GithubRepositorySnapshot:
+    """Verify one repository at authorization time with an installation token."""
+    installation_id = _positive_integer(github_installation_id, "installation id")
+    try:
+        parsed_name = parse_github_repository(repository_full_name)
+    except InvalidRepositoryIdentityError as exc:
+        raise GithubAppApiError("GitHub repository name is invalid") from exc
+    if parsed_name != repository_full_name:
+        raise GithubAppApiError("GitHub repository name is not canonical")
+    transport = http or UrllibGithubHttp()
+    app_jwt = create_github_app_jwt(
+        github_app_id=github_app_id,
+        private_key_pem=private_key_pem,
+        now=_aware(now),
+    )
+    token_response = transport.request(
+        "POST",
+        f"{GITHUB_API_ROOT}/app/installations/{installation_id}/access_tokens",
+        headers=_headers(app_jwt),
+        body=b"{}",
+    )
+    installation_token = _object(token_response.payload, "installation token").get("token")
+    if not isinstance(installation_token, str) or not installation_token:
+        raise GithubAppApiError("GitHub did not return an installation token")
+    repository_response = transport.request(
+        "GET",
+        f"{GITHUB_API_ROOT}/repos/{parsed_name}",
+        headers=_headers(installation_token),
+    )
+    if repository_response.status != 200:
+        raise GithubAppApiError("GitHub returned an unexpected response status")
+    return _repository(repository_response.payload)
 
 
 async def fetch_authoritative_installation_tracked(
@@ -652,6 +698,7 @@ __all__ = [
     "fetch_authoritative_installation",
     "fetch_authoritative_installation_tracked",
     "fetch_authoritative_installation_for_user",
+    "fetch_authoritative_repository",
     "fetch_github_app_installation_states",
     "load_github_app_private_key",
 ]

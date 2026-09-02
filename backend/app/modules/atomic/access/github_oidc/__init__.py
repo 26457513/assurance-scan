@@ -7,6 +7,7 @@ from .service import (
     authorize_default_branch_push,
     consume_github_oidc_jti,
     github_oidc_audience,
+    validate_github_payload_metadata,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "authorize_default_branch_push",
     "consume_github_oidc_jti",
     "github_oidc_audience",
+    "validate_github_payload_metadata",
 ]

@@ -35,6 +35,7 @@ from app.infrastructure.github_app_api import (
     fetch_authoritative_installation,
     fetch_authoritative_installation_tracked,
     fetch_authoritative_installation_for_user,
+    fetch_authoritative_repository,
     fetch_github_app_installation_states,
     load_github_app_private_key,
 )
@@ -126,6 +127,19 @@ class FakeGithubHttp:
                 },
                 {"etag": '"repositories-v1"'},
             )
+        if url == f"{GITHUB_API_ROOT}/repos/example-org/example-repo":
+            return GithubApiResponse(
+                {
+                    "id": 424242,
+                    "full_name": "example-org/example-repo",
+                    "owner": {"id": 26457513},
+                    "default_branch": "main",
+                    "visibility": "private",
+                    "archived": False,
+                    "disabled": False,
+                },
+                {},
+            )
         raise AssertionError(f"unexpected request: {method} {url}")
 
 
@@ -215,6 +229,50 @@ def test_worker_fetch_uses_app_credentials_without_a_user_token() -> None:
     assert snapshot.github_installation_id == 9001
     assert http.requests[0][1] == f"{GITHUB_API_ROOT}/app/installations/9001"
     assert all("/user/installations" not in request[1] for request in http.requests)
+
+
+def test_upload_authorization_fetches_only_one_repository_with_installation_credentials() -> None:
+    http = FakeGithubHttp()
+
+    repository = fetch_authoritative_repository(
+        github_app_id="12345",
+        private_key_pem=_private_pem(_private_key()),
+        github_installation_id=9001,
+        repository_full_name="example-org/example-repo",
+        now=NOW,
+        http=http,
+    )
+
+    assert repository.github_repository_id == 424242
+    assert repository.github_owner_id == 26457513
+    assert repository.default_branch == "main"
+    assert [request[0:2] for request in http.requests] == [
+        ("POST", f"{GITHUB_API_ROOT}/app/installations/9001/access_tokens"),
+        ("GET", f"{GITHUB_API_ROOT}/repos/example-org/example-repo"),
+    ]
+    assert http.requests[-1][2]["Authorization"] == "Bearer installation-token"
+
+
+@pytest.mark.parametrize(
+    "repository",
+    (
+        "https://github.com/example-org/example-repo",
+        "example-org/example-repo.git",
+        "example-org/example-repo?redirect=https://attacker.example",
+    ),
+)
+def test_upload_authorization_rejects_noncanonical_repository_paths(repository: str) -> None:
+    http = FakeGithubHttp()
+    with pytest.raises(GithubAppApiError, match="repository name"):
+        fetch_authoritative_repository(
+            github_app_id="12345",
+            private_key_pem=_private_pem(_private_key()),
+            github_installation_id=9001,
+            repository_full_name=repository,
+            now=NOW,
+            http=http,
+        )
+    assert http.requests == []
 
 
 def test_repository_etag_reuses_only_an_explicit_complete_cache() -> None:

@@ -14,11 +14,13 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from app.infrastructure.github_oidc import CryptographyRsaSignatureVerifier
 from app.modules.atomic.access.github_oidc import (
+    GithubOidcClaims,
     GithubRepositoryTrust,
     OidcValidationError,
     authenticate_github_oidc,
     authorize_default_branch_push,
     github_oidc_audience,
+    validate_github_payload_metadata,
 )
 
 
@@ -154,6 +156,19 @@ def test_audience_is_exact_endpoint() -> None:
     )
 
 
+def test_payload_metadata_is_bound_to_every_signed_identity_field() -> None:
+    claims = _claims()
+    identity = _identity_from_fixture(claims)
+    metadata = json.loads(
+        (FIXTURES.parent / "github-metadata.json").read_text()
+    )
+    validate_github_payload_metadata(identity, metadata)
+
+    metadata["producer"]["run_attempt"] = 2
+    with pytest.raises(OidcValidationError, match="artifact_mismatch"):
+        validate_github_payload_metadata(identity, metadata)
+
+
 def _claims() -> dict[str, Any]:
     fixture = json.loads((FIXTURES / "claims.json").read_text())
     fixture["iat"] = int(NOW.timestamp()) - 60
@@ -164,6 +179,29 @@ def _claims() -> dict[str, Any]:
 
 def _trust() -> GithubRepositoryTrust:
     return GithubRepositoryTrust(424242, 26457513, "26457513/assurance-scan", "main")
+
+
+def _identity_from_fixture(claims: dict[str, Any]) -> GithubOidcClaims:
+    return GithubOidcClaims(
+        subject=claims["sub"],
+        repository_id=int(claims["repository_id"]),
+        repository_owner_id=int(claims["repository_owner_id"]),
+        repository=claims["repository"],
+        run_id=int(claims["run_id"]),
+        run_number=int(claims["run_number"]),
+        run_attempt=int(claims["run_attempt"]),
+        sha=claims["sha"],
+        ref=claims["ref"],
+        event_name=claims["event_name"],
+        actor=claims["actor"],
+        actor_id=int(claims["actor_id"]),
+        workflow_ref=claims["workflow_ref"],
+        workflow_sha=claims["workflow_sha"],
+        issued_at=NOW - dt.timedelta(minutes=1),
+        not_before=NOW - dt.timedelta(minutes=1),
+        expires_at=NOW + dt.timedelta(minutes=9),
+        jti=claims["jti"],
+    )
 
 
 def _token(
