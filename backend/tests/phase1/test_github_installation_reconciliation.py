@@ -145,7 +145,12 @@ async def test_reconciliation_creates_by_numeric_identity_and_only_invalidates_d
     assert first.enabled_repository_ids == (101, 102)
     assert first.invalidated_project_ids == tuple(row.id for row in projects)
 
-    user = User(email="member@example.test", role="user", created_at=NOW)
+    user = User(
+        email="member@example.test",
+        role="user",
+        created_at=NOW,
+        github_app_access_synced_at=NOW,
+    )
     session.add(user)
     await session.flush()
     session.add(
@@ -167,6 +172,7 @@ async def test_reconciliation_creates_by_numeric_identity_and_only_invalidates_d
     membership = (await session.execute(select(ProjectMembership))).scalar_one()
     assert unchanged.invalidated_project_ids == ()
     assert membership.expires_at == (NOW + dt.timedelta(minutes=5)).replace(tzinfo=None)
+    assert user.github_app_access_synced_at == NOW
 
 
 @pytest.mark.asyncio
@@ -174,7 +180,12 @@ async def test_reconciliation_removal_expires_membership_and_hides_project(sessi
     adapter = SqlAlchemyGithubRepositoryReconciliationRepository(session)
     await reconcile_github_repositories(_snapshot(_repository(101, "first")), verified_at=NOW, repository=adapter)
     project = (await session.execute(select(Project))).scalar_one()
-    user = User(email="member@example.test", role="user", created_at=NOW)
+    user = User(
+        email="member@example.test",
+        role="user",
+        created_at=NOW,
+        github_app_access_synced_at=NOW,
+    )
     session.add(user)
     await session.flush()
     session.add(
@@ -203,6 +214,7 @@ async def test_reconciliation_removal_expires_membership_and_hides_project(sessi
     assert project.hidden is True
     assert repository_row.disabled is True
     assert membership.expires_at == (NOW + dt.timedelta(minutes=1)).replace(tzinfo=None)
+    assert user.github_app_access_synced_at is None
 
 
 @pytest.mark.asyncio

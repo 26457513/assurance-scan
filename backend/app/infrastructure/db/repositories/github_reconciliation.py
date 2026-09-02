@@ -12,6 +12,7 @@ from app.infrastructure.db.models import (
     GithubInstallationRepository,
     Project,
     ProjectMembership,
+    User,
 )
 from app.modules.atomic.access.github_repository_reconciliation import (
     GithubInstallationSnapshot,
@@ -330,6 +331,15 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
     async def _expire_memberships(self, project_ids: set[int], *, expired_at: dt.datetime) -> None:
         if not project_ids:
             return
+        affected_users = select(ProjectMembership.user_id).where(
+            ProjectMembership.project_id.in_(project_ids),
+            ProjectMembership.source == "github_app",
+        )
+        await self.session.execute(
+            update(User)
+            .where(User.id.in_(affected_users))
+            .values(github_app_access_synced_at=None)
+        )
         await self.session.execute(
             update(ProjectMembership)
             .where(

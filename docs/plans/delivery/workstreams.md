@@ -1,6 +1,7 @@
 # Delivery workstreams
 
-Status: WS6a–WS7a are implemented and quality-gated. WS7b–WS7g remain;
+Status: WS6a–WS7b are implemented and quality-gated, subject to WS7b's two
+production-like rehearsals. WS7c is in progress and WS7d–WS7g remain;
 production activation of the new result contract stays deferred to WS7e/WS7g.
 
 ## Completed foundation
@@ -77,9 +78,11 @@ candidate code. Setup and webhook exposure are independently disabled by
 default. Authenticated mutations now create installation-ID-bound, lease-safe
 durable work with bounded retry state. A restart-safe worker now performs full
 App-authenticated refresh, or immediate ID-only suspension/deletion, while the
-feature remains disabled. The six-hour full-installation repair loop and 30-day
-delivery cleanup are complete in candidate code but are not production-enabled;
-ETag/rate-limit/cursor hardening and entitlement refresh remain.
+feature remains disabled. The six-hour full-installation repair loop, 30-day
+delivery cleanup and installation-scoped five-minute user-entitlement refresh
+are complete in candidate code but are not production-enabled. Repository
+changes invalidate both grants and freshness markers, and failed refreshes fail
+closed. ETag/rate-limit/cursor hardening remains.
 
 Implement installation return, signed webhooks, repository reconciliation and
 expiring query-time entitlements using the WS7b GitHub identity foundation.

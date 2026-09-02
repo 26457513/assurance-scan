@@ -264,6 +264,9 @@ class User(Base):
     mcp_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mcp_token_generated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     github_access_synced_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    github_app_access_synced_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class ProjectMembership(Base):

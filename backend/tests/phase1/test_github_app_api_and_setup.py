@@ -7,6 +7,7 @@ import datetime as dt
 import json
 import urllib.parse
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from cryptography.hazmat.primitives import hashes, serialization
@@ -24,6 +25,7 @@ from app.infrastructure.github_app_api import (
     GithubApiResponse,
     GithubAppApiError,
     GithubAppInstallationState,
+    GithubAppUserEntitlementClient,
     create_github_app_jwt,
     fetch_authoritative_installation,
     fetch_authoritative_installation_for_user,
@@ -31,6 +33,7 @@ from app.infrastructure.github_app_api import (
     load_github_app_private_key,
 )
 from app.modules.atomic.access.browser_auth import mint_session
+from app.modules.atomic.access.github_membership_projection import GithubProjectPermission
 from app.modules.atomic.access.github_repository_reconciliation import (
     GithubAccountType,
     GithubInstallationSnapshot,
@@ -61,6 +64,17 @@ class FakeGithubHttp:
         if url.startswith(f"{GITHUB_API_ROOT}/user/installations?"):
             installations = [{"id": 9001}] if self.user_has_access else []
             return GithubApiResponse({"installations": installations}, {})
+        if url.startswith(f"{GITHUB_API_ROOT}/user/installations/9001/repositories?"):
+            return GithubApiResponse(
+                {
+                    "repositories": [
+                        {"id": 424242, "permissions": {"pull": True}},
+                        {"id": 424243, "permissions": {"push": True}},
+                        {"id": 424244, "permissions": {"admin": True}},
+                    ]
+                },
+                {},
+            )
         if url.startswith(f"{GITHUB_API_ROOT}/app/installations?"):
             return GithubApiResponse(
                 [
@@ -159,6 +173,18 @@ def test_user_proof_precedes_app_token_and_complete_scope_fetch() -> None:
     assert http.requests[0][2]["Authorization"] == "Bearer user-token"
     assert http.requests[-1][2]["Authorization"] == "Bearer installation-token"
     assert all(request[1].startswith(f"{GITHUB_API_ROOT}/") for request in http.requests)
+
+
+def test_user_entitlements_are_installation_scoped_and_permission_mapped() -> None:
+    entitlements = GithubAppUserEntitlementClient(FakeGithubHttp()).fetch("user-token")
+
+    assert [item.github_repository_id for item in entitlements] == [424242, 424243, 424244]
+    assert [item.github_installation_id for item in entitlements] == [9001, 9001, 9001]
+    assert [item.permission for item in entitlements] == [
+        GithubProjectPermission.VIEW,
+        GithubProjectPermission.UPLOAD,
+        GithubProjectPermission.MANAGE,
+    ]
 
 
 def test_worker_fetch_uses_app_credentials_without_a_user_token() -> None:
@@ -293,6 +319,8 @@ async def test_setup_return_is_state_bound_user_proven_and_reconciled(tmp_path, 
         "fetch_authoritative_installation_for_user",
         lambda **_kwargs: expected,
     )
+    refresh = AsyncMock(return_value=True)
+    monkeypatch.setattr(setup_routes, "sync_github_app_memberships", refresh)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://scan.example.test") as client:
         client.cookies.set(
             "as_session",
@@ -312,6 +340,7 @@ async def test_setup_return_is_state_bound_user_proven_and_reconciled(tmp_path, 
         )
         assert finished.status_code == 302
         assert finished.headers["location"] == "/setup?github_install=ready"
+        refresh.assert_awaited_once()
 
     async with sessions() as database_session:
         project = (await database_session.execute(select(Project))).scalar_one()

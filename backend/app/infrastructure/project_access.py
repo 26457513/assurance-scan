@@ -19,6 +19,11 @@ from app.infrastructure.db.models import (
     Run,
     User,
 )
+from app.infrastructure.db.repositories.github_account_links import (
+    SqlAlchemyGithubMembershipProjectionRepository,
+)
+from app.infrastructure.github_app_api import GithubAppUserEntitlementClient
+from app.modules.workflows.github_app_access import refresh_github_app_memberships
 from app.modules.atomic.access.project_membership import allowed_permissions
 from app.modules.atomic.access.project_membership.service import ProjectPermission
 from app.secrets import decrypt
@@ -127,6 +132,29 @@ async def sync_github_memberships(
     return True
 
 
+async def sync_github_app_memberships(
+    session: AsyncSession,
+    user: User,
+    settings: Settings,
+    *,
+    force: bool = False,
+) -> bool:
+    """Refresh installation-scoped GitHub App grants for one linked user."""
+    if not settings.github_app_access_enabled:
+        return False
+    repository = SqlAlchemyGithubMembershipProjectionRepository(
+        session,
+        encryption_key=settings.token_encryption_key,
+    )
+    return await refresh_github_app_memberships(
+        user_id=user.id,
+        now=dt.datetime.now(dt.timezone.utc),
+        repository=repository,
+        github=GithubAppUserEntitlementClient(),
+        force=force,
+    )
+
+
 def project_access_clause(
     principal: ProjectAccessPrincipal,
     required: ProjectPermission = "view",
@@ -198,5 +226,6 @@ __all__ = [
     "require_project",
     "require_run",
     "sync_github_memberships",
+    "sync_github_app_memberships",
     "visible_project_ids",
 ]

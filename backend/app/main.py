@@ -246,6 +246,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from app.infrastructure.db.models import User
             from app.infrastructure.project_access import (
                 ProjectAccessPrincipal,
+                sync_github_app_memberships,
                 sync_github_memberships,
             )
 
@@ -265,7 +266,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if row is None:
                     return None
                 if row.role not in {"admin", "superuser"}:
-                    await sync_github_memberships(session, row, settings)
+                    if settings.github_app_access_enabled:
+                        await sync_github_app_memberships(session, row, settings)
+                    else:
+                        await sync_github_memberships(session, row, settings)
                 return ProjectAccessPrincipal(user_id=row.id, role=row.role)
 
         @app.middleware("http")

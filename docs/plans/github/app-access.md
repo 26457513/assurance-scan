@@ -8,9 +8,11 @@ behind `GITHUB_APP_ACCESS_ENABLED=false`. The independently gated signed
 webhook boundary and its installation-ID-bound durable work queue are also
 complete. Its worker performs authoritative full-scope reconciliation and
 immediate signed-ID suspension/deletion while the feature remains disabled.
-The six-hour missed-event repair loop and delivery retention are also complete
-in candidate code. ETag/rate-limit/cursor hardening and query-time entitlement
-refresh are later WS7c slices.
+The six-hour missed-event repair loop, delivery retention and installation-
+scoped query-time entitlement refresh are also complete in candidate code.
+Repository invalidation clears the affected users' freshness markers and an
+expired projection plus a failed GitHub refresh fails closed. ETag, rate-limit
+and persisted-cursor hardening remain a later WS7c slice.
 
 ## Exact app configuration
 

@@ -21,7 +21,12 @@ from .models import IdentityCutoverError, IdentityCutoverResult
 
 MIGRATION_REVISION = "0028_identity_cutover_journal"
 SUPPORTED_SCHEMA_REVISIONS = frozenset(
-    (MIGRATION_REVISION, "0029_github_app_access_plane", "0030_github_webhook_work_queue")
+    (
+        MIGRATION_REVISION,
+        "0029_github_app_access_plane",
+        "0030_github_webhook_work_queue",
+        "0031_github_app_entitlement_freshness",
+    )
 )
 PHASES = (
     "preflight_verified",

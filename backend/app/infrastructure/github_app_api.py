@@ -23,6 +23,10 @@ from app.modules.atomic.access.github_repository_reconciliation import (
     GithubSelection,
     validate_installation_snapshot,
 )
+from app.modules.atomic.access.github_membership_projection import (
+    GithubProjectPermission,
+    GithubRepositoryEntitlement,
+)
 
 
 GITHUB_API_ROOT = "https://api.github.com"
@@ -97,6 +101,41 @@ class UrllibGithubHttp:
         if not isinstance(payload, (dict, list)):
             raise GithubAppApiError("GitHub API returned invalid structured JSON")
         return GithubApiResponse(payload=payload, headers=response_headers)
+
+
+class GithubAppUserEntitlementClient:
+    """Load the repositories one user can access through this GitHub App."""
+
+    def __init__(self, http: GithubHttpPort | None = None) -> None:
+        self.http = http or UrllibGithubHttp()
+
+    def fetch(self, user_token: str) -> tuple[GithubRepositoryEntitlement, ...]:
+        if not user_token:
+            raise GithubAppApiError("GitHub user authorization is unavailable")
+        headers = _headers(user_token)
+        installation_ids = _user_installation_ids(self.http, headers)
+        entitlements: list[GithubRepositoryEntitlement] = []
+        seen: set[int] = set()
+        for installation_id in installation_ids:
+            for repository in _user_installation_repositories(
+                self.http,
+                headers,
+                installation_id,
+            ):
+                repository_id = _positive_integer(repository.get("id"), "repository id")
+                if repository_id in seen:
+                    raise GithubAppApiError("GitHub returned duplicate user repositories")
+                seen.add(repository_id)
+                permission = _repository_permission(repository.get("permissions"))
+                if permission is not None:
+                    entitlements.append(
+                        GithubRepositoryEntitlement(
+                            github_installation_id=installation_id,
+                            github_repository_id=repository_id,
+                            permission=permission,
+                        )
+                    )
+        return tuple(entitlements)
 
 
 def load_github_app_private_key(path_value: str) -> bytes:
@@ -268,6 +307,69 @@ def _prove_user_installation(http: GithubHttpPort, headers: dict[str, str], inst
     raise GithubAppApiError("GitHub user cannot access the returned installation")
 
 
+def _user_installation_ids(
+    http: GithubHttpPort,
+    headers: dict[str, str],
+) -> tuple[int, ...]:
+    installation_ids: list[int] = []
+    seen: set[int] = set()
+    for page in range(1, _MAX_PAGES + 1):
+        response = http.request(
+            "GET",
+            f"{GITHUB_API_ROOT}/user/installations?per_page=100&page={page}",
+            headers=headers,
+        )
+        installations = _object(response.payload, "user installations").get("installations")
+        if not isinstance(installations, list):
+            raise GithubAppApiError("GitHub returned invalid user installations")
+        for item in installations:
+            installation = _object(item, "user installation")
+            installation_id = _positive_integer(installation.get("id"), "installation id")
+            if installation_id in seen:
+                raise GithubAppApiError("GitHub returned duplicate user installations")
+            seen.add(installation_id)
+            installation_ids.append(installation_id)
+        if len(installations) < 100:
+            return tuple(installation_ids)
+    raise GithubAppApiError("GitHub user installation pagination exceeded the safety limit")
+
+
+def _user_installation_repositories(
+    http: GithubHttpPort,
+    headers: dict[str, str],
+    installation_id: int,
+) -> tuple[dict[str, Any], ...]:
+    repositories: list[dict[str, Any]] = []
+    for page in range(1, _MAX_PAGES + 1):
+        response = http.request(
+            "GET",
+            (
+                f"{GITHUB_API_ROOT}/user/installations/{installation_id}/repositories"
+                f"?per_page=100&page={page}"
+            ),
+            headers=headers,
+        )
+        items = _object(response.payload, "user installation repositories").get("repositories")
+        if not isinstance(items, list):
+            raise GithubAppApiError("GitHub returned invalid user installation repositories")
+        repositories.extend(_object(item, "user repository") for item in items)
+        if len(items) < 100:
+            return tuple(repositories)
+    raise GithubAppApiError("GitHub user repository pagination exceeded the safety limit")
+
+
+def _repository_permission(value: object) -> GithubProjectPermission | None:
+    if not isinstance(value, dict):
+        raise GithubAppApiError("GitHub returned invalid repository permissions")
+    if value.get("admin") is True or value.get("maintain") is True:
+        return GithubProjectPermission.MANAGE
+    if value.get("push") is True:
+        return GithubProjectPermission.UPLOAD
+    if value.get("pull") is True or value.get("triage") is True:
+        return GithubProjectPermission.VIEW
+    return None
+
+
 def _installation_repositories(
     http: GithubHttpPort, headers: dict[str, str]
 ) -> tuple[tuple[GithubRepositorySnapshot, ...], str | None]:
@@ -409,6 +511,7 @@ __all__ = [
     "GithubApiResponse",
     "GithubAppInstallationState",
     "GithubAppApiError",
+    "GithubAppUserEntitlementClient",
     "GithubHttpPort",
     "UrllibGithubHttp",
     "create_github_app_jwt",

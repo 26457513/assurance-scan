@@ -11,7 +11,7 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 OLD_HEAD = "0021_project_identity_provenance"
-NEW_HEAD = "0030_github_webhook_work_queue"
+NEW_HEAD = "0031_github_app_entitlement_freshness"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:

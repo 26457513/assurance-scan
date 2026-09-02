@@ -30,6 +30,7 @@ from app.infrastructure.github_app_api import (
     fetch_authoritative_installation_for_user,
     load_github_app_private_key,
 )
+from app.infrastructure.project_access import sync_github_app_memberships
 from app.modules.atomic.access.github_installation_state import (
     issue_github_installation_state,
 )
@@ -177,6 +178,11 @@ async def finish_github_app_installation(
                 verified_at=now,
                 repository=SqlAlchemyGithubRepositoryReconciliationRepository(session),
             )
+            if not await sync_github_app_memberships(session, user, settings, force=True):
+                raise HTTPException(
+                    status_code=502,
+                    detail="GitHub repository access could not be verified",
+                )
         except GithubAppApiError as exc:
             raise HTTPException(status_code=502, detail="GitHub installation could not be verified") from exc
         except ReconciliationValidationError as exc:

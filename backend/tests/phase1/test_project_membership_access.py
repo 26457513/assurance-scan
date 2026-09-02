@@ -13,6 +13,8 @@ from app.api.routes.scans import get_scan, list_scans
 from app.config import load_settings
 from app.infrastructure.db.models import (
     GithubAccount,
+    GithubAppInstallation,
+    GithubInstallationRepository,
     Project,
     ProjectMembership,
     Run,
@@ -22,7 +24,12 @@ from app.infrastructure.project_access import (
     ACCESS_TTL,
     ProjectAccessPrincipal,
     require_project,
+    sync_github_app_memberships,
     sync_github_memberships,
+)
+from app.modules.atomic.access.github_membership_projection import (
+    GithubProjectPermission,
+    GithubRepositoryEntitlement,
 )
 from app.secrets import encrypt
 
@@ -155,3 +162,107 @@ async def test_github_sync_replaces_grants_and_maps_repository_permissions(
         (projects[1].id, "upload"),
         (projects[2].id, "manage"),
     ]
+
+
+async def test_github_app_refresh_is_installation_scoped_and_fails_closed(
+    session, monkeypatch
+) -> None:
+    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "membership-test-key")
+    monkeypatch.setenv("GITHUB_APP_ACCESS_ENABLED", "true")
+    settings = load_settings()
+    user = User(email="app-member@example.test", role="user")
+    project = Project(
+        tag="github-424242",
+        github_repo="Example/installed",
+        github_repo_key="example/installed",
+        github_repository_id=424242,
+    )
+    session.add_all((user, project))
+    await session.flush()
+    session.add_all(
+        (
+            GithubAccount(
+                user_id=user.id,
+                github_user_id=583231,
+                encrypted_user_token=encrypt("user-token", settings.token_encryption_key),
+                token_expires_at=dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=1),
+            ),
+            GithubAppInstallation(
+                github_installation_id=9001,
+                github_owner_id=26457513,
+                owner_login_at_last_verify="example",
+                account_type="organization",
+                repository_selection="selected",
+                created_at=dt.datetime.now(dt.timezone.utc),
+                updated_at=dt.datetime.now(dt.timezone.utc),
+            ),
+            GithubInstallationRepository(
+                github_installation_id=9001,
+                github_repository_id=424242,
+                project_id=project.id,
+                repository_full_name="Example/installed",
+                github_owner_id=26457513,
+                default_branch="main",
+                visibility="private",
+                archived=False,
+                disabled=False,
+                repository_verified_at=dt.datetime.now(dt.timezone.utc),
+                enabled_at=dt.datetime.now(dt.timezone.utc),
+                updated_at=dt.datetime.now(dt.timezone.utc),
+            ),
+        )
+    )
+    user_id = user.id
+    project_id = project.id
+    await session.commit()
+    await session.refresh(user)
+    principal = ProjectAccessPrincipal(user_id=user_id, role="user")
+    monkeypatch.setattr(
+        "app.infrastructure.project_access.GithubAppUserEntitlementClient.fetch",
+        lambda _client, _token: (
+            GithubRepositoryEntitlement(
+                github_installation_id=9001,
+                github_repository_id=424242,
+                permission=GithubProjectPermission.VIEW,
+            ),
+        ),
+    )
+
+    assert await sync_github_app_memberships(session, user, settings, force=True)
+    assert await require_project(session, principal, project_id) is not None
+
+    monkeypatch.setattr(
+        "app.infrastructure.project_access.GithubAppUserEntitlementClient.fetch",
+        lambda _client, _token: (
+            GithubRepositoryEntitlement(
+                github_installation_id=9002,
+                github_repository_id=424242,
+                permission=GithubProjectPermission.MANAGE,
+            ),
+        ),
+    )
+    assert await sync_github_app_memberships(session, user, settings, force=True)
+    assert await require_project(session, principal, project_id) is None
+
+    monkeypatch.setattr(
+        "app.infrastructure.project_access.GithubAppUserEntitlementClient.fetch",
+        lambda _client, _token: (
+            GithubRepositoryEntitlement(
+                github_installation_id=9001,
+                github_repository_id=424242,
+                permission=GithubProjectPermission.VIEW,
+            ),
+        ),
+    )
+    assert await sync_github_app_memberships(session, user, settings, force=True)
+    assert await require_project(session, principal, project_id) is not None
+
+    def unavailable(_client, _token):
+        raise RuntimeError("GitHub unavailable")
+
+    monkeypatch.setattr(
+        "app.infrastructure.project_access.GithubAppUserEntitlementClient.fetch",
+        unavailable,
+    )
+    assert not await sync_github_app_memberships(session, user, settings, force=True)
+    assert await require_project(session, principal, project_id) is None
