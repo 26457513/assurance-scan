@@ -101,9 +101,12 @@ Status: in progress in the disabled candidate code path (2 September 2026).
 Strict OIDC verification, single-use JWT replay evidence, live authoritative
 repository authorization, the validated v2 envelope, repository/run/attempt
 idempotency with five-minute fenced leases, and transactionally bound shared
-result persistence are implemented and quality-gated. The bounded HTTP upload
-adapter, cross-origin quota/attempt evidence, and final default-branch/event
-policy integration remain. No public v2 route is enabled.
+result persistence are implemented and quality-gated. The strict streaming HTTP
+adapter now authenticates OIDC before reading the body, enforces the frozen
+multipart limits, binds signed idempotency identity, performs live repository
+authorization and invokes that shared persistence path. It is registered but
+disabled by default. Cross-origin quota and ingest-attempt evidence remain; no
+production v2 route has been enabled.
 
 Implement strict GitHub OIDC verification, authoritative repository refresh,
 shared v2 ingestion, ingest attempts, replay protection and cross-origin limits.

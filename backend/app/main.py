@@ -33,6 +33,7 @@ from app.api.routes import (
     github_account_link,
     github_app_setup,
     github_app_webhook,
+    github_actions_ingest,
     health,
     local_ingest,
     notion,
@@ -282,10 +283,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # HMAC boundary; browser login must never intercept this endpoint.
             if path == "/api/v2/github/webhook":
                 return await call_next(request)
-            # Local-ingest routes authenticate their dedicated scan token in a
-            # route dependency. Browser Basic/session and MCP credentials are
-            # deliberately not alternatives for this API.
-            if path == "/api/v1/ingest" or path.startswith("/api/v1/ingest/"):
+            # Ingest routes authenticate dedicated local or GitHub workload
+            # credentials. Browser and MCP credentials are not alternatives.
+            if (
+                path == "/api/v1/ingest"
+                or path.startswith("/api/v1/ingest/")
+                or path == "/api/v2/ingest"
+                or path.startswith("/api/v2/ingest/")
+            ):
                 return await call_next(request)
             # MCP clients authenticate with a bearer token; the browser
             # login redirect is useless to them. The env MCP_TOKEN is the
@@ -414,6 +419,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(github_account_link.router, prefix="/api")
     app.include_router(github_app_setup.router, prefix="/api")
     app.include_router(github_app_webhook.router, prefix="/api")
+    app.include_router(github_actions_ingest.router, prefix="/api")
     app.include_router(gh_tokens.router, prefix="/api")
     app.include_router(scan_tokens.router, prefix="/api")
     app.include_router(local_ingest.router, prefix="/api")

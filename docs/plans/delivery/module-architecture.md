@@ -42,6 +42,9 @@ backend/app/modules/
 Atomic modules own one domain capability and expose small typed interfaces. Workflow modules coordinate atomic modules and transactions. Shared modules contain genuinely cross-cutting code only; they may not become a miscellaneous utility folder.
 
 HTTP controllers validate transport data, call one workflow, and serialize its result. They do not contain authorization, GitHub policy, persistence queries, or scanner-specific normalization.
+The reusable bounded multipart reader lives at the API adapter boundary so
+versioned routes share streaming limits without introducing FastAPI concerns
+into atomic domain modules.
 
 ## Ports and adapters
 

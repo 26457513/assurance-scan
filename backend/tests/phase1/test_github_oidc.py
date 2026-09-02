@@ -20,6 +20,7 @@ from app.modules.atomic.access.github_oidc import (
     authenticate_github_oidc,
     authorize_default_branch_push,
     github_oidc_audience,
+    github_oidc_key_id,
     validate_github_payload_metadata,
 )
 
@@ -68,6 +69,7 @@ def test_authenticates_signed_claims_and_authorizes_default_branch(
     )
     assert identity.run_id == 123456789
     assert identity.run_attempt == 1
+    assert github_oidc_key_id(token) == "test-key"
 
 
 @pytest.mark.parametrize(

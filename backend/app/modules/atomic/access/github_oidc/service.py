@@ -58,6 +58,7 @@ def authenticate_github_oidc(
     signature_verifier: RsaSignatureVerifier,
 ) -> GithubOidcClaims:
     """Authenticate one compact JWT and return only validated signed claims."""
+    expected_kid = github_oidc_key_id(token)
     try:
         token_bytes = token.encode("ascii")
     except UnicodeEncodeError:
@@ -77,7 +78,7 @@ def authenticate_github_oidc(
     if (
         header.get("alg") != OIDC_POLICY_V2.algorithm
         or header.get("typ") != OIDC_POLICY_V2.token_type
-        or not isinstance(kid, str)
+        or kid != expected_kid
         or not _ASCII_KID.fullmatch(kid)
         or len(kid.encode("ascii")) > OIDC_POLICY_V2.maximum_kid_bytes
     ):
@@ -130,6 +131,31 @@ def authenticate_github_oidc(
         expires_at=exp,
         jti=_string(claims, "jti", 255),
     )
+
+
+def github_oidc_key_id(token: str) -> str:
+    """Extract only a strictly bounded JOSE key ID for safe JWKS refresh."""
+    try:
+        token_bytes = token.encode("ascii")
+    except UnicodeEncodeError:
+        _invalid()
+    if not token_bytes or len(token_bytes) > OIDC_POLICY_V2.maximum_jwt_bytes:
+        _invalid()
+    segments = token.split(".")
+    if len(segments) != 3 or any(not segment for segment in segments):
+        _invalid()
+    header = _json_object(_decode_segment(segments[0]))
+    kid = header.get("kid")
+    if (
+        set(header) != {"alg", "kid", "typ"}
+        or header.get("alg") != OIDC_POLICY_V2.algorithm
+        or header.get("typ") != OIDC_POLICY_V2.token_type
+        or not isinstance(kid, str)
+        or not _ASCII_KID.fullmatch(kid)
+        or len(kid.encode("ascii")) > OIDC_POLICY_V2.maximum_kid_bytes
+    ):
+        _invalid()
+    return kid
 
 
 def authorize_default_branch_push(
@@ -314,5 +340,6 @@ __all__ = [
     "authorize_default_branch_push",
     "consume_github_oidc_jti",
     "github_oidc_audience",
+    "github_oidc_key_id",
     "validate_github_payload_metadata",
 ]
