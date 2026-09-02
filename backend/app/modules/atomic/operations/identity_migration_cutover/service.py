@@ -30,6 +30,7 @@ SUPPORTED_SCHEMA_REVISIONS = frozenset(
         "0033_github_run_attempt_identity",
         "0034_github_ingest_claims",
         "0035_github_ingest_quotas_attempts",
+        "0036_ingest_usage_ledger",
     )
 )
 PHASES = (

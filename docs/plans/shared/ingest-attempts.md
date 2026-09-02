@@ -33,7 +33,17 @@ or user identifiers after expiry.
 The accepted attempt and completed run commit in the same transaction. A
 rejected attempt commits independently after bounded request disposal. An
 internal failure records an attempt only when doing so is safe and must not
-mask the original response.
+mask the original response. Both local and GitHub uploads return the canonical
+correlation ID as `request_id` on success and use that same ID in their safe
+operational signals and persisted attempt evidence.
+
+Quota usage is immutable evidence separate from mutable idempotency claims.
+Every request that starts new work, including a retry after a failed or stale
+claim, creates one usage charge in the same lock-held transaction that acquires
+the claim. Completed replays, active duplicates and retained tombstones create
+no charge. Local and GitHub reservations serialize through one database-backed
+global quota lock so the shared in-flight ceiling remains correct across
+processes and SQL dialects.
 
 ## Visibility
 

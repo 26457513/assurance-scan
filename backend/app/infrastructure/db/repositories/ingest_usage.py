@@ -3,20 +3,24 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.infrastructure.db.models import (
     GithubIngestRequest,
     IngestRequest,
+    IngestUsageCharge,
     Run,
     ScannerArtifact,
     ScannerRun,
-    User,
 )
-from app.infrastructure.db.repositories.ingest_quota_lock import QUOTA_LOCK_SESSION_KEY
+from app.infrastructure.db.repositories.ingest_quota_lock import (
+    QUOTA_LOCK_SESSION_KEY,
+    acquire_global_ingest_quota_lock,
+)
 from app.modules.atomic.ingestion.usage_quota import (
     QuotaCommand,
     QuotaDecision,
@@ -26,6 +30,7 @@ from app.modules.atomic.ingestion.usage_quota import (
     decide_usage_quota,
 )
 from app.modules.shared.contracts.local_scan import UsageLimits
+from app.modules.shared.contracts.ingest_v2 import SharedUsageLimitsV2
 
 
 class SqlAlchemyUsageQuotaRepository:
@@ -45,26 +50,45 @@ class SqlAlchemyUsageQuotaRepository:
         command: QuotaCommand,
         *,
         limits: UsageLimits,
+        shared_limits: SharedUsageLimitsV2,
         now: dt.datetime,
     ) -> QuotaResult:
-        await self._begin_write(command.user_id)
-        self.session.info[QUOTA_LOCK_SESSION_KEY] = True
+        _validate_binding(command.project_id, command.payload_hash, command.correlation_id)
+        await acquire_global_ingest_quota_lock(self.session)
         existing = (
             await self.session.execute(
-                select(IngestRequest.id).where(
+                select(IngestRequest).where(
                     IngestRequest.submitted_by_user_id == command.user_id,
                     IngestRequest.client_request_id == command.client_request_id,
                 )
             )
         ).scalar_one_or_none()
-        if existing is not None:
+        if existing is not None and _local_no_work(existing, command, now=now):
             return self._allowed(command, now)
         snapshot = await self._snapshot(command, now=now)
-        decision = decide_usage_quota(command, snapshot, limits=limits)
+        decision = decide_usage_quota(
+            command,
+            snapshot,
+            limits=limits,
+            shared_limits=shared_limits,
+        )
         if decision is not QuotaDecision.ALLOWED:
             await self.session.rollback()
             self.session.info.pop(QUOTA_LOCK_SESSION_KEY, None)
             return QuotaResult(decision, retry_after_seconds=_retry_after(decision))
+        self.session.add(
+            IngestUsageCharge(
+                id=str(uuid.uuid4()),
+                correlation_id=command.correlation_id,
+                origin="local",
+                accepted_bytes=command.accepted_bytes,
+                local_user_id=command.user_id,
+                local_token_id=command.token_id,
+                charged_at=now,
+                expires_at=now + dt.timedelta(days=2),
+            )
+        )
+        await self.session.flush()
         return self._allowed(command, now)
 
     @staticmethod
@@ -87,24 +111,16 @@ class SqlAlchemyUsageQuotaRepository:
         self.session.info.pop(QUOTA_LOCK_SESSION_KEY, None)
         return had_transaction
 
-    async def _begin_write(self, user_id: int) -> None:
-        if self.session.in_transaction():
-            raise RuntimeError("quota reservation requires a clean session")
-        if self.session.get_bind().dialect.name == "sqlite":
-            await self.session.execute(text("BEGIN IMMEDIATE"))
-            return
-        await self.session.execute(select(User.id).where(User.id == user_id).with_for_update())
-
     async def _snapshot(self, command: QuotaCommand, *, now: dt.datetime) -> UsageSnapshot:
         hour_start = now - dt.timedelta(hours=1)
         day_start = now.astimezone(dt.timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        token_uploads = await self._claim_count(
-            IngestRequest.submitting_token_id == command.token_id,
-            IngestRequest.created_at >= hour_start,
+        token_uploads = await self._charge_count(
+            IngestUsageCharge.local_token_id == command.token_id,
+            IngestUsageCharge.charged_at >= hour_start,
         )
-        user_uploads = await self._claim_count(
-            IngestRequest.submitted_by_user_id == command.user_id,
-            IngestRequest.created_at >= day_start,
+        user_uploads = await self._charge_count(
+            IngestUsageCharge.local_user_id == command.user_id,
+            IngestUsageCharge.charged_at >= day_start,
         )
         token_inflight = await self._claim_count(
             IngestRequest.submitting_token_id == command.token_id,
@@ -141,9 +157,9 @@ class SqlAlchemyUsageQuotaRepository:
         instance_pending = await self._accepted_bytes(
             IngestRequest.state == "processing", IngestRequest.lease_expires_at > now
         )
-        user_daily_bytes = await self._accepted_bytes(
-            IngestRequest.submitted_by_user_id == command.user_id,
-            IngestRequest.created_at >= day_start,
+        user_daily_bytes = await self._charged_bytes(
+            IngestUsageCharge.local_user_id == command.user_id,
+            IngestUsageCharge.charged_at >= day_start,
         )
         return UsageSnapshot(
             token_uploads_hour=token_uploads,
@@ -164,6 +180,22 @@ class SqlAlchemyUsageQuotaRepository:
             ).scalar_one()
         )
 
+    async def _charge_count(self, *predicates: ColumnElement[bool]) -> int:
+        return int(
+            (
+                await self.session.execute(select(func.count()).select_from(IngestUsageCharge).where(*predicates))
+            ).scalar_one()
+        )
+
+    async def _charged_bytes(self, *predicates: ColumnElement[bool]) -> int:
+        return int(
+            (
+                await self.session.execute(
+                    select(func.coalesce(func.sum(IngestUsageCharge.accepted_bytes), 0)).where(*predicates)
+                )
+            ).scalar_one()
+        )
+
     async def _accepted_bytes(self, *predicates: ColumnElement[bool]) -> int:
         return int(
             (
@@ -179,6 +211,7 @@ class SqlAlchemyUsageQuotaRepository:
             .select_from(ScannerArtifact)
             .join(ScannerRun, ScannerRun.id == ScannerArtifact.scanner_run_id)
             .join(Run, Run.run_id == ScannerRun.run_id)
+            .where(Run.origin == "local")
         )
         if user_id is not None:
             statement = statement.where(Run.submitted_by_user_id == user_id)
@@ -198,6 +231,37 @@ def _retry_after(decision: QuotaDecision) -> int | None:
     }:
         return 30
     return None
+
+
+def _local_no_work(row: IngestRequest, command: QuotaCommand, *, now: dt.datetime) -> bool:
+    tombstone_expiry = _aware(row.tombstone_expires_at)
+    if row.state == "tombstoned":
+        return tombstone_expiry is None or tombstone_expiry > now
+    if row.project_id != command.project_id or row.payload_hash != command.payload_hash:
+        return True
+    lease_expiry = _aware(row.lease_expires_at)
+    return row.state == "completed" or (row.state == "processing" and (lease_expiry is None or lease_expiry > now))
+
+
+def _aware(value: dt.datetime | None) -> dt.datetime | None:
+    if value is None:
+        return None
+    return value.replace(tzinfo=dt.timezone.utc) if value.tzinfo is None else value
+
+
+def _validate_binding(project_id: int, payload_hash: str, correlation_id: str) -> None:
+    if (
+        project_id <= 0
+        or len(payload_hash) != 64
+        or any(character not in "0123456789abcdef" for character in payload_hash)
+    ):
+        raise ValueError("quota reservation requires a canonical project and payload hash")
+    try:
+        parsed = uuid.UUID(correlation_id)
+    except ValueError as exc:
+        raise ValueError("quota reservation requires a canonical correlation ID") from exc
+    if str(parsed) != correlation_id:
+        raise ValueError("quota reservation requires a canonical correlation ID")
 
 
 __all__ = ["SqlAlchemyUsageQuotaRepository"]

@@ -26,6 +26,7 @@ class UsageQuotaRepositoryPort(Protocol):
         command: QuotaCommand,
         *,
         limits: UsageLimits,
+        shared_limits: SharedUsageLimitsV2,
         now: datetime,
     ) -> QuotaResult: ...
 

@@ -24,6 +24,12 @@ from app.modules.workflows.github_oidc_ingest import (
     GithubIngestResult,
     ingest_github_result,
 )
+from app.modules.shared.contracts.ingest_v2 import (
+    GITHUB_USAGE_LIMITS_V2,
+    SHARED_USAGE_LIMITS_V2,
+    GitHubUsageLimitsV2,
+    SharedUsageLimitsV2,
+)
 
 
 class GithubClaimCompletingSqlAlchemyPersistence(SqlAlchemyIngestPersistence):
@@ -67,13 +73,21 @@ class GithubClaimCompletingSqlAlchemyPersistence(SqlAlchemyIngestPersistence):
 class SqlAlchemyGithubOidcIngestWorkflow:
     """Application adapter composed from same-session SQL repositories."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        github_usage_limits: GitHubUsageLimitsV2 = GITHUB_USAGE_LIMITS_V2,
+        shared_usage_limits: SharedUsageLimitsV2 = SHARED_USAGE_LIMITS_V2,
+    ) -> None:
         claims = SqlAlchemyGithubIdempotencyRepository(session)
         self._dependencies = GithubIngestDependencies(
             claims=claims,
             quotas=SqlAlchemyGithubUsageQuotaRepository(session),
             attempts=SqlAlchemyIngestAttemptRepository(session),
             persistence=GithubClaimCompletingSqlAlchemyPersistence(session, claims),
+            github_usage_limits=github_usage_limits,
+            shared_usage_limits=shared_usage_limits,
         )
 
     async def ingest(self, command: GithubIngestCommand) -> GithubIngestResult:

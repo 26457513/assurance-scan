@@ -13,6 +13,7 @@ class LocalIngestRequestSignal:
     status_code: int
     duration_ms: int
     code: str
+    correlation_id: str
     wire_bytes: int | None = None
     finding_count: int | None = None
     scanner_count: int | None = None
@@ -32,6 +33,8 @@ class LocalIngestRetentionSignal:
     token_audits: int = 0
     tombstones: int = 0
     webhook_deliveries: int = 0
+    ingest_attempts: int = 0
+    usage_charges: int = 0
 
 
 __all__ = ["LocalIngestRequestSignal", "LocalIngestRetentionSignal"]

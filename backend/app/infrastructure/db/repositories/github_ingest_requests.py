@@ -217,17 +217,17 @@ class SqlAlchemyGithubIdempotencyRepository:
         *,
         now: dt.datetime,
     ) -> ClaimResult | None:
+        if row.state == "tombstoned":
+            tombstone_expiry = _aware(row.tombstone_expires_at)
+            if tombstone_expiry is None or tombstone_expiry > now:
+                return ClaimResult(ClaimDecision.TOMBSTONED)
+            return None
         if (
             row.project_id != command.project_id
             or row.github_owner_id != command.github_owner_id
             or row.payload_hash != command.payload_hash
         ):
             return ClaimResult(ClaimDecision.CONFLICT)
-        if row.state == "tombstoned":
-            tombstone_expiry = _aware(row.tombstone_expires_at)
-            if tombstone_expiry is None or tombstone_expiry > now:
-                return ClaimResult(ClaimDecision.TOMBSTONED)
-            return None
         if row.state == "completed":
             return ClaimResult(ClaimDecision.REPLAY, run_id=row.run_id)
         lease_expiry = _aware(row.lease_expires_at)

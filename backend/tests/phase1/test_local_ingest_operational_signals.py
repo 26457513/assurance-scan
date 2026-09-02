@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 
 import pytest
 
@@ -15,12 +16,14 @@ from app.modules.atomic.ingestion.operational_signals import (
 
 
 def test_request_signal_contains_only_allowlisted_machine_data() -> None:
+    correlation_id = str(uuid.uuid4())
     rendered = render_request_signal(
         LocalIngestRequestSignal(
             outcome="created",
             status_code=201,
             duration_ms=42,
             code="scan_created",
+            correlation_id=correlation_id,
             wire_bytes=4096,
             finding_count=3,
             scanner_count=6,
@@ -36,6 +39,7 @@ def test_request_signal_contains_only_allowlisted_machine_data() -> None:
         "status_code": 201,
         "duration_ms": 42,
         "code": "scan_created",
+        "correlation_id": correlation_id,
         "wire_bytes": 4096,
         "finding_count": 3,
         "scanner_count": 6,
@@ -74,5 +78,6 @@ def test_unbounded_or_sensitive_codes_are_rejected(value: str) -> None:
                 status_code=400,
                 duration_ms=1,
                 code=value,
+                correlation_id=str(uuid.uuid4()),
             )
         )

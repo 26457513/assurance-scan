@@ -43,10 +43,7 @@ def _claims() -> GithubOidcClaims:
         event_name="push",
         actor="octocat",
         actor_id=583231,
-        workflow_ref=(
-            "26457513/assurance-scan/.github/workflows/"
-            "assurance-scan.yml@refs/heads/main"
-        ),
+        workflow_ref=("26457513/assurance-scan/.github/workflows/assurance-scan.yml@refs/heads/main"),
         workflow_sha="1" * 40,
         issued_at=NOW,
         not_before=NOW,
@@ -186,7 +183,10 @@ async def test_missing_bearer_fails_before_multipart_parsing(harness: Harness) -
 async def test_valid_upload_passes_only_validated_identity_and_envelope(harness: Harness) -> None:
     response = await _upload(harness)
     assert response.status_code == 201, response.text
-    assert response.json() == {
+    body = response.json()
+    request_id = body.pop("request_id")
+    assert str(uuid.UUID(request_id)) == request_id
+    assert body == {
         "run_id": "gh-424242-123456789-1",
         "project_id": 7,
         "repository": {"provider": "github", "full_name": "26457513/assurance-scan"},
@@ -200,6 +200,7 @@ async def test_valid_upload_passes_only_validated_identity_and_envelope(harness:
     assert command.github_repository_id == 424242
     assert command.github_run_id == 123456789
     assert str(uuid.UUID(command.correlation_id)) == command.correlation_id
+    assert command.correlation_id == request_id
     assert command.envelope.metadata["schema_version"] == 2
     assert command.accepted_bytes > sum(len(item[1][1]) for item in _parts())
 

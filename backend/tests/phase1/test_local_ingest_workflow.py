@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,6 +15,8 @@ from app.infrastructure.db.models import (
     ApiToken,
     Finding,
     IngestRequest,
+    IngestAttempt,
+    IngestUsageCharge,
     Project,
     ProjectMembership,
     Run,
@@ -87,6 +90,7 @@ def _command() -> LocalScanIngestCommand:
             scope="scans:upload",
             expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         ),
+        correlation_id=str(uuid.uuid4()),
         idempotency_key=REQUEST_ID,
         metadata=json.loads(metadata_bytes),
         findings=json.loads(findings_bytes),
@@ -131,14 +135,17 @@ async def test_real_local_workflow_persists_one_graph_and_replays_without_duplic
     assert claim.state == "completed"
     assert claim.run_id == run.run_id
     assert claim.lease_id is None
+    attempts = (await session.execute(select(IngestAttempt))).scalars().all()
+    assert [attempt.outcome for attempt in attempts] == ["accepted", "replayed"]
+    assert all(attempt.submitted_by_user_id == 7 for attempt in attempts)
+    assert await session.scalar(select(func.count()).select_from(IngestUsageCharge)) == 1
 
 
 async def test_local_run_numbers_advance_per_project_and_replay_is_stable(session) -> None:
     await _seed_identity(session)
+
     def workflow() -> SqlAlchemyLocalScanWorkflow:
-        return SqlAlchemyLocalScanWorkflow(
-            session, public_base_url="https://scan.example.test"
-        )
+        return SqlAlchemyLocalScanWorkflow(session, public_base_url="https://scan.example.test")
 
     first = await workflow().ingest_local_scan(_command())
     second = await workflow().ingest_local_scan(
@@ -150,9 +157,7 @@ async def test_local_run_numbers_advance_per_project_and_replay_is_stable(sessio
     )
     replayed = await workflow().ingest_local_scan(_command())
 
-    rows = (
-        await session.execute(select(Run).order_by(Run.local_run_number))
-    ).scalars().all()
+    rows = (await session.execute(select(Run).order_by(Run.local_run_number))).scalars().all()
     project = await session.get(Project, 42)
     assert first.outcome is LocalScanIngestOutcome.CREATED
     assert second.outcome is LocalScanIngestOutcome.CREATED
@@ -170,6 +175,7 @@ async def test_project_override_selects_registered_upstream_and_is_audited(sessi
     metadata["project_override"] = "26457513/assurance-scan"
     command = LocalScanIngestCommand(
         principal=command.principal,
+        correlation_id=command.correlation_id,
         idempotency_key=command.idempotency_key,
         metadata=metadata,
         findings=command.findings,
@@ -227,6 +233,7 @@ async def test_retention_removes_raw_data_then_tombstones_expired_run(session) -
         now=now + timedelta(days=31),
     )
     assert tombstone_cleanup.tombstones == 1
+    assert tombstone_cleanup.ingest_attempts == 1
     assert await session.scalar(select(func.count()).select_from(IngestRequest)) == 0
 
 
@@ -237,9 +244,7 @@ async def test_explicit_scan_deletion_preserves_idempotency_tombstone(session) -
         _command()
     )
 
-    response = await delete_scan(
-        created.run_id or "", SYSTEM_PRINCIPAL, session
-    )
+    response = await delete_scan(created.run_id or "", SYSTEM_PRINCIPAL, session)
 
     assert response == {"status": "deleted", "run_id": created.run_id}
     claim = (await session.execute(select(IngestRequest))).scalar_one()

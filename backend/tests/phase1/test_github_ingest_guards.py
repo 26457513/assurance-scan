@@ -9,10 +9,18 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.infrastructure.db.models import Base, Finding, GithubIngestRequest, IngestAttempt, Project, Run
+from app.infrastructure.db.models import (
+    Base,
+    Finding,
+    GithubIngestRequest,
+    IngestAttempt,
+    IngestUsageCharge,
+    Project,
+    Run,
+)
 from app.infrastructure.db.repositories.github_ingest_requests import (
     SqlAlchemyGithubIdempotencyRepository,
 )
@@ -23,6 +31,7 @@ from app.infrastructure.db.repositories.ingest_attempts import SqlAlchemyIngestA
 from app.infrastructure.github_oidc_ingest import (
     GithubClaimCompletingSqlAlchemyPersistence,
 )
+from app.infrastructure.db.retention import prepare_runs_for_deletion, run_retention_cleanup
 from app.infrastructure.ingest_v2_contract import CheckedInEnvelopeSchemaValidator
 from app.modules.atomic.ingestion.idempotency_guard import (
     ClaimDecision,
@@ -197,6 +206,7 @@ async def test_github_workflow_persists_once_and_replays(tmp_path: Path) -> None
         attempts = (await session.execute(select(IngestAttempt))).scalars().all()
         assert [attempt.outcome for attempt in attempts] == ["accepted", "replayed"]
         assert all("26457513" not in attempt.principal_reference_hash for attempt in attempts)
+        assert await session.scalar(select(func.count()).select_from(IngestUsageCharge)) == 1
 
     conflicting = replace(
         command,
@@ -283,19 +293,53 @@ async def test_github_workflow_rolls_back_graph_and_releases_failed_claim(
         assert await session.scalar(select(func.count()).select_from(Run)) == 0
         claim = (await session.execute(select(GithubIngestRequest))).scalar_one()
         assert claim.state == "failed"
+        attempts = (await session.execute(select(IngestAttempt))).scalars().all()
+        assert [attempt.outcome for attempt in attempts] == ["failed_internal"]
+        assert await session.scalar(select(func.count()).select_from(IngestUsageCharge)) == 1
         await session.rollback()
-        claims = SqlAlchemyGithubIdempotencyRepository(session)
-        retry = await acquire_github_claim(
-            GithubClaimCommand(
-                424242,
-                26457513,
-                123456789,
-                1,
-                1,
-                envelope.payload_hash,
-                1024,
-            ),
-            repository=claims,
+        retry = await ingest_github_result(
+            replace(command, correlation_id=_correlation()),
+            _dependencies(session),
             now=NOW,
         )
-        assert retry.decision is ClaimDecision.ACQUIRED
+        assert retry.outcome is GithubIngestOutcome.CREATED
+        assert await session.scalar(select(func.count()).select_from(IngestUsageCharge)) == 2
+
+
+async def test_github_run_deletion_tombstones_and_expires_claim(tmp_path: Path) -> None:
+    sessions = await _database(tmp_path / "retention.sqlite")
+    raw_parts = {
+        "metadata": (FIXTURES / "github-metadata.json").read_bytes(),
+        "findings": (FIXTURES / "findings.json").read_bytes(),
+        "source_contexts": (FIXTURES / "source-contexts.json").read_bytes(),
+        "sarif": b'{"version":"2.1.0","runs":[]}',
+    }
+    envelope = build_validated_envelope_v2(
+        raw_parts,
+        schema_validator=CheckedInEnvelopeSchemaValidator(),
+    )
+    command = GithubIngestCommand(
+        project_id=1,
+        repository="26457513/assurance-scan",
+        github_repository_id=424242,
+        github_owner_id=26457513,
+        github_run_id=123456789,
+        github_run_attempt=1,
+        accepted_bytes=sum(map(len, raw_parts.values())),
+        correlation_id=_correlation(),
+        envelope=envelope,
+    )
+    async with sessions() as session:
+        await session.execute(text("PRAGMA foreign_keys=ON"))
+        await session.commit()
+        created = await ingest_github_result(command, _dependencies(session), now=NOW)
+        assert created.run_id is not None
+        assert await prepare_runs_for_deletion(session, [created.run_id], now=NOW) == 1
+        await session.execute(delete(Run).where(Run.run_id == created.run_id))
+        await session.commit()
+        claim = (await session.execute(select(GithubIngestRequest))).scalar_one()
+        assert claim.state == "tombstoned"
+        assert claim.run_id is None
+        cleanup = await run_retention_cleanup(session, now=NOW + timedelta(days=31))
+        assert cleanup.tombstones == 1
+        assert await session.scalar(select(func.count()).select_from(GithubIngestRequest)) == 0

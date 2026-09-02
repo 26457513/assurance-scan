@@ -97,9 +97,7 @@ class Project(Base):
     github_repository_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     default_scan_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
     hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
-    lifecycle_state: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="active", server_default="active"
-    )
+    lifecycle_state: Mapped[str] = mapped_column(String(32), nullable=False, default="active", server_default="active")
     local_run_counter: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
@@ -170,9 +168,7 @@ class Run(Base):
     findings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_bundle_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    legacy_retained: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="0"
-    )
+    legacy_retained: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
 
     scanner_runs: Mapped[list["ScannerRun"]] = relationship(
         back_populates="run",
@@ -270,9 +266,7 @@ class User(Base):
     mcp_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mcp_token_generated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     github_access_synced_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    github_app_access_synced_at: Mapped[dt.datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    github_app_access_synced_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ProjectMembership(Base):
@@ -434,9 +428,7 @@ class GithubInstallationRepository(Base):
         primary_key=True,
     )
     github_repository_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    project_id: Mapped[int | None] = mapped_column(
-        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
-    )
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     repository_full_name: Mapped[str] = mapped_column(String(256), nullable=False)
     github_owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     default_branch: Mapped[str] = mapped_column(String(256), nullable=False)
@@ -605,9 +597,7 @@ class IdentityMigrationJournal(Base):
     preflight_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
     state_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
     counts_json: Mapped[str] = mapped_column(Text, nullable=False)
-    completed_at: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    completed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         CheckConstraint(
@@ -712,25 +702,15 @@ class GithubIngestRequest(Base):
     github_owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     github_run_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     run_attempt: Mapped[int] = mapped_column(Integer, nullable=False)
-    project_id: Mapped[int] = mapped_column(
-        ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
-    )
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     accepted_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     state: Mapped[str] = mapped_column(String(16), nullable=False)
-    run_id: Mapped[str | None] = mapped_column(
-        ForeignKey("runs.run_id", ondelete="SET NULL"), nullable=True
-    )
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.run_id", ondelete="SET NULL"), nullable=True)
     lease_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    lease_expires_at: Mapped[dt.datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    tombstoned_at: Mapped[dt.datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    tombstone_expires_at: Mapped[dt.datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    lease_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tombstoned_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tombstone_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
@@ -743,17 +723,14 @@ class GithubIngestRequest(Base):
         ),
         UniqueConstraint("run_id", name="uq_github_ingest_requests_run"),
         CheckConstraint(
-            "github_repository_id > 0 AND github_owner_id > 0 "
-            "AND github_run_id > 0 AND run_attempt > 0",
+            "github_repository_id > 0 AND github_owner_id > 0 AND github_run_id > 0 AND run_attempt > 0",
             name="ck_github_ingest_requests_identity",
         ),
         CheckConstraint(
             "state IN ('processing', 'completed', 'failed', 'tombstoned')",
             name="ck_github_ingest_requests_state",
         ),
-        CheckConstraint(
-            "accepted_bytes >= 0", name="ck_github_ingest_requests_accepted_bytes"
-        ),
+        CheckConstraint("accepted_bytes >= 0", name="ck_github_ingest_requests_accepted_bytes"),
         CheckConstraint(
             "length(payload_hash) = 64 AND payload_hash NOT GLOB '*[^0-9a-f]*'",
             name="ck_github_ingest_requests_payload_hash",
@@ -789,9 +766,7 @@ class IngestAttempt(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     correlation_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
     origin: Mapped[str] = mapped_column(String(16), nullable=False)
-    project_id: Mapped[int] = mapped_column(
-        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
-    )
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     principal_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     principal_reference_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     canonical_request_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -802,12 +777,8 @@ class IngestAttempt(Base):
     received_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    run_id: Mapped[str | None] = mapped_column(
-        ForeignKey("runs.run_id", ondelete="SET NULL"), nullable=True
-    )
-    submitted_by_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=True
-    )
+    run_id: Mapped[str | None] = mapped_column(ForeignKey("runs.run_id", ondelete="SET NULL"), nullable=True)
+    submitted_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
 
     __table_args__ = (
         CheckConstraint("origin IN ('github', 'local')", name="ck_ingest_attempts_origin"),
@@ -821,8 +792,73 @@ class IngestAttempt(Base):
         ),
         CheckConstraint("wire_bytes >= 0", name="ck_ingest_attempts_wire_bytes"),
         CheckConstraint("expires_at > received_at", name="ck_ingest_attempts_expiry"),
+        CheckConstraint("completed_at >= received_at", name="ck_ingest_attempts_completion"),
+        CheckConstraint("length(id) = 36", name="ck_ingest_attempts_id"),
+        CheckConstraint("length(correlation_id) = 36", name="ck_ingest_attempts_correlation"),
+        CheckConstraint(
+            "length(principal_reference_hash) = 64 AND length(canonical_request_key_hash) = 64",
+            name="ck_ingest_attempts_hashes",
+        ),
+        CheckConstraint(
+            "(origin = 'github' AND principal_kind = 'github_oidc' "
+            "AND submitted_by_user_id IS NULL) OR "
+            "(origin = 'local' AND principal_kind = 'local_token' "
+            "AND submitted_by_user_id IS NOT NULL)",
+            name="ck_ingest_attempts_identity",
+        ),
         Index("ix_ingest_attempts_project_received", "project_id", "received_at"),
         Index("ix_ingest_attempts_expires", "expires_at"),
+    )
+
+
+class IngestQuotaLock(Base):
+    """Singleton row serializing cross-origin quota reservation."""
+
+    __tablename__ = "ingest_quota_locks"
+
+    lock_name: Mapped[str] = mapped_column(String(32), primary_key=True)
+
+    __table_args__ = (CheckConstraint("lock_name = 'global'", name="ck_ingest_quota_locks_global"),)
+
+
+class IngestUsageCharge(Base):
+    """Immutable short-lived accounting entry for one allowed work start."""
+
+    __tablename__ = "ingest_usage_charges"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    correlation_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    origin: Mapped[str] = mapped_column(String(16), nullable=False)
+    accepted_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    local_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    local_token_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    github_repository_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    github_owner_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    charged_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("origin IN ('github', 'local')", name="ck_ingest_usage_charges_origin"),
+        CheckConstraint("accepted_bytes >= 0", name="ck_ingest_usage_charges_bytes"),
+        CheckConstraint("expires_at > charged_at", name="ck_ingest_usage_charges_expiry"),
+        CheckConstraint(
+            "(origin = 'local' AND local_user_id IS NOT NULL AND local_user_id > 0 "
+            "AND local_token_id IS NOT NULL AND github_repository_id IS NULL "
+            "AND github_owner_id IS NULL) OR "
+            "(origin = 'github' AND local_user_id IS NULL AND local_token_id IS NULL "
+            "AND github_repository_id IS NOT NULL AND github_repository_id > 0 "
+            "AND github_owner_id IS NOT NULL AND github_owner_id > 0)",
+            name="ck_ingest_usage_charges_identity",
+        ),
+        Index("ix_ingest_usage_charges_token_time", "local_token_id", "charged_at"),
+        Index("ix_ingest_usage_charges_user_time", "local_user_id", "charged_at"),
+        Index(
+            "ix_ingest_usage_charges_repository_time",
+            "github_repository_id",
+            "charged_at",
+        ),
+        Index("ix_ingest_usage_charges_owner_time", "github_owner_id", "charged_at"),
+        Index("ix_ingest_usage_charges_expires", "expires_at"),
     )
 
 

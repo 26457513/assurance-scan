@@ -17,6 +17,12 @@ from app.modules.atomic.ingestion.ingest_attempt import (
 )
 from app.modules.atomic.ingestion.usage_quota import GithubUsageQuotaRepositoryPort
 from app.modules.workflows.result_ingest_v2_contract import ValidatedEnvelopeV2
+from app.modules.shared.contracts.ingest_v2 import (
+    GITHUB_USAGE_LIMITS_V2,
+    SHARED_USAGE_LIMITS_V2,
+    GitHubUsageLimitsV2,
+    SharedUsageLimitsV2,
+)
 
 
 @dataclass(frozen=True)
@@ -89,6 +95,8 @@ class GithubIngestDependencies:
     quotas: GithubUsageQuotaRepositoryPort
     attempts: IngestAttemptRepositoryPort
     persistence: GithubClaimCompletingPersistencePort
+    github_usage_limits: GitHubUsageLimitsV2 = GITHUB_USAGE_LIMITS_V2
+    shared_usage_limits: SharedUsageLimitsV2 = SHARED_USAGE_LIMITS_V2
 
 
 __all__ = [

@@ -1,4 +1,5 @@
 """Forward-only WS2 claim fencing and tombstone migration tests."""
+
 from __future__ import annotations
 
 import os
@@ -11,7 +12,7 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 OLD_HEAD = "0021_project_identity_provenance"
-NEW_HEAD = "0035_github_ingest_quotas_attempts"
+NEW_HEAD = "0036_ingest_usage_ledger"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -55,9 +56,7 @@ def test_migration_aborts_before_replacing_unattributable_prerelease_claims(
     assert result.returncode != 0
     assert "cannot attribute pre-release ingest claims" in result.stderr
     with sqlite3.connect(database) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (
-            OLD_HEAD,
-        )
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == (OLD_HEAD,)
         assert connection.execute("SELECT count(*) FROM ingest_requests").fetchone() == (1,)
 
 
@@ -65,12 +64,8 @@ def test_claim_schema_has_quota_fencing_and_tombstone_guards(tmp_path: Path) -> 
     database = tmp_path / "schema.sqlite"
     _alembic(database, "upgrade", "head")
     with sqlite3.connect(database) as connection:
-        columns = {
-            str(row[1]): row for row in connection.execute("PRAGMA table_info(ingest_requests)")
-        }
-        indexes = {
-            str(row[1]) for row in connection.execute("PRAGMA index_list(ingest_requests)")
-        }
+        columns = {str(row[1]): row for row in connection.execute("PRAGMA table_info(ingest_requests)")}
+        indexes = {str(row[1]) for row in connection.execute("PRAGMA index_list(ingest_requests)")}
         foreign_keys = connection.execute("PRAGMA foreign_key_list(ingest_requests)").fetchall()
         revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
 
@@ -89,14 +84,8 @@ def test_github_oidc_replay_schema_has_digest_and_expiry_guards(tmp_path: Path) 
     database = tmp_path / "oidc-replay.sqlite"
     _alembic(database, "upgrade", "head")
     with sqlite3.connect(database) as connection:
-        columns = {
-            str(row[1]): row
-            for row in connection.execute("PRAGMA table_info(github_oidc_replays)")
-        }
-        indexes = {
-            str(row[1])
-            for row in connection.execute("PRAGMA index_list(github_oidc_replays)")
-        }
+        columns = {str(row[1]): row for row in connection.execute("PRAGMA table_info(github_oidc_replays)")}
+        indexes = {str(row[1]) for row in connection.execute("PRAGMA index_list(github_oidc_replays)")}
 
     assert columns["jti_digest"][5] == 1
     assert columns["github_repository_id"][3] == 1
@@ -108,16 +97,8 @@ def test_github_run_identity_is_repository_and_attempt_scoped(tmp_path: Path) ->
     database = tmp_path / "github-run-identity.sqlite"
     _alembic(database, "upgrade", "head")
     with sqlite3.connect(database) as connection:
-        indexes = {
-            str(row[1]): row
-            for row in connection.execute("PRAGMA index_list(runs)")
-        }
-        columns = [
-            str(row[2])
-            for row in connection.execute(
-                "PRAGMA index_info(uq_runs_project_github_run_attempt)"
-            )
-        ]
+        indexes = {str(row[1]): row for row in connection.execute("PRAGMA index_list(runs)")}
+        columns = [str(row[2]) for row in connection.execute("PRAGMA index_info(uq_runs_project_github_run_attempt)")]
 
     assert "uq_runs_github_run_id" not in indexes
     assert indexes["uq_runs_project_github_run_attempt"][2] == 1
@@ -128,34 +109,36 @@ def test_github_ingest_claim_schema_is_leased_and_attempt_scoped(tmp_path: Path)
     database = tmp_path / "github-ingest-claims.sqlite"
     _alembic(database, "upgrade", "head")
     with sqlite3.connect(database) as connection:
-        columns = {
-            str(row[1]): row
-            for row in connection.execute("PRAGMA table_info(github_ingest_requests)")
-        }
-        indexes = {
-            str(row[1]): row
-            for row in connection.execute("PRAGMA index_list(github_ingest_requests)")
-        }
+        columns = {str(row[1]): row for row in connection.execute("PRAGMA table_info(github_ingest_requests)")}
+        indexes = {str(row[1]): row for row in connection.execute("PRAGMA index_list(github_ingest_requests)")}
         unique_indexes = [name for name, row in indexes.items() if row[2] == 1]
         indexed_columns = {
-            tuple(
-                str(column[2])
-                for column in connection.execute(f'PRAGMA index_info("{name}")')
-            )
+            tuple(str(column[2]) for column in connection.execute(f'PRAGMA index_info("{name}")'))
             for name in unique_indexes
         }
-        foreign_keys = connection.execute(
-            "PRAGMA foreign_key_list(github_ingest_requests)"
-        ).fetchall()
+        foreign_keys = connection.execute("PRAGMA foreign_key_list(github_ingest_requests)").fetchall()
 
-    assert {"lease_id", "lease_expires_at", "tombstoned_at", "tombstone_expires_at"}.issubset(
-        columns
-    )
+    assert {"lease_id", "lease_expires_at", "tombstoned_at", "tombstone_expires_at"}.issubset(columns)
+    assert columns["github_owner_id"][3] == 1
     assert ("github_repository_id", "github_run_id", "run_attempt") in indexed_columns
-    assert any(
-        row[2] == "runs" and row[3] == "run_id" and row[6] == "SET NULL"
-        for row in foreign_keys
-    )
+    assert any(row[2] == "runs" and row[3] == "run_id" and row[6] == "SET NULL" for row in foreign_keys)
+
+
+def test_ingest_attempt_and_usage_ledger_schema_is_present(tmp_path: Path) -> None:
+    database = tmp_path / "ingest-evidence.sqlite"
+    _alembic(database, "upgrade", "head")
+    with sqlite3.connect(database) as connection:
+        attempt_columns = {str(row[1]): row for row in connection.execute("PRAGMA table_info(ingest_attempts)")}
+        charge_columns = {str(row[1]): row for row in connection.execute("PRAGMA table_info(ingest_usage_charges)")}
+        locks = connection.execute("SELECT lock_name FROM ingest_quota_locks").fetchall()
+        attempt_indexes = {str(row[1]) for row in connection.execute("PRAGMA index_list(ingest_attempts)")}
+        charge_indexes = {str(row[1]) for row in connection.execute("PRAGMA index_list(ingest_usage_charges)")}
+
+    assert locks == [("global",)]
+    assert {"correlation_id", "principal_reference_hash", "expires_at"}.issubset(attempt_columns)
+    assert {"origin", "accepted_bytes", "charged_at", "expires_at"}.issubset(charge_columns)
+    assert "ix_ingest_attempts_expires" in attempt_indexes
+    assert "ix_ingest_usage_charges_expires" in charge_indexes
 
 
 def test_local_display_identity_is_backfilled_in_stable_order(tmp_path: Path) -> None:
@@ -198,15 +181,10 @@ def test_local_display_identity_is_backfilled_in_stable_order(tmp_path: Path) ->
 
     with sqlite3.connect(database) as connection:
         rows = connection.execute(
-            "SELECT run_id, local_run_number, local_machine_label FROM runs "
-            "ORDER BY local_run_number"
+            "SELECT run_id, local_run_number, local_machine_label FROM runs ORDER BY local_run_number"
         ).fetchall()
-        counter = connection.execute(
-            "SELECT local_run_counter FROM projects WHERE id = 42"
-        ).fetchone()
-        indexes = {
-            str(row[1]) for row in connection.execute("PRAGMA index_list(runs)")
-        }
+        counter = connection.execute("SELECT local_run_counter FROM projects WHERE id = 42").fetchone()
+        indexes = {str(row[1]) for row in connection.execute("PRAGMA index_list(runs)")}
 
     assert rows == [
         ("local-earlier", 1, "laptop"),

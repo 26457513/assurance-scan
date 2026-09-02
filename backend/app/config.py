@@ -20,6 +20,12 @@ from app.modules.shared.contracts.local_scan import (
     UploadLimits,
     UsageLimits,
 )
+from app.modules.shared.contracts.ingest_v2 import (
+    GITHUB_USAGE_LIMITS_V2,
+    SHARED_USAGE_LIMITS_V2,
+    GitHubUsageLimitsV2,
+    SharedUsageLimitsV2,
+)
 from app.modules.atomic.provenance.repository_identity import (
     InvalidRepositoryIdentityError,
     normalize_github_repository_key,
@@ -228,6 +234,8 @@ class Settings:
     github_webhook_previous_valid_until: str
     migration_github_linking_enabled: bool
     github_oidc_ingest_enabled: bool
+    github_ingest_usage_limits: GitHubUsageLimitsV2
+    shared_ingest_usage_limits: SharedUsageLimitsV2
 
     # GitHub CI polling (phase-2 ingest). Poller runs only when both a
     # token and at least one repo are configured.
@@ -301,6 +309,34 @@ def load_settings() -> Settings:
             ),
             accepted_bytes_per_user_day=_env_lower_limit(
                 "LOCAL_INGEST_ACCEPTED_BYTES_PER_USER_DAY", USAGE_LIMITS.accepted_bytes_per_user_day
+            ),
+        ),
+        github_ingest_usage_limits=GitHubUsageLimitsV2(
+            uploads_per_repository_hour=_env_lower_limit(
+                "GITHUB_INGEST_UPLOADS_PER_REPOSITORY_HOUR",
+                GITHUB_USAGE_LIMITS_V2.uploads_per_repository_hour,
+            ),
+            uploads_per_owner_day=_env_lower_limit(
+                "GITHUB_INGEST_UPLOADS_PER_OWNER_DAY",
+                GITHUB_USAGE_LIMITS_V2.uploads_per_owner_day,
+            ),
+            inflight_per_repository=_env_lower_limit(
+                "GITHUB_INGEST_INFLIGHT_PER_REPOSITORY",
+                GITHUB_USAGE_LIMITS_V2.inflight_per_repository,
+            ),
+            accepted_bytes_per_owner_day=_env_lower_limit(
+                "GITHUB_INGEST_ACCEPTED_BYTES_PER_OWNER_DAY",
+                GITHUB_USAGE_LIMITS_V2.accepted_bytes_per_owner_day,
+            ),
+        ),
+        shared_ingest_usage_limits=SharedUsageLimitsV2(
+            inflight_per_instance=_env_lower_limit(
+                "INGEST_INFLIGHT_PER_INSTANCE",
+                SHARED_USAGE_LIMITS_V2.inflight_per_instance,
+            ),
+            inflight_local_per_instance=_env_lower_limit(
+                "LOCAL_INGEST_INFLIGHT_PER_INSTANCE",
+                SHARED_USAGE_LIMITS_V2.inflight_local_per_instance,
             ),
         ),
         cli_release_manifest_path=_env("CLI_RELEASE_MANIFEST_PATH", ""),

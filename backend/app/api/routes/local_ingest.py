@@ -77,6 +77,7 @@ class IngestAPIRoute(APIRoute):
 
         async def handler(request: Request) -> Response:
             request.state.local_ingest_started = time.monotonic()
+            request.state.correlation_id = str(uuid.uuid4())
             try:
                 return await original(request)
             except IngestProblem as exc:
@@ -156,6 +157,7 @@ def get_local_scan_ingest_workflow(
             "local_ingest_usage_limits",
             None,
         ),
+        shared_usage_limits=getattr(request.app.state.settings, "shared_ingest_usage_limits", None),
     )
 
 
@@ -233,14 +235,13 @@ async def upload_local_scan(
     optional_documents: list[Any] = []
     for artifact in ("sarif", "sbom"):
         if artifact in parts:
-            optional_documents.append(
-                _load_json_value(parts[artifact], part=artifact, json_depth=limits.json_depth)
-            )
+            optional_documents.append(_load_json_value(parts[artifact], part=artifact, json_depth=limits.json_depth))
 
     payload_hash = _payload_hash(metadata, parts)
     result = await workflow.ingest_local_scan(
         LocalScanIngestCommand(
             principal=principal,
+            correlation_id=request.state.correlation_id,
             idempotency_key=idempotency_key,
             metadata=metadata,
             findings=findings,
@@ -252,9 +253,7 @@ async def upload_local_scan(
         )
     )
     redaction_count = redact_json(findings).replacements
-    redaction_count += sum(
-        redact_json(document).replacements for document in optional_documents
-    )
+    redaction_count += sum(redact_json(document).replacements for document in optional_documents)
     _log_success(
         request,
         result=result,
@@ -263,7 +262,7 @@ async def upload_local_scan(
         scanner_count=len(cast(list[Any], findings["scanners"])),
         redaction_count=redaction_count,
     )
-    return _success_response(result)
+    return _success_response(result, correlation_id=request.state.correlation_id)
 
 
 @router.get("/local-scans/requests/{request_id}")
@@ -661,7 +660,7 @@ def _payload_hash(metadata: Mapping[str, Any], parts: Mapping[str, bytes]) -> st
     return digest.hexdigest()
 
 
-def _success_response(result: LocalScanIngestResult) -> JSONResponse:
+def _success_response(result: LocalScanIngestResult, *, correlation_id: str) -> JSONResponse:
     status_code = 201
     if result.outcome is LocalScanIngestOutcome.REPLAYED:
         status_code = 200
@@ -674,6 +673,7 @@ def _success_response(result: LocalScanIngestResult) -> JSONResponse:
         "run_url": result.run_url,
         "status": result.status,
         "replayed": result.outcome is LocalScanIngestOutcome.REPLAYED,
+        "request_id": correlation_id,
     }
     if result.status_url is not None:
         body["status_url"] = result.status_url
@@ -706,6 +706,7 @@ def _log_rejection(request: Request, *, status: int, code: str) -> None:
                 status_code=status,
                 duration_ms=_duration_ms(request),
                 code=code,
+                correlation_id=request.state.correlation_id,
             )
         )
     )
@@ -732,6 +733,7 @@ def _log_success(
                 status_code=status_code,
                 duration_ms=_duration_ms(request),
                 code=f"scan_{result.outcome.value}",
+                correlation_id=request.state.correlation_id,
                 wire_bytes=wire_bytes,
                 finding_count=finding_count,
                 scanner_count=scanner_count,

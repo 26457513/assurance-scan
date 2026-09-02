@@ -32,6 +32,9 @@ class QuotaCommand:
     client_request_id: str
     accepted_bytes: int
     enabled: bool = True
+    project_id: int = 0
+    payload_hash: str = ""
+    correlation_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -90,6 +93,8 @@ class GithubQuotaCommand:
     github_run_id: int
     run_attempt: int
     accepted_bytes: int
+    payload_hash: str = ""
+    correlation_id: str = ""
 
 
 @dataclass(frozen=True)

@@ -139,7 +139,11 @@ def get_github_actions_ingest_workflow(
         return cast(GithubActionsIngestWorkflow, override)
     from app.infrastructure.github_oidc_ingest import SqlAlchemyGithubOidcIngestWorkflow
 
-    return SqlAlchemyGithubOidcIngestWorkflow(session)
+    return SqlAlchemyGithubOidcIngestWorkflow(
+        session,
+        github_usage_limits=request.app.state.settings.github_ingest_usage_limits,
+        shared_usage_limits=request.app.state.settings.shared_ingest_usage_limits,
+    )
 
 
 @router.post("/github-actions")
@@ -196,7 +200,7 @@ async def upload_github_actions_result(
             correlation_id=request.state.correlation_id,
         )
     )
-    return _success_response(result)
+    return _success_response(result, correlation_id=request.state.correlation_id)
 
 
 def _bearer_token(request: Request) -> str:
@@ -209,7 +213,7 @@ def _bearer_token(request: Request) -> str:
     return token
 
 
-def _success_response(result: GithubIngestResult) -> JSONResponse:
+def _success_response(result: GithubIngestResult, *, correlation_id: str) -> JSONResponse:
     status = 201
     if result.outcome is GithubIngestOutcome.REPLAYED:
         status = 200
@@ -226,6 +230,7 @@ def _success_response(result: GithubIngestResult) -> JSONResponse:
             "run_url": result.run_url,
             "status": result.status,
             "replayed": result.outcome is GithubIngestOutcome.REPLAYED,
+            "request_id": correlation_id,
         },
         status_code=status,
         headers=headers,

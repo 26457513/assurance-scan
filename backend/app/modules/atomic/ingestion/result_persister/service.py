@@ -1,6 +1,8 @@
 """Persist one normalized result bundle through an explicit storage port."""
+
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 from app.modules.shared.contracts.findings import NormalizedFinding
@@ -13,6 +15,9 @@ from app.modules.shared.contracts.ingest import (
 from app.modules.shared.contracts.source_context import SourceContextPayload
 
 from .ports import ResultPersistencePort
+
+
+log = logging.getLogger(__name__)
 
 
 async def persist_result_bundle(
@@ -61,5 +66,8 @@ async def persist_result_bundle(
         await persistence.before_commit(record.run_id)
         await persistence.commit()
     except BaseException:
-        await persistence.rollback()
+        try:
+            await persistence.rollback()
+        except BaseException:
+            log.error("result persistence rollback failed for run %s", record.run_id)
         raise

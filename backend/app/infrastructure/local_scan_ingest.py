@@ -15,14 +15,17 @@ from app.api.schemas.local_ingest import (
     LocalScanWorkflowError,
 )
 from app.infrastructure.db.models import IngestRequest, Project, User
+from app.infrastructure.db.repositories.ingest_attempts import SqlAlchemyIngestAttemptRepository
 from app.infrastructure.project_access import ProjectAccessPrincipal, require_project
 from app.infrastructure.db.repositories.ingest_requests import SqlAlchemyIdempotencyRepository
 from app.infrastructure.db.repositories.ingest_usage import SqlAlchemyUsageQuotaRepository
 from app.modules.atomic.ingestion.idempotency_guard import IdempotencyClaim
+from app.modules.atomic.ingestion.ingest_attempt import IngestAttemptRecord
 from app.modules.atomic.ingestion.result_persister._adapters import SqlAlchemyIngestPersistence
 from app.modules.atomic.provenance.repository_identity import normalize_github_repository_key
 from app.modules.shared.contracts.ingest import ResolvedProject
 from app.modules.shared.contracts.local_scan import USAGE_LIMITS, UsageLimits
+from app.modules.shared.contracts.ingest_v2 import SHARED_USAGE_LIMITS_V2, SharedUsageLimitsV2
 from app.modules.workflows.local_scan_ingest import (
     LocalScanCommand,
     LocalScanDependencies,
@@ -109,11 +112,14 @@ async def get_local_request_status(
     user = await session.get(User, user_id)
     if user is None or user.disabled_at is not None:
         return None
-    if await require_project(
-        session,
-        ProjectAccessPrincipal(user_id=user.id, role=user.role),
-        project.id,
-    ) is None:
+    if (
+        await require_project(
+            session,
+            ProjectAccessPrincipal(user_id=user.id, role=user.role),
+            project.id,
+        )
+        is None
+    ):
         return None
     return LocalRequestStatus(
         state=claim.state,
@@ -135,11 +141,17 @@ class ClaimCompletingSqlAlchemyPersistence(SqlAlchemyIngestPersistence):
         super().__init__(session)
         self._claims = claims
         self._claim: IdempotencyClaim | None = None
+        self._attempt: IngestAttemptRecord | None = None
 
     def bind_claim(self, claim: IdempotencyClaim) -> None:
         if self._claim is not None:
             raise RuntimeError("local ingest persistence is already bound to a claim")
         self._claim = claim
+
+    def bind_attempt(self, attempt: IngestAttemptRecord) -> None:
+        if self._attempt is not None:
+            raise RuntimeError("local ingest persistence is already bound to an attempt")
+        self._attempt = attempt
 
     async def before_commit(self, run_id: str) -> None:
         if self._claim is None:
@@ -151,6 +163,9 @@ class ClaimCompletingSqlAlchemyPersistence(SqlAlchemyIngestPersistence):
         )
         if not completed:
             raise RuntimeError("local ingest idempotency lease was lost before commit")
+        if self._attempt is None:
+            raise RuntimeError("local ingest persistence has no audit attempt")
+        await SqlAlchemyIngestAttemptRepository(self._session).stage(self._attempt)
 
 
 class SqlAlchemyLocalScanWorkflow:
@@ -162,14 +177,17 @@ class SqlAlchemyLocalScanWorkflow:
         *,
         public_base_url: str,
         usage_limits: UsageLimits | None = None,
+        shared_usage_limits: SharedUsageLimitsV2 | None = None,
     ) -> None:
         claims = SqlAlchemyIdempotencyRepository(session)
         self._dependencies = LocalScanDependencies(
             projects=SqlAlchemyLocalProjectResolver(session),
             quotas=SqlAlchemyUsageQuotaRepository(session),
             claims=claims,
+            attempts=SqlAlchemyIngestAttemptRepository(session),
             persistence=ClaimCompletingSqlAlchemyPersistence(session, claims),
             usage_limits=usage_limits or USAGE_LIMITS,
+            shared_usage_limits=shared_usage_limits or SHARED_USAGE_LIMITS_V2,
         )
         self._public_base_url = public_base_url
 
@@ -181,6 +199,7 @@ class SqlAlchemyLocalScanWorkflow:
             result = await ingest_local_scan(
                 LocalScanCommand(
                     user_id=command.principal.user_id,
+                    correlation_id=command.correlation_id,
                     token_id=command.principal.token_id,
                     token_label=command.principal.token_label,
                     token_scopes=frozenset(command.principal.scope.split()),

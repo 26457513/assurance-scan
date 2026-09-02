@@ -10,10 +10,15 @@ from app.modules.atomic.ingestion.idempotency_guard import (
     IdempotencyClaim,
     IdempotencyRepositoryPort,
 )
+from app.modules.atomic.ingestion.ingest_attempt import (
+    IngestAttemptRecord,
+    IngestAttemptRepositoryPort,
+)
 from app.modules.atomic.ingestion.result_persister import ResultPersistencePort
 from app.modules.atomic.ingestion.usage_quota import UsageQuotaRepositoryPort
 from app.modules.shared.contracts.ingest import ResolvedProject
 from app.modules.shared.contracts.local_scan import USAGE_LIMITS, UsageLimits
+from app.modules.shared.contracts.ingest_v2 import SHARED_USAGE_LIMITS_V2, SharedUsageLimitsV2
 
 
 @dataclass(frozen=True)
@@ -21,6 +26,7 @@ class LocalScanCommand:
     """Validated upload plus the server-authenticated principal."""
 
     user_id: int
+    correlation_id: str
     token_id: str
     token_label: str
     token_scopes: frozenset[str]
@@ -95,14 +101,18 @@ class ClaimCompletingPersistencePort(ResultPersistencePort, Protocol):
 
     def bind_claim(self, claim: IdempotencyClaim) -> None: ...
 
+    def bind_attempt(self, attempt: IngestAttemptRecord) -> None: ...
+
 
 @dataclass(frozen=True)
 class LocalScanDependencies:
     projects: LocalProjectResolverPort
     quotas: UsageQuotaRepositoryPort
     claims: IdempotencyRepositoryPort
+    attempts: IngestAttemptRepositoryPort
     persistence: ClaimCompletingPersistencePort
     usage_limits: UsageLimits = USAGE_LIMITS
+    shared_usage_limits: SharedUsageLimitsV2 = SHARED_USAGE_LIMITS_V2
 
 
 __all__ = [

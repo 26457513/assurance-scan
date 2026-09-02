@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -205,7 +206,10 @@ async def test_valid_upload_calls_narrow_workflow_with_validated_bundle(
 ) -> None:
     response = await _upload(harness.client)
     assert response.status_code == 201, response.text
-    assert response.json() == {
+    body = response.json()
+    request_id = body.pop("request_id")
+    assert str(uuid.UUID(request_id)) == request_id
+    assert body == {
         "run_id": "local-123",
         "project_id": 42,
         "repository": {"provider": "github", "full_name": "26457513/assurance-scan"},
@@ -215,6 +219,8 @@ async def test_valid_upload_calls_narrow_workflow_with_validated_bundle(
     }
     command = harness.workflow.commands[0]
     assert command.idempotency_key == IDEMPOTENCY_KEY
+    assert str(uuid.UUID(command.correlation_id)) == command.correlation_id
+    assert command.correlation_id == request_id
     assert command.principal.user_id == 7
     assert command.accepted_bytes > len(command.findings_bytes)
     assert command.payload_hash and len(command.payload_hash) == 64
@@ -238,13 +244,12 @@ async def test_upload_signal_reports_counts_without_secret_or_host_path(
 
     assert response.status_code == 201
     signals = [
-        json.loads(record.message)
-        for record in caplog.records
-        if '"event":"local_ingest_request"' in record.message
+        json.loads(record.message) for record in caplog.records if '"event":"local_ingest_request"' in record.message
     ]
     assert signals == [
         {
             "code": "scan_created",
+            "correlation_id": signals[0]["correlation_id"],
             "duration_ms": signals[0]["duration_ms"],
             "event": "local_ingest_request",
             "finding_count": 1,
@@ -277,9 +282,7 @@ async def test_canary_allowlist_blocks_other_repositories_without_echoing_identi
 async def test_canary_allowlist_uses_effective_project_override(
     harness: RouteHarness,
 ) -> None:
-    harness.app.state.settings.local_ingest_repository_allowlist = frozenset(
-        {"26457513/assurance-scan"}
-    )
+    harness.app.state.settings.local_ingest_repository_allowlist = frozenset({"26457513/assurance-scan"})
     metadata = json.loads((FIXTURES / "valid" / "metadata.json").read_text())
     metadata["repository"] = "developer/assurance-scan-fork"
     metadata["project_override"] = "26457513/assurance-scan"

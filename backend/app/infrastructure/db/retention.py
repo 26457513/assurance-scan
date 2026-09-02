@@ -13,11 +13,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.db.models import (
     ApiToken,
     GithubWebhookDelivery,
+    GithubIngestRequest,
+    IngestAttempt,
     IngestRequest,
+    IngestUsageCharge,
     Run,
     ScannerArtifact,
 )
 from app.infrastructure.db.repositories.ingest_requests import SqlAlchemyIdempotencyRepository
+from app.infrastructure.db.repositories.github_ingest_requests import (
+    SqlAlchemyGithubIdempotencyRepository,
+)
 from app.modules.shared.contracts.local_scan import RETENTION_DAYS
 
 
@@ -28,6 +34,8 @@ class RetentionCleanupResult:
     tombstones: int
     token_audits: int
     webhook_deliveries: int
+    ingest_attempts: int
+    usage_charges: int
 
 
 async def prepare_runs_for_deletion(
@@ -40,10 +48,18 @@ async def prepare_runs_for_deletion(
     timestamp = now or dt.datetime.now(dt.timezone.utc)
     expiry = timestamp + dt.timedelta(days=RETENTION_DAYS.deletion_tombstone)
     claims = SqlAlchemyIdempotencyRepository(session)
+    github_claims = SqlAlchemyGithubIdempotencyRepository(session)
     converted = 0
     for run_id in run_ids:
         converted += int(
             await claims.tombstone_completed(
+                run_id=run_id,
+                now=timestamp,
+                expires_at=expiry,
+            )
+        )
+        converted += int(
+            await github_claims.tombstone_completed(
                 run_id=run_id,
                 now=timestamp,
                 expires_at=expiry,
@@ -92,6 +108,14 @@ async def run_retention_cleanup(
         )
         .execution_options(synchronize_session=False)
     )
+    github_tombstone_result = await session.execute(
+        delete(GithubIngestRequest)
+        .where(
+            GithubIngestRequest.state == "tombstoned",
+            GithubIngestRequest.tombstone_expires_at <= timestamp,
+        )
+        .execution_options(synchronize_session=False)
+    )
     token_result = await session.execute(
         delete(ApiToken)
         .where(
@@ -106,13 +130,26 @@ async def run_retention_cleanup(
         .where(GithubWebhookDelivery.expires_at <= timestamp)
         .execution_options(synchronize_session=False)
     )
+    attempt_result = await session.execute(
+        delete(IngestAttempt).where(IngestAttempt.expires_at <= timestamp).execution_options(synchronize_session=False)
+    )
+    charge_result = await session.execute(
+        delete(IngestUsageCharge)
+        .where(IngestUsageCharge.expires_at <= timestamp)
+        .execution_options(synchronize_session=False)
+    )
     await session.commit()
     return RetentionCleanupResult(
         raw_artifacts=int(cast(CursorResult[Any], raw_result).rowcount or 0),
         runs=int(cast(CursorResult[Any], run_result).rowcount or 0),
-        tombstones=int(cast(CursorResult[Any], tombstone_result).rowcount or 0),
+        tombstones=(
+            int(cast(CursorResult[Any], tombstone_result).rowcount or 0)
+            + int(cast(CursorResult[Any], github_tombstone_result).rowcount or 0)
+        ),
         token_audits=int(cast(CursorResult[Any], token_result).rowcount or 0),
         webhook_deliveries=int(cast(CursorResult[Any], webhook_result).rowcount or 0),
+        ingest_attempts=int(cast(CursorResult[Any], attempt_result).rowcount or 0),
+        usage_charges=int(cast(CursorResult[Any], charge_result).rowcount or 0),
     )
 
 

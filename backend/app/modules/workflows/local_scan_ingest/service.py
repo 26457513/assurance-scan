@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -15,6 +16,11 @@ from app.modules.atomic.ingestion.idempotency_guard import (
     ClaimDecision,
     acquire_claim,
     claim_handle,
+)
+from app.modules.atomic.ingestion.ingest_attempt import (
+    IngestAttemptCommand,
+    IngestAttemptRecord,
+    build_ingest_attempt,
 )
 from app.modules.atomic.ingestion.usage_quota import (
     QuotaCommand,
@@ -35,6 +41,9 @@ from .models import (
     LocalScanOutcome,
     LocalScanResult,
 )
+
+
+log = logging.getLogger(__name__)
 
 
 async def ingest_local_scan(
@@ -69,6 +78,14 @@ async def ingest_local_scan(
         )
     )
     if not authorization.allowed:
+        await _record_attempt(
+            command,
+            dependencies,
+            project.project_id,
+            timestamp,
+            outcome="rejected",
+            reason_code="repository_not_authorized",
+        )
         raise _error(403, "project_forbidden", "Project upload is forbidden", authorization.reason)
 
     quota_command = QuotaCommand(
@@ -76,14 +93,28 @@ async def ingest_local_scan(
         token_id=command.token_id,
         client_request_id=command.request_id,
         accepted_bytes=command.accepted_bytes,
+        project_id=project.project_id,
+        payload_hash=command.payload_hash,
+        correlation_id=command.correlation_id,
     )
     quota = await reserve_usage(
         quota_command,
         repository=dependencies.quotas,
         now=timestamp,
         limits=dependencies.usage_limits,
+        shared_limits=dependencies.shared_usage_limits,
     )
     if not quota.allowed:
+        await _record_attempt(
+            command,
+            dependencies,
+            project.project_id,
+            timestamp,
+            outcome="rejected",
+            reason_code=_quota_reason(quota.decision),
+            retryable=quota.decision
+            not in {QuotaDecision.USER_RETAINED_STORAGE, QuotaDecision.INSTANCE_RETAINED_STORAGE},
+        )
         raise _quota_error(quota.decision, quota.retry_after_seconds)
 
     claim_command = ClaimCommand(
@@ -100,6 +131,15 @@ async def ingest_local_scan(
         now=timestamp,
     )
     if claim_result.decision is ClaimDecision.REPLAY:
+        await _record_attempt(
+            command,
+            dependencies,
+            project.project_id,
+            timestamp,
+            outcome="replayed",
+            reason_code="idempotent_replay",
+            run_id=claim_result.run_id,
+        )
         return _result(
             LocalScanOutcome.REPLAYED,
             claim_result.run_id,
@@ -108,6 +148,15 @@ async def ingest_local_scan(
             command.public_base_url,
         )
     if claim_result.decision is ClaimDecision.IN_PROGRESS:
+        await _record_attempt(
+            command,
+            dependencies,
+            project.project_id,
+            timestamp,
+            outcome="replayed",
+            reason_code="idempotent_replay",
+            retryable=True,
+        )
         retry_after = _retry_after(claim_result.lease_expires_at, timestamp)
         return LocalScanResult(
             outcome=LocalScanOutcome.IN_PROGRESS,
@@ -120,6 +169,14 @@ async def ingest_local_scan(
             retry_after_seconds=retry_after,
         )
     if claim_result.decision is ClaimDecision.CONFLICT:
+        await _record_attempt(
+            command,
+            dependencies,
+            project.project_id,
+            timestamp,
+            outcome="rejected",
+            reason_code="idempotency_conflict",
+        )
         raise _error(
             409,
             "idempotency_conflict",
@@ -127,6 +184,14 @@ async def ingest_local_scan(
             "The request ID is already bound to different scan content or a different project.",
         )
     if claim_result.decision is ClaimDecision.TOMBSTONED:
+        await _record_attempt(
+            command,
+            dependencies,
+            project.project_id,
+            timestamp,
+            outcome="rejected",
+            reason_code="idempotency_conflict",
+        )
         raise _error(
             410,
             "idempotency_tombstoned",
@@ -137,6 +202,16 @@ async def ingest_local_scan(
     claim = claim_handle(claim_command, claim_result)
     dependencies.persistence.bind_claim(claim)
     run_id = f"local-{uuid.uuid4()}"
+    dependencies.persistence.bind_attempt(
+        _attempt(
+            command,
+            project.project_id,
+            timestamp,
+            outcome="accepted",
+            reason_code="accepted",
+            run_id=run_id,
+        )
+    )
     envelope = LocalIngestEnvelope(
         run_id=run_id,
         project=project,
@@ -166,7 +241,22 @@ async def ingest_local_scan(
     except BaseException:
         # Result persistence has already rolled its transaction back. Mark the
         # still-fenced claim retryable; a lost worker cannot overwrite it.
-        await dependencies.claims.fail(claim, now=datetime.now(timezone.utc))
+        try:
+            await dependencies.claims.fail(claim, now=datetime.now(timezone.utc))
+        except BaseException:
+            log.error("local ingest claim cleanup failed for correlation %s", command.correlation_id)
+        try:
+            await _record_attempt(
+                command,
+                dependencies,
+                project.project_id,
+                timestamp,
+                outcome="failed_internal",
+                reason_code="internal_persistence_failed",
+                retryable=True,
+            )
+        except BaseException:
+            log.error("local ingest attempt cleanup failed for correlation %s", command.correlation_id)
         raise
     return _result(
         LocalScanOutcome.CREATED,
@@ -175,6 +265,78 @@ async def ingest_local_scan(
         project.repository,
         command.public_base_url,
     )
+
+
+async def _record_attempt(
+    command: LocalScanCommand,
+    dependencies: LocalScanDependencies,
+    project_id: int,
+    received_at: datetime,
+    *,
+    outcome: str,
+    reason_code: str,
+    retryable: bool = False,
+    run_id: str | None = None,
+) -> None:
+    await dependencies.attempts.record(
+        _attempt(
+            command,
+            project_id,
+            received_at,
+            outcome=outcome,
+            reason_code=reason_code,
+            retryable=retryable,
+            run_id=run_id,
+        )
+    )
+
+
+def _attempt(
+    command: LocalScanCommand,
+    project_id: int,
+    received_at: datetime,
+    *,
+    outcome: str,
+    reason_code: str,
+    retryable: bool = False,
+    run_id: str | None = None,
+) -> IngestAttemptRecord:
+    completed_at = datetime.now(timezone.utc)
+    if completed_at < received_at:
+        completed_at = received_at
+    return build_ingest_attempt(
+        IngestAttemptCommand(
+            correlation_id=command.correlation_id,
+            origin="local",
+            project_id=project_id,
+            principal_kind="local_token",
+            principal_reference=command.token_id,
+            canonical_request_key=f"{command.user_id}:{command.request_id}",
+            outcome=outcome,
+            reason_code=reason_code,
+            retryable=retryable,
+            wire_bytes=command.accepted_bytes,
+            received_at=received_at,
+            completed_at=completed_at,
+            run_id=run_id,
+            submitted_by_user_id=command.user_id,
+        )
+    )
+
+
+def _quota_reason(decision: QuotaDecision) -> str:
+    if decision in {QuotaDecision.USER_RETAINED_STORAGE, QuotaDecision.INSTANCE_RETAINED_STORAGE}:
+        return "storage_quota_exceeded"
+    if decision in {
+        QuotaDecision.TOKEN_INFLIGHT,
+        QuotaDecision.USER_INFLIGHT,
+        QuotaDecision.INSTANCE_INFLIGHT,
+        QuotaDecision.SHARED_INSTANCE_INFLIGHT,
+    }:
+        return "capacity_exceeded"
+    if decision is QuotaDecision.DISABLED:
+        return "project_not_enabled"
+    return "quota_exceeded"
 
 
 def _client_provenance(metadata: Mapping[str, Any], detected_repository: str) -> dict[str, Any]:

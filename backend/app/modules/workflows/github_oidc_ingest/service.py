@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Mapping, cast
 
@@ -37,6 +38,9 @@ from .models import (
 )
 
 
+log = logging.getLogger(__name__)
+
+
 async def ingest_github_result(
     command: GithubIngestCommand,
     dependencies: GithubIngestDependencies,
@@ -69,9 +73,13 @@ async def ingest_github_result(
             github_run_id=command.github_run_id,
             run_attempt=command.github_run_attempt,
             accepted_bytes=command.accepted_bytes,
+            payload_hash=command.envelope.payload_hash,
+            correlation_id=command.correlation_id,
         ),
         repository=dependencies.quotas,
         now=timestamp,
+        limits=dependencies.github_usage_limits,
+        shared_limits=dependencies.shared_usage_limits,
     )
     if not quota_result.allowed:
         capacity = quota_result.decision in {
@@ -219,7 +227,10 @@ async def ingest_github_result(
             require_new=True,
         )
     except BaseException:
-        await dependencies.claims.fail(claim, now=datetime.now(timezone.utc))
+        try:
+            await dependencies.claims.fail(claim, now=datetime.now(timezone.utc))
+        except BaseException:
+            log.error("GitHub ingest claim cleanup failed for correlation %s", command.correlation_id)
         try:
             await _record_attempt(
                 command,
@@ -229,8 +240,8 @@ async def ingest_github_result(
                 reason_code="internal_persistence_failed",
                 retryable=True,
             )
-        except Exception:
-            pass
+        except BaseException:
+            log.error("GitHub ingest attempt cleanup failed for correlation %s", command.correlation_id)
         raise
     return _result(command, GithubIngestOutcome.CREATED, run_id)
 

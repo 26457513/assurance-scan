@@ -1,4 +1,5 @@
 """WS1 project-identity/provenance migration and model contract tests."""
+
 from __future__ import annotations
 
 import json
@@ -24,7 +25,7 @@ from app.infrastructure.db.models import (
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_HEAD = "0020_snapshot_source_branch"
-NEW_HEAD = "0035_github_ingest_quotas_attempts"
+NEW_HEAD = "0036_ingest_usage_ledger"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -55,13 +56,15 @@ def test_github_orphan_is_projected_to_one_deterministic_project(tmp_path: Path)
             (
                 "gh-42",
                 "github:Example/Widget",
-                json.dumps({
-                    "source": "github-actions",
-                    "run_url": "https://github.com/Example/Widget/actions/runs/42",
-                    "run_number": 7,
-                    "event": "push",
-                    "actor": "alice",
-                }),
+                json.dumps(
+                    {
+                        "source": "github-actions",
+                        "run_url": "https://github.com/Example/Widget/actions/runs/42",
+                        "run_number": 7,
+                        "event": "push",
+                        "actor": "alice",
+                    }
+                ),
                 "completed",
                 "2026-08-28 10:00:00",
                 "a" * 40,

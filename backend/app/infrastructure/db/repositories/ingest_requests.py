@@ -96,11 +96,14 @@ class SqlAlchemyIdempotencyRepository:
         *,
         new_lease_expires_at: dt.datetime,
     ) -> bool:
-        result = cast(CursorResult[Any], await self.session.execute(
-            update(IngestRequest)
-            .where(*self._owned_predicates(claim))
-            .values(lease_expires_at=new_lease_expires_at, updated_at=dt.datetime.now(dt.timezone.utc))
-        ))
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                update(IngestRequest)
+                .where(*self._owned_predicates(claim))
+                .values(lease_expires_at=new_lease_expires_at, updated_at=dt.datetime.now(dt.timezone.utc))
+            ),
+        )
         await self.session.commit()
         return bool(result.rowcount)
 
@@ -112,32 +115,38 @@ class SqlAlchemyIdempotencyRepository:
         now: dt.datetime,
     ) -> bool:
         """Fence completion and flush it into the caller's run transaction."""
-        result = cast(CursorResult[Any], await self.session.execute(
-            update(IngestRequest)
-            .where(*self._owned_predicates(claim))
-            .values(
-                state="completed",
-                run_id=run_id,
-                lease_id=None,
-                lease_expires_at=None,
-                updated_at=now,
-            )
-        ))
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                update(IngestRequest)
+                .where(*self._owned_predicates(claim))
+                .values(
+                    state="completed",
+                    run_id=run_id,
+                    lease_id=None,
+                    lease_expires_at=None,
+                    updated_at=now,
+                )
+            ),
+        )
         await self.session.flush()
         return bool(result.rowcount)
 
     async def fail(self, claim: IdempotencyClaim, *, now: dt.datetime) -> bool:
-        result = cast(CursorResult[Any], await self.session.execute(
-            update(IngestRequest)
-            .where(*self._owned_predicates(claim))
-            .values(
-                state="failed",
-                run_id=None,
-                lease_id=None,
-                lease_expires_at=None,
-                updated_at=now,
-            )
-        ))
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                update(IngestRequest)
+                .where(*self._owned_predicates(claim))
+                .values(
+                    state="failed",
+                    run_id=None,
+                    lease_id=None,
+                    lease_expires_at=None,
+                    updated_at=now,
+                )
+            ),
+        )
         await self.session.commit()
         return bool(result.rowcount)
 
@@ -149,30 +158,36 @@ class SqlAlchemyIdempotencyRepository:
         expires_at: dt.datetime,
     ) -> bool:
         """Detach a claim before run deletion in the caller-owned transaction."""
-        result = cast(CursorResult[Any], await self.session.execute(
-            update(IngestRequest)
-            .where(
-                IngestRequest.run_id == run_id,
-                IngestRequest.state == "completed",
-            )
-            .values(
-                state="tombstoned",
-                run_id=None,
-                tombstoned_at=now,
-                tombstone_expires_at=expires_at,
-                updated_at=now,
-            )
-        ))
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                update(IngestRequest)
+                .where(
+                    IngestRequest.run_id == run_id,
+                    IngestRequest.state == "completed",
+                )
+                .values(
+                    state="tombstoned",
+                    run_id=None,
+                    tombstoned_at=now,
+                    tombstone_expires_at=expires_at,
+                    updated_at=now,
+                )
+            ),
+        )
         await self.session.flush()
         return bool(result.rowcount)
 
     async def purge_expired_tombstones(self, *, now: dt.datetime) -> int:
-        result = cast(CursorResult[Any], await self.session.execute(
-            delete(IngestRequest).where(
-                IngestRequest.state == "tombstoned",
-                IngestRequest.tombstone_expires_at <= now,
-            )
-        ))
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                delete(IngestRequest).where(
+                    IngestRequest.state == "tombstoned",
+                    IngestRequest.tombstone_expires_at <= now,
+                )
+            ),
+        )
         await self.session.commit()
         return int(result.rowcount or 0)
 
@@ -198,13 +213,13 @@ class SqlAlchemyIdempotencyRepository:
         *,
         now: dt.datetime,
     ) -> ClaimResult | None:
-        if row.project_id != command.project_id or row.payload_hash != command.payload_hash:
-            return ClaimResult(ClaimDecision.CONFLICT)
         if row.state == "tombstoned":
             tombstone_expiry = _aware(row.tombstone_expires_at)
             if tombstone_expiry is None or tombstone_expiry > now:
                 return ClaimResult(ClaimDecision.TOMBSTONED)
             return None
+        if row.project_id != command.project_id or row.payload_hash != command.payload_hash:
+            return ClaimResult(ClaimDecision.CONFLICT)
         if row.state == "completed":
             return ClaimResult(ClaimDecision.REPLAY, run_id=row.run_id)
         lease_expiry = _aware(row.lease_expires_at)

@@ -29,6 +29,7 @@ from app.modules.atomic.ingestion.usage_quota import (
     decide_usage_quota,
 )
 from app.modules.shared.contracts.local_scan import UsageLimits
+from app.modules.shared.contracts.ingest_v2 import SHARED_USAGE_LIMITS_V2
 
 
 NOW = datetime(2026, 8, 28, 12, tzinfo=timezone.utc)
@@ -268,10 +269,23 @@ async def test_sql_quota_lock_is_persisted_by_claim_and_enforces_inflight(
     tmp_path: Path,
 ) -> None:
     sessions = await _database(tmp_path / "quota.sqlite")
-    first_command = QuotaCommand(1, TOKEN_ID, REQUEST_ID, accepted_bytes=100)
+    first_command = QuotaCommand(
+        1,
+        TOKEN_ID,
+        REQUEST_ID,
+        accepted_bytes=100,
+        project_id=1,
+        payload_hash=HASH,
+        correlation_id=str(uuid.uuid4()),
+    )
     async with sessions() as session:
         quota = SqlAlchemyUsageQuotaRepository(session)
-        reservation = await quota.reserve(first_command, limits=LIMITS, now=NOW)
+        reservation = await quota.reserve(
+            first_command,
+            limits=LIMITS,
+            shared_limits=SHARED_USAGE_LIMITS_V2,
+            now=NOW,
+        )
         assert reservation.allowed
         assert reservation.reservation is not None
         claimed = await acquire_claim(_command(), repository=SqlAlchemyIdempotencyRepository(session), now=NOW)
@@ -280,8 +294,17 @@ async def test_sql_quota_lock_is_persisted_by_claim_and_enforces_inflight(
     second_id = "efcaa540-1a88-4df1-8eaa-c535fd31b130"
     async with sessions() as session:
         rejected = await SqlAlchemyUsageQuotaRepository(session).reserve(
-            QuotaCommand(1, TOKEN_ID, second_id, accepted_bytes=100),
+            QuotaCommand(
+                1,
+                TOKEN_ID,
+                second_id,
+                accepted_bytes=100,
+                project_id=1,
+                payload_hash=HASH,
+                correlation_id=str(uuid.uuid4()),
+            ),
             limits=LIMITS,
+            shared_limits=SHARED_USAGE_LIMITS_V2,
             now=NOW,
         )
         assert rejected.decision is QuotaDecision.TOKEN_INFLIGHT
@@ -293,8 +316,17 @@ async def test_sql_quota_release_rolls_back_reservation_lock(tmp_path: Path) -> 
     async with sessions() as session:
         repository = SqlAlchemyUsageQuotaRepository(session)
         result = await repository.reserve(
-            QuotaCommand(1, TOKEN_ID, REQUEST_ID, accepted_bytes=100),
+            QuotaCommand(
+                1,
+                TOKEN_ID,
+                REQUEST_ID,
+                accepted_bytes=100,
+                project_id=1,
+                payload_hash=HASH,
+                correlation_id=str(uuid.uuid4()),
+            ),
             limits=LIMITS,
+            shared_limits=SHARED_USAGE_LIMITS_V2,
             now=NOW,
         )
         assert result.reservation is not None

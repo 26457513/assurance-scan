@@ -14,6 +14,7 @@ class LocalScanIngestCommand:
     """A fully bounded and validated v1 upload passed to the ingest workflow."""
 
     principal: ScanTokenPrincipal
+    correlation_id: str
     idempotency_key: str
     metadata: Mapping[str, Any]
     findings: Mapping[str, Any]

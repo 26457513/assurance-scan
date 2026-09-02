@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from dataclasses import asdict
 from typing import Any
 
@@ -18,6 +19,7 @@ def render_request_signal(signal: LocalIngestRequestSignal) -> str:
     """Return stable JSON with no repository, credential, path, or principal fields."""
     _validate_code(signal.outcome, field="outcome")
     _validate_code(signal.code, field="code")
+    _validate_uuid(signal.correlation_id)
     if not 100 <= signal.status_code <= 599:
         raise ValueError("status_code must be an HTTP status")
     fields = _without_none(asdict(signal))
@@ -44,6 +46,15 @@ def _without_none(fields: dict[str, Any]) -> dict[str, Any]:
 def _validate_code(value: str, *, field: str) -> None:
     if not _CODE.fullmatch(value):
         raise ValueError(f"{field} must be a bounded machine code")
+
+
+def _validate_uuid(value: str) -> None:
+    try:
+        parsed = uuid.UUID(value)
+    except (AttributeError, ValueError) as exc:
+        raise ValueError("correlation_id must be a canonical UUID") from exc
+    if str(parsed) != value:
+        raise ValueError("correlation_id must be a canonical UUID")
 
 
 def _validate_counters(fields: dict[str, Any], *, exclude: set[str] | None = None) -> None:

@@ -110,8 +110,14 @@ local/GitHub in-flight ceiling, safe project-bound GitHub ingest-attempt
 evidence and 30-day evidence expiry are implemented and quality-gated. Accepted
 attempts commit with their result graph; replays and rejections commit
 independently; internal-failure evidence cannot mask the original failure.
-Local ingest-attempt unification remains, and no production v2 route has been
-enabled.
+Local and GitHub ingestion now use the same attempt evidence, correlation-ID
+contract and portable cross-origin quota lock. An immutable usage ledger means
+failed or stale retries consume fresh capacity while completed replays do not,
+and mutable claim cleanup cannot restore spent capacity. Candidate migrations
+also retain tombstones when either origin's run is deleted and expire attempts,
+tombstones and usage evidence through the common retention job. Deployment may
+lower, but cannot raise, the frozen per-origin and shared limits. No production
+v2 route has been enabled.
 
 Implement strict GitHub OIDC verification, authoritative repository refresh,
 shared v2 ingestion, ingest attempts, replay protection and cross-origin limits.

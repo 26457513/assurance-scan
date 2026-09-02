@@ -30,6 +30,7 @@ def decide_usage_quota(
     snapshot: UsageSnapshot,
     *,
     limits: UsageLimits = USAGE_LIMITS,
+    shared_limits: SharedUsageLimitsV2 = SHARED_USAGE_LIMITS_V2,
 ) -> QuotaDecision:
     """Return the first violated limit in stable, inexpensive-first order."""
     _validate(command, snapshot)
@@ -42,7 +43,7 @@ def decide_usage_quota(
         (snapshot.user_inflight >= limits.inflight_per_user, QuotaDecision.USER_INFLIGHT),
         (snapshot.instance_inflight >= limits.inflight_per_instance, QuotaDecision.INSTANCE_INFLIGHT),
         (
-            snapshot.shared_instance_inflight >= SHARED_USAGE_LIMITS_V2.inflight_per_instance,
+            snapshot.shared_instance_inflight >= shared_limits.inflight_per_instance,
             QuotaDecision.SHARED_INSTANCE_INFLIGHT,
         ),
         (
@@ -67,6 +68,7 @@ async def reserve_usage(
     repository: UsageQuotaRepositoryPort,
     now: datetime,
     limits: UsageLimits = USAGE_LIMITS,
+    shared_limits: SharedUsageLimitsV2 = SHARED_USAGE_LIMITS_V2,
 ) -> QuotaResult:
     """Atomically enforce the policy through the configured repository."""
     _validate(command, UsageSnapshot())
@@ -74,7 +76,12 @@ async def reserve_usage(
         raise ValueError("quota timestamp must be timezone-aware")
     if not command.enabled:
         return QuotaResult(QuotaDecision.DISABLED)
-    return await repository.reserve(command, limits=limits, now=now)
+    return await repository.reserve(
+        command,
+        limits=limits,
+        shared_limits=shared_limits,
+        now=now,
+    )
 
 
 def decide_github_usage_quota(

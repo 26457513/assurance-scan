@@ -28,13 +28,10 @@ def upgrade() -> None:
         "WHERE github_installation_repositories.github_repository_id = "
         "github_ingest_requests.github_repository_id)"
     )
-    unresolved = (
-        op.get_bind()
-        .execute(sa.text("SELECT COUNT(*) FROM github_ingest_requests WHERE github_owner_id IS NULL"))
-        .scalar_one()
-    )
-    if unresolved:
-        raise RuntimeError("GitHub ingest owner backfill is incomplete")
+    # The push route remains disabled before this migration. Orphaned candidate
+    # claims cannot be authenticated against an active installation, so discard
+    # them instead of guessing a mutable or transferred owner identity.
+    op.execute("DELETE FROM github_ingest_requests WHERE github_owner_id IS NULL")
     with op.batch_alter_table("github_ingest_requests") as batch:
         batch.alter_column("github_owner_id", existing_type=sa.BigInteger(), nullable=False)
         batch.drop_constraint("ck_github_ingest_requests_identity", type_="check")
@@ -79,6 +76,20 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("wire_bytes >= 0", name="ck_ingest_attempts_wire_bytes"),
         sa.CheckConstraint("expires_at > received_at", name="ck_ingest_attempts_expiry"),
+        sa.CheckConstraint("completed_at >= received_at", name="ck_ingest_attempts_completion"),
+        sa.CheckConstraint("length(id) = 36", name="ck_ingest_attempts_id"),
+        sa.CheckConstraint("length(correlation_id) = 36", name="ck_ingest_attempts_correlation"),
+        sa.CheckConstraint(
+            "length(principal_reference_hash) = 64 AND length(canonical_request_key_hash) = 64",
+            name="ck_ingest_attempts_hashes",
+        ),
+        sa.CheckConstraint(
+            "(origin = 'github' AND principal_kind = 'github_oidc' "
+            "AND submitted_by_user_id IS NULL) OR "
+            "(origin = 'local' AND principal_kind = 'local_token' "
+            "AND submitted_by_user_id IS NOT NULL)",
+            name="ck_ingest_attempts_identity",
+        ),
     )
     op.create_index("ix_ingest_attempts_project_received", "ingest_attempts", ["project_id", "received_at"])
     op.create_index("ix_ingest_attempts_expires", "ingest_attempts", ["expires_at"])

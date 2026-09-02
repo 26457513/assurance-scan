@@ -126,6 +126,8 @@ async def _lifespan(app: FastAPI):
                     token_audits=result.token_audits,
                     tombstones=result.tombstones,
                     webhook_deliveries=result.webhook_deliveries,
+                    ingest_attempts=result.ingest_attempts,
+                    usage_charges=result.usage_charges,
                 )
                 logging.getLogger(__name__).info(render_retention_signal(signal))
             except Exception:
@@ -257,13 +259,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 from sqlalchemy import select as _select
 
                 row = (
-                    await session.execute(
-                        _select(User).where(
-                            User.mcp_token_hash == h,
-                            User.disabled_at.is_(None),
+                    (
+                        await session.execute(
+                            _select(User).where(
+                                User.mcp_token_hash == h,
+                                User.disabled_at.is_(None),
+                            )
                         )
                     )
-                ).scalars().first()
+                    .scalars()
+                    .first()
+                )
                 if row is None:
                     return None
                 if row.role not in {"admin", "superuser"}:

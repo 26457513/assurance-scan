@@ -1,4 +1,5 @@
 """Focused contracts and transaction tests for source-neutral ingestion."""
+
 from __future__ import annotations
 
 import json
@@ -39,15 +40,17 @@ def test_source_neutral_workflow_and_blob_contract_are_public() -> None:
 def test_local_bundle_contains_scanner_output_only() -> None:
     document = {
         "schema_version": 1,
-        "scanners": [{
-            "kind": "semgrep",
-            "status": "completed",
-            "duration_ms": 12,
-            "image": "semgrep/semgrep@sha256:" + "a" * 64,
-            "tool_version": "1.0",
-            "database_version": None,
-            "error_code": None,
-        }],
+        "scanners": [
+            {
+                "kind": "semgrep",
+                "status": "completed",
+                "duration_ms": 12,
+                "image": "semgrep/semgrep@sha256:" + "a" * 64,
+                "tool_version": "1.0",
+                "database_version": None,
+                "error_code": None,
+            }
+        ],
         "findings": [],
     }
     bundle = build_local_result_bundle(document, {"sarif": b"{}"})
@@ -60,15 +63,17 @@ def test_local_bundle_contains_scanner_output_only() -> None:
 def test_v2_bundle_adapts_contexts_and_canonical_artifacts_without_origin() -> None:
     findings = {
         "schema_version": 2,
-        "scanners": [{
-            "kind": "semgrep",
-            "status": "completed",
-            "duration_ms": 12,
-            "image": "semgrep/semgrep@sha256:" + "a" * 64,
-            "tool_version": "1.0",
-            "database_version": None,
-            "error_code": None,
-        }],
+        "scanners": [
+            {
+                "kind": "semgrep",
+                "status": "completed",
+                "duration_ms": 12,
+                "image": "semgrep/semgrep@sha256:" + "a" * 64,
+                "tool_version": "1.0",
+                "database_version": None,
+                "error_code": None,
+            }
+        ],
         "findings": [],
     }
     contexts = {"schema_version": 2, "contexts": []}
@@ -83,26 +88,33 @@ def test_v2_bundle_adapts_contexts_and_canonical_artifacts_without_origin() -> N
 def test_finding_normalizer_preserves_defaults_and_fields() -> None:
     rows = normalize_findings(
         "local-42",
-        [cast(Any, {
-            "scanner": "semgrep",
-            "severity": "HIGH",
-            "message": None,
-            "compliance_tags": None,
-        })],
+        [
+            cast(
+                Any,
+                {
+                    "scanner": "semgrep",
+                    "severity": "HIGH",
+                    "message": None,
+                    "compliance_tags": None,
+                },
+            )
+        ],
     )
-    assert rows == [{
-        "run_id": "local-42",
-        "scanner_kind": "semgrep",
-        "rule_id": None,
-        "severity": "HIGH",
-        "file_path": None,
-        "line_start": None,
-        "line_end": None,
-        "message": "",
-        "theme": None,
-        "fix_strategy": None,
-        "compliance_tags": [],
-    }]
+    assert rows == [
+        {
+            "run_id": "local-42",
+            "scanner_kind": "semgrep",
+            "rule_id": None,
+            "severity": "HIGH",
+            "file_path": None,
+            "line_start": None,
+            "line_end": None,
+            "message": "",
+            "theme": None,
+            "fix_strategy": None,
+            "compliance_tags": [],
+        }
+    ]
 
 
 class RecordingPersistence:
@@ -136,9 +148,7 @@ class RecordingPersistence:
     async def mark_scanner_skipped(self, scanner_run_id: int, reason: str | None) -> None:
         self.events.append(("skipped", scanner_run_id, reason))
 
-    async def store_artifact(
-        self, scanner_run_id: int, artifact_kind: str, content: bytes
-    ) -> None:
+    async def store_artifact(self, scanner_run_id: int, artifact_kind: str, content: bytes) -> None:
         self.events.append(("artifact", scanner_run_id, artifact_kind))
         self.artifacts.append(content)
 
@@ -215,16 +225,38 @@ async def test_result_persister_rolls_back_every_partial_graph(fail_at: str) -> 
     assert ("commit",) not in persistence.events
 
 
+async def test_result_persister_preserves_primary_failure_when_rollback_fails() -> None:
+    class RollbackFailingPersistence(RecordingPersistence):
+        async def rollback(self) -> None:
+            raise RuntimeError("secondary rollback failure")
+
+    persistence = RollbackFailingPersistence(fail_at="findings")
+    bundle = ResultBundle(
+        schema_version=1,
+        scanners=(ScannerResult("semgrep", "completed"),),
+        findings=({"scanner": "semgrep", "message": "bad"},),
+    )
+    with pytest.raises(RuntimeError, match="injected persistence failure"):
+        await persist_result_bundle(
+            persistence,
+            _record(),
+            bundle,
+            [{"run_id": "local-42"}],
+        )
+
+
 async def test_ingest_redacts_findings_artifacts_and_client_provenance() -> None:
     persistence = RecordingPersistence()
     canary = "AS_CANARY_SECRET_DO_NOT_PERSIST_123"
     bundle = ResultBundle(
         schema_version=1,
         scanners=(ScannerResult("semgrep", "completed"),),
-        findings=({
-            "scanner": "semgrep",
-            "message": f"{canary} at /Users/alice/work/repo/app.py",
-        },),
+        findings=(
+            {
+                "scanner": "semgrep",
+                "message": f"{canary} at /Users/alice/work/repo/app.py",
+            },
+        ),
         artifacts={
             "sarif": json.dumps({"message": canary, "path": "/home/alice/repo"}).encode(),
             "findings": json.dumps({"source": "local", "secret": canary}).encode(),
@@ -263,31 +295,37 @@ async def test_ingest_validates_links_and_reredacts_source_context() -> None:
     bundle = ResultBundle(
         schema_version=1,
         scanners=(ScannerResult("semgrep", "completed"),),
-        findings=({
-            "finding_key": finding_key,
-            "scanner": "semgrep",
-            "message": "bad",
-        },),
-        source_contexts=({
-            "context_key": context_key,
-            "finding_keys": [finding_key],
-            "available": True,
-            "provider": "snapshot",
-            "path": "app.py",
-            "window_start": 1,
-            "window_end": 1,
-            "highlight_start": 1,
-            "highlight_end": 1,
-            "highlight_truncated": False,
-            "lines": [{
-                "number": 1,
-                "text": "token=AS_CANARY_SECRET_DO_NOT_PERSIST_123",
-                "truncated": False,
-            }],
-            "source_hash": "a" * 64,
-            "redaction_version": 1,
-            "redaction_changed": False,
-        },),
+        findings=(
+            {
+                "finding_key": finding_key,
+                "scanner": "semgrep",
+                "message": "bad",
+            },
+        ),
+        source_contexts=(
+            {
+                "context_key": context_key,
+                "finding_keys": [finding_key],
+                "available": True,
+                "provider": "snapshot",
+                "path": "app.py",
+                "window_start": 1,
+                "window_end": 1,
+                "highlight_start": 1,
+                "highlight_end": 1,
+                "highlight_truncated": False,
+                "lines": [
+                    {
+                        "number": 1,
+                        "text": "token=AS_CANARY_SECRET_DO_NOT_PERSIST_123",
+                        "truncated": False,
+                    }
+                ],
+                "source_hash": "a" * 64,
+                "redaction_version": 1,
+                "redaction_changed": False,
+            },
+        ),
     )
     envelope = LocalIngestEnvelope(
         run_id="local-42",
