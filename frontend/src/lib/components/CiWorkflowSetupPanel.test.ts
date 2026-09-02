@@ -7,7 +7,6 @@ import CiWorkflowSetupPanel from './CiWorkflowSetupPanel.svelte';
 
 const WORKFLOW = `name: assurance-scan
 on:
-  pull_request:
   push:
     branches: [main]
 jobs:

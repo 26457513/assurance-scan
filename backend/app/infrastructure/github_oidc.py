@@ -20,6 +20,7 @@ from app.modules.shared.contracts.ingest_v2 import OIDC_POLICY_V2
 
 
 _MAX_JWKS_BYTES = 64 * 1024
+_UNKNOWN_KID_REFRESH_COOLDOWN = dt.timedelta(minutes=1)
 
 
 class GithubOidcInfrastructureError(RuntimeError):
@@ -43,6 +44,7 @@ class GithubOidcJwksClient:
     def __init__(self) -> None:
         self._cache: _CachedJwks | None = None
         self._lock = threading.Lock()
+        self._unknown_refresh_after: dt.datetime | None = None
 
     def get(self, *, now: dt.datetime, required_kid: str | None = None) -> Mapping[str, Any]:
         current = _aware(now)
@@ -51,11 +53,21 @@ class GithubOidcJwksClient:
             if cached is not None and cached.expires_at > current:
                 if required_kid is None or _contains_kid(cached.document, required_kid):
                     return cached.document
+                if (
+                    self._unknown_refresh_after is not None
+                    and self._unknown_refresh_after > current
+                ):
+                    return cached.document
             document = _fetch_jwks()
             self._cache = _CachedJwks(
                 document=document,
                 expires_at=current
                 + dt.timedelta(seconds=OIDC_POLICY_V2.jwks_cache_seconds),
+            )
+            self._unknown_refresh_after = (
+                current + _UNKNOWN_KID_REFRESH_COOLDOWN
+                if required_kid is not None and not _contains_kid(document, required_kid)
+                else None
             )
             return document
 

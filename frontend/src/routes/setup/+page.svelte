@@ -104,19 +104,19 @@
   const PIPELINE_STEPS = [
     {
       title: 'A repo adopts the workflow',
-      detail: 'Copy the complete workflow from <em>My account</em> into <code>.github/workflows/assurance-scan.yml</code> on the default branch. Pull requests and the default branch then scan on that repo’s own GitHub compute.'
+      detail: 'Copy the complete workflow from <em>My account</em> into <code>.github/workflows/assurance-scan.yml</code> on the default branch. Accepted pushes to the default branch then scan on that repo’s own GitHub compute.'
     },
     {
       title: 'The workflow runs the scanners',
-      detail: 'semgrep, gitleaks, trivy, grype, osv-scanner and syft, plus a Trivy image scan when a Dockerfile is present. Results land in the Actions summary, a PR comment, and an artifact. Scans never fail the workflow.'
+      detail: 'The signed producer runs semgrep, gitleaks, trivy, grype, osv-scanner and syft against one immutable source snapshot. A safe summary and short-lived diagnostic artifact remain in GitHub.'
     },
     {
       title: 'This instance ingests the results',
-      detail: 'The poller fetches completed runs from every registered organisation every 60s — or instantly via <em>Retrieve from GitHub</em>.'
+      detail: 'After the result bundle is complete, GitHub issues a short-lived OIDC identity. The isolated uploader pushes the bundle directly here without a stored Assurance Scan secret.'
     },
     {
-      title: 'On demand from the UI',
-      detail: '<em>Scan now</em> dispatches the repo’s own workflow on any branch or SHA. Repos can also define <code>tribal-checks.json</code> — declarative assertions checked as part of every scan.'
+      title: 'Feature branches stay local',
+      detail: 'Developers use the local CLI for unmerged branches. Local uploads use their personal Assurance Scan token and remain visible only to that user; GitHub results follow repository access.'
     }
   ];
 

@@ -40,12 +40,12 @@
         Add one complete workflow file
       </h2>
       <p class="text-[11px] text-ink-muted leading-relaxed max-w-xl">
-        Copy this file into each repository. Pull requests and the default branch scan on GitHub;
-        feature branches remain available through local scans.
+        Copy this file into each repository. GitHub scans accepted pushes to the default branch;
+        developers scan feature branches locally before merge.
       </p>
     </div>
     <div class="border border-line-strong rounded-sm bg-surface-inset px-2.5 py-1 text-[9px] font-mono uppercase tracking-[0.1em] text-ink-muted">
-      PR + default branch
+      Default branch pushes
     </div>
   </div>
 
@@ -93,8 +93,8 @@
 
     <div class="mt-3 grid gap-1 text-[10px] leading-relaxed font-mono text-ink-muted">
       <div>Default image: <code class="text-ink-secondary">{image}</code></div>
-      <div>Pin when required: replace <code class="text-ink-secondary">:latest</code> with <code class="text-ink-secondary">:sha-&lt;full-git-commit&gt;</code> or <code class="text-ink-secondary">@sha256:&lt;digest&gt;</code>.</div>
-      <div>The workflow uploads SARIF, CycloneDX and findings artifacts and posts the scan summary on pull requests.</div>
+      <div>Pin when required: replace <code class="text-ink-secondary">:latest</code> with an approved <code class="text-ink-secondary">:vX.Y.Z</code> or <code class="text-ink-secondary">@sha256:&lt;digest&gt;</code>.</div>
+      <div>The workflow writes a safe job summary, retains a bounded diagnostic bundle for seven days, and pushes the result here with GitHub OIDC. No secret is required.</div>
     </div>
   </div>
 </section>

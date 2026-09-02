@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - backend/Dockerfile.ci
+      - backend/Dockerfile.ci-upload
       - backend/scripts/ci-scan.py
+      - backend/scripts/ci-upload.py
+      - backend/app/infrastructure/github_oidc_upload.py
       - backend/app/worker/**
       - backend/app/modules/**
       - backend/resources/scanners/**
@@ -15,7 +18,8 @@ permissions:
   contents: read
 
 env:
-  IMAGE: ghcr.io/26457513/assurance-scan-ci
+  CI_IMAGE: ghcr.io/26457513/assurance-scan-ci
+  UPLOAD_IMAGE: ghcr.io/26457513/assurance-scan-ci-upload
 
 concurrency:
   group: publish-ci-image
@@ -45,7 +49,21 @@ jobs:
           file: backend/Dockerfile.ci
           platforms: linux/amd64
           push: true
-          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          tags: ${{ env.CI_IMAGE }}:sha-${{ github.sha }}
+          build-args: |
+            VERSION=sha-${{ github.sha }}
+            REVISION=${{ github.sha }}
+          sbom: true
+          provenance: mode=max
+      - name: Build, attest, and push immutable uploader candidate
+        id: upload_build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: backend/Dockerfile.ci-upload
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.UPLOAD_IMAGE }}:sha-${{ github.sha }}
           build-args: |
             VERSION=sha-${{ github.sha }}
             REVISION=${{ github.sha }}
@@ -55,22 +73,57 @@ jobs:
       - name: Keyless-sign the immutable CI digest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: cosign sign --yes "$IMAGE@$DIGEST"
+          UPLOAD_DIGEST: ${{ steps.upload_build.outputs.digest }}
+        run: |
+          cosign sign --yes "$CI_IMAGE@$DIGEST"
+          cosign sign --yes "$UPLOAD_IMAGE@$UPLOAD_DIGEST"
+      - name: Bind producer and uploader in one signed release manifest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          UPLOAD_DIGEST: ${{ steps.upload_build.outputs.digest }}
+        run: |
+          python3 - "$DIGEST" "$UPLOAD_DIGEST" "$GITHUB_SHA" <<'PY'
+          import json
+          import sys
+
+          ci_digest, upload_digest, revision = sys.argv[1:]
+          with open("ci-release.json", "w", encoding="utf-8") as stream:
+              json.dump({
+                  "schema_version": 1,
+                  "revision": revision,
+                  "producer": f"ghcr.io/26457513/assurance-scan-ci@{ci_digest}",
+                  "uploader": f"ghcr.io/26457513/assurance-scan-ci-upload@{upload_digest}",
+              }, stream, sort_keys=True, separators=(",", ":"))
+          PY
+          cosign attest --yes --type custom --predicate ci-release.json "$CI_IMAGE@$DIGEST"
+          cosign attest --yes --type custom --predicate ci-release.json "$UPLOAD_IMAGE@$UPLOAD_DIGEST"
       - name: Verify anonymous pull, signature, SBOM, and provenance
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
+          UPLOAD_DIGEST: ${{ steps.upload_build.outputs.digest }}
         run: |
           docker logout ghcr.io
-          test "$(docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" --format '{{.Manifest.Digest}}')" = "$DIGEST"
-          test "$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{.Manifest.Digest}}')" = "$DIGEST"
-          docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{json .Manifest}}' > manifest.json
+          test "$(docker buildx imagetools inspect "$CI_IMAGE:sha-$GITHUB_SHA" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$CI_IMAGE@$DIGEST" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$UPLOAD_IMAGE:sha-$GITHUB_SHA" --format '{{.Manifest.Digest}}')" = "$UPLOAD_DIGEST"
+          test "$(docker buildx imagetools inspect "$UPLOAD_IMAGE@$UPLOAD_DIGEST" --format '{{.Manifest.Digest}}')" = "$UPLOAD_DIGEST"
+          docker buildx imagetools inspect "$CI_IMAGE@$DIGEST" --format '{{json .Manifest}}' > manifest.json
           python -c 'import json; data=json.load(open("manifest.json")); matches=[item for item in data.get("manifests", []) if item.get("platform", {}).get("os") == "linux" and item.get("platform", {}).get("architecture") == "amd64"]; assert len(matches) == 1, "release must contain exactly one linux/amd64 manifest"; print(matches[0]["digest"])' > platform-digest.txt
-          cosign verify "$IMAGE@$DIGEST" \
+          cosign verify "$CI_IMAGE@$DIGEST" \
             --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
-          docker buildx imagetools inspect "$IMAGE@$DIGEST" \
+          cosign verify "$UPLOAD_IMAGE@$UPLOAD_DIGEST" \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          cosign verify-attestation "$CI_IMAGE@$DIGEST" --type custom \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+          cosign verify-attestation "$UPLOAD_IMAGE@$UPLOAD_DIGEST" --type custom \
+            --certificate-identity 'https://github.com/26457513/assurance-scan/.github/workflows/publish-ghcr.yml@refs/heads/main' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+          docker buildx imagetools inspect "$CI_IMAGE@$DIGEST" \
             --format '{{ json .SBOM.SPDX }}' > sbom.json
-          docker buildx imagetools inspect "$IMAGE@$DIGEST" \
+          docker buildx imagetools inspect "$CI_IMAGE@$DIGEST" \
             --format '{{ json .Provenance.SLSA }}' > provenance.json
           python - "$GITHUB_SHA" "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" <<'PY'
           import json
@@ -93,11 +146,12 @@ jobs:
           assert builder == expected_builder, "provenance builder mismatch"
           PY
           platform_digest=$(cat platform-digest.txt)
-          docker run --rm --platform linux/amd64 "$IMAGE@$platform_digest" --help | grep -q 'Run the assurance-scan CI scanner subset'
+          docker run --rm --platform linux/amd64 "$CI_IMAGE@$platform_digest" --help | grep -q 'Produce a canonical Assurance Scan v2 bundle'
+          docker run --rm --platform linux/amd64 "$UPLOAD_IMAGE@$UPLOAD_DIGEST" --help | grep -q 'GitHub Actions bundle'
           docker run --rm --interactive --platform linux/amd64 --entrypoint python3 \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD:$PWD" -w "$PWD" \
-            "$IMAGE@$platform_digest" - <<'PY'
+            "$CI_IMAGE@$platform_digest" - <<'PY'
           import asyncio
           from app.modules.atomic.platform.docker_port import DockerRunner
           from app.modules.atomic.scanning.scanner_catalog import SEMGREP
@@ -113,19 +167,26 @@ jobs:
       - name: Move candidate and latest to the verified digest without rebuilding
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
+          UPLOAD_DIGEST: ${{ steps.upload_build.outputs.digest }}
         run: |
-          docker buildx imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"
-          docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
-          test "$(docker buildx imagetools inspect "$IMAGE:candidate" --format '{{.Manifest.Digest}}')" = "$DIGEST"
-          test "$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          docker buildx imagetools create --tag "$CI_IMAGE:candidate" "$CI_IMAGE@$DIGEST"
+          docker buildx imagetools create --tag "$CI_IMAGE:latest" "$CI_IMAGE@$DIGEST"
+          docker buildx imagetools create --tag "$UPLOAD_IMAGE:candidate" "$UPLOAD_IMAGE@$UPLOAD_DIGEST"
+          docker buildx imagetools create --tag "$UPLOAD_IMAGE:latest" "$UPLOAD_IMAGE@$UPLOAD_DIGEST"
+          test "$(docker buildx imagetools inspect "$CI_IMAGE:candidate" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$CI_IMAGE:latest" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$UPLOAD_IMAGE:candidate" --format '{{.Manifest.Digest}}')" = "$UPLOAD_DIGEST"
+          test "$(docker buildx imagetools inspect "$UPLOAD_IMAGE:latest" --format '{{.Manifest.Digest}}')" = "$UPLOAD_DIGEST"
       - name: Record verified CI release
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
+          UPLOAD_DIGEST: ${{ steps.upload_build.outputs.digest }}
         run: |
           {
             printf '### CI release\n\n'
             printf -- '- Revision: `%s`\n' "$GITHUB_SHA"
-            printf -- '- Immutable image: `%s@%s`\n' "$IMAGE" "$DIGEST"
+            printf -- '- Immutable producer: `%s@%s`\n' "$CI_IMAGE" "$DIGEST"
+            printf -- '- Immutable uploader: `%s@%s`\n' "$UPLOAD_IMAGE" "$UPLOAD_DIGEST"
             printf -- '- Public pull, signature, SBOM, provenance, runtime smoke, and tag equality: passed\n'
             printf -- '- `candidate` and `latest` now refer to this exact verified digest.\n'
           } >> "$GITHUB_STEP_SUMMARY"

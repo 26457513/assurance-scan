@@ -19,6 +19,7 @@ from app.infrastructure.db.models import (
     IngestUsageCharge,
     Run,
     ScannerArtifact,
+    ScannerRun,
 )
 from app.infrastructure.db.repositories.ingest_requests import SqlAlchemyIdempotencyRepository
 from app.infrastructure.db.repositories.github_ingest_requests import (
@@ -99,7 +100,11 @@ async def run_retention_cleanup(
                     or_(
                         Run.completed_at <= normalized_cutoff,
                         (Run.completed_at.is_(None) & (Run.started_at <= normalized_cutoff)),
-                    )
+                    ),
+                    ~exists().where(
+                        ScannerArtifact.scanner_run_id == ScannerRun.id,
+                        ScannerRun.run_id == Run.run_id,
+                    ),
                 )
                 .order_by(Run.started_at, Run.run_id)
                 .limit(RETENTION_BATCH_SIZE)

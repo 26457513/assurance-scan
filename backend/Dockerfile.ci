@@ -1,6 +1,6 @@
 # Slim CI orchestrator: stdlib-only scanner glue; scanners themselves run as
 # stock public images via the docker socket (option A — see docs/).
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:09f7da3bc104798d0afb40bc08d23ab2da20a76130cec1f2ef170848f5d85217
 
 ARG VERSION=development
 ARG REVISION=unknown
@@ -13,7 +13,11 @@ LABEL org.opencontainers.image.title="Assurance Scan CI" \
 
 # The runner drives sibling scanner containers via the docker CLI over the
 # mounted socket; python-slim has no docker binary.
-COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker:27-cli@sha256:851f91d241214e7c6db86513b270d58776379aacc5eb9c4a87e5b47115e3065c /usr/local/bin/docker /usr/local/bin/docker
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/assurance-scan/backend
 COPY backend/scripts/ci-scan.py ./scripts/ci-scan.py

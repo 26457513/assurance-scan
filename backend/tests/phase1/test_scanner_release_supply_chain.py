@@ -145,15 +145,20 @@ def test_app_workflow_publishes_a_verified_candidate_without_deploying() -> None
 
 def test_ci_workflow_promotes_latest_only_after_verifying_the_digest() -> None:
     source = CI_WORKFLOW.read_text()
-    assert "tags: ${{ env.IMAGE }}:sha-${{ github.sha }}" in source
-    assert "sbom: true" in source
-    assert "provenance: mode=max" in source
-    assert "cosign sign --yes" in source
+    assert "tags: ${{ env.CI_IMAGE }}:sha-${{ github.sha }}" in source
+    assert "tags: ${{ env.UPLOAD_IMAGE }}:sha-${{ github.sha }}" in source
+    assert source.count("sbom: true") == 2
+    assert source.count("provenance: mode=max") == 2
+    assert source.count("cosign sign --yes") == 2
+    assert source.count("cosign attest --yes --type custom") == 2
+    assert source.count("cosign verify-attestation") == 2
+    assert '"producer": f"ghcr.io/26457513/assurance-scan-ci@{ci_digest}"' in source
+    assert '"uploader": f"ghcr.io/26457513/assurance-scan-ci-upload@{upload_digest}"' in source
     verification = source.index("Verify anonymous pull, signature, SBOM, and provenance")
     promotion = source.index("Move candidate and latest to the verified digest without rebuilding")
     assert verification < promotion
-    assert 'imagetools create --tag "$IMAGE:candidate" "$IMAGE@$DIGEST"' in source
-    assert 'imagetools create --tag "$IMAGE:latest" "$IMAGE@$DIGEST"' in source
+    assert 'imagetools create --tag "$CI_IMAGE:latest" "$CI_IMAGE@$DIGEST"' in source
+    assert 'imagetools create --tag "$UPLOAD_IMAGE:latest" "$UPLOAD_IMAGE@$UPLOAD_DIGEST"' in source
     assert "docker/build-push-action" not in source[promotion:]
     assert "ssh " not in source
     assert "deploy" not in yaml.safe_load(source)["jobs"]
@@ -164,5 +169,5 @@ def test_ci_workflow_promotes_latest_only_after_verifying_the_digest() -> None:
 def test_vendored_ci_template_defaults_to_latest_and_documents_digest_pinning() -> None:
     source = CI_TEMPLATE.read_text()
     assert "ghcr.io/26457513/assurance-scan-ci:latest" in source
-    assert ":sha-<full-git-commit>" in source
+    assert ":vX.Y.Z" in source
     assert "@sha256:<digest>" in source
