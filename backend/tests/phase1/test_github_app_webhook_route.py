@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.api.routes import github_app_webhook
 from app.infrastructure.db.connection import get_session
 from app.infrastructure.db.models import Base, GithubWebhookDelivery
+from app.config import load_settings
+from app.main import create_app
 from app.modules.shared.contracts.ingest_v2 import WEBHOOK_POLICY_V2
 
 
@@ -126,3 +129,28 @@ async def test_webhook_is_invisible_when_disabled_and_rejects_oversize_before_ve
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://scan.example.test") as client:
         rejected = await client.post("/api/v2/github/webhook", content=oversized)
     assert rejected.status_code == 413
+
+
+@pytest.mark.asyncio
+async def test_browser_auth_never_intercepts_the_github_webhook_boundary() -> None:
+    settings = replace(
+        load_settings(),
+        app_auth_user="team",
+        app_auth_password="secret",
+        github_webhook_enabled=True,
+        github_webhook_secret=SECRET,
+        github_webhook_previous_secret="",
+        github_webhook_previous_valid_until="",
+    )
+    app = create_app(settings)
+    headers = {
+        "Content-Type": "application/json",
+        "X-GitHub-Delivery": DELIVERY_ID,
+        "X-GitHub-Event": "installation",
+        "X-Hub-Signature-256": "sha256=" + "0" * 64,
+    }
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://scan.example.test") as client:
+        response = await client.post("/api/v2/github/webhook", content=b"{}", headers=headers)
+    assert response.status_code == 401
+    assert response.json() == {"detail": "webhook signature is invalid"}
+    assert "www-authenticate" not in response.headers

@@ -129,6 +129,28 @@ def fetch_authoritative_installation_for_user(
     user_headers = _headers(user_token)
     _prove_user_installation(transport, user_headers, installation_id)
 
+    return fetch_authoritative_installation(
+        github_app_id=github_app_id,
+        private_key_pem=private_key_pem,
+        github_installation_id=installation_id,
+        now=current,
+        http=transport,
+    )
+
+
+def fetch_authoritative_installation(
+    *,
+    github_app_id: str,
+    private_key_pem: bytes,
+    github_installation_id: int,
+    now: dt.datetime,
+    http: GithubHttpPort | None = None,
+) -> GithubInstallationSnapshot:
+    """Fetch one complete installation snapshot using only App credentials."""
+    installation_id = _positive_integer(github_installation_id, "installation id")
+    current = _aware(now)
+    transport = http or UrllibGithubHttp()
+
     app_jwt = create_github_app_jwt(
         github_app_id=github_app_id,
         private_key_pem=private_key_pem,
@@ -335,6 +357,7 @@ __all__ = [
     "GithubHttpPort",
     "UrllibGithubHttp",
     "create_github_app_jwt",
+    "fetch_authoritative_installation",
     "fetch_authoritative_installation_for_user",
     "load_github_app_private_key",
 ]

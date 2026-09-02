@@ -8,8 +8,11 @@ verification, bounded two-secret overlap, event/action classification and
 The endpoint remains behind `GITHUB_WEBHOOK_ENABLED=false` while durable
 mutation work is retained by immutable installation ID with exclusive
 five-minute leases, bounded exponential retry and stale-lease protection. The
-authoritative refresh worker, retention cleanup and scheduled repair remain
-separate WS7c slices.
+restart-safe worker is complete: ordinary mutations fetch the full scope using
+App credentials, while signed suspension/deletion immediately disables access
+by immutable installation ID because a suspended/deleted installation may not
+mint a token. Retention cleanup and scheduled repair remain separate WS7c
+slices.
 
 ## Endpoint security
 
@@ -57,7 +60,14 @@ An allowlisted mutation without a positive `installation.id` is rejected after
 signature verification. Queue rows retain no webhook body or installation
 token. A worker lease lasts five minutes, retries at most eight times with
 bounded exponential backoff, and can only complete using its current lease
-token; an expired worker therefore cannot overwrite a newer attempt.
+token. The worker must renew that same unexpired lease immediately before
+projecting fetched state; a slow or superseded worker therefore cannot overwrite
+a newer attempt even when its network request finishes later.
+
+Browser authentication explicitly bypasses only this exact webhook path, so
+hosted login middleware cannot redirect GitHub. Startup fails closed when the
+webhook is enabled without a valid App ID and RSA private key; the webhook and
+worker therefore cannot be activated independently by mistake.
 
 ## Authoritative refresh
 

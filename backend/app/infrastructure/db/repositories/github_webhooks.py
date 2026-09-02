@@ -119,6 +119,7 @@ class SqlAlchemyGithubWebhookDeliveryRepository:
                     GithubWebhookDelivery.delivery_id == lease.delivery_id,
                     GithubWebhookDelivery.status == "received",
                     GithubWebhookDelivery.lease_token == lease.lease_token,
+                    GithubWebhookDelivery.lease_expires_at > processed_at,
                 )
                 .values(
                     status="processed",
@@ -127,6 +128,31 @@ class SqlAlchemyGithubWebhookDeliveryRepository:
                     lease_expires_at=None,
                     last_error_code=None,
                 )
+            )
+            await self.session.commit()
+            return cast(CursorResult[Any], result).rowcount == 1
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    async def renew(
+        self,
+        lease: GithubWebhookWorkLease,
+        *,
+        renewed_at: dt.datetime,
+        lease_expires_at: dt.datetime,
+    ) -> bool:
+        await self._begin_write()
+        try:
+            result = await self.session.execute(
+                update(GithubWebhookDelivery)
+                .where(
+                    GithubWebhookDelivery.delivery_id == lease.delivery_id,
+                    GithubWebhookDelivery.status == "received",
+                    GithubWebhookDelivery.lease_token == lease.lease_token,
+                    GithubWebhookDelivery.lease_expires_at > renewed_at,
+                )
+                .values(lease_expires_at=lease_expires_at)
             )
             await self.session.commit()
             return cast(CursorResult[Any], result).rowcount == 1

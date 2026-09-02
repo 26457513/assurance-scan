@@ -6,8 +6,9 @@ installation-token exchange, atomic numeric-identity repository projection and
 setup-return HTTP flow are complete in candidate code. The setup route remains
 behind `GITHUB_APP_ACCESS_ENABLED=false`. The independently gated signed
 webhook boundary and its installation-ID-bound durable work queue are also
-complete. Authoritative work processing and query-time entitlement refresh are
-later WS7c slices.
+complete. Its worker performs authoritative full-scope reconciliation and
+immediate signed-ID suspension/deletion while the feature remains disabled.
+Query-time entitlement refresh is a later WS7c slice.
 
 ## Exact app configuration
 

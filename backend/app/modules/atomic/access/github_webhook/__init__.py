@@ -13,6 +13,7 @@ from .service import (
     claim_github_webhook,
     complete_github_webhook_work,
     lease_github_webhook_work,
+    renew_github_webhook_work,
     retry_github_webhook_work,
     verify_github_webhook,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "claim_github_webhook",
     "complete_github_webhook_work",
     "lease_github_webhook_work",
+    "renew_github_webhook_work",
     "retry_github_webhook_work",
     "verify_github_webhook",
 ]

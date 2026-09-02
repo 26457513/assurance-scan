@@ -27,6 +27,14 @@ class GithubWebhookDeliveryRepositoryPort(Protocol):
 
     async def complete(self, lease: GithubWebhookWorkLease, *, processed_at: datetime) -> bool: ...
 
+    async def renew(
+        self,
+        lease: GithubWebhookWorkLease,
+        *,
+        renewed_at: datetime,
+        lease_expires_at: datetime,
+    ) -> bool: ...
+
     async def retry(
         self,
         lease: GithubWebhookWorkLease,

@@ -42,6 +42,114 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
             await self.session.rollback()
             raise
 
+    async def deactivate(
+        self,
+        github_installation_id: int,
+        *,
+        deleted_at: dt.datetime,
+    ) -> ReconciliationResult:
+        await self._begin_write()
+        try:
+            installation = await self.session.get(GithubAppInstallation, github_installation_id)
+            if installation is None:
+                await self.session.commit()
+                return ReconciliationResult(
+                    installation_id=github_installation_id,
+                    enabled_repository_ids=(),
+                    disabled_repository_ids=(),
+                    removed_repository_ids=(),
+                    invalidated_project_ids=(),
+                )
+            installation.deleted_at = deleted_at
+            installation.updated_at = deleted_at
+            repositories = (
+                (
+                    await self.session.execute(
+                        select(GithubInstallationRepository).where(
+                            GithubInstallationRepository.github_installation_id == github_installation_id,
+                            GithubInstallationRepository.removed_at.is_(None),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            invalidated: set[int] = set()
+            removed: list[int] = []
+            for repository_row in repositories:
+                repository_row.disabled = True
+                repository_row.removed_at = deleted_at
+                repository_row.updated_at = deleted_at
+                removed.append(repository_row.github_repository_id)
+                if repository_row.project_id is not None:
+                    invalidated.add(repository_row.project_id)
+                    project = await self.session.get(Project, repository_row.project_id)
+                    if project is not None:
+                        project.hidden = True
+            await self._expire_memberships(invalidated, expired_at=deleted_at)
+            await self.session.commit()
+            return ReconciliationResult(
+                installation_id=github_installation_id,
+                enabled_repository_ids=(),
+                disabled_repository_ids=tuple(sorted(removed)),
+                removed_repository_ids=tuple(sorted(removed)),
+                invalidated_project_ids=tuple(sorted(invalidated)),
+            )
+        except Exception:
+            await self.session.rollback()
+            raise
+
+    async def suspend(
+        self,
+        github_installation_id: int,
+        *,
+        suspended_at: dt.datetime,
+    ) -> ReconciliationResult:
+        await self._begin_write()
+        try:
+            installation = await self.session.get(GithubAppInstallation, github_installation_id)
+            if installation is None:
+                raise ReconciliationValidationError(
+                    "suspended installation is not yet known and must be retried"
+                )
+            installation.suspended_at = suspended_at
+            installation.updated_at = suspended_at
+            repositories = (
+                (
+                    await self.session.execute(
+                        select(GithubInstallationRepository).where(
+                            GithubInstallationRepository.github_installation_id == github_installation_id,
+                            GithubInstallationRepository.removed_at.is_(None),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            invalidated: set[int] = set()
+            disabled: list[int] = []
+            for repository_row in repositories:
+                repository_row.disabled = True
+                repository_row.updated_at = suspended_at
+                disabled.append(repository_row.github_repository_id)
+                if repository_row.project_id is not None:
+                    invalidated.add(repository_row.project_id)
+                    project = await self.session.get(Project, repository_row.project_id)
+                    if project is not None:
+                        project.hidden = True
+            await self._expire_memberships(invalidated, expired_at=suspended_at)
+            await self.session.commit()
+            return ReconciliationResult(
+                installation_id=github_installation_id,
+                enabled_repository_ids=(),
+                disabled_repository_ids=tuple(sorted(disabled)),
+                removed_repository_ids=(),
+                invalidated_project_ids=tuple(sorted(invalidated)),
+            )
+        except Exception:
+            await self.session.rollback()
+            raise
+
     async def _replace(
         self,
         snapshot: GithubInstallationSnapshot,
@@ -162,16 +270,7 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
                 if removed_project is not None:
                     removed_project.hidden = True
 
-        if invalidated:
-            await self.session.execute(
-                update(ProjectMembership)
-                .where(
-                    ProjectMembership.project_id.in_(invalidated),
-                    ProjectMembership.source == "github_app",
-                    (ProjectMembership.expires_at.is_(None)) | (ProjectMembership.expires_at > verified_at),
-                )
-                .values(expires_at=verified_at)
-            )
+        await self._expire_memberships(invalidated, expired_at=verified_at)
         return ReconciliationResult(
             installation_id=snapshot.github_installation_id,
             enabled_repository_ids=tuple(sorted(enabled)),
@@ -222,6 +321,19 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
             await self.session.rollback()
         if self.session.get_bind().dialect.name == "sqlite":
             await self.session.execute(text("BEGIN IMMEDIATE"))
+
+    async def _expire_memberships(self, project_ids: set[int], *, expired_at: dt.datetime) -> None:
+        if not project_ids:
+            return
+        await self.session.execute(
+            update(ProjectMembership)
+            .where(
+                ProjectMembership.project_id.in_(project_ids),
+                ProjectMembership.source == "github_app",
+                (ProjectMembership.expires_at.is_(None)) | (ProjectMembership.expires_at > expired_at),
+            )
+            .values(expires_at=expired_at)
+        )
 
 
 def _installation_access_state(

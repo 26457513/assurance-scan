@@ -15,3 +15,17 @@ class GithubRepositoryReconciliationPort(Protocol):
         *,
         verified_at: datetime,
     ) -> ReconciliationResult: ...
+
+    async def deactivate(
+        self,
+        github_installation_id: int,
+        *,
+        deleted_at: datetime,
+    ) -> ReconciliationResult: ...
+
+    async def suspend(
+        self,
+        github_installation_id: int,
+        *,
+        suspended_at: datetime,
+    ) -> ReconciliationResult: ...

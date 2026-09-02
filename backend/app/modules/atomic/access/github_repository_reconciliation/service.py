@@ -29,6 +29,32 @@ async def reconcile_github_repositories(
     return await repository.replace(snapshot, verified_at=verified_at)
 
 
+async def deactivate_github_installation(
+    github_installation_id: int,
+    *,
+    deleted_at: datetime,
+    repository: GithubRepositoryReconciliationPort,
+) -> ReconciliationResult:
+    """Disable one deleted installation using only its verified numeric ID."""
+    if github_installation_id <= 0:
+        raise ReconciliationValidationError("installation ID must be positive")
+    _aware(deleted_at, "deletion")
+    return await repository.deactivate(github_installation_id, deleted_at=deleted_at)
+
+
+async def suspend_github_installation(
+    github_installation_id: int,
+    *,
+    suspended_at: datetime,
+    repository: GithubRepositoryReconciliationPort,
+) -> ReconciliationResult:
+    """Disable one suspended installation using only its verified numeric ID."""
+    if github_installation_id <= 0:
+        raise ReconciliationValidationError("installation ID must be positive")
+    _aware(suspended_at, "suspension")
+    return await repository.suspend(github_installation_id, suspended_at=suspended_at)
+
+
 def validate_installation_snapshot(snapshot: GithubInstallationSnapshot) -> GithubInstallationSnapshot:
     if snapshot.github_installation_id <= 0 or snapshot.github_owner_id <= 0:
         raise ReconciliationValidationError("installation and owner IDs must be positive")

@@ -24,6 +24,7 @@ from app.infrastructure.github_app_api import (
     GithubApiResponse,
     GithubAppApiError,
     create_github_app_jwt,
+    fetch_authoritative_installation,
     fetch_authoritative_installation_for_user,
     load_github_app_private_key,
 )
@@ -148,6 +149,22 @@ def test_user_proof_precedes_app_token_and_complete_scope_fetch() -> None:
     assert http.requests[0][2]["Authorization"] == "Bearer user-token"
     assert http.requests[-1][2]["Authorization"] == "Bearer installation-token"
     assert all(request[1].startswith(f"{GITHUB_API_ROOT}/") for request in http.requests)
+
+
+def test_worker_fetch_uses_app_credentials_without_a_user_token() -> None:
+    http = FakeGithubHttp()
+
+    snapshot = fetch_authoritative_installation(
+        github_app_id="12345",
+        private_key_pem=_private_pem(_private_key()),
+        github_installation_id=9001,
+        now=NOW,
+        http=http,
+    )
+
+    assert snapshot.github_installation_id == 9001
+    assert http.requests[0][1] == f"{GITHUB_API_ROOT}/app/installations/9001"
+    assert all("/user/installations" not in request[1] for request in http.requests)
 
 
 def test_inaccessible_installation_fails_before_app_credentials_are_used() -> None:

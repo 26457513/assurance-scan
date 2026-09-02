@@ -126,6 +126,21 @@ async def complete_github_webhook_work(
     return await repository.complete(lease, processed_at=_aware(now))
 
 
+async def renew_github_webhook_work(
+    lease: GithubWebhookWorkLease,
+    *,
+    repository: GithubWebhookDeliveryRepositoryPort,
+    now: datetime,
+) -> bool:
+    """Extend an unexpired current lease before applying fetched state."""
+    aware_now = _aware(now)
+    return await repository.renew(
+        lease,
+        renewed_at=aware_now,
+        lease_expires_at=aware_now + _WORK_LEASE,
+    )
+
+
 async def retry_github_webhook_work(
     lease: GithubWebhookWorkLease,
     *,

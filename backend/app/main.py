@@ -8,6 +8,7 @@ The app is assembled at import time so uvicorn can target it directly via
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import logging
 import time
 from contextlib import asynccontextmanager, suppress
@@ -89,6 +90,20 @@ def _mount_static(app: FastAPI, settings: Settings) -> None:
 async def _lifespan(app: FastAPI):
     """Run startup/shutdown hooks for the worker queue, MCP server, and DB."""
     settings: Settings = app.state.settings
+    github_worker_configuration: tuple[str, bytes] | None = None
+    if settings.github_webhook_enabled:
+        from app.infrastructure.github_app_api import (
+            create_github_app_jwt,
+            load_github_app_private_key,
+        )
+
+        private_key = load_github_app_private_key(settings.github_app_private_key_path)
+        create_github_app_jwt(
+            github_app_id=settings.github_app_id,
+            private_key_pem=private_key,
+            now=dt.datetime.now(dt.timezone.utc),
+        )
+        github_worker_configuration = (settings.github_app_id, private_key)
     queue = ScanQueue(settings)
     app.state.scan_queue = queue
     await queue.start()
@@ -123,6 +138,20 @@ async def _lifespan(app: FastAPI):
 
     retention_task = asyncio.create_task(_retention_loop())
 
+    github_webhook_worker_task = None
+    if github_worker_configuration is not None:
+        from app.infrastructure.db.connection import get_sessionmaker
+        from app.infrastructure.github_webhook_worker import github_webhook_worker_loop
+
+        github_app_id, private_key = github_worker_configuration
+        github_webhook_worker_task = asyncio.create_task(
+            github_webhook_worker_loop(
+                get_sessionmaker(settings),
+                github_app_id=github_app_id,
+                private_key_pem=private_key,
+            )
+        )
+
     poller_task = None
     if settings.github_poll_token and (settings.poll_repos or settings.github_org):
         from app.infrastructure.db.connection import get_sessionmaker
@@ -143,6 +172,10 @@ async def _lifespan(app: FastAPI):
         try:
             yield
         finally:
+            if github_webhook_worker_task is not None:
+                github_webhook_worker_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await github_webhook_worker_task
             if poller_task is not None:
                 poller_task.cancel()
                 with suppress(asyncio.CancelledError):
@@ -226,6 +259,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             path = request.url.path
             # Healthcheck (container-internal) and the login flow stay open.
             if path == "/health" or path.startswith("/auth/"):
+                return await call_next(request)
+            # GitHub authenticates the webhook's exact raw body using its own
+            # HMAC boundary; browser login must never intercept this endpoint.
+            if path == "/api/v2/github/webhook":
                 return await call_next(request)
             # Local-ingest routes authenticate their dedicated scan token in a
             # route dependency. Browser Basic/session and MCP credentials are

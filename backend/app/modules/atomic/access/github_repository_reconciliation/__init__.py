@@ -10,7 +10,12 @@ from .models import (
     ReconciliationValidationError,
 )
 from .ports import GithubRepositoryReconciliationPort
-from .service import reconcile_github_repositories, validate_installation_snapshot
+from .service import (
+    deactivate_github_installation,
+    reconcile_github_repositories,
+    suspend_github_installation,
+    validate_installation_snapshot,
+)
 
 __all__ = [
     "GithubAccountType",
@@ -21,6 +26,8 @@ __all__ = [
     "GithubSelection",
     "ReconciliationResult",
     "ReconciliationValidationError",
+    "deactivate_github_installation",
     "reconcile_github_repositories",
+    "suspend_github_installation",
     "validate_installation_snapshot",
 ]
