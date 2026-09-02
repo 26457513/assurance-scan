@@ -66,7 +66,9 @@ async def test_valid_delivery_and_replay_are_durably_acknowledged(tmp_path) -> N
     async with sessions() as database_session:
         delivery = (await database_session.execute(select(GithubWebhookDelivery))).scalar_one()
         assert delivery.delivery_id == DELIVERY_ID
+        assert delivery.github_installation_id == 9001
         assert delivery.status == "received"
+        assert delivery.available_at is not None
     await engine.dispose()
 
 

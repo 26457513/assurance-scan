@@ -6,7 +6,9 @@ Implementation status: the additive access-plane schema, exact-byte signature
 verification, bounded two-secret overlap, event/action classification and
 30-day delivery claim and bounded HTTP boundary are complete in candidate code.
 The endpoint remains behind `GITHUB_WEBHOOK_ENABLED=false` while durable
-mutation processing, retention cleanup and scheduled repair are implemented as
+mutation work is retained by immutable installation ID with exclusive
+five-minute leases, bounded exponential retry and stale-lease protection. The
+authoritative refresh worker, retention cleanup and scheduled repair remain
 separate WS7c slices.
 
 ## Endpoint security
@@ -50,6 +52,12 @@ The App receives:
 Unsupported actions are acknowledged without mutation and counted. Every
 mutation is idempotent and enqueues a full installation or repository refresh;
 payload display names are hints until confirmed through the GitHub API.
+
+An allowlisted mutation without a positive `installation.id` is rejected after
+signature verification. Queue rows retain no webhook body or installation
+token. A worker lease lasts five minutes, retries at most eight times with
+bounded exponential backoff, and can only complete using its current lease
+token; an expired worker therefore cannot overwrite a newer attempt.
 
 ## Authoritative refresh
 

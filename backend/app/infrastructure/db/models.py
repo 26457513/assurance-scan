@@ -558,7 +558,13 @@ class GithubWebhookDelivery(Base):
     body_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     event: Mapped[str] = mapped_column(String(64), nullable=False)
     action: Mapped[str] = mapped_column(String(64), nullable=False)
+    github_installation_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    available_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_token: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    lease_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     received_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     processed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -567,11 +573,17 @@ class GithubWebhookDelivery(Base):
         CheckConstraint("length(delivery_id) = 36", name="ck_github_webhook_deliveries_id"),
         CheckConstraint("length(body_hash) = 64", name="ck_github_webhook_deliveries_hash"),
         CheckConstraint(
+            "github_installation_id IS NULL OR github_installation_id > 0",
+            name="ck_github_webhook_deliveries_installation_id",
+        ),
+        CheckConstraint("attempt_count >= 0", name="ck_github_webhook_deliveries_attempt_count"),
+        CheckConstraint(
             "status IN ('received', 'processed', 'acknowledged', 'failed')",
             name="ck_github_webhook_deliveries_status",
         ),
         CheckConstraint("expires_at > received_at", name="ck_github_webhook_deliveries_expiry"),
         Index("ix_github_webhook_deliveries_expiry", "expires_at"),
+        Index("ix_github_webhook_deliveries_work", "status", "available_at", "received_at"),
     )
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
-from .models import VerifiedGithubWebhook, WebhookClaimDecision
+from .models import GithubWebhookWorkLease, VerifiedGithubWebhook, WebhookClaimDecision
 
 
 class GithubWebhookDeliveryRepositoryPort(Protocol):
@@ -16,3 +16,23 @@ class GithubWebhookDeliveryRepositoryPort(Protocol):
         received_at: datetime,
         expires_at: datetime,
     ) -> WebhookClaimDecision: ...
+
+    async def lease_next(
+        self,
+        *,
+        now: datetime,
+        lease_token: str,
+        lease_expires_at: datetime,
+    ) -> GithubWebhookWorkLease | None: ...
+
+    async def complete(self, lease: GithubWebhookWorkLease, *, processed_at: datetime) -> bool: ...
+
+    async def retry(
+        self,
+        lease: GithubWebhookWorkLease,
+        *,
+        available_at: datetime,
+        failed_at: datetime,
+        error_code: str,
+        terminal: bool,
+    ) -> bool: ...

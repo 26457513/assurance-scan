@@ -22,6 +22,9 @@ from app.modules.atomic.access.github_webhook import (
     GithubWebhookSecrets,
     WebhookClaimDecision,
     claim_github_webhook,
+    complete_github_webhook_work,
+    lease_github_webhook_work,
+    retry_github_webhook_work,
     verify_github_webhook,
 )
 from app.modules.shared.contracts.ingest_v2 import WEBHOOK_POLICY_V2
@@ -67,6 +70,7 @@ def test_exact_raw_body_signature_and_allowlisted_action_are_accepted() -> None:
 
     assert verified.body_hash == hashlib.sha256(body).hexdigest()
     assert verified.action == "created"
+    assert verified.github_installation_id == 9001
     assert verified.mutation_allowed is True
     assert verified.used_previous_secret is False
 
@@ -187,3 +191,94 @@ async def test_unsupported_delivery_is_durably_acknowledged(session) -> None:
     row = (await session.execute(select(GithubWebhookDelivery))).scalar_one()
     assert row.status == "acknowledged"
     assert row.processed_at == NOW.replace(tzinfo=None)
+
+
+def test_allowlisted_mutation_requires_a_positive_installation_id() -> None:
+    body = b'{"action":"created","installation":{"id":false}}'
+
+    with pytest.raises(GithubWebhookError) as rejected:
+        _verify(body)
+
+    assert rejected.value.code is GithubWebhookErrorCode.INVALID_JSON
+
+
+@pytest.mark.asyncio
+async def test_mutation_work_uses_exclusive_lease_retry_and_stale_completion_protection(session) -> None:
+    verified = _verify(_fixture("installation-created.json"))
+    repository = SqlAlchemyGithubWebhookDeliveryRepository(session)
+    await claim_github_webhook(verified, repository=repository, now=NOW)
+
+    first = await lease_github_webhook_work(
+        repository=repository,
+        now=NOW,
+        lease_token="d8cf87fd-0489-4a4f-8d55-8bf7f5ff9244",
+    )
+    unavailable = await lease_github_webhook_work(
+        repository=repository,
+        now=NOW,
+        lease_token="81385ad2-b885-48e1-b9f0-75a53f8844db",
+    )
+
+    assert first is not None
+    assert first.github_installation_id == 9001
+    assert first.attempt_count == 1
+    assert unavailable is None
+    assert await retry_github_webhook_work(
+        first,
+        repository=repository,
+        now=NOW,
+        error_code="github_unavailable",
+    )
+    assert (
+        await lease_github_webhook_work(
+            repository=repository,
+            now=NOW + dt.timedelta(seconds=29),
+            lease_token="be320fd7-9bcd-4fb8-826e-ce3c256e7ac7",
+        )
+        is None
+    )
+    second = await lease_github_webhook_work(
+        repository=repository,
+        now=NOW + dt.timedelta(seconds=30),
+        lease_token="be320fd7-9bcd-4fb8-826e-ce3c256e7ac7",
+    )
+    assert second is not None
+    assert second.attempt_count == 2
+    assert not await complete_github_webhook_work(
+        first,
+        repository=repository,
+        now=NOW + dt.timedelta(seconds=31),
+    )
+    assert await complete_github_webhook_work(
+        second,
+        repository=repository,
+        now=NOW + dt.timedelta(seconds=31),
+    )
+    row = (await session.execute(select(GithubWebhookDelivery))).scalar_one()
+    assert row.status == "processed"
+    assert row.attempt_count == 2
+    assert row.lease_token is None
+
+
+@pytest.mark.asyncio
+async def test_eighth_mutation_attempt_fails_terminally(session) -> None:
+    verified = _verify(_fixture("installation-created.json"))
+    repository = SqlAlchemyGithubWebhookDeliveryRepository(session)
+    await claim_github_webhook(verified, repository=repository, now=NOW)
+    leased = await lease_github_webhook_work(
+        repository=repository,
+        now=NOW,
+        lease_token="d8cf87fd-0489-4a4f-8d55-8bf7f5ff9244",
+    )
+    assert leased is not None
+
+    assert await retry_github_webhook_work(
+        replace(leased, attempt_count=8),
+        repository=repository,
+        now=NOW,
+        error_code="github_unavailable",
+    )
+    row = (await session.execute(select(GithubWebhookDelivery))).scalar_one()
+    assert row.status == "failed"
+    assert row.processed_at == NOW.replace(tzinfo=None)
+    assert row.last_error_code == "github_unavailable"

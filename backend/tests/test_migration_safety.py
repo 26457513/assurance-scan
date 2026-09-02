@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_REVISION = "0016_project_scan_ref"
-HEAD_REVISION = "0029_github_app_access_plane"
+HEAD_REVISION = "0030_github_webhook_work_queue"
 
 
 def _alembic(database: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -95,6 +95,14 @@ def test_empty_database_migrates_forward_to_head(tmp_path: Path) -> None:
         "repository_verified_at",
         "removed_at",
     }.issubset(_columns(database, "github_installation_repositories"))
+    assert {
+        "github_installation_id",
+        "attempt_count",
+        "available_at",
+        "lease_token",
+        "lease_expires_at",
+        "last_error_code",
+    }.issubset(_columns(database, "github_webhook_deliveries"))
 
 
 def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_path: Path) -> None:

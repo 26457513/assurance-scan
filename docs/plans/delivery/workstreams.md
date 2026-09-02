@@ -74,8 +74,9 @@ single-use setup state, raw-body webhook authentication/delivery idempotency,
 atomic authoritative repository projection, fixed-origin GitHub API client and
 setup-return workflow, and raw-body webhook HTTP boundary are complete in
 candidate code. Setup and webhook exposure are independently disabled by
-default. Webhook mutation processing, scheduled repair and entitlement refresh
-are not enabled yet.
+default. Authenticated mutations now create installation-ID-bound, lease-safe
+durable work with bounded retry state. The authoritative refresh worker,
+scheduled repair and entitlement refresh are not enabled yet.
 
 Implement installation return, signed webhooks, repository reconciliation and
 expiring query-time entitlements using the WS7b GitHub identity foundation.

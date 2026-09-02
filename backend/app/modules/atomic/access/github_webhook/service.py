@@ -16,6 +16,7 @@ from .models import (
     GithubWebhookError,
     GithubWebhookErrorCode,
     GithubWebhookSecrets,
+    GithubWebhookWorkLease,
     VerifiedGithubWebhook,
     WebhookClaimDecision,
 )
@@ -25,6 +26,10 @@ from .ports import GithubWebhookDeliveryRepositoryPort
 _SIGNATURE = re.compile(r"^sha256=([0-9a-f]{64})$")
 _EVENT = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _ALLOWED = frozenset(WEBHOOK_EVENT_ACTIONS)
+_WORK_LEASE = timedelta(minutes=5)
+_MAXIMUM_WORK_ATTEMPTS = 8
+_INITIAL_RETRY_SECONDS = 30
+_MAXIMUM_RETRY_SECONDS = 60 * 60
 
 
 def verify_github_webhook(
@@ -62,13 +67,15 @@ def verify_github_webhook(
     action = payload.get("action", "")
     if not isinstance(action, str) or len(action) > 64 or any(ord(character) < 32 for character in action):
         raise GithubWebhookError(GithubWebhookErrorCode.INVALID_JSON)
+    mutation_allowed = (event, action) in _ALLOWED
     return VerifiedGithubWebhook(
         delivery_id=canonical_delivery_id,
         body_hash=hashlib.sha256(raw_body).hexdigest(),
         event=event,
         action=action,
+        github_installation_id=_installation_id(payload) if mutation_allowed else None,
         payload=payload,
-        mutation_allowed=(event, action) in _ALLOWED,
+        mutation_allowed=mutation_allowed,
         used_previous_secret=previous_match and not current_match,
     )
 
@@ -88,6 +95,62 @@ async def claim_github_webhook(
     )
 
 
+async def lease_github_webhook_work(
+    *,
+    repository: GithubWebhookDeliveryRepositoryPort,
+    now: datetime,
+    lease_token: str,
+) -> GithubWebhookWorkLease | None:
+    """Lease the oldest due mutation for five minutes."""
+    aware_now = _aware(now)
+    try:
+        canonical_token = str(uuid.UUID(lease_token))
+    except (AttributeError, ValueError) as exc:
+        raise ValueError("webhook lease token must be a canonical UUID") from exc
+    if canonical_token != lease_token:
+        raise ValueError("webhook lease token must be a canonical UUID")
+    return await repository.lease_next(
+        now=aware_now,
+        lease_token=canonical_token,
+        lease_expires_at=aware_now + _WORK_LEASE,
+    )
+
+
+async def complete_github_webhook_work(
+    lease: GithubWebhookWorkLease,
+    *,
+    repository: GithubWebhookDeliveryRepositoryPort,
+    now: datetime,
+) -> bool:
+    """Complete work only while holding its current lease token."""
+    return await repository.complete(lease, processed_at=_aware(now))
+
+
+async def retry_github_webhook_work(
+    lease: GithubWebhookWorkLease,
+    *,
+    repository: GithubWebhookDeliveryRepositoryPort,
+    now: datetime,
+    error_code: str,
+) -> bool:
+    """Release failed work with bounded exponential backoff or terminal failure."""
+    aware_now = _aware(now)
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", error_code):
+        raise ValueError("webhook work error code is invalid")
+    terminal = lease.attempt_count >= _MAXIMUM_WORK_ATTEMPTS
+    delay_seconds = min(
+        _MAXIMUM_RETRY_SECONDS,
+        _INITIAL_RETRY_SECONDS * (2 ** max(0, lease.attempt_count - 1)),
+    )
+    return await repository.retry(
+        lease,
+        available_at=aware_now + timedelta(seconds=delay_seconds),
+        failed_at=aware_now,
+        error_code=error_code,
+        terminal=terminal,
+    )
+
+
 def _delivery_id(value: str) -> str:
     try:
         parsed = uuid.UUID(value)
@@ -95,6 +158,16 @@ def _delivery_id(value: str) -> str:
         raise GithubWebhookError(GithubWebhookErrorCode.INVALID_DELIVERY_ID) from exc
     if str(parsed) != value:
         raise GithubWebhookError(GithubWebhookErrorCode.INVALID_DELIVERY_ID)
+    return value
+
+
+def _installation_id(payload: dict[str, Any]) -> int:
+    installation = payload.get("installation")
+    if not isinstance(installation, dict):
+        raise GithubWebhookError(GithubWebhookErrorCode.INVALID_JSON)
+    value = installation.get("id")
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise GithubWebhookError(GithubWebhookErrorCode.INVALID_JSON)
     return value
 
 

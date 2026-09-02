@@ -36,9 +36,22 @@ class VerifiedGithubWebhook:
     body_hash: str
     event: str
     action: str
+    github_installation_id: int | None
     payload: dict[str, Any]
     mutation_allowed: bool
     used_previous_secret: bool
+
+
+@dataclass(frozen=True)
+class GithubWebhookWorkLease:
+    """One exclusively leased authoritative-refresh request."""
+
+    delivery_id: str
+    github_installation_id: int
+    event: str
+    action: str
+    lease_token: str
+    attempt_count: int
 
 
 class GithubWebhookError(ValueError):
