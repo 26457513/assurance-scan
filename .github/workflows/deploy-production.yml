@@ -425,6 +425,14 @@ jobs:
           printf 'candidate_image_id=%s\nlatest_image_id=%s\ncreated_at=%s\n' \
             "$candidate_image_id" "$latest_image_id" "$created_at"
           if [ "$container_status" != running ]; then
+            docker ps -a --format 'container={{.Names}} image={{.Image}} status={{.Status}} created={{.CreatedAt}}' >&2
+            printf '%s\n' '--- root crontab ---' >&2
+            crontab -l >&2 2>/dev/null || true
+            printf '%s\n' '--- system timers ---' >&2
+            systemctl list-timers --all --no-pager >&2 2>/dev/null || true
+            printf '%s\n' '--- deployment automation references ---' >&2
+            grep -R -n -E 'docker (compose|pull)|assurance-scan' \
+              /etc/cron.d /etc/systemd/system >&2 2>/dev/null || true
             docker inspect assurance-scan-server-1 \
               --format 'status={{.State.Status}} restarting={{.State.Restarting}} exit_code={{.State.ExitCode}} restart_count={{.RestartCount}} error={{json .State.Error}}' >&2
             docker logs --tail 80 assurance-scan-server-1 >&2
