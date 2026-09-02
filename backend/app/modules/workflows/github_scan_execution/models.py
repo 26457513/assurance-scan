@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TypeAlias
+from dataclasses import dataclass
+from typing import Mapping, Any
 
 from app.modules.atomic.scanning.finding_parser import ParsedFinding
+from app.modules.atomic.scanning.result_producer import ScannerOutcome
 
 
-ScanExecutionResult: TypeAlias = tuple[
-    list[ParsedFinding],
-    dict[str, str],
-    dict[str, float],
-]
+@dataclass(frozen=True)
+class ScanExecutionResult:
+    findings: tuple[ParsedFinding, ...]
+    scanner_outcomes: tuple[ScannerOutcome, ...]
+    sbom: Mapping[str, Any] | None
 
 
 __all__ = ["ScanExecutionResult"]

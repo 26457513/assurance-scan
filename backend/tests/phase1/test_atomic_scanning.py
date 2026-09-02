@@ -19,7 +19,7 @@ from app.modules.atomic.scanning.scanner_catalog import (
     TRIVY_IMAGE,
 )
 from app.modules.atomic.scanning.result_builder import build_sarif
-from app.modules.workflows.github_scan_execution import run_scanners
+from app.modules.workflows.github_result_production import produce_github_result_bundle
 from app.modules.atomic.scanning.finding_parser import ParsedFinding
 
 
@@ -101,11 +101,11 @@ def test_failed_non_sarif_scanner_uses_bounded_stderr_tail() -> None:
     assert scanner_failure_detail(result, limit=14) == "…ctual failure"
 
 
-def test_ci_script_delegates_scanner_execution_to_workflow() -> None:
+def test_ci_script_delegates_result_production_to_workflow() -> None:
     script = Path(__file__).parents[2] / "scripts" / "ci-scan.py"
     spec = importlib.util.spec_from_file_location("assurance_scan_ci_entrypoint", script)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    assert module.run_scanners is run_scanners
+    assert module.produce_github_result_bundle is produce_github_result_bundle

@@ -1,73 +1,62 @@
 #!/usr/bin/env python3
-"""Run the assurance-scan CI scanner subset and emit one unified SARIF file.
-
-Designed for GitHub Actions compute: no DB, no server — findings go to the
-SARIF file and the GitHub Step Summary, never fail the workflow.
-
-Usage:
-    python3 backend/scripts/ci-scan.py <project_path> --sarif out.sarif
-"""
+"""Produce a canonical Assurance Scan v2 bundle for a GitHub default-branch push."""
 from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import sys
+from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.modules.atomic.scanning.result_builder import (
-    SCANNER_DESCRIPTIONS,
-    build_sarif,
-    ci_payload,
-    github_branch,
-    github_run_url,
-    summary_markdown,
+from app.modules.atomic.scanning.result_builder import summary_markdown
+from app.modules.atomic.scanning.result_builder.models import Finding
+from app.modules.workflows.github_result_production import (
+    GitHubResultProductionCommand,
+    produce_github_result_bundle,
 )
-from app.modules.workflows.github_scan_execution import run_scanners
-
-SBOM_FILENAME = "sbom.cyclonedx.json"
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("project_path", help="path to the repo to scan")
-    ap.add_argument("--sarif", required=True, help="output SARIF path")
-    ap.add_argument("--image", help="docker image tag to scan with trivy-image (must already be built)")
-    args = ap.parse_args()
-
-    project_path = str(Path(args.project_path).resolve())
-    sarif_path = Path(args.sarif)
-    sbom_path = sarif_path.with_name(SBOM_FILENAME)
-    print(f"scanning {project_path} (image={args.image or 'none'})")
-
-    findings, status, durations = asyncio.run(run_scanners(project_path, args.image, sbom_path))
-    sarif = build_sarif(findings)
-    sarif_path.write_text(json.dumps(sarif, indent=2))
-    repo = os.environ.get("ASSURANCE_SCAN_REPO") or os.environ.get("GITHUB_REPOSITORY")
-    payload = ci_payload(
-        findings, status, durations,
-        repo=repo,
-        run_url=github_run_url(),
-        github_run_id=os.environ.get("GITHUB_RUN_ID"),
-        branch=github_branch(),
-        commit=os.environ.get("GITHUB_SHA"),
-        source_root=Path(project_path),
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("project_path", help="read-only checked-out repository root")
+    parser.add_argument("--output", required=True, help="new directory for the result bundle")
+    parser.add_argument(
+        "--scanner-snapshot-path",
+        required=True,
+        help="host-visible path corresponding to <output>/.source-snapshot",
     )
-    sarif_path.with_name("findings.json").write_text(json.dumps(payload, indent=2))
-    print(f"wrote {sarif_path}: {len(findings)} findings")
+    parser.add_argument("--image", help="prebuilt application image to scan")
+    args = parser.parse_args()
 
-    SCANNER_DESCRIPTIONS.setdefault("tribal", "repo-defined checks")
-    md = summary_markdown(findings, status, durations)
-    sarif_path.with_name("summary.md").write_text(md)
+    result = asyncio.run(
+        produce_github_result_bundle(
+            GitHubResultProductionCommand(
+                project_root=Path(args.project_path),
+                output_root=Path(args.output),
+                scanner_snapshot_path=args.scanner_snapshot_path,
+                environment=os.environ,
+                application_image=args.image,
+            )
+        )
+    )
+    findings = result.scan.findings
+    outcomes = result.scan.scanner_outcomes
+    status = {
+        item.kind: "ok" if item.status == "completed" else str(item.error_code)
+        for item in outcomes
+    }
+    durations = {item.kind: round(item.duration_ms / 1000, 1) for item in outcomes}
+    summary = summary_markdown(cast(Sequence[Finding], findings), status, durations)
+    (result.output_root / "summary.md").write_text(summary, encoding="utf-8")
     step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if step_summary:
-        with open(step_summary, "a") as fh:
-            fh.write(md)
-    else:
-        print(md)
+        with Path(step_summary).open("a", encoding="utf-8") as handle:
+            handle.write(summary)
+    print(f"produced v2 bundle ({result.finding_count} findings)")
     return 0
 
 
