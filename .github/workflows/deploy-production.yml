@@ -340,6 +340,12 @@ jobs:
             -c /opt/assurance-scan/backend/alembic.ini upgrade head
 
           docker image tag "$candidate_ref" ghcr.io/26457513/assurance-scan-app:latest
+          # The former unattended updater conflicts with immutable, backed-up
+          # releases and can silently replace a verified container at the next
+          # five-minute boundary. Preserve unrelated root cron entries.
+          crontab -l 2>/dev/null \
+            | awk '!/cd \/root\/assurance-scan && docker compose pull -q server/' \
+            | crontab -
           ln -sfn "$runtime" /root/assurance-scan-runtime/current.next
           mv -Tf /root/assurance-scan-runtime/current.next /root/assurance-scan-runtime/current
           candidate_override="$runtime/compose.candidate.yml"
