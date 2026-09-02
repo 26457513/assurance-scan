@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_REVISION = "0016_project_scan_ref"
-HEAD_REVISION = "0028_identity_cutover_journal"
+HEAD_REVISION = "0029_github_app_access_plane"
 
 
 def _alembic(database: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -67,6 +67,10 @@ def test_empty_database_migrates_forward_to_head(tmp_path: Path) -> None:
         "browser_sessions",
         "github_oauth_states",
         "identity_migration_journal",
+        "github_app_installations",
+        "github_installation_repositories",
+        "github_installation_states",
+        "github_webhook_deliveries",
     }.issubset(_tables(database))
     assert {
         "user_id",
@@ -74,6 +78,23 @@ def test_empty_database_migrates_forward_to_head(tmp_path: Path) -> None:
         "encrypted_user_token",
         "credential_key_id",
     }.issubset(_columns(database, "github_accounts"))
+    assert {
+        "github_installation_id",
+        "github_owner_id",
+        "repository_selection",
+        "suspended_at",
+        "deleted_at",
+        "repositories_etag",
+        "reconciliation_cursor",
+    }.issubset(_columns(database, "github_app_installations"))
+    assert {
+        "github_installation_id",
+        "github_repository_id",
+        "project_id",
+        "default_branch",
+        "repository_verified_at",
+        "removed_at",
+    }.issubset(_columns(database, "github_installation_repositories"))
 
 
 def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_path: Path) -> None:

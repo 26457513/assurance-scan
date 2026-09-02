@@ -377,6 +377,87 @@ class GithubAccount(Base):
     )
 
 
+class GithubAppInstallation(Base):
+    """Authoritative GitHub App installation identity and reconciliation state."""
+
+    __tablename__ = "github_app_installations"
+
+    github_installation_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    github_owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    owner_login_at_last_verify: Mapped[str] = mapped_column(String(128), nullable=False)
+    account_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    repository_selection: Mapped[str] = mapped_column(String(16), nullable=False)
+    suspended_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    repositories_etag: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    reconciliation_cursor: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    last_reconciled_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("github_installation_id > 0", name="ck_github_app_installations_id"),
+        CheckConstraint("github_owner_id > 0", name="ck_github_app_installations_owner_id"),
+        CheckConstraint(
+            "account_type IN ('user', 'organization', 'enterprise')",
+            name="ck_github_app_installations_account_type",
+        ),
+        CheckConstraint(
+            "repository_selection IN ('all', 'selected')",
+            name="ck_github_app_installations_selection",
+        ),
+        Index(
+            "ix_github_app_installations_owner_active",
+            "github_owner_id",
+            "deleted_at",
+            "suspended_at",
+        ),
+    )
+
+
+class GithubInstallationRepository(Base):
+    """Verified repository metadata within one active installation scope."""
+
+    __tablename__ = "github_installation_repositories"
+
+    github_installation_id: Mapped[int] = mapped_column(
+        ForeignKey("github_app_installations.github_installation_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    github_repository_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
+    )
+    repository_full_name: Mapped[str] = mapped_column(String(256), nullable=False)
+    github_owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    default_branch: Mapped[str] = mapped_column(String(256), nullable=False)
+    visibility: Mapped[str] = mapped_column(String(16), nullable=False)
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    repository_verified_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    enabled_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    removed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("github_repository_id", name="uq_github_installation_repositories_repository"),
+        CheckConstraint("github_repository_id > 0", name="ck_github_installation_repositories_id"),
+        CheckConstraint("github_owner_id > 0", name="ck_github_installation_repositories_owner_id"),
+        CheckConstraint(
+            "visibility IN ('public', 'private', 'internal')",
+            name="ck_github_installation_repositories_visibility",
+        ),
+        Index("ix_github_installation_repositories_project", "project_id"),
+        Index(
+            "ix_github_installation_repositories_active",
+            "github_installation_id",
+            "removed_at",
+            "disabled",
+            "archived",
+        ),
+    )
+
+
 class BrowserSession(Base):
     """Server-side browser session; only a digest of the opaque cookie is stored."""
 
@@ -438,6 +519,59 @@ class GithubOauthState(Base):
             "browser_session_id",
             "expires_at",
         ),
+    )
+
+
+class GithubInstallationState(Base):
+    """Single-use installation setup state, separate from OAuth/PKCE state."""
+
+    __tablename__ = "github_installation_states"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    state_digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False, unique=True)
+    browser_session_id: Mapped[str] = mapped_column(
+        ForeignKey("browser_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    return_path: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("length(id) = 36", name="ck_github_installation_states_id"),
+        CheckConstraint("length(state_digest) = 32", name="ck_github_installation_states_digest"),
+        CheckConstraint(
+            "return_path IN ('/', '/projects', '/setup')",
+            name="ck_github_installation_states_return_path",
+        ),
+        CheckConstraint("expires_at > created_at", name="ck_github_installation_states_expiry"),
+        Index("ix_github_installation_states_expiry", "expires_at", "consumed_at"),
+    )
+
+
+class GithubWebhookDelivery(Base):
+    """Bounded idempotency record for an authenticated GitHub webhook."""
+
+    __tablename__ = "github_webhook_deliveries"
+
+    delivery_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    body_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    event: Mapped[str] = mapped_column(String(64), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    received_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    processed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("length(delivery_id) = 36", name="ck_github_webhook_deliveries_id"),
+        CheckConstraint("length(body_hash) = 64", name="ck_github_webhook_deliveries_hash"),
+        CheckConstraint(
+            "status IN ('received', 'processed', 'acknowledged', 'failed')",
+            name="ck_github_webhook_deliveries_status",
+        ),
+        CheckConstraint("expires_at > received_at", name="ck_github_webhook_deliveries_expiry"),
+        Index("ix_github_webhook_deliveries_expiry", "expires_at"),
     )
 
 

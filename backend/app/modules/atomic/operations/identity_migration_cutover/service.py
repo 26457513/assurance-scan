@@ -20,6 +20,7 @@ from .models import IdentityCutoverError, IdentityCutoverResult
 
 
 MIGRATION_REVISION = "0028_identity_cutover_journal"
+SUPPORTED_SCHEMA_REVISIONS = frozenset((MIGRATION_REVISION, "0029_github_app_access_plane"))
 PHASES = (
     "preflight_verified",
     "dispositions_applied",
@@ -71,7 +72,7 @@ def run_identity_cutover(
         preflight = inspect_identity_migration(path)
         if preflight.blocked:
             raise IdentityCutoverError("identity preflight is blocked")
-        if preflight.schema_revision != MIGRATION_REVISION:
+        if preflight.schema_revision not in SUPPORTED_SCHEMA_REVISIONS:
             raise IdentityCutoverError("database is not at the identity cutover revision")
         if preflight.checksum != expected_preflight_checksum:
             raise IdentityCutoverError("identity preflight checksum does not match")
@@ -293,7 +294,7 @@ def _require_cutover_schema(connection: sqlite3.Connection) -> None:
     if not required.issubset(tables):
         raise IdentityCutoverError("database is missing identity cutover tables")
     revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
-    if revision is None or str(revision[0]) != MIGRATION_REVISION:
+    if revision is None or str(revision[0]) not in SUPPORTED_SCHEMA_REVISIONS:
         raise IdentityCutoverError("database is not at the identity cutover revision")
 
 

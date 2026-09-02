@@ -2,6 +2,12 @@
 
 Status: binding GitHub state contract.
 
+Implementation status: the additive access-plane schema, exact-byte signature
+verification, bounded two-secret overlap, event/action classification and
+30-day delivery claim are complete in dormant candidate code. HTTP exposure,
+authoritative mutation/reconciliation and retention scheduling remain disabled
+until their WS7c slices pass independently.
+
 ## Endpoint security
 
 ```http
