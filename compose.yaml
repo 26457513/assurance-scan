@@ -26,6 +26,8 @@ services:
     env_file: ${ASSURANCE_SCAN_ENV_FILE:-.env}
     environment:
       ASSURANCE_SCAN_DB_PATH: /data/db.sqlite
+      CLI_RELEASE_MANIFEST_PATH: /data/cli-release/latest.json
+      CLI_RELEASE_BUNDLE_PATH: /data/cli-release/latest.sigstore.json
     volumes:
       - assurance-data:/data
       - /var/run/docker.sock:/var/run/docker.sock

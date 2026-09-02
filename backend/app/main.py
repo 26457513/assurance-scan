@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import (
     catalogue_drift,
+    cli_releases,
     ci_setup,
     compliance,
     config,
@@ -348,6 +349,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(folders.router, prefix="/api")
     app.include_router(catalogue_drift.router, prefix="/api")
     app.include_router(ci_setup.router, prefix="/api")
+    app.include_router(cli_releases.router, prefix="/api")
     app.include_router(projects.router, prefix="/api")
     app.include_router(poller.router, prefix="/api")
     app.include_router(github.router, prefix="/api")

@@ -166,50 +166,29 @@ Local and GitHub Actions scans use the same canonical `owner/repo` project.
 Branch, commit, dirty-working-tree state and origin remain separate run
 provenance, so a local feature-branch scan does not create a duplicate project.
 
-Create a token in **Settings → Scan tokens** and enroll this installation once.
-The hidden prompt keeps the token out of shell history and Docker environment
-metadata. The CLI validates the account and label before atomically saving an
-owner-only `0600` config file:
+Install the reviewed host wrapper shown under **Setup → My account → Local
+scanner**, verifying the SHA-256 displayed beside it. Then create a token and
+enroll this installation once. The hidden prompt keeps the token out of shell
+history and Docker environment metadata. The CLI validates the account and
+label before atomically saving an owner-only `0600` config file:
 
 ```bash
-mkdir -p "$HOME/.config/assurance-scan" "$HOME/.cache/assurance-scan" && \
-  chmod 700 "$HOME/.config/assurance-scan" "$HOME/.cache/assurance-scan"
-docker run --rm -it --pull=always \
-  --user "$(id -u):$(id -g)" \
-  -v "$HOME/.config/assurance-scan:/config" \
-  ghcr.io/26457513/assurance-scan-cli:stable \
-  auth login --url https://scan.example.com
+assurance-scan auth login --url https://scan.example.com
 ```
 
 Then run this from the Git repository root:
 
 ```bash
-docker run --rm -it --pull=always --init \
-  --user "$(id -u):$(id -g)" --group-add 0 \
-  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
-  --cap-drop ALL --security-opt no-new-privileges \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$PWD:$PWD:ro" \
-  -v "$HOME/.config/assurance-scan:/config:ro" \
-  -v "$HOME/.cache/assurance-scan:$HOME/.cache/assurance-scan" \
-  -e ASSURANCE_SCAN_CACHE_DIR="$HOME/.cache/assurance-scan" \
-  -e ASSURANCE_SCAN_HOST_UID="$(id -u)" \
-  -e ASSURANCE_SCAN_HOST_GID="$(id -g)" \
-  -w "$PWD" \
-  ghcr.io/26457513/assurance-scan-cli:stable scan
+assurance-scan scan
 ```
 
-The command above is for macOS Docker Desktop. On Linux, replace
-`--group-add 0` with
-`--group-add "$(stat -c '%g' /var/run/docker.sock)"`. The CLI retains the host
-user's identity for owner-only config/cache files while receiving only the
-supplemental group needed to reach the Docker socket. Native Windows and WSL 2
-are not v1 targets; use a supported host rather than adapting the command.
-The exact copyable commands are also available under
-**Setup → My account → Local scanner**.
+The same command supports qualified macOS and Linux hosts. The wrapper rejects
+remote Docker contexts, resolves the active local Unix socket, verifies the
+signed release manifest and Cosign identity, and executes only the approved
+immutable image digest with `--pull=never`. It checks for updates every 24 hours;
+use `assurance-scan update` to force a check and `assurance-scan doctor` to see
+the selected digest and Docker mode. Native Windows and WSL 2 are not v1 targets.
 
-`--pull=always` is the update check; unchanged layers are reused. For controlled
-environments, replace `stable` with an immutable version or registry digest.
 Use `scan --no-upload` to retain a bundle locally, `upload --retry REQUEST_ID`
 to retry without rescanning, and `cache list`/`cache prune` to manage retained
 bundles. The default outbox policy is seven days and 1 GiB. Revoking the token

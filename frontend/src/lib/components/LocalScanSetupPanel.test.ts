@@ -7,6 +7,7 @@ describe('LocalScanSetupPanel', () => {
   it('shows the complete token, enrollment, scan, and recovery path', () => {
     const { container } = render(LocalScanSetupPanel);
 
+    expect(screen.getByText('Install the host wrapper')).toBeInTheDocument();
     expect(screen.getByText('Create an upload token')).toBeInTheDocument();
     expect(screen.getByText('Enroll this machine once')).toBeInTheDocument();
     expect(screen.getByText('Scan from the repository root')).toBeInTheDocument();
@@ -15,7 +16,8 @@ describe('LocalScanSetupPanel', () => {
     expect(screen.getByText('Remove access')).toBeInTheDocument();
     expect(container.textContent).toContain('$HOME/.config/assurance-scan/config.json');
     expect(container.textContent).toContain('0600');
-    expect(container.textContent).toContain('--pull=always');
+    expect(container.textContent).toContain('assurance-scan scan');
+    expect(container).toHaveTextContent(/signed release\s+manifest/);
     expect(container.textContent).toContain('cache prune');
     expect(container.textContent).toContain('Raw artifacts: 30 days');
     expect(container.textContent).toContain('Normalized runs and findings: 365 days');
@@ -24,16 +26,11 @@ describe('LocalScanSetupPanel', () => {
     expect(container).toHaveTextContent(/source\s+snapshot and absolute host paths are not uploaded/);
   });
 
-  it('offers explicit qualified host commands', async () => {
+  it('offers one qualified command across supported hosts', () => {
     const { container } = render(LocalScanSetupPanel);
-    await fireEvent.click(screen.getByRole('button', { name: 'macOS' }));
-    expect(screen.getByRole('button', { name: 'macOS' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText(/Native Windows and WSL 2 are not v1 targets/)).toBeInTheDocument();
-    expect(container.textContent).toContain('--group-add 0');
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Linux' }));
-    expect(screen.getByRole('button', { name: 'Linux' })).toHaveAttribute('aria-pressed', 'true');
-    expect(container.textContent).toContain("--group-add \"$(stat -c '%g' /var/run/docker.sock)\"");
+    expect(screen.getByLabelText('Verified release policy')).toHaveTextContent('immutable digest');
+    expect(container.textContent).not.toContain('docker run --rm -it --pull=always');
   });
 
   it('copies the full one-command scan invocation', async () => {
@@ -44,13 +41,10 @@ describe('LocalScanSetupPanel', () => {
     });
     render(LocalScanSetupPanel);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'macOS' }));
     await fireEvent.click(screen.getByRole('button', { name: 'Copy scan' }));
     expect(writeText).toHaveBeenCalledTimes(1);
     const copied = writeText.mock.calls[0][0] as string;
-    expect(copied).toContain('ghcr.io/26457513/assurance-scan-cli:stable scan');
-    expect(copied).toContain('-v "$PWD:$PWD:ro"');
-    expect(copied).toContain('--user "$(id -u):$(id -g)" --group-add 0');
+    expect(copied).toBe('assurance-scan scan');
     expect(copied).not.toContain('asu_v1_');
   });
 });

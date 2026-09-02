@@ -122,6 +122,8 @@ jobs:
           sbom: true
           provenance: mode=max
       - uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+        with:
+          cosign-release: v2.6.4
       - name: Keyless-sign the tested index digest
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -133,7 +135,7 @@ jobs:
           docker logout ghcr.io
           docker buildx imagetools inspect "$IMAGE@$DIGEST"
           docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{json .Manifest}}' > manifest.json
-          python -c 'import json; data=json.load(open("manifest.json")); platforms={(item.get("platform", {}).get("os"), item.get("platform", {}).get("architecture")) for item in data.get("manifests", [])}; required={("linux", "amd64"), ("linux", "arm64")}; missing=required-platforms; assert not missing, f"missing release platforms: {sorted(missing)}"'
+          python -c 'import json; data=json.load(open("manifest.json")); platforms={(item.get("platform", {}).get("os"), item.get("platform", {}).get("architecture")) for item in data.get("manifests", [])}; required={("linux", "amd64"), ("linux", "arm64")}; missing=required - platforms; assert not missing, f"missing release platforms: {sorted(missing)}"'
           cosign verify "$IMAGE@$DIGEST" \
             --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v' \
             --certificate-oidc-issuer https://token.actions.githubusercontent.com
@@ -169,6 +171,51 @@ jobs:
           assert builder == expected_builder, "provenance builder mismatch"
           PY
           done
+      - name: Create and keyless-sign the bounded release manifest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          python - "$GITHUB_REF_NAME" "$DIGEST" > cli-release.json <<'PY'
+          import json
+          import sys
+          from datetime import datetime, timedelta, timezone
+
+          version, digest = sys.argv[1:]
+          published = datetime.now(timezone.utc).replace(microsecond=0)
+          document = {
+              "schema_version": 1,
+              "wrapper_min_version": 1,
+              "cli_version": version,
+              "image": "ghcr.io/26457513/assurance-scan-cli",
+              "oci_index_digest": digest,
+              "supported_platforms": ["linux/amd64", "linux/arm64"],
+              "signature_identity": (
+                  "https://github.com/26457513/assurance-scan/"
+                  ".github/workflows/publish-cli-image.yml@refs/tags/" + version
+              ),
+              "signature_issuer": "https://token.actions.githubusercontent.com",
+              "published_at": published.isoformat().replace("+00:00", "Z"),
+              "expires_at": (published + timedelta(days=7)).isoformat().replace("+00:00", "Z"),
+          }
+          json.dump(document, sys.stdout, indent=2)
+          sys.stdout.write("\n")
+          PY
+          cosign sign-blob --yes --new-bundle-format \
+            --bundle cli-release.sigstore.json cli-release.json
+          cosign verify-blob \
+            --bundle cli-release.sigstore.json \
+            --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            cli-release.json
+      - name: Publish signed release metadata for deployment
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: cli-release-${{ github.ref_name }}
+          path: |
+            cli-release.json
+            cli-release.sigstore.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Smoke both qualified architectures
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -220,6 +267,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+        with:
+          cosign-release: v2.6.4
       - name: Require reviewed canary evidence and unchanged stable baseline
         env:
           ACKNOWLEDGED: ${{ inputs.qualification_complete }}
@@ -298,18 +347,47 @@ jobs:
           assert provenance.get("runDetails", {}).get("builder", {}).get("id"), "provenance builder missing"
           PY
           done
-      - name: Move stable to the tested digest without rebuilding
+      - name: Verify signed metadata from the qualified tag run
+        env:
+          AUTOMATED_EVIDENCE_URL: ${{ inputs.automated_evidence_url }}
+          DIGEST: ${{ inputs.source_digest }}
+          VERSION: ${{ inputs.source_version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id="${AUTOMATED_EVIDENCE_URL##*/}"
+          mkdir cli-release-evidence
+          gh run download "$run_id" --name "cli-release-$VERSION" --dir cli-release-evidence
+          cosign verify-blob \
+            --bundle cli-release-evidence/cli-release.sigstore.json \
+            --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            cli-release-evidence/cli-release.json
+          python - "$VERSION" "$DIGEST" <<'PY'
+          import json
+          import sys
+
+          version, digest = sys.argv[1:]
+          with open("cli-release-evidence/cli-release.json", encoding="utf-8") as stream:
+              manifest = json.load(stream)
+          assert manifest["cli_version"] == version, "release manifest version mismatch"
+          assert manifest["oci_index_digest"] == digest, "release manifest digest mismatch"
+          assert manifest["image"] == "ghcr.io/26457513/assurance-scan-cli", "release manifest image mismatch"
+          PY
+      - name: Move latest and stable to the tested digest without rebuilding
         env:
           DIGEST: ${{ inputs.source_digest }}
         run: |
           docker buildx imagetools create --tag "$IMAGE:stable" "$IMAGE@$DIGEST"
+          docker buildx imagetools create --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
           test "$(docker buildx imagetools inspect "$IMAGE:stable" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}')" = "$DIGEST"
       - name: Verify stable is publicly retrievable and still has release evidence
         env:
           DIGEST: ${{ inputs.source_digest }}
         run: |
           docker logout ghcr.io
           test "$(docker buildx imagetools inspect "$IMAGE:stable" --format '{{.Manifest.Digest}}')" = "$DIGEST"
+          test "$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}')" = "$DIGEST"
           test "$(docker buildx imagetools inspect "$IMAGE@$DIGEST" --format '{{.Manifest.Digest}}')" = "$DIGEST"
           cosign verify "$IMAGE@$DIGEST" \
             --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v' \

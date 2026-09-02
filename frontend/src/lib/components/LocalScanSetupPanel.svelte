@@ -3,66 +3,31 @@
 
   import CopyButton from './CopyButton.svelte';
 
-  const IMAGE = 'ghcr.io/26457513/assurance-scan-cli:stable';
-  type HostPlatform = 'macos' | 'linux';
-
   let serverUrl = 'https://scan.example.com';
-  let hostPlatform: HostPlatform = 'macos';
+  let wrapperSha = 'loading…';
 
-  onMount(() => {
+  onMount(async () => {
     serverUrl = window.location.origin;
-    if (/Linux/i.test(window.navigator.userAgent)) hostPlatform = 'linux';
+    try {
+      const response = await fetch('/api/v2/cli/releases/wrapper.sha256');
+      if (response.ok) wrapperSha = (await response.text()).trim();
+    } catch {
+      wrapperSha = 'unavailable';
+    }
   });
 
-
-  $: loginCommand = `mkdir -p "$HOME/.config/assurance-scan" "$HOME/.cache/assurance-scan" && \\
-  chmod 700 "$HOME/.config/assurance-scan" "$HOME/.cache/assurance-scan"
-docker run --rm -it --pull=always \\
-  --user "$(id -u):$(id -g)" \\
-  -v "$HOME/.config/assurance-scan:/config" \\
-  ${IMAGE} \\
-  auth login --url ${serverUrl}`;
-
-  $: dockerSocketGroup = hostPlatform === 'macos'
-    ? '0'
-    : '"$(stat -c \'%g\' /var/run/docker.sock)"';
-
-  $: scanCommand = `docker run --rm -it --pull=always --init \\
-  --user "$(id -u):$(id -g)" --group-add ${dockerSocketGroup} \\
-  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
-  --cap-drop ALL --security-opt no-new-privileges \\
-  -v /var/run/docker.sock:/var/run/docker.sock \\
-  -v "$PWD:$PWD:ro" \\
-  -v "$HOME/.config/assurance-scan:/config:ro" \\
-  -v "$HOME/.cache/assurance-scan:$HOME/.cache/assurance-scan" \\
-  -e ASSURANCE_SCAN_CACHE_DIR="$HOME/.cache/assurance-scan" \\
-  -e ASSURANCE_SCAN_HOST_UID="$(id -u)" \\
-  -e ASSURANCE_SCAN_HOST_GID="$(id -g)" \\
-  -w "$PWD" \\
-  ${IMAGE} scan`;
-
-  $: retryCommand = `docker run --rm -it --pull=always \\
-  --user "$(id -u):$(id -g)" \\
-  -v "$HOME/.config/assurance-scan:/config:ro" \\
-  -v "$HOME/.cache/assurance-scan:$HOME/.cache/assurance-scan" \\
-  -e ASSURANCE_SCAN_CACHE_DIR="$HOME/.cache/assurance-scan" \\
-  -e ASSURANCE_SCAN_HOST_UID="$(id -u)" \\
-  -e ASSURANCE_SCAN_HOST_GID="$(id -g)" \\
-  ${IMAGE} upload --retry REQUEST_ID`;
-
-  $: cacheCommand = `docker run --rm --pull=always \\
-  --user "$(id -u):$(id -g)" \\
-  -v "$HOME/.cache/assurance-scan:$HOME/.cache/assurance-scan" \\
-  -e ASSURANCE_SCAN_CACHE_DIR="$HOME/.cache/assurance-scan" \\
-  -e ASSURANCE_SCAN_HOST_UID="$(id -u)" \\
-  -e ASSURANCE_SCAN_HOST_GID="$(id -g)" \\
-  ${IMAGE} cache list`;
-  $: pruneCommand = cacheCommand.replace(/cache list$/, 'cache prune');
-
-  $: logoutCommand = `docker run --rm -it --pull=always \\
-  --user "$(id -u):$(id -g)" \\
-  -v "$HOME/.config/assurance-scan:/config" \\
-  ${IMAGE} auth logout`;
+  $: installCommand = `mkdir -p "$HOME/.local/bin"
+tmp_wrapper=$(mktemp "\${TMPDIR:-/tmp}/assurance-scan.XXXXXX")
+curl -fsS ${serverUrl}/api/v2/cli/releases/wrapper -o "$tmp_wrapper"
+echo "${wrapperSha}  $tmp_wrapper" | { command -v sha256sum >/dev/null && sha256sum -c - || shasum -a 256 -c -; }
+install -m 0755 "$tmp_wrapper" "$HOME/.local/bin/assurance-scan" && rm -f "$tmp_wrapper"`;
+  $: loginCommand = `assurance-scan auth login --url ${serverUrl}`;
+  const scanCommand = 'assurance-scan scan';
+  const retryCommand = 'assurance-scan upload --retry REQUEST_ID';
+  const cacheCommand = 'assurance-scan cache list';
+  const pruneCommand = 'assurance-scan cache prune';
+  const logoutCommand = 'assurance-scan auth logout';
+  $: wrapperReady = /^[0-9a-f]{64}$/.test(wrapperSha);
 </script>
 
 <section id="local-scanner-setup" class="local-runbook" aria-labelledby="local-scan-setup-heading">
@@ -70,32 +35,44 @@ docker run --rm -it --pull=always \\
     <div>
       <div class="text-[9px] font-mono uppercase tracking-[0.16em] text-accent mb-1">Local scanner · container workflow</div>
       <h2 id="local-scan-setup-heading" class="text-[13px] text-ink-primary font-mono mb-1">
-        From token to first scan
+        Install once. Scan any branch.
       </h2>
       <p class="text-[11px] text-ink-muted leading-relaxed max-w-xl">
-        Create a token above, enroll this machine once, then run the scanner from any registered
-        Git repository. The token is entered at a hidden prompt—not in the command or shell history.
+        Install the small verified wrapper, enroll this machine once, then use one command from any
+        registered Git repository. The wrapper keeps the container trust checks out of your way.
       </p>
     </div>
-    <div class="platform-switch" aria-label="Command platform">
-      <button
-        type="button"
-        class:active={hostPlatform === 'macos'}
-        aria-pressed={hostPlatform === 'macos'}
-        on:click={() => hostPlatform = 'macos'}
-      >macOS</button>
-      <button
-        type="button"
-        class:active={hostPlatform === 'linux'}
-        aria-pressed={hostPlatform === 'linux'}
-        on:click={() => hostPlatform = 'linux'}
-      >Linux</button>
+    <div class="trust-seal" aria-label="Verified release policy">
+      <span aria-hidden="true">✓</span>
+      Signed image · immutable digest
     </div>
   </div>
 
   <ol class="runbook-steps">
     <li class="runbook-step">
       <div class="runbook-marker" aria-hidden="true">1</div>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-baseline justify-between gap-3 mb-2">
+          <div>
+            <h3 class="text-[11px] font-mono text-ink-primary">Install the host wrapper</h3>
+            <p class="text-[10px] text-ink-muted mt-0.5">Works on supported macOS and Linux hosts.</p>
+          </div>
+          {#if wrapperReady}
+            <CopyButton text={installCommand} label="Copy install" copiedLabel="Install copied" />
+          {:else}
+            <span class="text-[9px] font-mono uppercase tracking-[0.1em] text-ink-muted">Preparing…</span>
+          {/if}
+        </div>
+        <pre class="command-block">{installCommand}</pre>
+        <p class="text-[10px] text-ink-muted leading-relaxed mt-2 break-all">
+          Expected SHA-256: <code>{wrapperSha}</code>. The wrapper verifies the signed release
+          manifest and image before it runs an immutable digest.
+        </p>
+      </div>
+    </li>
+
+    <li class="runbook-step">
+      <div class="runbook-marker" aria-hidden="true">2</div>
       <div class="min-w-0 flex-1">
         <div class="flex items-baseline justify-between gap-3 mb-1">
           <h3 class="text-[11px] font-mono text-ink-primary">Create an upload token</h3>
@@ -109,7 +86,7 @@ docker run --rm -it --pull=always \\
     </li>
 
     <li class="runbook-step">
-      <div class="runbook-marker" aria-hidden="true">2</div>
+      <div class="runbook-marker" aria-hidden="true">3</div>
       <div class="min-w-0 flex-1">
         <div class="flex items-baseline justify-between gap-3 mb-2">
           <h3 class="text-[11px] font-mono text-ink-primary">Enroll this machine once</h3>
@@ -125,7 +102,7 @@ docker run --rm -it --pull=always \\
     </li>
 
     <li class="runbook-step">
-      <div class="runbook-marker" aria-hidden="true">3</div>
+      <div class="runbook-marker" aria-hidden="true">4</div>
       <div class="min-w-0 flex-1">
         <div class="flex items-baseline justify-between gap-3 mb-2">
           <div>
@@ -136,10 +113,8 @@ docker run --rm -it --pull=always \\
         </div>
         <pre class="command-block">{scanCommand}</pre>
         <p class="text-[10px] text-ink-muted leading-relaxed mt-2">
-          <code>--pull=always</code> checks for a promoted CLI update and reuses unchanged layers.
-          Pin an immutable version or digest when your environment requires controlled upgrades.
-          The selected host command grants only the Docker socket's supplemental group while the
-          CLI runs as your user, keeping cache files owner-only on first use.
+          The wrapper checks for a signed update once per day, rejects remote Docker contexts, and
+          shares only this run's read-only source snapshot with the pinned scanner containers.
         </p>
       </div>
     </li>
@@ -214,8 +189,9 @@ docker run --rm -it --pull=always \\
   </div>
 
   <p class="border-t border-line-hairline px-5 py-3 text-[10px] text-ink-muted leading-relaxed">
-    The same command works on supported macOS and Linux hosts. Native Windows and WSL 2 are not
-    v1 targets; use a supported host rather than adapting the command.
+    Run <code>assurance-scan doctor</code> to inspect the verified CLI digest and local Docker
+    endpoint, or <code>assurance-scan update</code> to force a signed update check. Native Windows
+    and WSL 2 are not v1 targets.
   </p>
 </section>
 
@@ -267,37 +243,23 @@ docker run --rm -it --pull=always \\
     font-size: 0.6rem;
   }
 
-  .platform-switch {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    overflow: hidden;
-    border: 1px solid var(--border-strong);
-    border-radius: 2px;
-    background: var(--bg-inset);
-  }
-
-  .platform-switch button {
-    min-width: 4.25rem;
-    padding: 0.35rem 0.6rem;
+  .trust-seal {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-hairline));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 7%, var(--bg-panel));
+    padding: 0.35rem 0.65rem;
     color: var(--text-muted);
     font-family: 'Geist Mono', ui-monospace, monospace;
     font-size: 0.5625rem;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
   }
 
-  .platform-switch button + button {
-    border-left: 1px solid var(--border-hairline);
-  }
-
-  .platform-switch button.active {
-    background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+  .trust-seal span {
     color: var(--accent);
-  }
-
-  .platform-switch button:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
   }
 
   .command-block {

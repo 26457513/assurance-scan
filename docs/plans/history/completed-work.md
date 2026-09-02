@@ -26,4 +26,13 @@ Added local-origin run display, compact issued-token management, branch and dirt
 
 Completed the original rollout implementation and local end-to-end exercise. Subsequent design decisions replaced GitHub polling with the GitHub App and OIDC push-only model, so any polling-era rollout detail is obsolete and intentionally omitted here.
 
+## WS6 — shared evidence and local bootstrap trust
+
+Added bounded source-context parity for both scan origins, an install-once host
+wrapper, signed and expiring CLI release manifests, immutable Cosign-verified
+execution, local Docker endpoint enforcement, and request-scoped sibling mounts.
+The candidate gate passed 592 backend tests, 42 frontend tests, Ruff, Mypy,
+Semgrep, schema/shell/frontend validation, and application/CI/CLI container
+builds and smokes. Production release remains governed by the rollout runbook.
+
 Historical counts are evidence from their checkpoints, not the current expected test totals. The current release must pass [Quality gates](../delivery/quality-gates.md).

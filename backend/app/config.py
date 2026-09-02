@@ -241,6 +241,11 @@ class Settings:
     local_ingest_upload_limits: UploadLimits
     local_ingest_usage_limits: UsageLimits
 
+    # Pre-built, keylessly signed local-CLI release metadata. The application
+    # serves these bytes but never creates or signs trust policy at runtime.
+    cli_release_manifest_path: str
+    cli_release_bundle_path: str
+
 
 def load_settings() -> Settings:
     """Build a Settings instance from the current environment."""
@@ -298,6 +303,8 @@ def load_settings() -> Settings:
                 "LOCAL_INGEST_ACCEPTED_BYTES_PER_USER_DAY", USAGE_LIMITS.accepted_bytes_per_user_day
             ),
         ),
+        cli_release_manifest_path=_env("CLI_RELEASE_MANIFEST_PATH", ""),
+        cli_release_bundle_path=_env("CLI_RELEASE_BUNDLE_PATH", ""),
         db_url=f"sqlite+aiosqlite:///{db_path.as_posix()}",
         db_url_sync=f"sqlite:///{db_path.as_posix()}",
         project_root=project_root,

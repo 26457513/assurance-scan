@@ -1,6 +1,6 @@
 # Delivery workstreams
 
-Status: WS6a is implemented and quality-gated. WS6b and WS7a–WS7g remain;
+Status: WS6a–WS6b are implemented and quality-gated. WS7a–WS7g remain;
 production activation of the new result contract stays deferred to WS7e/WS7g.
 
 ## Completed foundation
@@ -27,6 +27,10 @@ Deliverables:
 Acceptance: the same fixture scanned through both origins produces equivalent findings and context, subject only to run identity and origin metadata.
 
 ## WS6b — local bootstrap hardening
+
+Status: complete in the candidate code path (2 September 2026). The verified
+CLI release and signed manifest still require the governed release/promotion
+process before production use.
 
 Implement [Local bootstrap and trust](../local/bootstrap-and-trust.md), including
 signed-manifest verification, wrapper compatibility, local-daemon enforcement,

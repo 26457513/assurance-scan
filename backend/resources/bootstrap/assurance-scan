@@ -1,0 +1,251 @@
+#!/bin/sh
+# Assurance Scan host wrapper. Its pinned verifier digest is the trust root.
+set -eu
+
+WRAPPER_PROTOCOL=1
+IMAGE=ghcr.io/26457513/assurance-scan-cli
+CHANNEL_TAG=latest
+DEFAULT_RELEASE_ORIGIN=https://scan.squease.ai
+VERIFIER_IMAGE=ghcr.io/sigstore/cosign/cosign@sha256:278d0b6c728608731d8fa2123c00c8b8dd6207aa53f079b195dea906b29ab0b2
+SIGNING_ISSUER=https://token.actions.githubusercontent.com
+SIGNING_IDENTITY_REGEX='^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+
+fail() {
+  printf 'assurance-scan: %s\n' "$*" >&2
+  exit 1
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || fail "$1 is required"
+}
+
+no_symlink_components() {
+  candidate=$1
+  [ "${candidate#/}" != "$candidate" ] || fail "path must be absolute: $candidate"
+  current=
+  old_ifs=$IFS
+  IFS=/
+  set -- $candidate
+  IFS=$old_ifs
+  for component do
+    [ -n "$component" ] || continue
+    case "$component" in .|..) fail "path is not canonical: $candidate" ;; esac
+    current=$current/$component
+    [ ! -L "$current" ] || fail "symlinked path is not allowed: $current"
+  done
+}
+
+json_string() {
+  key=$1
+  value=$(sed -n 's/^[[:space:]]*"'"$key"'"[[:space:]]*:[[:space:]]*"\([^"]*\)"[,]\{0,1\}[[:space:]]*$/\1/p' "$MANIFEST")
+  [ -n "$value" ] && [ "$(printf '%s\n' "$value" | wc -l | tr -d ' ')" = 1 ] || fail "signed manifest field $key is invalid"
+  printf '%s' "$value"
+}
+
+verify_manifest() {
+  docker run --rm --network none \
+    -v "$RELEASE_CACHE:/release:ro" \
+    "$VERIFIER_IMAGE" verify-blob --offline \
+    --bundle /release/latest.sigstore.json \
+    --certificate-identity-regexp "$SIGNING_IDENTITY_REGEX" \
+    --certificate-oidc-issuer "$SIGNING_ISSUER" \
+    /release/latest.json >/dev/null
+}
+
+fetch_release() {
+  temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/assurance-scan-release.XXXXXX")
+  chmod 700 "$temp_dir"
+  if curl -fsS --proto '=https' --tlsv1.2 "$RELEASE_ORIGIN/api/v2/cli/releases/latest" -o "$temp_dir/latest.json" && \
+     curl -fsS --proto '=https' --tlsv1.2 "$RELEASE_ORIGIN/api/v2/cli/releases/latest.sigstore.json" -o "$temp_dir/latest.sigstore.json"; then
+    chmod 600 "$temp_dir/latest.json" "$temp_dir/latest.sigstore.json"
+    old_cache=$RELEASE_CACHE
+    RELEASE_CACHE=$temp_dir
+    MANIFEST=$RELEASE_CACHE/latest.json
+    verify_manifest
+    RELEASE_CACHE=$old_cache
+    MANIFEST=$RELEASE_CACHE/latest.json
+    mv "$temp_dir/latest.json" "$MANIFEST"
+    mv "$temp_dir/latest.sigstore.json" "$RELEASE_CACHE/latest.sigstore.json"
+    date +%s > "$RELEASE_CACHE/verified-at"
+    chmod 600 "$MANIFEST" "$RELEASE_CACHE/latest.sigstore.json" "$RELEASE_CACHE/verified-at"
+    rmdir "$temp_dir"
+    return 0
+  fi
+  rm -f "$temp_dir/latest.json" "$temp_dir/latest.sigstore.json"
+  rmdir "$temp_dir"
+  return 1
+}
+
+release_is_fresh() {
+  [ -f "$MANIFEST" ] && [ -f "$RELEASE_CACHE/latest.sigstore.json" ] && [ -f "$RELEASE_CACHE/verified-at" ] || return 1
+  verified_at=$(sed -n '1p' "$RELEASE_CACHE/verified-at")
+  case "$verified_at" in ''|*[!0-9]*) return 1 ;; esac
+  now=$(date +%s)
+  age=$((now - verified_at))
+  [ "$age" -ge 0 ] && [ "$age" -lt 86400 ]
+}
+
+load_release() {
+  online=0
+  if [ "$FORCE_UPDATE" = 1 ] || ! release_is_fresh; then
+    if fetch_release; then
+      online=1
+    elif [ ! -f "$MANIFEST" ] || [ ! -f "$RELEASE_CACHE/latest.sigstore.json" ]; then
+      fail "cannot retrieve signed CLI release metadata"
+    fi
+  fi
+  verify_manifest
+
+  wrapper_min=$(sed -n 's/^[[:space:]]*"wrapper_min_version"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\),\{0,1\}[[:space:]]*$/\1/p' "$MANIFEST")
+  [ -n "$wrapper_min" ] && [ "$wrapper_min" -le "$WRAPPER_PROTOCOL" ] || fail "this wrapper is obsolete; reinstall it from Setup"
+  digest=$(json_string oci_index_digest)
+  version=$(json_string cli_version)
+  image=$(json_string image)
+  identity=$(json_string signature_identity)
+  issuer=$(json_string signature_issuer)
+  expires=$(json_string expires_at)
+  [ "$image" = "$IMAGE" ] || fail "signed manifest names an unexpected image"
+  [ "$issuer" = "$SIGNING_ISSUER" ] || fail "signed manifest names an unexpected issuer"
+  [ "$identity" = "https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/$version" ] || fail "signed manifest identity does not match its version"
+  printf '%s\n' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$' || fail "signed manifest digest is invalid"
+  printf '%s\n' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "signed manifest version is invalid"
+  case "$(uname -m)" in
+    x86_64|amd64) platform=linux/amd64 ;;
+    arm64|aarch64) platform=linux/arm64 ;;
+    *) fail "this host architecture is not supported" ;;
+  esac
+  [ "$(grep -Fxc "    \"$platform\"" "$MANIFEST")" = 1 ] || fail "this host platform is not in the signed release"
+  now_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  [ "$now_utc" < "$expires" ] || fail "the last signed CLI release manifest has expired"
+
+  if [ "$online" = 1 ] || [ "$FORCE_UPDATE" = 1 ]; then
+    resolved=$(docker buildx imagetools inspect "$IMAGE:$CHANNEL_TAG" --format '{{.Manifest.Digest}}')
+    [ "$resolved" = "$digest" ] || fail "$CHANNEL_TAG does not match the signed release manifest"
+    docker pull "$IMAGE@$digest" >/dev/null
+    docker run --rm --network bridge "$VERIFIER_IMAGE" verify "$IMAGE@$digest" \
+      --certificate-identity-regexp "$SIGNING_IDENTITY_REGEX" \
+      --certificate-oidc-issuer "$SIGNING_ISSUER" >/dev/null
+  elif ! docker image inspect "$IMAGE@$digest" >/dev/null 2>&1; then
+    fail "verified CLI image is not cached and the release service is unavailable"
+  fi
+  CLI_IMAGE=$IMAGE@$digest
+  export ASSURANCE_SCAN_CLI_VERSION=$version
+  export ASSURANCE_SCAN_CLI_IMAGE_DIGEST=$CLI_IMAGE
+  image_id=$(docker image inspect "$CLI_IMAGE" --format '{{.Id}}')
+  export ASSURANCE_SCAN_CLI_IMAGE_ID=$image_id
+}
+
+local_docker_socket() {
+  if [ -n "${DOCKER_HOST:-}" ]; then
+    endpoint=$DOCKER_HOST
+  else
+    endpoint=$(docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null) || fail "cannot inspect the active Docker context"
+  fi
+  case "$endpoint" in unix:///*) ;; *) fail "the active Docker context must use a local Unix socket, not $endpoint" ;; esac
+  socket=${endpoint#unix://}
+  case "$socket" in /*) ;; *) fail "Docker socket path is not absolute" ;; esac
+  case "$socket" in *'/../'*|*'/./'*|*'//'*|*'?'*|*'#'*) fail "Docker socket path is not canonical" ;; esac
+  [ ! -L "$socket" ] || fail "the active Docker socket itself must not be a symlink"
+  [ -S "$socket" ] || fail "active Docker socket is unavailable: $socket"
+  printf '%s' "$socket"
+}
+
+uuid_v4() {
+  request=$(uuidgen | tr '[:upper:]' '[:lower:]')
+  printf '%s\n' "$request" | grep -Eq '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' || fail "cannot create a UUIDv4 request ID"
+  printf '%s' "$request"
+}
+
+run_cli() {
+  config_mode=ro
+  case "${1:-} ${2:-}" in 'auth login'|'auth logout') config_mode=rw ;; esac
+  if [ "${1:-}" = scan ]; then
+    socket=$ACTIVE_SOCKET
+    request_id=$(uuid_v4)
+    run_cache=$CACHE_ROOT/runs/$request_id
+    mkdir -m 700 "$run_cache"
+    no_symlink_components "$run_cache"
+    group_args=
+    if [ "$(uname -s)" = Darwin ]; then
+      socket_gid=$(stat -f '%g' "$socket")
+    else
+      socket_gid=$(stat -c '%g' "$socket")
+    fi
+    case "$socket_gid" in ''|*[!0-9]*) fail "Docker socket group is invalid" ;; esac
+    group_args="--group-add $socket_gid"
+    # shellcheck disable=SC2086
+    if docker run --rm -it --pull=never --init \
+        --user "$HOST_UID:$HOST_GID" $group_args \
+        --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+        --cap-drop ALL --security-opt no-new-privileges \
+        -v "$socket:/var/run/docker.sock" \
+        -v "$PROJECT_ROOT:/workspace:ro" \
+        -v "$CONFIG_ROOT:/config:ro" \
+        -v "$CACHE_ROOT:/cache:rw" \
+        -v "$run_cache:/cache/run:rw" \
+        -e ASSURANCE_SCAN_CACHE_DIR=/cache \
+        -e ASSURANCE_SCAN_RUN_CACHE_DIR=/cache/run \
+        -e ASSURANCE_SCAN_HOST_RUN_CACHE="$run_cache" \
+        -e ASSURANCE_SCAN_REQUEST_ID="$request_id" \
+        -e ASSURANCE_SCAN_HOST_UID="$HOST_UID" \
+        -e ASSURANCE_SCAN_HOST_GID="$HOST_GID" \
+        -e ASSURANCE_SCAN_CLI_VERSION \
+        -e ASSURANCE_SCAN_CLI_IMAGE_DIGEST \
+        -e ASSURANCE_SCAN_CLI_IMAGE_ID \
+        -w /workspace "$CLI_IMAGE" "$@"; then
+      status=0
+    else
+      status=$?
+    fi
+    rmdir "$run_cache" 2>/dev/null || true
+    return "$status"
+  fi
+  docker run --rm -it --pull=never \
+    --user "$HOST_UID:$HOST_GID" \
+    -v "$CONFIG_ROOT:/config:$config_mode" \
+    -v "$CACHE_ROOT:/cache:rw" \
+    -e ASSURANCE_SCAN_CACHE_DIR=/cache \
+    -e ASSURANCE_SCAN_HOST_UID="$HOST_UID" \
+    -e ASSURANCE_SCAN_HOST_GID="$HOST_GID" \
+    -e ASSURANCE_SCAN_CLI_VERSION \
+    -e ASSURANCE_SCAN_CLI_IMAGE_DIGEST \
+    -e ASSURANCE_SCAN_CLI_IMAGE_ID \
+    "$CLI_IMAGE" "$@"
+}
+
+need curl
+need docker
+need uuidgen
+[ "$#" -gt 0 ] || fail "usage: assurance-scan <auth|scan|upload|cache|update|doctor>"
+HOST_UID=$(id -u)
+HOST_GID=$(id -g)
+CONFIG_ROOT=${XDG_CONFIG_HOME:-$HOME/.config}/assurance-scan
+CACHE_ROOT=${XDG_CACHE_HOME:-$HOME/.cache}/assurance-scan
+RELEASE_CACHE=$CACHE_ROOT/release
+MANIFEST=$RELEASE_CACHE/latest.json
+RELEASE_ORIGIN=${ASSURANCE_SCAN_RELEASE_ORIGIN:-$DEFAULT_RELEASE_ORIGIN}
+PROJECT_ROOT=$(pwd -P)
+FORCE_UPDATE=0
+mkdir -p "$CONFIG_ROOT" "$CACHE_ROOT/runs" "$RELEASE_CACHE"
+chmod 700 "$CONFIG_ROOT" "$CACHE_ROOT" "$CACHE_ROOT/runs" "$RELEASE_CACHE"
+no_symlink_components "$CONFIG_ROOT"
+no_symlink_components "$CACHE_ROOT"
+ACTIVE_SOCKET=$(local_docker_socket)
+
+case "$1" in
+  update) FORCE_UPDATE=1 ;;
+  doctor)
+    load_release
+    socket=$ACTIVE_SOCKET
+    case "$socket" in /run/user/*/docker.sock) mode=rootless ;; *) mode=local ;; esac
+    printf 'wrapper protocol: %s\nCLI image: %s\nDocker endpoint: unix://%s\nDocker mode: %s\n' "$WRAPPER_PROTOCOL" "$CLI_IMAGE" "$socket" "$mode"
+    exit 0
+    ;;
+esac
+
+load_release
+if [ "$1" = update ]; then
+  printf 'verified and cached %s\n' "$CLI_IMAGE"
+  exit 0
+fi
+run_cli "$@"

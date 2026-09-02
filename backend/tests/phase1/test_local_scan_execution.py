@@ -145,6 +145,32 @@ def test_scan_snapshots_writes_outbox_then_uploads(tmp_path: Path) -> None:
     assert outbox.uploaded == [result.request_id]
 
 
+def test_wrapper_supplied_request_id_is_used_end_to_end(tmp_path: Path) -> None:
+    request_id = "018f47a2-4c72-4c9e-9f60-780cb70b8fe4"
+    dependencies, objects = _dependencies(tmp_path)
+
+    result = execute_local_scan(
+        LocalScanExecutionCommand(tmp_path, request_id=request_id), dependencies
+    )
+
+    snapshots, outbox = objects[2], objects[4]
+    assert result.request_id == request_id
+    assert snapshots.created == 1
+    assert outbox.created_metadata["request_id"] == request_id
+
+
+def test_rejects_noncanonical_wrapper_request_id_before_work(tmp_path: Path) -> None:
+    dependencies, objects = _dependencies(tmp_path)
+
+    with pytest.raises(ValueError, match="canonical UUIDv4"):
+        execute_local_scan(
+            LocalScanExecutionCommand(tmp_path, request_id="not-a-request"),
+            dependencies,
+        )
+
+    assert objects[1].calls == objects[2].created == objects[3].calls == 0
+
+
 def test_no_upload_retains_outbox_without_requiring_token(tmp_path: Path) -> None:
     dependencies, objects = _dependencies(tmp_path, token=None)
     result = execute_local_scan(

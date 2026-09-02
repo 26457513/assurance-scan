@@ -145,3 +145,55 @@ def test_docker_adapter_normalizes_mocked_scanner_outputs_without_raw_retention(
     assert not (source / ".assurance-scan").exists()
     assert not list(result.findings_path.parent.glob("*.stdout"))
     assert not list(result.findings_path.parent.glob("*.stderr"))
+
+
+def test_docker_adapter_mounts_host_source_but_reads_container_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.modules.atomic.local_cli.scanner_runner._adapters as adapter_module
+
+    source = tmp_path / "container" / "source"
+    source.mkdir(parents=True)
+    host_source = Path("/host/cache/assurance-scan/runs") / REQUEST_ID / "source"
+    seen_argv: list[list[str]] = []
+
+    monkeypatch.setattr(
+        adapter_module.DockerLocalScannerRunner,
+        "_docker_preflight",
+        staticmethod(lambda: None),
+    )
+    monkeypatch.setattr(
+        adapter_module.DockerLocalScannerRunner,
+        "_ensure_image",
+        staticmethod(lambda _image: None),
+    )
+
+    def fake_capture(
+        argv: list[str], stdout_path: Path, stderr_path: Path, **_kwargs: object
+    ) -> int:
+        seen_argv.append(argv)
+        scanner_label = next(
+            value for value in argv if value.startswith("dev.assurance-scan.scanner=")
+        )
+        kind = scanner_label.partition("=")[2]
+        payload: object = {"bomFormat": "CycloneDX", "components": []} if kind == "syft" else []
+        if kind in {"semgrep", "trivy-fs", "trivy-config", "osv-scanner"}:
+            payload = {"runs": []} if kind == "semgrep" else {"Results": []}
+        stdout_path.write_text(json.dumps(payload))
+        stderr_path.write_bytes(b"")
+        return 0
+
+    monkeypatch.setattr(adapter_module, "_capture_bounded", fake_capture)
+
+    DockerLocalScannerRunner(
+        reviewed_policy_path=SCANNER_MANIFEST_PATH.parent / "semgrep-reviewed.yml"
+    ).scan(source, REQUEST_ID, scanner_snapshot_root=host_source)
+
+    assert seen_argv
+    assert all(
+        any(f"src={host_source}," in item for item in argv) for argv in seen_argv
+    )
+    assert all(
+        not any(f"src={source}," in item for item in argv) for argv in seen_argv
+    )

@@ -20,6 +20,7 @@ from app.modules.atomic.local_cli.source_snapshot import (
     GitSnapshotIndex,
     create_source_snapshot,
 )
+from app.modules.atomic.local_cli.runtime_trust import sibling_snapshot_path
 from app.modules.atomic.local_cli.upload_client import UploadBundle, UploadResult
 from app.modules.atomic.scanning.scanner_catalog import SEMGREP_POLICY_PATH
 from app.modules.workflows.local_scan_execution import (
@@ -101,15 +102,27 @@ class GitProvenanceAdapter:
 
 
 class SourceSnapshotAdapter:
-    def __init__(self, cache_root: Path, *, host_uid: int, host_gid: int) -> None:
+    def __init__(
+        self,
+        cache_root: Path,
+        *,
+        host_uid: int,
+        host_gid: int,
+        host_run_cache: str | None = None,
+    ) -> None:
         self.cache_root = cache_root
         self.host_uid = host_uid
         self.host_gid = host_gid
         self.git = SubprocessGitCommand()
         self.index = GitSnapshotIndex(self.git)
+        self.host_run_cache = host_run_cache
 
     def create(self, project_path: Path, request_id: str) -> SourceSnapshot:
-        root = self.cache_root / "runs" / request_id / "source"
+        root = (
+            self.cache_root / "source"
+            if self.host_run_cache is not None
+            else self.cache_root / "runs" / request_id / "source"
+        )
         snapshot = create_source_snapshot(
             project_path,
             root,
@@ -123,6 +136,11 @@ class SourceSnapshotAdapter:
             source_content_hash=snapshot.source_content_hash,
             source_manifest_version=snapshot.source_manifest_version,
             opaque_handle=str(snapshot.root),
+            scanner_handle=(
+                str(sibling_snapshot_path(self.host_run_cache, request_id))
+                if self.host_run_cache is not None
+                else None
+            ),
             lfs_state=snapshot.lfs_state,
             submodules=(),
         )
@@ -136,7 +154,13 @@ class LocalScannerAdapter:
         self.runner = DockerLocalScannerRunner(reviewed_policy_path=reviewed_policy_path)
 
     def scan(self, snapshot: SourceSnapshot, request_id: str) -> ScanOutput:
-        output = self.runner.scan(Path(snapshot.opaque_handle), request_id)
+        output = self.runner.scan(
+            Path(snapshot.opaque_handle),
+            request_id,
+            scanner_snapshot_root=(
+                None if snapshot.scanner_handle is None else Path(snapshot.scanner_handle)
+            ),
+        )
         return ScanOutput(
             findings_document=output.findings_document,
             findings_path=output.findings_path,
@@ -224,9 +248,10 @@ def build_local_scan_dependencies(
         ),
         git=GitProvenanceAdapter(project_override=project_override),
         snapshots=SourceSnapshotAdapter(
-            cache_root,
+            Path(environ.get("ASSURANCE_SCAN_RUN_CACHE_DIR", str(cache_root))),
             host_uid=host_uid,
             host_gid=host_gid,
+            host_run_cache=environ.get("ASSURANCE_SCAN_HOST_RUN_CACHE"),
         ),
         scanners=LocalScannerAdapter(SEMGREP_POLICY_PATH),
         outbox=LocalOutboxAdapter(store),

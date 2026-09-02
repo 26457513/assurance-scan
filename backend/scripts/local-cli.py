@@ -176,6 +176,7 @@ def _execute(args: argparse.Namespace) -> int:
             no_upload=args.no_upload,
             branch_override=args.branch,
             project_override=project_override,
+            request_id=os.environ.get("ASSURANCE_SCAN_REQUEST_ID"),
         )
     result = execute_local_scan(command, dependencies)
     if result.outcome is LocalScanExecutionOutcome.UPLOADED:

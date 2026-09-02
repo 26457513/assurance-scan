@@ -38,6 +38,7 @@ class SourceSnapshot:
     source_content_hash: str
     source_manifest_version: str
     opaque_handle: str = field(repr=False)
+    scanner_handle: str | None = field(default=None, repr=False)
     lfs_state: str = "none"
     submodules: tuple[Mapping[str, Any], ...] = ()
 
@@ -60,6 +61,7 @@ class LocalScanExecutionCommand:
     retry_request_id: str | None = None
     branch_override: str | None = None
     project_override: str | None = None
+    request_id: str | None = None
 
 
 class LocalScanExecutionOutcome(StrEnum):

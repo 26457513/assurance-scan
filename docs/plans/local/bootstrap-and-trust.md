@@ -9,6 +9,13 @@ saves it as `~/.local/bin/assurance-scan`, verifies the displayed SHA-256, and
 makes it executable. The wrapper contains no token, account, repository or
 machine-specific value.
 
+The reviewed wrapper is served at `/api/v2/cli/releases/wrapper`; its matching
+digest is served at `/api/v2/cli/releases/wrapper.sha256` and displayed
+separately in Setup. Production stores the promoted manifest and bundle at
+`/data/cli-release/latest.json` and
+`/data/cli-release/latest.sigstore.json`. A missing, malformed or expired file
+fails closed with `503`; the application never synthesizes release trust data.
+
 The wrapper owns Docker invocation and has a versioned protocol independent of
 the CLI image. `GET /api/v2/cli/releases/latest` returns a signed manifest with
 wrapper minimum version, CLI version, OCI index digest, supported platforms and
@@ -69,3 +76,9 @@ files are never below the shared run path.
 Login mounts config read-write; ordinary scan/status commands mount it
 read-only. Cleanup selects the exact request UUID and verified sibling IDs,
 never an arbitrary label supplied by repository content.
+
+Persistent outbox state is mounted separately at `/cache`. The per-request
+host directory is additionally mounted at `/cache/run`, and only its `source`
+child is re-mounted into scanner siblings. This separation preserves retries
+without placing credentials or other request bundles inside a scanner-visible
+tree.

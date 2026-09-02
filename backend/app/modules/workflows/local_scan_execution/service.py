@@ -36,7 +36,8 @@ def execute_local_scan(
         bundle = dependencies.outbox.load(command.retry_request_id)
         return _upload_or_retain(bundle.request_id, bundle, config, dependencies)
 
-    request_id = str(uuid.uuid4())
+    request_id = command.request_id or str(uuid.uuid4())
+    _validate_request_id(request_id)
     provenance = dependencies.git.inspect(command.project_path)
     snapshot = dependencies.snapshots.create(command.project_path, request_id)
     try:
@@ -72,6 +73,17 @@ def _validate_command(command: LocalScanExecutionCommand) -> None:
         or "\r" in branch
     ):
         raise ValueError("branch override is invalid")
+    if command.request_id is not None:
+        _validate_request_id(command.request_id)
+
+
+def _validate_request_id(request_id: str) -> None:
+    try:
+        parsed = uuid.UUID(request_id)
+    except ValueError as exc:
+        raise ValueError("request ID must be a canonical UUIDv4") from exc
+    if parsed.version != 4 or str(parsed) != request_id:
+        raise ValueError("request ID must be a canonical UUIDv4")
 
 
 def _upload_or_retain(

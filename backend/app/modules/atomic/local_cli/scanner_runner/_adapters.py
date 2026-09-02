@@ -33,7 +33,13 @@ class DockerLocalScannerRunner:
         self.reviewed_policy_path = reviewed_policy_path
         self.limits = limits
 
-    def scan(self, snapshot_root: Path, request_id: str) -> LocalScannerRun:
+    def scan(
+        self,
+        snapshot_root: Path,
+        request_id: str,
+        *,
+        scanner_snapshot_root: Path | None = None,
+    ) -> LocalScannerRun:
         """Return redacted upload artifacts without retaining scanner raw output."""
         self._docker_preflight()
         scanners = ci_scanner_set()
@@ -59,7 +65,7 @@ class DockerLocalScannerRunner:
                 stderr_path = results_root / f"{scanner.kind}.stderr"
                 name = scanner_container_name(request_id, scanner.kind)
                 argv = build_local_scanner_argv(
-                    str(snapshot_root), scanner, request_id
+                    str(scanner_snapshot_root or snapshot_root), scanner, request_id
                 )
                 status = "failed"
                 error_code: str | None = None

@@ -306,8 +306,8 @@ docker compose up -d --no-deps --pull never --no-build --force-recreate server
 
 Create one short-lived upload token for a dedicated canary account/machine and
 one registered test repository. The token is entered only at the CLI hidden
-prompt. Run the copyable Setup commands with the image reference changed from
-`stable` to the recorded candidate digest.
+prompt. Qualify with the candidate's signed manifest and recorded immutable
+digest; do not replace the wrapper-owned image reference by hand.
 
 Capture both automated and manual evidence:
 
@@ -349,13 +349,18 @@ qualification_complete=true
 
 The protected job refuses stale stable state, a tag/digest mismatch, a canary
 mismatch, failed/wrong automated evidence, invalid evidence URLs, missing
-acknowledgement, or missing signature/attestations. It moves `stable` with
-`imagetools create`; it does not rebuild.
+acknowledgement, missing signed release metadata, or missing
+signature/attestations. It moves `latest` and `stable` together with
+`imagetools create`; it does not rebuild. Download the verified
+`cli-release-<version>` artifact from the qualified tag run, copy its two files
+into the production deployment's persistent `/data/cli-release` directory, and
+restart the server before directing users to the release.
 
 After completion, independently require:
 
 ```bash
 test "$(docker buildx imagetools inspect ghcr.io/26457513/assurance-scan-cli:stable --format '{{.Manifest.Digest}}')" = '<candidate digest>'
+test "$(docker buildx imagetools inspect ghcr.io/26457513/assurance-scan-cli:latest --format '{{.Manifest.Digest}}')" = '<candidate digest>'
 test "$(docker buildx imagetools inspect ghcr.io/26457513/assurance-scan-cli:canary --format '{{.Manifest.Digest}}')" = '<candidate digest>'
 ```
 
