@@ -36,6 +36,7 @@ META = {
     "run_url": "https://github.com/26457513/doc2context/actions/runs/32127508239",
     "started_at": datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc),
     "completed_at": datetime(2026, 8, 18, 12, 7, tzinfo=timezone.utc),
+    "run_attempt": 1,
 }
 
 
@@ -96,10 +97,10 @@ async def test_ingest_creates_run_findings_scanner_runs_and_blobs(session) -> No
         SqlAlchemyIngestPersistence(session), envelope, bundle
     )
     assert status == "ingested"
-    assert github_run_id(32127508239) == "gh-32127508239"
+    assert github_run_id(987654, 32127508239, 1) == "gh-987654-32127508239-1"
 
     run = (await session.execute(sa_select(Run))).scalars().one()
-    assert run.run_id == "gh-32127508239"
+    assert run.run_id == "gh-987654-32127508239-1"
     assert run.project_id == 123
     assert run.origin == "github-actions"
     assert run.repository_full_name_at_scan == "26457513/doc2context"
@@ -198,8 +199,8 @@ async def test_github_ingest_persists_finding_scoped_source_context(session) -> 
     assert len(contexts) == 2
     assert {context.provider for context in contexts} == {"snapshot"}
     repository = SourceContextRepository(session)
-    assert await repository.get_for_finding("gh-32127508239", findings[0].id) is not None
-    assert await repository.get_for_finding("gh-32127508239", findings[1].id) is not None
+    assert await repository.get_for_finding("gh-987654-32127508239-1", findings[0].id) is not None
+    assert await repository.get_for_finding("gh-987654-32127508239-1", findings[1].id) is not None
 
 
 async def test_ingest_failed_run_without_payload(session) -> None:

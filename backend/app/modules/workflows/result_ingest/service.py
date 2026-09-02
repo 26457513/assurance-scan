@@ -32,12 +32,16 @@ from .models import IngestPersistencePort
 log = logging.getLogger(__name__)
 
 
-def github_run_id(github_run_id: int) -> str:
+def github_run_id(
+    github_repository_id: int,
+    github_run_id: int,
+    run_attempt: int,
+) -> str:
     """Return the stable server run ID for an authoritative GitHub run ID."""
 
-    if github_run_id <= 0:
-        raise ValueError("GitHub run ID must be a positive integer")
-    return f"gh-{github_run_id}"
+    if github_repository_id <= 0 or github_run_id <= 0 or run_attempt <= 0:
+        raise ValueError("GitHub repository, run and attempt IDs must be positive")
+    return f"gh-{github_repository_id}-{github_run_id}-{run_attempt}"
 
 
 def build_github_inputs(
@@ -114,6 +118,22 @@ def build_local_result_bundle(
     )
 
 
+def build_v2_result_bundle(
+    findings_document: Mapping[str, Any],
+    source_contexts_document: Mapping[str, Any],
+    artifacts: Mapping[str, bytes],
+) -> ResultBundle:
+    """Adapt one validated v2 envelope into the existing source-neutral bundle."""
+    scanners = tuple(_local_scanner_result(item) for item in findings_document["scanners"])
+    return ResultBundle(
+        schema_version=int(findings_document["schema_version"]),
+        scanners=scanners,
+        findings=tuple(findings_document["findings"]),
+        source_contexts=tuple(source_contexts_document["contexts"]),
+        artifacts=dict(artifacts),
+    )
+
+
 async def ingest_result_bundle(
     persistence: IngestPersistencePort,
     envelope: IngestEnvelope,
@@ -149,7 +169,11 @@ def _run_record(envelope: IngestEnvelope, bundle: ResultBundle) -> RunRecord:
     if isinstance(envelope, GitHubIngestEnvelope):
         has_scanner_results = bool(bundle.scanners)
         return RunRecord(
-            run_id=github_run_id(envelope.github_run_id),
+            run_id=github_run_id(
+                envelope.project.github_repository_id or 0,
+                envelope.github_run_id,
+                envelope.run_attempt or 0,
+            ),
             project_id=envelope.project.project_id,
             origin="github-actions",
             options_json=json.dumps(
@@ -176,6 +200,9 @@ def _run_record(envelope: IngestEnvelope, bundle: ResultBundle) -> RunRecord:
             github_event=envelope.event,
             github_actor=envelope.actor,
             github_head_sha=envelope.head_sha,
+            payload_hash=envelope.payload_hash,
+            source_content_hash=envelope.source_content_hash,
+            source_manifest_version=envelope.source_manifest_version,
         )
     return RunRecord(
         run_id=envelope.run_id,
@@ -208,7 +235,7 @@ def _run_record(envelope: IngestEnvelope, bundle: ResultBundle) -> RunRecord:
 
 
 def _validate_result_bundle(envelope: IngestEnvelope, bundle: ResultBundle) -> None:
-    if bundle.schema_version != 1:
+    if bundle.schema_version not in {1, 2}:
         raise ValueError("unsupported result-bundle schema version")
     kinds = [result.kind for result in bundle.scanners]
     if len(kinds) != len(set(kinds)):

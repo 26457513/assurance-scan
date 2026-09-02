@@ -27,6 +27,7 @@ SUPPORTED_SCHEMA_REVISIONS = frozenset(
         "0030_github_webhook_work_queue",
         "0031_github_app_entitlement_freshness",
         "0032_github_oidc_replays",
+        "0033_github_run_attempt_identity",
     )
 )
 PHASES = (

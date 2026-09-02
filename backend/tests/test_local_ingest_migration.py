@@ -11,7 +11,7 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 OLD_HEAD = "0021_project_identity_provenance"
-NEW_HEAD = "0032_github_oidc_replays"
+NEW_HEAD = "0033_github_run_attempt_identity"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -102,6 +102,26 @@ def test_github_oidc_replay_schema_has_digest_and_expiry_guards(tmp_path: Path) 
     assert columns["github_repository_id"][3] == 1
     assert columns["expires_at"][3] == 1
     assert "ix_github_oidc_replays_expires" in indexes
+
+
+def test_github_run_identity_is_repository_and_attempt_scoped(tmp_path: Path) -> None:
+    database = tmp_path / "github-run-identity.sqlite"
+    _alembic(database, "upgrade", "head")
+    with sqlite3.connect(database) as connection:
+        indexes = {
+            str(row[1]): row
+            for row in connection.execute("PRAGMA index_list(runs)")
+        }
+        columns = [
+            str(row[2])
+            for row in connection.execute(
+                "PRAGMA index_info(uq_runs_project_github_run_attempt)"
+            )
+        ]
+
+    assert "uq_runs_github_run_id" not in indexes
+    assert indexes["uq_runs_project_github_run_attempt"][2] == 1
+    assert columns == ["project_id", "github_run_id", "github_run_attempt"]
 
 
 def test_local_display_identity_is_backfilled_in_stable_order(tmp_path: Path) -> None:

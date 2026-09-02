@@ -224,7 +224,13 @@ class Run(Base):
         Index("ix_runs_project_started", "project_id", "started_at", "run_id"),
         Index("ix_runs_project_origin_started", "project_id", "origin", "started_at", "run_id"),
         Index("ix_runs_project_commit", "project_id", "commit_sha"),
-        Index("uq_runs_github_run_id", "github_run_id", unique=True),
+        Index(
+            "uq_runs_project_github_run_attempt",
+            "project_id",
+            "github_run_id",
+            "github_run_attempt",
+            unique=True,
+        ),
         Index(
             "uq_runs_project_local_number",
             "project_id",

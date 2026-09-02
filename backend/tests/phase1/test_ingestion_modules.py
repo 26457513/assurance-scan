@@ -21,13 +21,14 @@ from app.modules.shared.contracts.ingest import (
 from app.modules.shared.contracts.source_context import SourceContextPayload
 from app.modules.workflows.result_ingest import (
     build_local_result_bundle,
+    build_v2_result_bundle,
     github_run_id,
     ingest_result_bundle,
 )
 
 
 def test_source_neutral_workflow_and_blob_contract_are_public() -> None:
-    assert github_run_id(42) == "gh-42"
+    assert github_run_id(99, 42, 2) == "gh-99-42-2"
     assert BLOB_ARTIFACTS == (
         ("sarif", "sarif", "assurance-scan/sarif"),
         ("sbom", "cyclonedx-json", "assurance-scan/sbom"),
@@ -54,6 +55,29 @@ def test_local_bundle_contains_scanner_output_only() -> None:
     assert bundle.scanners[0].image_digest == "sha256:" + "a" * 64
     assert not hasattr(bundle, "origin")
     assert not hasattr(bundle, "metadata")
+
+
+def test_v2_bundle_adapts_contexts_and_canonical_artifacts_without_origin() -> None:
+    findings = {
+        "schema_version": 2,
+        "scanners": [{
+            "kind": "semgrep",
+            "status": "completed",
+            "duration_ms": 12,
+            "image": "semgrep/semgrep@sha256:" + "a" * 64,
+            "tool_version": "1.0",
+            "database_version": None,
+            "error_code": None,
+        }],
+        "findings": [],
+    }
+    contexts = {"schema_version": 2, "contexts": []}
+    bundle = build_v2_result_bundle(findings, contexts, {"findings": b"{}"})
+
+    assert bundle.schema_version == 2
+    assert bundle.source_contexts == ()
+    assert bundle.artifacts == {"findings": b"{}"}
+    assert not hasattr(bundle, "origin")
 
 
 def test_finding_normalizer_preserves_defaults_and_fields() -> None:

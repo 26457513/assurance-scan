@@ -47,8 +47,10 @@ from app.modules.shared.contracts.ingest_v2 import (
 )
 from app.modules.workflows.result_ingest_v2_contract import (
     EnvelopeValidationError,
+    build_validated_envelope_v2,
     validate_envelope_relationships,
 )
+from app.infrastructure.ingest_v2_contract import CheckedInEnvelopeSchemaValidator
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -159,6 +161,84 @@ def test_positive_parts_satisfy_cross_part_contract() -> None:
         "sbom": None,
     }
     validate_envelope_relationships(parts)
+
+
+def test_raw_envelope_is_strictly_validated_and_canonicalized() -> None:
+    raw_parts = {
+        "metadata": (FIXTURES / "github-metadata.json").read_bytes(),
+        "findings": (FIXTURES / "findings.json").read_bytes(),
+        "source_contexts": (FIXTURES / "source-contexts.json").read_bytes(),
+        "sarif": b'{"version":"2.1.0","runs":[]}',
+    }
+
+    envelope = build_validated_envelope_v2(
+        raw_parts,
+        schema_validator=CheckedInEnvelopeSchemaValidator(),
+    )
+
+    assert envelope.metadata["schema_version"] == 2
+    assert envelope.sbom is None
+    assert envelope.payload_hash == envelope_payload_hash(
+        {
+            "metadata": envelope.metadata,
+            "findings": envelope.findings,
+            "source_contexts": envelope.source_contexts,
+            "sarif": envelope.sarif,
+            "sbom": envelope.sbom,
+        }
+    )
+    assert envelope.canonical_parts["metadata"] == canonical_json_bytes(envelope.metadata)
+
+
+@pytest.mark.parametrize(
+    ("part", "replacement", "code"),
+    (
+        ("metadata", b'{"schema_version":2,"schema_version":2}', "duplicate_json_key"),
+        ("findings", b'{"schema_version":2,"scanners":[],"findings":[],"ratio":1.5}', "invalid_json"),
+        ("source_contexts", b'[]', "schema_validation_failed"),
+    ),
+)
+def test_raw_envelope_rejects_ambiguous_or_invalid_json(
+    part: str,
+    replacement: bytes,
+    code: str,
+) -> None:
+    raw_parts = {
+        "metadata": (FIXTURES / "github-metadata.json").read_bytes(),
+        "findings": (FIXTURES / "findings.json").read_bytes(),
+        "source_contexts": (FIXTURES / "source-contexts.json").read_bytes(),
+    }
+    raw_parts[part] = replacement
+    with pytest.raises(EnvelopeValidationError) as raised:
+        build_validated_envelope_v2(
+            raw_parts,
+            schema_validator=CheckedInEnvelopeSchemaValidator(),
+        )
+    assert raised.value.code == code
+
+
+def test_raw_envelope_rejects_unknown_and_oversized_parts() -> None:
+    raw_parts = {
+        "metadata": (FIXTURES / "github-metadata.json").read_bytes(),
+        "findings": (FIXTURES / "findings.json").read_bytes(),
+        "source_contexts": (FIXTURES / "source-contexts.json").read_bytes(),
+        "unknown": b"{}",
+    }
+    with pytest.raises(EnvelopeValidationError) as unknown:
+        build_validated_envelope_v2(
+            raw_parts,
+            schema_validator=CheckedInEnvelopeSchemaValidator(),
+        )
+    assert unknown.value.code == "unexpected_part"
+
+    raw_parts.pop("unknown")
+    raw_parts["metadata"] = b" " * (ENVELOPE_LIMITS_V2.metadata_bytes + 1)
+    with pytest.raises(EnvelopeValidationError) as oversized:
+        build_validated_envelope_v2(
+            raw_parts,
+            schema_validator=CheckedInEnvelopeSchemaValidator(),
+        )
+    assert oversized.value.code == "wire_limit_exceeded"
 
 
 @pytest.mark.parametrize(

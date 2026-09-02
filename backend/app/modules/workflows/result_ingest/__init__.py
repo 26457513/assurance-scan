@@ -13,6 +13,7 @@ from .models import IngestPersistencePort
 from .service import (
     build_github_inputs,
     build_local_result_bundle,
+    build_v2_result_bundle,
     github_run_id,
     ingest_result_bundle,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "ScannerResult",
     "build_github_inputs",
     "build_local_result_bundle",
+    "build_v2_result_bundle",
     "github_run_id",
     "ingest_result_bundle",
 ]

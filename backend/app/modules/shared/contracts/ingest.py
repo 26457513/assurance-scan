@@ -86,6 +86,9 @@ class GitHubIngestEnvelope:
     event: str | None = None
     actor: str | None = None
     display_title: str | None = None
+    payload_hash: str | None = None
+    source_content_hash: str | None = None
+    source_manifest_version: str | None = None
 
 
 @dataclass(frozen=True)
