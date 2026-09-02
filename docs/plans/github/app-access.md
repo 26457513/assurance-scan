@@ -11,8 +11,9 @@ immediate signed-ID suspension/deletion while the feature remains disabled.
 The six-hour missed-event repair loop, delivery retention and installation-
 scoped query-time entitlement refresh are also complete in candidate code.
 Repository invalidation clears the affected users' freshness markers and an
-expired projection plus a failed GitHub refresh fails closed. ETag, rate-limit
-and persisted-cursor hardening remain a later WS7c slice.
+expired projection plus a failed GitHub refresh fails closed. Explicit GitHub
+rate-limit deferral is complete; ETag and persisted-cursor hardening remain a
+later WS7c slice.
 
 ## Exact app configuration
 

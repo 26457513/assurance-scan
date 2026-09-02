@@ -5,7 +5,10 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import json
+import urllib.error
 import urllib.parse
+import urllib.request
+from email.message import Message
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -26,6 +29,8 @@ from app.infrastructure.github_app_api import (
     GithubAppApiError,
     GithubAppInstallationState,
     GithubAppUserEntitlementClient,
+    GithubRateLimitError,
+    UrllibGithubHttp,
     create_github_app_jwt,
     fetch_authoritative_installation,
     fetch_authoritative_installation_for_user,
@@ -245,6 +250,34 @@ def test_private_key_loader_rejects_symlinks(tmp_path) -> None:
     assert load_github_app_private_key(str(key_file)).startswith(b"-----BEGIN PRIVATE KEY-----")
     with pytest.raises(GithubAppApiError, match="invalid"):
         load_github_app_private_key(str(linked))
+
+
+def test_http_adapter_classifies_and_bounds_explicit_rate_limit(monkeypatch) -> None:
+    headers = Message()
+    headers["Retry-After"] = "120"
+    error = urllib.error.HTTPError(
+        f"{GITHUB_API_ROOT}/user/installations",
+        429,
+        "rate limited",
+        headers,
+        None,
+    )
+
+    class FailingOpener:
+        def open(self, _request, timeout):
+            assert timeout == 15
+            raise error
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_handlers: FailingOpener())
+    before = dt.datetime.now(dt.timezone.utc)
+    with pytest.raises(GithubRateLimitError) as raised:
+        UrllibGithubHttp().request(
+            "GET",
+            f"{GITHUB_API_ROOT}/user/installations",
+            headers={},
+        )
+    assert before + dt.timedelta(seconds=119) <= raised.value.retry_at
+    assert raised.value.retry_at <= before + dt.timedelta(seconds=121)
 
 
 @pytest.mark.asyncio

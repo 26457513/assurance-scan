@@ -18,6 +18,7 @@ from app.infrastructure.db.repositories.github_webhooks import (
 )
 from app.infrastructure.github_app_api import (
     GithubAppApiError,
+    GithubRateLimitError,
     fetch_authoritative_installation,
 )
 from app.modules.atomic.access.github_repository_reconciliation import (
@@ -87,6 +88,14 @@ async def process_github_webhook_work_once(
                 _LOGGER.warning("GitHub webhook work lease was superseded delivery_id=%s", lease.delivery_id)
         except GithubWebhookLeaseLost:
             _LOGGER.warning("GitHub webhook work projection was fenced delivery_id=%s", lease.delivery_id)
+        except GithubRateLimitError as exc:
+            await retry_github_webhook_work(
+                lease,
+                repository=deliveries,
+                now=current_time(),
+                error_code="github_rate_limited",
+                not_before=exc.retry_at,
+            )
         except GithubAppApiError:
             await retry_github_webhook_work(
                 lease,

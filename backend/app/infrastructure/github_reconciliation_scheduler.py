@@ -18,6 +18,7 @@ from app.infrastructure.db.repositories.github_reconciliation import (
 from app.infrastructure.github_app_api import (
     GithubAppApiError,
     GithubAppInstallationState,
+    GithubRateLimitError,
     fetch_authoritative_installation,
     fetch_github_app_installation_states,
 )
@@ -103,6 +104,9 @@ async def reconcile_due_github_installations(
                         repository=repository,
                     )
                     refreshed += 1
+        except GithubRateLimitError:
+            failed += 1
+            break
         except (GithubAppApiError, ReconciliationValidationError):
             failed += 1
     return GithubReconciliationRunResult(

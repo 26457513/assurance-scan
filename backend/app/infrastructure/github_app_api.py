@@ -6,6 +6,7 @@ import base64
 import datetime as dt
 import json
 import stat
+import urllib.error
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -37,6 +38,14 @@ _MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 
 class GithubAppApiError(RuntimeError):
     """GitHub could not provide a complete, valid authorization snapshot."""
+
+
+class GithubRateLimitError(GithubAppApiError):
+    """GitHub explicitly instructed the caller to defer further requests."""
+
+    def __init__(self, retry_at: dt.datetime) -> None:
+        super().__init__("GitHub API rate limit reached")
+        self.retry_at = _aware(retry_at)
 
 
 @dataclass(frozen=True)
@@ -88,6 +97,18 @@ class UrllibGithubHttp:
                 raw = response.read(_MAX_RESPONSE_BYTES + 1)
                 response_url = response.geturl()
                 response_headers = {key.casefold(): value for key, value in response.headers.items()}
+        except urllib.error.HTTPError as exc:
+            response_headers = {
+                key.casefold(): value for key, value in (exc.headers.items() if exc.headers else ())
+            }
+            retry_at = _rate_limit_retry_at(
+                status=exc.code,
+                headers=response_headers,
+                now=dt.datetime.now(dt.timezone.utc),
+            )
+            if retry_at is not None:
+                raise GithubRateLimitError(retry_at) from exc
+            raise GithubAppApiError("GitHub API request failed") from exc
         except OSError as exc:
             raise GithubAppApiError("GitHub API request failed") from exc
         if not response_url.startswith(f"{GITHUB_API_ROOT}/"):
@@ -468,6 +489,34 @@ def _headers(token: str) -> dict[str, str]:
     }
 
 
+def _rate_limit_retry_at(
+    *,
+    status: int,
+    headers: Mapping[str, str],
+    now: dt.datetime,
+) -> dt.datetime | None:
+    if status not in {403, 429}:
+        return None
+    retry_seconds: int | None = None
+    retry_after = headers.get("retry-after")
+    if retry_after is not None:
+        try:
+            retry_seconds = int(retry_after)
+        except ValueError:
+            retry_seconds = None
+    if retry_seconds is None and headers.get("x-ratelimit-remaining") == "0":
+        try:
+            reset_at = int(headers.get("x-ratelimit-reset", ""))
+        except ValueError:
+            reset_at = 0
+        if reset_at > 0:
+            retry_seconds = int(reset_at - now.timestamp()) + 1
+    if retry_seconds is None:
+        return None
+    bounded_seconds = min(60 * 60, max(1, retry_seconds))
+    return now + dt.timedelta(seconds=bounded_seconds)
+
+
 def _encoded_json(value: Mapping[str, object]) -> bytes:
     return _base64url(json.dumps(value, sort_keys=True, separators=(",", ":")).encode())
 
@@ -512,6 +561,7 @@ __all__ = [
     "GithubAppInstallationState",
     "GithubAppApiError",
     "GithubAppUserEntitlementClient",
+    "GithubRateLimitError",
     "GithubHttpPort",
     "UrllibGithubHttp",
     "create_github_app_jwt",

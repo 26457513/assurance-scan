@@ -147,6 +147,7 @@ async def retry_github_webhook_work(
     repository: GithubWebhookDeliveryRepositoryPort,
     now: datetime,
     error_code: str,
+    not_before: datetime | None = None,
 ) -> bool:
     """Release failed work with bounded exponential backoff or terminal failure."""
     aware_now = _aware(now)
@@ -157,9 +158,16 @@ async def retry_github_webhook_work(
         _MAXIMUM_RETRY_SECONDS,
         _INITIAL_RETRY_SECONDS * (2 ** max(0, lease.attempt_count - 1)),
     )
+    available_at = aware_now + timedelta(seconds=delay_seconds)
+    if not_before is not None:
+        bounded_not_before = min(
+            _aware(not_before),
+            aware_now + timedelta(seconds=_MAXIMUM_RETRY_SECONDS),
+        )
+        available_at = max(available_at, bounded_not_before)
     return await repository.retry(
         lease,
-        available_at=aware_now + timedelta(seconds=delay_seconds),
+        available_at=available_at,
         failed_at=aware_now,
         error_code=error_code,
         terminal=terminal,

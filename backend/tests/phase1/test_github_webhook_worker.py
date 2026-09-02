@@ -23,8 +23,11 @@ from app.infrastructure.db.repositories.github_reconciliation import (
 from app.infrastructure.db.repositories.github_webhooks import (
     SqlAlchemyGithubWebhookDeliveryRepository,
 )
-from app.infrastructure.github_app_api import GithubAppApiError
-from app.infrastructure.github_app_api import GithubAppInstallationState
+from app.infrastructure.github_app_api import (
+    GithubAppApiError,
+    GithubAppInstallationState,
+    GithubRateLimitError,
+)
 from app.infrastructure.github_reconciliation_scheduler import reconcile_due_github_installations
 from app.infrastructure.github_webhook_worker import process_github_webhook_work_once
 from app.modules.atomic.access.github_repository_reconciliation import (
@@ -221,6 +224,33 @@ async def test_github_failure_releases_delivery_with_bounded_retry(tmp_path) -> 
         assert delivery.last_error_code == "github_api_error"
         assert delivery.available_at == (NOW + dt.timedelta(seconds=30)).replace(tzinfo=None)
         assert delivery.lease_token is None
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_defers_webhook_until_github_retry_time(tmp_path) -> None:
+    engine, sessions = await _database(tmp_path, "rate-limit.sqlite")
+    async with sessions() as session:
+        await claim_github_webhook(
+            _verified("created"),
+            repository=SqlAlchemyGithubWebhookDeliveryRepository(session),
+            now=NOW,
+        )
+
+    async def rate_limited(_installation_id: int, _refreshed_at: dt.datetime):
+        raise GithubRateLimitError(NOW + dt.timedelta(minutes=20))
+
+    assert await process_github_webhook_work_once(
+        sessions,
+        snapshot_loader=rate_limited,
+        now=NOW,
+        lease_token_factory=lambda: "d8cf87fd-0489-4a4f-8d55-8bf7f5ff9244",
+    )
+    async with sessions() as session:
+        delivery = (await session.execute(select(GithubWebhookDelivery))).scalar_one()
+        assert delivery.status == "received"
+        assert delivery.last_error_code == "github_rate_limited"
+        assert delivery.available_at == (NOW + dt.timedelta(minutes=20)).replace(tzinfo=None)
     await engine.dispose()
 
 

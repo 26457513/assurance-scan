@@ -82,7 +82,8 @@ feature remains disabled. The six-hour full-installation repair loop, 30-day
 delivery cleanup and installation-scoped five-minute user-entitlement refresh
 are complete in candidate code but are not production-enabled. Repository
 changes invalidate both grants and freshness markers, and failed refreshes fail
-closed. ETag/rate-limit/cursor hardening remains.
+closed. Explicit GitHub primary and secondary rate-limit deferral is complete;
+conditional ETag and persisted-cursor hardening remain.
 
 Implement installation return, signed webhooks, repository reconciliation and
 expiring query-time entitlements using the WS7b GitHub identity foundation.
