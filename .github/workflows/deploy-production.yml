@@ -244,6 +244,10 @@ jobs:
             "$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
           docker exec assurance-scan-server-1 \
             /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0024_project_memberships",), row'
+          # Re-resolve the recreated server container's Docker-network address.
+          # Caddy can retain the previous address and otherwise return 502 even
+          # though the replacement application is healthy on the host port.
+          docker compose restart caddy
           REMOTE
       - name: Verify the public health endpoint
         run: curl --fail --silent --show-error --retry 5 --retry-delay 2 https://scan.squease.ai/health
