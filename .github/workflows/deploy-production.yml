@@ -342,9 +342,13 @@ jobs:
           docker image tag "$candidate_ref" ghcr.io/26457513/assurance-scan-app:latest
           ln -sfn "$runtime" /root/assurance-scan-runtime/current.next
           mv -Tf /root/assurance-scan-runtime/current.next /root/assurance-scan-runtime/current
+          candidate_override="$runtime/compose.candidate.yml"
+          printf 'services:\n  server:\n    image: %s\n' "$candidate_ref" > "$candidate_override"
+          chmod 600 "$candidate_override"
           ASSURANCE_SCAN_ENV_FILE="$runtime/app.env" \
             ASSURANCE_SCAN_SECRETS_DIR="$runtime/secrets" DOMAIN=scan.squease.ai \
-            docker compose up -d --no-deps --pull never --no-build --force-recreate server
+            docker compose -f compose.yaml -f "$candidate_override" \
+              up -d --no-deps --pull never --no-build --force-recreate server
 
           healthy=0
           for _attempt in $(seq 1 30); do
@@ -356,6 +360,8 @@ jobs:
             sleep 2
           done
           test "$healthy" -eq 1
+          test "$(docker inspect assurance-scan-server-1 --format '{{.Config.Image}}')" = \
+            "$candidate_ref"
           test "$(docker inspect assurance-scan-server-1 --format '{{.Image}}')" = \
             "$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
           docker exec assurance-scan-server-1 \
