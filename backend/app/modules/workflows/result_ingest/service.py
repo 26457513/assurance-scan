@@ -138,6 +138,8 @@ async def ingest_result_bundle(
     persistence: IngestPersistencePort,
     envelope: IngestEnvelope,
     bundle: ResultBundle,
+    *,
+    require_new: bool = False,
 ) -> IngestStatus:
     """Persist one complete result graph using its authoritative origin envelope."""
 
@@ -145,6 +147,8 @@ async def ingest_result_bundle(
     bundle = _redact_result_bundle(bundle)
     record = _run_record(envelope, bundle)
     if await persistence.get(record.run_id) is not None:
+        if require_new:
+            raise ValueError("claimed result run already exists")
         return "exists"
     findings = normalize_findings(record.run_id, bundle.findings)
     await persist_result_bundle(

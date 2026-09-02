@@ -1,7 +1,7 @@
 # Delivery workstreams
 
 Status: WS6a–WS7c are implemented and quality-gated, subject to WS7b's two
-production-like rehearsals. WS7d–WS7g remain;
+production-like rehearsals. WS7d is in progress; WS7e–WS7g remain;
 production activation of the new result contract stays deferred to WS7e/WS7g.
 
 ## Completed foundation
@@ -96,6 +96,14 @@ Acceptance: installation/repository/team access changes converge within their
 declared bounds, and denied users receive no project existence signal.
 
 ## WS7d — push-only ingestion
+
+Status: in progress in the disabled candidate code path (2 September 2026).
+Strict OIDC verification, single-use JWT replay evidence, live authoritative
+repository authorization, the validated v2 envelope, repository/run/attempt
+idempotency with five-minute fenced leases, and transactionally bound shared
+result persistence are implemented and quality-gated. The bounded HTTP upload
+adapter, cross-origin quota/attempt evidence, and final default-branch/event
+policy integration remain. No public v2 route is enabled.
 
 Implement strict GitHub OIDC verification, authoritative repository refresh,
 shared v2 ingestion, ingest attempts, replay protection and cross-origin limits.

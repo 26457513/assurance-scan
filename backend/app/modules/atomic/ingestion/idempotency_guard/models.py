@@ -54,6 +54,30 @@ class IdempotencyClaim:
     lease_expires_at: datetime
 
 
+@dataclass(frozen=True)
+class GithubClaimCommand:
+    """Authoritative GitHub run identity and content for one upload."""
+
+    github_repository_id: int
+    github_run_id: int
+    run_attempt: int
+    project_id: int
+    payload_hash: str
+    accepted_bytes: int
+
+
+@dataclass(frozen=True)
+class GithubIdempotencyClaim:
+    """Fenced lease handle for one GitHub run attempt."""
+
+    github_repository_id: int
+    github_run_id: int
+    run_attempt: int
+    payload_hash: str
+    lease_id: str
+    lease_expires_at: datetime
+
+
 class IdempotencyValidationError(ValueError):
     """A request identifier, hash, or lease duration is not canonical."""
 
@@ -62,6 +86,8 @@ __all__ = [
     "ClaimCommand",
     "ClaimDecision",
     "ClaimResult",
+    "GithubClaimCommand",
+    "GithubIdempotencyClaim",
     "IdempotencyClaim",
     "IdempotencyValidationError",
 ]

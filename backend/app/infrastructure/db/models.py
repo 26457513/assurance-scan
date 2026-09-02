@@ -702,6 +702,82 @@ class IngestRequest(Base):
     )
 
 
+class GithubIngestRequest(Base):
+    """Durable leased claim for one authenticated GitHub run attempt."""
+
+    __tablename__ = "github_ingest_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    github_repository_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    github_run_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    run_attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    )
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    accepted_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("runs.run_id", ondelete="SET NULL"), nullable=True
+    )
+    lease_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    lease_expires_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    tombstoned_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    tombstone_expires_at: Mapped[dt.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "github_repository_id",
+            "github_run_id",
+            "run_attempt",
+            name="uq_github_ingest_requests_run_attempt",
+        ),
+        UniqueConstraint("run_id", name="uq_github_ingest_requests_run"),
+        CheckConstraint(
+            "github_repository_id > 0 AND github_run_id > 0 AND run_attempt > 0",
+            name="ck_github_ingest_requests_identity",
+        ),
+        CheckConstraint(
+            "state IN ('processing', 'completed', 'failed', 'tombstoned')",
+            name="ck_github_ingest_requests_state",
+        ),
+        CheckConstraint(
+            "accepted_bytes >= 0", name="ck_github_ingest_requests_accepted_bytes"
+        ),
+        CheckConstraint(
+            "length(payload_hash) = 64 AND payload_hash NOT GLOB '*[^0-9a-f]*'",
+            name="ck_github_ingest_requests_payload_hash",
+        ),
+        CheckConstraint(
+            "state != 'completed' OR run_id IS NOT NULL",
+            name="ck_github_ingest_requests_completed_run",
+        ),
+        CheckConstraint(
+            "state != 'processing' OR (lease_id IS NOT NULL AND lease_expires_at IS NOT NULL)",
+            name="ck_github_ingest_requests_processing_lease",
+        ),
+        CheckConstraint(
+            "state != 'tombstoned' OR (run_id IS NULL AND tombstoned_at IS NOT NULL "
+            "AND tombstone_expires_at IS NOT NULL)",
+            name="ck_github_ingest_requests_tombstone",
+        ),
+        Index(
+            "ix_github_ingest_requests_repository_created",
+            "github_repository_id",
+            "created_at",
+        ),
+        Index("ix_github_ingest_requests_state_lease", "state", "lease_expires_at"),
+    )
+
+
 class GithubOidcReplay(Base):
     """Hashed, expiring evidence that one authenticated GitHub JWT was consumed."""
 

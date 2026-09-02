@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
-from .models import ClaimCommand, ClaimResult, IdempotencyClaim
+from .models import (
+    ClaimCommand,
+    ClaimResult,
+    GithubClaimCommand,
+    GithubIdempotencyClaim,
+    IdempotencyClaim,
+)
 
 
 class IdempotencyRepositoryPort(Protocol):
@@ -41,4 +47,43 @@ class IdempotencyRepositoryPort(Protocol):
     async def purge_expired_tombstones(self, *, now: datetime) -> int: ...
 
 
-__all__ = ["IdempotencyRepositoryPort"]
+class GithubIdempotencyRepositoryPort(Protocol):
+    """Atomically enforce uniqueness for a GitHub run attempt."""
+
+    async def acquire(
+        self,
+        command: GithubClaimCommand,
+        *,
+        now: datetime,
+        lease_expires_at: datetime,
+    ) -> ClaimResult: ...
+
+    async def heartbeat(
+        self,
+        claim: GithubIdempotencyClaim,
+        *,
+        new_lease_expires_at: datetime,
+    ) -> bool: ...
+
+    async def complete(
+        self,
+        claim: GithubIdempotencyClaim,
+        *,
+        run_id: str,
+        now: datetime,
+    ) -> bool: ...
+
+    async def fail(self, claim: GithubIdempotencyClaim, *, now: datetime) -> bool: ...
+
+    async def tombstone_completed(
+        self,
+        *,
+        run_id: str,
+        now: datetime,
+        expires_at: datetime,
+    ) -> bool: ...
+
+    async def purge_expired_tombstones(self, *, now: datetime) -> int: ...
+
+
+__all__ = ["GithubIdempotencyRepositoryPort", "IdempotencyRepositoryPort"]

@@ -11,7 +11,7 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 OLD_HEAD = "0021_project_identity_provenance"
-NEW_HEAD = "0033_github_run_attempt_identity"
+NEW_HEAD = "0034_github_ingest_claims"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -122,6 +122,40 @@ def test_github_run_identity_is_repository_and_attempt_scoped(tmp_path: Path) ->
     assert "uq_runs_github_run_id" not in indexes
     assert indexes["uq_runs_project_github_run_attempt"][2] == 1
     assert columns == ["project_id", "github_run_id", "github_run_attempt"]
+
+
+def test_github_ingest_claim_schema_is_leased_and_attempt_scoped(tmp_path: Path) -> None:
+    database = tmp_path / "github-ingest-claims.sqlite"
+    _alembic(database, "upgrade", "head")
+    with sqlite3.connect(database) as connection:
+        columns = {
+            str(row[1]): row
+            for row in connection.execute("PRAGMA table_info(github_ingest_requests)")
+        }
+        indexes = {
+            str(row[1]): row
+            for row in connection.execute("PRAGMA index_list(github_ingest_requests)")
+        }
+        unique_indexes = [name for name, row in indexes.items() if row[2] == 1]
+        indexed_columns = {
+            tuple(
+                str(column[2])
+                for column in connection.execute(f'PRAGMA index_info("{name}")')
+            )
+            for name in unique_indexes
+        }
+        foreign_keys = connection.execute(
+            "PRAGMA foreign_key_list(github_ingest_requests)"
+        ).fetchall()
+
+    assert {"lease_id", "lease_expires_at", "tombstoned_at", "tombstone_expires_at"}.issubset(
+        columns
+    )
+    assert ("github_repository_id", "github_run_id", "run_attempt") in indexed_columns
+    assert any(
+        row[2] == "runs" and row[3] == "run_id" and row[6] == "SET NULL"
+        for row in foreign_keys
+    )
 
 
 def test_local_display_identity_is_backfilled_in_stable_order(tmp_path: Path) -> None:

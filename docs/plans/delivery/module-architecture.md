@@ -16,6 +16,7 @@ backend/app/modules/
       scan_token/              # existing token capability, extended
     ingestion/
       envelope_contract/      # frozen JCS/hash primitive, currently disabled
+      idempotency_guard/      # local UUID and GitHub run-attempt fenced leases
       ingest_attempt/
       source_context/
       result_persister/        # existing persistence boundary, extended
