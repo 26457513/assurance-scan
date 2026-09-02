@@ -72,9 +72,7 @@ def _env_repository_allowlist(name: str) -> frozenset[str]:
                 raise ValueError
             key = normalize_github_repository_key(value)
         except (InvalidRepositoryIdentityError, ValueError) as exc:
-            raise ValueError(
-                f"{name} must contain comma-separated canonical owner/repository values"
-            ) from exc
+            raise ValueError(f"{name} must contain comma-separated canonical owner/repository values") from exc
         if key in normalized:
             raise ValueError(f"{name} contains a duplicate repository")
         normalized.add(key)
@@ -132,11 +130,7 @@ def account_identity_is_ready(settings: object) -> bool:
     public_base_url = getattr(settings, "public_base_url", "")
     if not all(isinstance(value, str) and value.strip() for value in (client_id, client_secret)):
         return False
-    if (
-        not isinstance(session_secret, str)
-        or len(session_secret) < 32
-        or not session_secret.strip()
-    ):
+    if not isinstance(session_secret, str) or len(session_secret) < 32 or not session_secret.strip():
         return False
     if not isinstance(public_base_url, str):
         return False
@@ -147,9 +141,7 @@ def account_identity_is_ready(settings: object) -> bool:
         return False
     hostname = parsed.hostname
     secure_origin = parsed.scheme == "https"
-    loopback_development_origin = parsed.scheme == "http" and bool(
-        hostname and _is_loopback_host(hostname)
-    )
+    loopback_development_origin = parsed.scheme == "http" and bool(hostname and _is_loopback_host(hostname))
     return bool(
         (secure_origin or loopback_development_origin)
         and hostname
@@ -226,6 +218,10 @@ class Settings:
     token_encryption_key: str
     github_app_client_id: str
     github_app_client_secret: str
+    github_app_access_enabled: bool
+    github_app_id: str
+    github_app_slug: str
+    github_app_private_key_path: str
     migration_github_linking_enabled: bool
 
     # GitHub CI polling (phase-2 ingest). Poller runs only when both a
@@ -264,13 +260,9 @@ def load_settings() -> Settings:
         github_poll_token=_env("GITHUB_POLL_TOKEN", ""),
         github_org=_env("GITHUB_ORG", ""),
         scan_token_creation_enabled=_env_bool("SCAN_TOKEN_CREATION_ENABLED"),
-        scan_token_creation_user_allowlist=_env_email_allowlist(
-            "SCAN_TOKEN_CREATION_USER_ALLOWLIST"
-        ),
+        scan_token_creation_user_allowlist=_env_email_allowlist("SCAN_TOKEN_CREATION_USER_ALLOWLIST"),
         local_ingest_enabled=_env_bool("LOCAL_INGEST_ENABLED"),
-        local_ingest_repository_allowlist=_env_repository_allowlist(
-            "LOCAL_INGEST_REPOSITORY_ALLOWLIST"
-        ),
+        local_ingest_repository_allowlist=_env_repository_allowlist("LOCAL_INGEST_REPOSITORY_ALLOWLIST"),
         local_ingest_upload_limits=UploadLimits(
             wire_bytes=_env_lower_limit("LOCAL_INGEST_WIRE_BYTES", UPLOAD_LIMITS.wire_bytes),
             parsed_bytes=_env_lower_limit("LOCAL_INGEST_PARSED_BYTES", UPLOAD_LIMITS.parsed_bytes),
@@ -330,6 +322,10 @@ def load_settings() -> Settings:
         token_encryption_key=_env("TOKEN_ENCRYPTION_KEY", ""),
         github_app_client_id=_env("GITHUB_APP_CLIENT_ID", ""),
         github_app_client_secret=_env("GITHUB_APP_CLIENT_SECRET", ""),
+        github_app_access_enabled=_env_bool("GITHUB_APP_ACCESS_ENABLED"),
+        github_app_id=_env("GITHUB_APP_ID", ""),
+        github_app_slug=_env("GITHUB_APP_SLUG", ""),
+        github_app_private_key_path=_env("GITHUB_APP_PRIVATE_KEY_PATH", ""),
         migration_github_linking_enabled=_env_bool("MIGRATION_GITHUB_LINKING_ENABLED"),
     )
 

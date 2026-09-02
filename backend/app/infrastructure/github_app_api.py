@@ -1,0 +1,340 @@
+"""Fixed-endpoint GitHub App API adapter for installation reconciliation."""
+
+from __future__ import annotations
+
+import base64
+import datetime as dt
+import json
+import stat
+import urllib.request
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Protocol, cast
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+from app.modules.atomic.access.github_repository_reconciliation import (
+    GithubAccountType,
+    GithubInstallationSnapshot,
+    GithubRepositorySnapshot,
+    GithubRepositoryVisibility,
+    GithubSelection,
+    validate_installation_snapshot,
+)
+
+
+GITHUB_API_ROOT = "https://api.github.com"
+_API_VERSION = "2022-11-28"
+_MAX_PAGES = 100
+_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+
+
+class GithubAppApiError(RuntimeError):
+    """GitHub could not provide a complete, valid authorization snapshot."""
+
+
+@dataclass(frozen=True)
+class GithubApiResponse:
+    payload: dict[str, Any]
+    headers: dict[str, str]
+
+
+class GithubHttpPort(Protocol):
+    def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str],
+        body: bytes | None = None,
+    ) -> GithubApiResponse: ...
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+class UrllibGithubHttp:
+    """Network adapter restricted to the fixed GitHub API origin."""
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str],
+        body: bytes | None = None,
+    ) -> GithubApiResponse:
+        if not url.startswith(f"{GITHUB_API_ROOT}/"):
+            raise GithubAppApiError("unexpected GitHub API endpoint")
+        request = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with (
+                urllib.request.build_opener(_NoRedirect()).open(request, timeout=15) as response
+            ):  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+                raw = response.read(_MAX_RESPONSE_BYTES + 1)
+                response_url = response.geturl()
+                response_headers = {key.casefold(): value for key, value in response.headers.items()}
+        except OSError as exc:
+            raise GithubAppApiError("GitHub API request failed") from exc
+        if not response_url.startswith(f"{GITHUB_API_ROOT}/"):
+            raise GithubAppApiError("GitHub API redirected outside its fixed origin")
+        if len(raw) > _MAX_RESPONSE_BYTES:
+            raise GithubAppApiError("GitHub API response exceeded the safety limit")
+        try:
+            payload = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise GithubAppApiError("GitHub API returned invalid JSON") from exc
+        if not isinstance(payload, dict):
+            raise GithubAppApiError("GitHub API returned an invalid object")
+        return GithubApiResponse(payload=payload, headers=response_headers)
+
+
+def load_github_app_private_key(path_value: str) -> bytes:
+    """Read a small, explicit, regular PEM file without following a symlink."""
+    path = Path(path_value)
+    if not path_value or path.is_symlink():
+        raise GithubAppApiError("GitHub App private key file is invalid")
+    try:
+        resolved = path.resolve(strict=True)
+        metadata = resolved.stat()
+    except OSError as exc:
+        raise GithubAppApiError("GitHub App private key file is unavailable") from exc
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size <= 0 or metadata.st_size > 64 * 1024:
+        raise GithubAppApiError("GitHub App private key file is invalid")
+    try:
+        return resolved.read_bytes()
+    except OSError as exc:
+        raise GithubAppApiError("GitHub App private key file is unavailable") from exc
+
+
+def fetch_authoritative_installation_for_user(
+    *,
+    user_token: str,
+    github_app_id: str,
+    private_key_pem: bytes,
+    github_installation_id: int,
+    now: dt.datetime,
+    http: GithubHttpPort | None = None,
+) -> GithubInstallationSnapshot:
+    """Prove user access, then fetch full scope with an installation token."""
+    if not user_token:
+        raise GithubAppApiError("GitHub user authorization is unavailable")
+    installation_id = _positive_integer(github_installation_id, "installation id")
+    current = _aware(now)
+    transport = http or UrllibGithubHttp()
+    user_headers = _headers(user_token)
+    _prove_user_installation(transport, user_headers, installation_id)
+
+    app_jwt = create_github_app_jwt(
+        github_app_id=github_app_id,
+        private_key_pem=private_key_pem,
+        now=current,
+    )
+    app_headers = _headers(app_jwt)
+    installation_response = transport.request(
+        "GET",
+        f"{GITHUB_API_ROOT}/app/installations/{installation_id}",
+        headers=app_headers,
+    )
+    token_response = transport.request(
+        "POST",
+        f"{GITHUB_API_ROOT}/app/installations/{installation_id}/access_tokens",
+        headers=app_headers,
+        body=b"{}",
+    )
+    installation_token = token_response.payload.get("token")
+    if not isinstance(installation_token, str) or not installation_token:
+        raise GithubAppApiError("GitHub did not return an installation token")
+    repositories, etag = _installation_repositories(transport, _headers(installation_token))
+    snapshot = _snapshot(
+        installation_response.payload,
+        installation_id=installation_id,
+        repositories=repositories,
+        repositories_etag=etag,
+    )
+    try:
+        return validate_installation_snapshot(snapshot)
+    except ValueError as exc:
+        raise GithubAppApiError("GitHub returned inconsistent installation metadata") from exc
+
+
+def create_github_app_jwt(*, github_app_id: str, private_key_pem: bytes, now: dt.datetime) -> str:
+    """Create the short-lived RS256 application JWT required by GitHub."""
+    current = _aware(now)
+    if not github_app_id.isdigit() or int(github_app_id) <= 0:
+        raise GithubAppApiError("GitHub App id is invalid")
+    header = {"alg": "RS256", "typ": "JWT"}
+    issued_at = int(current.timestamp()) - 60
+    claims = {"iat": issued_at, "exp": issued_at + 600, "iss": github_app_id}
+    signing_input = b".".join((_encoded_json(header), _encoded_json(claims)))
+    try:
+        key = serialization.load_pem_private_key(private_key_pem, password=None)
+    except (TypeError, ValueError) as exc:
+        raise GithubAppApiError("GitHub App private key is invalid") from exc
+    if not isinstance(key, rsa.RSAPrivateKey) or key.key_size < 2048:
+        raise GithubAppApiError("GitHub App private key must be RSA with at least 2048 bits")
+    signature = key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
+    return b".".join((signing_input, _base64url(signature))).decode("ascii")
+
+
+def _prove_user_installation(http: GithubHttpPort, headers: dict[str, str], installation_id: int) -> None:
+    for page in range(1, _MAX_PAGES + 1):
+        response = http.request(
+            "GET",
+            f"{GITHUB_API_ROOT}/user/installations?per_page=100&page={page}",
+            headers=headers,
+        )
+        installations = response.payload.get("installations")
+        if not isinstance(installations, list):
+            raise GithubAppApiError("GitHub returned invalid user installations")
+        if any(isinstance(item, dict) and item.get("id") == installation_id for item in installations):
+            return
+        if len(installations) < 100:
+            break
+    raise GithubAppApiError("GitHub user cannot access the returned installation")
+
+
+def _installation_repositories(
+    http: GithubHttpPort, headers: dict[str, str]
+) -> tuple[tuple[GithubRepositorySnapshot, ...], str | None]:
+    repositories: list[GithubRepositorySnapshot] = []
+    etag: str | None = None
+    for page in range(1, _MAX_PAGES + 1):
+        response = http.request(
+            "GET",
+            f"{GITHUB_API_ROOT}/installation/repositories?per_page=100&page={page}",
+            headers=headers,
+        )
+        if page == 1:
+            etag = response.headers.get("etag")
+        items = response.payload.get("repositories")
+        if not isinstance(items, list):
+            raise GithubAppApiError("GitHub returned invalid installation repositories")
+        repositories.extend(_repository(item) for item in items)
+        if len(items) < 100:
+            return tuple(repositories), etag
+    raise GithubAppApiError("GitHub repository pagination exceeded the safety limit")
+
+
+def _snapshot(
+    payload: dict[str, Any],
+    *,
+    installation_id: int,
+    repositories: tuple[GithubRepositorySnapshot, ...],
+    repositories_etag: str | None,
+) -> GithubInstallationSnapshot:
+    if payload.get("id") != installation_id:
+        raise GithubAppApiError("GitHub installation identity did not match")
+    account = payload.get("account")
+    if not isinstance(account, dict):
+        raise GithubAppApiError("GitHub installation owner is invalid")
+    owner_id = _positive_integer(account.get("id"), "owner id")
+    owner_login = account.get("login")
+    account_type = account.get("type")
+    selection = payload.get("repository_selection")
+    if not isinstance(owner_login, str) or not isinstance(account_type, str) or not isinstance(selection, str):
+        raise GithubAppApiError("GitHub installation metadata is incomplete")
+    try:
+        normalized_type = GithubAccountType(account_type.casefold())
+        normalized_selection = GithubSelection(selection.casefold())
+    except ValueError as exc:
+        raise GithubAppApiError("GitHub installation metadata is unsupported") from exc
+    return GithubInstallationSnapshot(
+        github_installation_id=installation_id,
+        github_owner_id=owner_id,
+        owner_login=owner_login,
+        account_type=normalized_type,
+        repository_selection=normalized_selection,
+        suspended_at=_timestamp(payload.get("suspended_at")),
+        deleted_at=None,
+        repositories_etag=repositories_etag,
+        reconciliation_cursor=None,
+        repositories=repositories,
+    )
+
+
+def _repository(value: object) -> GithubRepositorySnapshot:
+    if not isinstance(value, dict):
+        raise GithubAppApiError("GitHub returned an invalid repository")
+    owner = value.get("owner")
+    if not isinstance(owner, dict):
+        raise GithubAppApiError("GitHub returned an invalid repository owner")
+    full_name = value.get("full_name")
+    default_branch = value.get("default_branch")
+    visibility = value.get("visibility")
+    if not all(isinstance(item, str) for item in (full_name, default_branch, visibility)):
+        raise GithubAppApiError("GitHub returned incomplete repository metadata")
+    try:
+        normalized_visibility = GithubRepositoryVisibility(cast(str, visibility).casefold())
+    except ValueError as exc:
+        raise GithubAppApiError("GitHub returned unsupported repository visibility") from exc
+    archived = value.get("archived")
+    disabled = value.get("disabled")
+    if not isinstance(archived, bool) or not isinstance(disabled, bool):
+        raise GithubAppApiError("GitHub returned invalid repository state")
+    return GithubRepositorySnapshot(
+        github_repository_id=_positive_integer(value.get("id"), "repository id"),
+        github_owner_id=_positive_integer(owner.get("id"), "repository owner id"),
+        full_name=cast(str, full_name),
+        default_branch=cast(str, default_branch),
+        visibility=normalized_visibility,
+        archived=archived,
+        disabled=disabled,
+    )
+
+
+def _headers(token: str) -> dict[str, str]:
+    return {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": _API_VERSION,
+    }
+
+
+def _encoded_json(value: Mapping[str, object]) -> bytes:
+    return _base64url(json.dumps(value, sort_keys=True, separators=(",", ":")).encode())
+
+
+def _base64url(value: bytes) -> bytes:
+    return base64.urlsafe_b64encode(value).rstrip(b"=")
+
+
+def _positive_integer(value: object, label: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise GithubAppApiError(f"GitHub {label} is invalid")
+    return value
+
+
+def _timestamp(value: object) -> dt.datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise GithubAppApiError("GitHub timestamp is invalid")
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise GithubAppApiError("GitHub timestamp is invalid") from exc
+    return _aware(parsed)
+
+
+def _aware(value: dt.datetime) -> dt.datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise GithubAppApiError("GitHub API timestamp must be timezone-aware")
+    return value
+
+
+__all__ = [
+    "GITHUB_API_ROOT",
+    "GithubApiResponse",
+    "GithubAppApiError",
+    "GithubHttpPort",
+    "UrllibGithubHttp",
+    "create_github_app_jwt",
+    "fetch_authoritative_installation_for_user",
+    "load_github_app_private_key",
+]

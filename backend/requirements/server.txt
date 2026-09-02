@@ -12,3 +12,4 @@ mcp>=1.28.1,<2.0
 python-multipart>=0.0.30
 msgpack>=1.2.1
 defusedxml>=0.7,<1.0
+cryptography>=46,<51

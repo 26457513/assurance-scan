@@ -71,8 +71,9 @@ preserve linked user/run ownership and block every ambiguous identity.
 
 Status: in progress. The dormant installation/repository schema, independent
 single-use setup state, raw-body webhook authentication/delivery idempotency,
-and atomic authoritative repository projection are complete in candidate code.
-No public webhook, setup-return, GitHub API refresh, scheduler or entitlement
+atomic authoritative repository projection, fixed-origin GitHub API client and
+setup-return workflow are complete in candidate code. The setup workflow is
+disabled by default. No public webhook, scheduled repair or entitlement-refresh
 route is enabled yet.
 
 Implement installation return, signed webhooks, repository reconciliation and

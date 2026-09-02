@@ -1,9 +1,11 @@
 # GitHub App access plane
 
 Implementation status: durable installation/repository records, independent
-single-use installation state and atomic numeric-identity repository projection
-are complete in dormant candidate code. GitHub API adapters, setup-return HTTP
-flow and query-time entitlement refresh remain disabled until later WS7c slices.
+single-use installation state, fixed-origin GitHub API adapter, App JWT and
+installation-token exchange, atomic numeric-identity repository projection and
+setup-return HTTP flow are complete in candidate code. The route remains behind
+`GITHUB_APP_ACCESS_ENABLED=false`; query-time entitlement refresh is a later
+WS7c slice.
 
 ## Exact app configuration
 

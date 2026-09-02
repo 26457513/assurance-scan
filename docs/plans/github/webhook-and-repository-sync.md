@@ -47,11 +47,14 @@ payload display names are hints until confirmed through the GitHub API.
 ## Authoritative refresh
 
 The transaction that projects one already-verified complete installation
-snapshot is implemented in candidate code. It creates projects only from
+snapshot is implemented in candidate code. The fixed-origin API adapter first
+proves the linked user can access the returned installation, then signs a
+short-lived App JWT, exchanges it for an installation token and fetches the
+complete paginated repository scope. The projection creates projects only from
 numeric repository IDs, blocks owner/installation reassignment pending audited
 rebind, disables removed/transferred repositories, and immediately expires
-affected GitHub-derived memberships. Fetching that snapshot from GitHub and
-scheduling six-hour repair remain separate disabled slices.
+affected GitHub-derived memberships. Six-hour repair scheduling remains a
+separate disabled slice.
 
 Webhooks reduce staleness but are not authorization evidence. Before every
 GitHub Actions upload, create a short-lived installation token and call GitHub
