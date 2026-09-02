@@ -415,7 +415,15 @@ jobs:
           cd /root/assurance-scan
           candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
           container_status="$(docker inspect assurance-scan-server-1 --format '{{.State.Status}}')"
-          printf 'container_status=%s\n' "$container_status"
+          configured_image="$(docker inspect assurance-scan-server-1 --format '{{.Config.Image}}')"
+          running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
+          candidate_image_id="$(docker image inspect "$candidate_ref" --format '{{.Id}}' 2>/dev/null || true)"
+          latest_image_id="$(docker image inspect ghcr.io/26457513/assurance-scan-app:latest --format '{{.Id}}' 2>/dev/null || true)"
+          created_at="$(docker inspect assurance-scan-server-1 --format '{{.Created}}')"
+          printf 'container_status=%s\nconfigured_image=%s\nrunning_image_id=%s\n' \
+            "$container_status" "$configured_image" "$running_image_id"
+          printf 'candidate_image_id=%s\nlatest_image_id=%s\ncreated_at=%s\n' \
+            "$candidate_image_id" "$latest_image_id" "$created_at"
           if [ "$container_status" != running ]; then
             docker inspect assurance-scan-server-1 \
               --format 'status={{.State.Status}} restarting={{.State.Restarting}} exit_code={{.State.ExitCode}} restart_count={{.RestartCount}} error={{json .State.Error}}' >&2
@@ -424,7 +432,6 @@ jobs:
           fi
           docker pull --quiet "$candidate_ref" >/dev/null
           restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"
-          running_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
           candidate_image_id="$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
           printf 'restart_count=%s\nrunning_image_id=%s\ncandidate_image_id=%s\n' \
             "$restart_count" "$running_image_id" "$candidate_image_id"
