@@ -105,8 +105,13 @@ result persistence are implemented and quality-gated. The strict streaming HTTP
 adapter now authenticates OIDC before reading the body, enforces the frozen
 multipart limits, binds signed idempotency identity, performs live repository
 authorization and invokes that shared persistence path. It is registered but
-disabled by default. Cross-origin quota and ingest-attempt evidence remain; no
-production v2 route has been enabled.
+disabled by default. Repository/hour and owner/day GitHub quotas, the shared
+local/GitHub in-flight ceiling, safe project-bound GitHub ingest-attempt
+evidence and 30-day evidence expiry are implemented and quality-gated. Accepted
+attempts commit with their result graph; replays and rejections commit
+independently; internal-failure evidence cannot mask the original failure.
+Local ingest-attempt unification remains, and no production v2 route has been
+enabled.
 
 Implement strict GitHub OIDC verification, authoritative repository refresh,
 shared v2 ingestion, ingest attempts, replay protection and cross-origin limits.

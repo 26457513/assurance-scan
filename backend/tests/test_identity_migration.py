@@ -24,7 +24,7 @@ from app.infrastructure.db.models import (
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_HEAD = "0020_snapshot_source_branch"
-NEW_HEAD = "0034_github_ingest_claims"
+NEW_HEAD = "0035_github_ingest_quotas_attempts"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:

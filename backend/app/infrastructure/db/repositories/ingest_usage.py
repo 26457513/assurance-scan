@@ -8,7 +8,15 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.infrastructure.db.models import IngestRequest, Run, ScannerArtifact, ScannerRun, User
+from app.infrastructure.db.models import (
+    GithubIngestRequest,
+    IngestRequest,
+    Run,
+    ScannerArtifact,
+    ScannerRun,
+    User,
+)
+from app.infrastructure.db.repositories.ingest_quota_lock import QUOTA_LOCK_SESSION_KEY
 from app.modules.atomic.ingestion.usage_quota import (
     QuotaCommand,
     QuotaDecision,
@@ -18,8 +26,6 @@ from app.modules.atomic.ingestion.usage_quota import (
     decide_usage_quota,
 )
 from app.modules.shared.contracts.local_scan import UsageLimits
-
-QUOTA_LOCK_SESSION_KEY = "local_ingest_quota_lock"
 
 
 class SqlAlchemyUsageQuotaRepository:
@@ -110,8 +116,20 @@ class SqlAlchemyUsageQuotaRepository:
             IngestRequest.state == "processing",
             IngestRequest.lease_expires_at > now,
         )
-        instance_inflight = await self._claim_count(
+        local_instance_inflight = await self._claim_count(
             IngestRequest.state == "processing", IngestRequest.lease_expires_at > now
+        )
+        github_instance_inflight = int(
+            (
+                await self.session.execute(
+                    select(func.count())
+                    .select_from(GithubIngestRequest)
+                    .where(
+                        GithubIngestRequest.state == "processing",
+                        GithubIngestRequest.lease_expires_at > now,
+                    )
+                )
+            ).scalar_one()
         )
         user_retained = await self._retained_bytes(user_id=command.user_id)
         instance_retained = await self._retained_bytes()
@@ -132,7 +150,8 @@ class SqlAlchemyUsageQuotaRepository:
             user_uploads_day=user_uploads,
             token_inflight=token_inflight,
             user_inflight=user_inflight,
-            instance_inflight=instance_inflight,
+            instance_inflight=local_instance_inflight,
+            shared_instance_inflight=local_instance_inflight + github_instance_inflight,
             user_retained_bytes=user_retained + user_pending,
             instance_retained_bytes=instance_retained + instance_pending,
             user_accepted_bytes_day=user_daily_bytes,
@@ -141,9 +160,7 @@ class SqlAlchemyUsageQuotaRepository:
     async def _claim_count(self, *predicates: ColumnElement[bool]) -> int:
         return int(
             (
-                await self.session.execute(
-                    select(func.count()).select_from(IngestRequest).where(*predicates)
-                )
+                await self.session.execute(select(func.count()).select_from(IngestRequest).where(*predicates))
             ).scalar_one()
         )
 
@@ -151,9 +168,7 @@ class SqlAlchemyUsageQuotaRepository:
         return int(
             (
                 await self.session.execute(
-                    select(func.coalesce(func.sum(IngestRequest.accepted_bytes), 0)).where(
-                        *predicates
-                    )
+                    select(func.coalesce(func.sum(IngestRequest.accepted_bytes), 0)).where(*predicates)
                 )
             ).scalar_one()
         )
@@ -179,9 +194,10 @@ def _retry_after(decision: QuotaDecision) -> int | None:
         QuotaDecision.TOKEN_INFLIGHT,
         QuotaDecision.USER_INFLIGHT,
         QuotaDecision.INSTANCE_INFLIGHT,
+        QuotaDecision.SHARED_INSTANCE_INFLIGHT,
     }:
         return 30
     return None
 
 
-__all__ = ["QUOTA_LOCK_SESSION_KEY", "SqlAlchemyUsageQuotaRepository"]
+__all__ = ["SqlAlchemyUsageQuotaRepository"]

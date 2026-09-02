@@ -97,9 +97,7 @@ async def test_concurrent_claim_has_one_owner_and_one_in_progress(tmp_path: Path
 
     async def claim() -> ClaimDecision:
         async with sessions() as session:
-            result = await acquire_claim(
-                _command(), repository=SqlAlchemyIdempotencyRepository(session), now=NOW
-            )
+            result = await acquire_claim(_command(), repository=SqlAlchemyIdempotencyRepository(session), now=NOW)
             return result.decision
 
     decisions = await asyncio.gather(claim(), claim())
@@ -146,9 +144,7 @@ async def test_conflict_takeover_retry_fencing_and_rollback(tmp_path: Path) -> N
         repository = SqlAlchemyIdempotencyRepository(session)
         handle = claim_handle(
             _command(),
-            await acquire_claim(
-                _command(), repository=repository, now=later + timedelta(minutes=6)
-            ),
+            await acquire_claim(_command(), repository=repository, now=later + timedelta(minutes=6)),
         )
         assert await repository.fail(handle, now=later + timedelta(minutes=6))
 
@@ -168,9 +164,7 @@ async def test_completed_replay_tombstone_and_expiry(tmp_path: Path) -> None:
         acquired = await acquire_claim(_command(), repository=repository, now=NOW)
         session.add(_run("local-complete"))
         await session.flush()
-        assert await repository.complete(
-            claim_handle(_command(), acquired), run_id="local-complete", now=NOW
-        )
+        assert await repository.complete(claim_handle(_command(), acquired), run_id="local-complete", now=NOW)
         await session.commit()
 
     async with sessions() as session:
@@ -178,9 +172,7 @@ async def test_completed_replay_tombstone_and_expiry(tmp_path: Path) -> None:
         replay = await acquire_claim(_command(), repository=repository, now=NOW)
         assert replay.decision is ClaimDecision.REPLAY
         assert replay.run_id == "local-complete"
-        assert await tombstone_completed_claim(
-            "local-complete", repository=repository, now=NOW
-        )
+        assert await tombstone_completed_claim("local-complete", repository=repository, now=NOW)
         run = await session.get(Run, "local-complete")
         assert run is not None
         await session.delete(run)
@@ -191,9 +183,7 @@ async def test_completed_replay_tombstone_and_expiry(tmp_path: Path) -> None:
         gone = await acquire_claim(_command(), repository=repository, now=NOW)
         assert gone.decision is ClaimDecision.TOMBSTONED
         assert await repository.purge_expired_tombstones(now=NOW + timedelta(days=31)) == 1
-        fresh = await acquire_claim(
-            _command(), repository=repository, now=NOW + timedelta(days=31)
-        )
+        fresh = await acquire_claim(_command(), repository=repository, now=NOW + timedelta(days=31))
         assert fresh.decision is ClaimDecision.ACQUIRED
 
 
@@ -246,6 +236,7 @@ LIMITS = UsageLimits(
         (UsageSnapshot(token_inflight=1), QuotaDecision.TOKEN_INFLIGHT),
         (UsageSnapshot(user_inflight=2), QuotaDecision.USER_INFLIGHT),
         (UsageSnapshot(instance_inflight=4), QuotaDecision.INSTANCE_INFLIGHT),
+        (UsageSnapshot(shared_instance_inflight=8), QuotaDecision.SHARED_INSTANCE_INFLIGHT),
         (UsageSnapshot(user_retained_bytes=901), QuotaDecision.USER_RETAINED_STORAGE),
         (UsageSnapshot(instance_retained_bytes=4901), QuotaDecision.INSTANCE_RETAINED_STORAGE),
         (UsageSnapshot(user_accepted_bytes_day=401), QuotaDecision.USER_DAILY_BYTES),
@@ -262,12 +253,7 @@ def test_quota_allows_exact_byte_boundaries_and_supports_kill_switch() -> None:
         instance_retained_bytes=4900,
         user_accepted_bytes_day=400,
     )
-    assert (
-        decide_usage_quota(
-            QuotaCommand(1, TOKEN_ID, REQUEST_ID, 100), exact, limits=LIMITS
-        )
-        is QuotaDecision.ALLOWED
-    )
+    assert decide_usage_quota(QuotaCommand(1, TOKEN_ID, REQUEST_ID, 100), exact, limits=LIMITS) is QuotaDecision.ALLOWED
     assert (
         decide_usage_quota(
             QuotaCommand(1, TOKEN_ID, str(uuid.uuid4()), 0, enabled=False),
@@ -288,9 +274,7 @@ async def test_sql_quota_lock_is_persisted_by_claim_and_enforces_inflight(
         reservation = await quota.reserve(first_command, limits=LIMITS, now=NOW)
         assert reservation.allowed
         assert reservation.reservation is not None
-        claimed = await acquire_claim(
-            _command(), repository=SqlAlchemyIdempotencyRepository(session), now=NOW
-        )
+        claimed = await acquire_claim(_command(), repository=SqlAlchemyIdempotencyRepository(session), now=NOW)
         assert claimed.decision is ClaimDecision.ACQUIRED
 
     second_id = "efcaa540-1a88-4df1-8eaa-c535fd31b130"

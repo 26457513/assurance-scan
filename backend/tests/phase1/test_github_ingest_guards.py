@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -11,10 +12,14 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.infrastructure.db.models import Base, Finding, GithubIngestRequest, Project, Run
+from app.infrastructure.db.models import Base, Finding, GithubIngestRequest, IngestAttempt, Project, Run
 from app.infrastructure.db.repositories.github_ingest_requests import (
     SqlAlchemyGithubIdempotencyRepository,
 )
+from app.infrastructure.db.repositories.github_ingest_usage import (
+    SqlAlchemyGithubUsageQuotaRepository,
+)
+from app.infrastructure.db.repositories.ingest_attempts import SqlAlchemyIngestAttemptRepository
 from app.infrastructure.github_oidc_ingest import (
     GithubClaimCompletingSqlAlchemyPersistence,
 )
@@ -38,6 +43,25 @@ from app.modules.workflows.result_ingest_v2_contract import build_validated_enve
 NOW = datetime(2026, 9, 2, 12, tzinfo=timezone.utc)
 HASH = "a" * 64
 FIXTURES = Path(__file__).resolve().parents[2] / "resources" / "fixtures" / "ingest-v2"
+
+
+def _correlation() -> str:
+    return str(uuid.uuid4())
+
+
+def _dependencies(
+    session: AsyncSession,
+    *,
+    failing: bool = False,
+) -> GithubIngestDependencies:
+    claims = SqlAlchemyGithubIdempotencyRepository(session)
+    persistence_type = _FailingPersistence if failing else GithubClaimCompletingSqlAlchemyPersistence
+    return GithubIngestDependencies(
+        claims=claims,
+        quotas=SqlAlchemyGithubUsageQuotaRepository(session),
+        attempts=SqlAlchemyIngestAttemptRepository(session),
+        persistence=persistence_type(session, claims),
+    )
 
 
 class _FailingPersistence(GithubClaimCompletingSqlAlchemyPersistence):
@@ -66,6 +90,7 @@ async def _database(path: Path) -> async_sessionmaker[AsyncSession]:
 def _claim(*, payload_hash: str = HASH) -> GithubClaimCommand:
     return GithubClaimCommand(
         github_repository_id=424242,
+        github_owner_id=26457513,
         github_run_id=123456789,
         run_attempt=1,
         project_id=1,
@@ -144,51 +169,45 @@ async def test_github_workflow_persists_once_and_replays(tmp_path: Path) -> None
         accepted_bytes=sum(map(len, raw_parts.values())),
         envelope=envelope,
         public_base_url="https://scan.example.test",
+        correlation_id=_correlation(),
     )
 
     async with sessions() as session:
-        claims = SqlAlchemyGithubIdempotencyRepository(session)
         result = await ingest_github_result(
             command,
-            GithubIngestDependencies(
-                claims=claims,
-                persistence=GithubClaimCompletingSqlAlchemyPersistence(session, claims),
-            ),
+            _dependencies(session),
             now=NOW,
         )
         assert result.outcome is GithubIngestOutcome.CREATED
         assert result.run_id == "gh-424242-123456789-1"
 
     async with sessions() as session:
-        claims = SqlAlchemyGithubIdempotencyRepository(session)
         replay = await ingest_github_result(
-            command,
-            GithubIngestDependencies(
-                claims=claims,
-                persistence=GithubClaimCompletingSqlAlchemyPersistence(session, claims),
-            ),
+            replace(command, correlation_id=_correlation()),
+            _dependencies(session),
             now=NOW,
         )
         assert replay.outcome is GithubIngestOutcome.REPLAYED
         assert replay.run_id == result.run_id
         assert await session.scalar(select(func.count()).select_from(Run)) == 1
-        assert await session.scalar(select(func.count()).select_from(Finding)) == len(
-            envelope.findings["findings"]
-        )
+        assert await session.scalar(select(func.count()).select_from(Finding)) == len(envelope.findings["findings"])
         claim = (await session.execute(select(GithubIngestRequest))).scalar_one()
         assert claim.state == "completed"
         assert claim.run_id == result.run_id
+        attempts = (await session.execute(select(IngestAttempt))).scalars().all()
+        assert [attempt.outcome for attempt in attempts] == ["accepted", "replayed"]
+        assert all("26457513" not in attempt.principal_reference_hash for attempt in attempts)
 
-    conflicting = replace(command, envelope=replace(envelope, payload_hash="b" * 64))
+    conflicting = replace(
+        command,
+        envelope=replace(envelope, payload_hash="b" * 64),
+        correlation_id=_correlation(),
+    )
     async with sessions() as session:
-        claims = SqlAlchemyGithubIdempotencyRepository(session)
         with pytest.raises(GithubIngestError) as raised:
             await ingest_github_result(
                 conflicting,
-                GithubIngestDependencies(
-                    claims=claims,
-                    persistence=GithubClaimCompletingSqlAlchemyPersistence(session, claims),
-                ),
+                _dependencies(session),
                 now=NOW,
             )
         assert raised.value.status == 409
@@ -214,17 +233,14 @@ async def test_github_workflow_rejects_artifact_identity_mismatch(tmp_path: Path
         123456789,
         1,
         1024,
-        envelope,
+        correlation_id=_correlation(),
+        envelope=envelope,
     )
     async with sessions() as session:
-        claims = SqlAlchemyGithubIdempotencyRepository(session)
         with pytest.raises(GithubIngestError) as raised:
             await ingest_github_result(
                 command,
-                GithubIngestDependencies(
-                    claims=claims,
-                    persistence=GithubClaimCompletingSqlAlchemyPersistence(session, claims),
-                ),
+                _dependencies(session),
                 now=NOW,
             )
         assert raised.value.code == "artifact_mismatch"
@@ -252,17 +268,14 @@ async def test_github_workflow_rolls_back_graph_and_releases_failed_claim(
         123456789,
         1,
         1024,
-        envelope,
+        correlation_id=_correlation(),
+        envelope=envelope,
     )
     async with sessions() as session:
-        claims = SqlAlchemyGithubIdempotencyRepository(session)
         with pytest.raises(RuntimeError, match="injected persistence failure"):
             await ingest_github_result(
                 command,
-                GithubIngestDependencies(
-                    claims=claims,
-                    persistence=_FailingPersistence(session, claims),
-                ),
+                _dependencies(session, failing=True),
                 now=NOW,
             )
 
@@ -275,6 +288,7 @@ async def test_github_workflow_rolls_back_graph_and_releases_failed_claim(
         retry = await acquire_github_claim(
             GithubClaimCommand(
                 424242,
+                26457513,
                 123456789,
                 1,
                 1,

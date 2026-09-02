@@ -709,6 +709,7 @@ class GithubIngestRequest(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     github_repository_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    github_owner_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     github_run_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     run_attempt: Mapped[int] = mapped_column(Integer, nullable=False)
     project_id: Mapped[int] = mapped_column(
@@ -742,7 +743,8 @@ class GithubIngestRequest(Base):
         ),
         UniqueConstraint("run_id", name="uq_github_ingest_requests_run"),
         CheckConstraint(
-            "github_repository_id > 0 AND github_run_id > 0 AND run_attempt > 0",
+            "github_repository_id > 0 AND github_owner_id > 0 "
+            "AND github_run_id > 0 AND run_attempt > 0",
             name="ck_github_ingest_requests_identity",
         ),
         CheckConstraint(
@@ -775,6 +777,52 @@ class GithubIngestRequest(Base):
             "created_at",
         ),
         Index("ix_github_ingest_requests_state_lease", "state", "lease_expires_at"),
+        Index("ix_github_ingest_requests_owner_created", "github_owner_id", "created_at"),
+    )
+
+
+class IngestAttempt(Base):
+    """Minimized, expiring evidence for a project-bound upload attempt."""
+
+    __tablename__ = "ingest_attempts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    correlation_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    origin: Mapped[str] = mapped_column(String(16), nullable=False)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    principal_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    principal_reference_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    canonical_request_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    retryable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    wire_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    received_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("runs.run_id", ondelete="SET NULL"), nullable=True
+    )
+    submitted_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+
+    __table_args__ = (
+        CheckConstraint("origin IN ('github', 'local')", name="ck_ingest_attempts_origin"),
+        CheckConstraint(
+            "principal_kind IN ('github_oidc', 'local_token')",
+            name="ck_ingest_attempts_principal_kind",
+        ),
+        CheckConstraint(
+            "outcome IN ('accepted', 'replayed', 'rejected', 'failed_internal')",
+            name="ck_ingest_attempts_outcome",
+        ),
+        CheckConstraint("wire_bytes >= 0", name="ck_ingest_attempts_wire_bytes"),
+        CheckConstraint("expires_at > received_at", name="ck_ingest_attempts_expiry"),
+        Index("ix_ingest_attempts_project_received", "project_id", "received_at"),
+        Index("ix_ingest_attempts_expires", "expires_at"),
     )
 
 

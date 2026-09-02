@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol, cast
 
@@ -71,6 +72,7 @@ class GithubActionsIngestRoute(APIRoute):
         original = super().get_route_handler()
 
         async def handler(request: Request) -> Response:
+            request.state.correlation_id = str(uuid.uuid4())
             try:
                 return await original(request)
             except IngestProblem as exc:
@@ -87,6 +89,12 @@ class GithubActionsIngestRoute(APIRoute):
                         code=exc.code,
                         title=exc.title,
                         detail=exc.detail,
+                        retryable=exc.retryable,
+                        headers=(
+                            {"Retry-After": str(exc.retry_after_seconds)}
+                            if exc.retry_after_seconds is not None
+                            else None
+                        ),
                     ),
                 )
             except (GithubAppApiError, GithubOidcInfrastructureError):
@@ -185,6 +193,7 @@ async def upload_github_actions_result(
             accepted_bytes=upload.wire_bytes,
             envelope=envelope,
             public_base_url=settings.public_base_url,
+            correlation_id=request.state.correlation_id,
         )
     )
     return _success_response(result)

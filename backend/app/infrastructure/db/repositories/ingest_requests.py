@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.infrastructure.db.models import IngestRequest, User
-from app.infrastructure.db.repositories.ingest_usage import QUOTA_LOCK_SESSION_KEY
+from app.infrastructure.db.repositories.ingest_quota_lock import QUOTA_LOCK_SESSION_KEY
 from app.modules.atomic.ingestion.idempotency_guard import (
     ClaimCommand,
     ClaimDecision,

@@ -59,6 +59,7 @@ class GithubClaimCommand:
     """Authoritative GitHub run identity and content for one upload."""
 
     github_repository_id: int
+    github_owner_id: int
     github_run_id: int
     run_attempt: int
     project_id: int
@@ -71,6 +72,7 @@ class GithubIdempotencyClaim:
     """Fenced lease handle for one GitHub run attempt."""
 
     github_repository_id: int
+    github_owner_id: int
     github_run_id: int
     run_attempt: int
     payload_hash: str

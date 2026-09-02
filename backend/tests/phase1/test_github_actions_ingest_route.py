@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -161,6 +162,7 @@ def _assert_problem(response, status: int, code: str) -> None:
     assert response.headers["content-type"].startswith("application/problem+json")
     assert response.json()["code"] == code
     assert response.json()["retryable"] is False
+    assert str(uuid.UUID(response.json()["request_id"])) == response.json()["request_id"]
 
 
 async def test_disabled_endpoint_is_closed_before_authentication(harness: Harness) -> None:
@@ -197,6 +199,7 @@ async def test_valid_upload_passes_only_validated_identity_and_envelope(harness:
     command = harness.workflow.commands[0]
     assert command.github_repository_id == 424242
     assert command.github_run_id == 123456789
+    assert str(uuid.UUID(command.correlation_id)) == command.correlation_id
     assert command.envelope.metadata["schema_version"] == 2
     assert command.accepted_bytes > sum(len(item[1][1]) for item in _parts())
 

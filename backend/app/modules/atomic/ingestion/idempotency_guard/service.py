@@ -39,6 +39,7 @@ def validate_github_claim_command(command: GithubClaimCommand) -> GithubClaimCom
     """Reject non-canonical GitHub identities before durable storage."""
     identifiers = (
         command.github_repository_id,
+        command.github_owner_id,
         command.github_run_id,
         command.run_attempt,
         command.project_id,
@@ -109,6 +110,7 @@ def github_claim_handle(
         raise IdempotencyValidationError("only an acquired result has a lease handle")
     return GithubIdempotencyClaim(
         github_repository_id=command.github_repository_id,
+        github_owner_id=command.github_owner_id,
         github_run_id=command.github_run_id,
         run_attempt=command.run_attempt,
         payload_hash=command.payload_hash,

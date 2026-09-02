@@ -11,8 +11,22 @@ from app.modules.atomic.ingestion.idempotency_guard import (
     acquire_github_claim,
     github_claim_handle,
 )
+from app.modules.atomic.ingestion.ingest_attempt import (
+    IngestAttemptCommand,
+    IngestAttemptRecord,
+    build_ingest_attempt,
+)
+from app.modules.atomic.ingestion.usage_quota import (
+    GithubQuotaCommand,
+    GithubQuotaDecision,
+    reserve_github_usage,
+)
 from app.modules.shared.contracts.ingest import GitHubIngestEnvelope, ResolvedProject
-from app.modules.workflows.result_ingest import build_v2_result_bundle, ingest_result_bundle
+from app.modules.workflows.result_ingest import (
+    build_v2_result_bundle,
+    github_run_id,
+    ingest_result_bundle,
+)
 
 from .models import (
     GithubIngestCommand,
@@ -35,10 +49,56 @@ async def ingest_github_result(
     producer = _mapping(metadata.get("producer"), "producer")
     repository = _mapping(metadata.get("repository"), "repository")
     source = _mapping(metadata.get("source"), "source")
-    _validate_authenticated_identity(command, producer, repository)
+    try:
+        _validate_authenticated_identity(command, producer, repository)
+    except GithubIngestError:
+        await _record_attempt(
+            command,
+            dependencies,
+            timestamp,
+            outcome="rejected",
+            reason_code="artifact_mismatch",
+        )
+        raise
+
+    quota_result = await reserve_github_usage(
+        GithubQuotaCommand(
+            project_id=command.project_id,
+            github_repository_id=command.github_repository_id,
+            github_owner_id=command.github_owner_id,
+            github_run_id=command.github_run_id,
+            run_attempt=command.github_run_attempt,
+            accepted_bytes=command.accepted_bytes,
+        ),
+        repository=dependencies.quotas,
+        now=timestamp,
+    )
+    if not quota_result.allowed:
+        capacity = quota_result.decision in {
+            GithubQuotaDecision.REPOSITORY_INFLIGHT,
+            GithubQuotaDecision.INSTANCE_INFLIGHT,
+        }
+        code = "capacity_exceeded" if capacity else "quota_exceeded"
+        await _record_attempt(
+            command,
+            dependencies,
+            timestamp,
+            outcome="rejected",
+            reason_code=code,
+            retryable=True,
+        )
+        raise GithubIngestError(
+            status=429,
+            code=code,
+            title="GitHub Actions upload capacity exceeded",
+            detail="The upload cannot be accepted until capacity becomes available.",
+            retryable=True,
+            retry_after_seconds=quota_result.retry_after_seconds,
+        )
 
     claim_command = GithubClaimCommand(
         github_repository_id=command.github_repository_id,
+        github_owner_id=command.github_owner_id,
         github_run_id=command.github_run_id,
         run_attempt=command.github_run_attempt,
         project_id=command.project_id,
@@ -51,8 +111,24 @@ async def ingest_github_result(
         now=timestamp,
     )
     if claim_result.decision is ClaimDecision.REPLAY:
+        await _record_attempt(
+            command,
+            dependencies,
+            timestamp,
+            outcome="replayed",
+            reason_code="idempotent_replay",
+            run_id=claim_result.run_id,
+        )
         return _result(command, GithubIngestOutcome.REPLAYED, claim_result.run_id)
     if claim_result.decision is ClaimDecision.IN_PROGRESS:
+        await _record_attempt(
+            command,
+            dependencies,
+            timestamp,
+            outcome="replayed",
+            reason_code="idempotent_replay",
+            retryable=True,
+        )
         return GithubIngestResult(
             outcome=GithubIngestOutcome.IN_PROGRESS,
             run_id=None,
@@ -64,6 +140,13 @@ async def ingest_github_result(
             retry_after_seconds=_retry_after(claim_result.lease_expires_at, timestamp),
         )
     if claim_result.decision in {ClaimDecision.CONFLICT, ClaimDecision.TOMBSTONED}:
+        await _record_attempt(
+            command,
+            dependencies,
+            timestamp,
+            outcome="rejected",
+            reason_code="idempotency_conflict",
+        )
         raise GithubIngestError(
             status=409,
             code="idempotency_conflict",
@@ -73,6 +156,20 @@ async def ingest_github_result(
 
     claim = github_claim_handle(claim_command, claim_result)
     dependencies.persistence.bind_claim(claim)
+    run_id = github_run_id(
+        command.github_repository_id,
+        command.github_run_id,
+        command.github_run_attempt,
+    )
+    dependencies.persistence.bind_attempt(
+        _attempt(
+            command,
+            timestamp,
+            outcome="accepted",
+            reason_code="accepted",
+            run_id=run_id,
+        )
+    )
     artifacts = {"findings": command.envelope.canonical_parts["findings"]}
     for name in ("sarif", "sbom"):
         content = command.envelope.canonical_parts.get(name)
@@ -105,8 +202,7 @@ async def ingest_github_result(
         run_number=run_number,
         run_attempt=run_attempt,
         run_url=(
-            f"https://github.com/{command.repository}/actions/runs/"
-            f"{command.github_run_id}/attempts/{run_attempt}"
+            f"https://github.com/{command.repository}/actions/runs/{command.github_run_id}/attempts/{run_attempt}"
         ),
         event=str(producer["event_name"]),
         actor=str(producer["actor"]),
@@ -124,12 +220,74 @@ async def ingest_github_result(
         )
     except BaseException:
         await dependencies.claims.fail(claim, now=datetime.now(timezone.utc))
+        try:
+            await _record_attempt(
+                command,
+                dependencies,
+                timestamp,
+                outcome="failed_internal",
+                reason_code="internal_persistence_failed",
+                retryable=True,
+            )
+        except Exception:
+            pass
         raise
-    run_id = (
-        f"gh-{command.github_repository_id}-{command.github_run_id}-"
-        f"{command.github_run_attempt}"
-    )
     return _result(command, GithubIngestOutcome.CREATED, run_id)
+
+
+async def _record_attempt(
+    command: GithubIngestCommand,
+    dependencies: GithubIngestDependencies,
+    received_at: datetime,
+    *,
+    outcome: str,
+    reason_code: str,
+    retryable: bool = False,
+    run_id: str | None = None,
+) -> None:
+    await dependencies.attempts.record(
+        _attempt(
+            command,
+            received_at,
+            outcome=outcome,
+            reason_code=reason_code,
+            retryable=retryable,
+            run_id=run_id,
+        )
+    )
+
+
+def _attempt(
+    command: GithubIngestCommand,
+    received_at: datetime,
+    *,
+    outcome: str,
+    reason_code: str,
+    retryable: bool = False,
+    run_id: str | None = None,
+) -> IngestAttemptRecord:
+    completed_at = datetime.now(timezone.utc)
+    if completed_at < received_at:
+        completed_at = received_at
+    return build_ingest_attempt(
+        IngestAttemptCommand(
+            correlation_id=command.correlation_id,
+            origin="github",
+            project_id=command.project_id,
+            principal_kind="github_oidc",
+            principal_reference=str(command.github_owner_id),
+            canonical_request_key=(
+                f"{command.github_repository_id}:{command.github_run_id}:{command.github_run_attempt}"
+            ),
+            outcome=outcome,
+            reason_code=reason_code,
+            retryable=retryable,
+            wire_bytes=command.accepted_bytes,
+            received_at=received_at,
+            completed_at=completed_at,
+            run_id=run_id,
+        )
+    )
 
 
 def _validate_authenticated_identity(

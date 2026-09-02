@@ -38,7 +38,11 @@ class IngestProblem(Exception):
 
 def problem_response(request: Request, problem: IngestProblem) -> JSONResponse:
     """Render a problem without reflecting credentials or payload content."""
-    request_id = str(uuid.uuid4())
+    candidate = getattr(request.state, "correlation_id", None)
+    try:
+        request_id = str(uuid.UUID(candidate)) if isinstance(candidate, str) else str(uuid.uuid4())
+    except ValueError:
+        request_id = str(uuid.uuid4())
     body: dict[str, Any] = {
         "type": f"https://assurance-scan.dev/problems/{problem.code.replace('_', '-')}",
         "title": problem.title,

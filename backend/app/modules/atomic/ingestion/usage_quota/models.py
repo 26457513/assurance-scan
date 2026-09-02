@@ -17,6 +17,7 @@ class QuotaDecision(StrEnum):
     TOKEN_INFLIGHT = "token_inflight"
     USER_INFLIGHT = "user_inflight"
     INSTANCE_INFLIGHT = "instance_inflight"
+    SHARED_INSTANCE_INFLIGHT = "shared_instance_inflight"
     USER_RETAINED_STORAGE = "user_retained_storage"
     INSTANCE_RETAINED_STORAGE = "instance_retained_storage"
     USER_DAILY_BYTES = "user_daily_bytes"
@@ -42,6 +43,7 @@ class UsageSnapshot:
     token_inflight: int = 0
     user_inflight: int = 0
     instance_inflight: int = 0
+    shared_instance_inflight: int = 0
     user_retained_bytes: int = 0
     instance_retained_bytes: int = 0
     user_accepted_bytes_day: int = 0
@@ -71,10 +73,64 @@ class QuotaResult:
         return self.decision is QuotaDecision.ALLOWED
 
 
+class GithubQuotaDecision(StrEnum):
+    ALLOWED = "allowed"
+    REPOSITORY_HOURLY_RATE = "repository_hourly_rate"
+    OWNER_DAILY_RATE = "owner_daily_rate"
+    REPOSITORY_INFLIGHT = "repository_inflight"
+    INSTANCE_INFLIGHT = "instance_inflight"
+    OWNER_DAILY_BYTES = "owner_daily_bytes"
+
+
+@dataclass(frozen=True)
+class GithubQuotaCommand:
+    project_id: int
+    github_repository_id: int
+    github_owner_id: int
+    github_run_id: int
+    run_attempt: int
+    accepted_bytes: int
+
+
+@dataclass(frozen=True)
+class GithubUsageSnapshot:
+    repository_uploads_hour: int = 0
+    owner_uploads_day: int = 0
+    repository_inflight: int = 0
+    instance_inflight: int = 0
+    owner_accepted_bytes_day: int = 0
+
+
+@dataclass(frozen=True)
+class GithubUsageReservation:
+    github_repository_id: int
+    github_owner_id: int
+    github_run_id: int
+    run_attempt: int
+    accepted_bytes: int
+    reserved_at: datetime
+
+
+@dataclass(frozen=True)
+class GithubQuotaResult:
+    decision: GithubQuotaDecision
+    reservation: GithubUsageReservation | None = None
+    retry_after_seconds: int | None = None
+
+    @property
+    def allowed(self) -> bool:
+        return self.decision is GithubQuotaDecision.ALLOWED
+
+
 __all__ = [
     "QuotaCommand",
     "QuotaDecision",
     "QuotaResult",
     "UsageReservation",
     "UsageSnapshot",
+    "GithubQuotaCommand",
+    "GithubQuotaDecision",
+    "GithubQuotaResult",
+    "GithubUsageReservation",
+    "GithubUsageSnapshot",
 ]

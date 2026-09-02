@@ -11,6 +11,11 @@ from app.modules.atomic.ingestion.idempotency_guard import (
     GithubIdempotencyRepositoryPort,
 )
 from app.modules.atomic.ingestion.result_persister import ResultPersistencePort
+from app.modules.atomic.ingestion.ingest_attempt import (
+    IngestAttemptRecord,
+    IngestAttemptRepositoryPort,
+)
+from app.modules.atomic.ingestion.usage_quota import GithubUsageQuotaRepositoryPort
 from app.modules.workflows.result_ingest_v2_contract import ValidatedEnvelopeV2
 
 
@@ -25,6 +30,7 @@ class GithubIngestCommand:
     github_run_id: int
     github_run_attempt: int
     accepted_bytes: int
+    correlation_id: str
     envelope: ValidatedEnvelopeV2
     public_base_url: str = ""
 
@@ -50,12 +56,23 @@ class GithubIngestResult:
 class GithubIngestError(Exception):
     """Stable expected rejection for the future HTTP adapter."""
 
-    def __init__(self, *, status: int, code: str, title: str, detail: str) -> None:
+    def __init__(
+        self,
+        *,
+        status: int,
+        code: str,
+        title: str,
+        detail: str,
+        retryable: bool = False,
+        retry_after_seconds: int | None = None,
+    ) -> None:
         super().__init__(detail)
         self.status = status
         self.code = code
         self.title = title
         self.detail = detail
+        self.retryable = retryable
+        self.retry_after_seconds = retry_after_seconds
 
 
 class GithubClaimCompletingPersistencePort(ResultPersistencePort, Protocol):
@@ -63,10 +80,14 @@ class GithubClaimCompletingPersistencePort(ResultPersistencePort, Protocol):
 
     def bind_claim(self, claim: GithubIdempotencyClaim) -> None: ...
 
+    def bind_attempt(self, attempt: IngestAttemptRecord) -> None: ...
+
 
 @dataclass(frozen=True)
 class GithubIngestDependencies:
     claims: GithubIdempotencyRepositoryPort
+    quotas: GithubUsageQuotaRepositoryPort
+    attempts: IngestAttemptRepositoryPort
     persistence: GithubClaimCompletingPersistencePort
 
 

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.infrastructure.db.models import GithubIngestRequest, Project
+from app.infrastructure.db.repositories.ingest_quota_lock import QUOTA_LOCK_SESSION_KEY
 from app.modules.atomic.ingestion.idempotency_guard import (
     ClaimDecision,
     ClaimResult,
@@ -35,7 +36,7 @@ class SqlAlchemyGithubIdempotencyRepository:
         now: dt.datetime,
         lease_expires_at: dt.datetime,
     ) -> ClaimResult:
-        if self.session.in_transaction():
+        if self.session.in_transaction() and not self.session.info.get(QUOTA_LOCK_SESSION_KEY):
             raise RuntimeError("GitHub idempotency acquisition requires a clean session")
         await self._begin_write(command.project_id)
         row = await self._get_locked(command)
@@ -44,6 +45,7 @@ class SqlAlchemyGithubIdempotencyRepository:
             self.session.add(
                 GithubIngestRequest(
                     github_repository_id=command.github_repository_id,
+                    github_owner_id=command.github_owner_id,
                     github_run_id=command.github_run_id,
                     run_attempt=command.run_attempt,
                     project_id=command.project_id,
@@ -58,14 +60,17 @@ class SqlAlchemyGithubIdempotencyRepository:
             )
             try:
                 await self.session.commit()
+                self.session.info.pop(QUOTA_LOCK_SESSION_KEY, None)
             except IntegrityError:
                 await self.session.rollback()
+                self.session.info.pop(QUOTA_LOCK_SESSION_KEY, None)
                 return await self.acquire(command, now=now, lease_expires_at=lease_expires_at)
             return ClaimResult(ClaimDecision.ACQUIRED, lease_id, lease_expires_at)
 
         decision = self._existing_decision(row, command, now=now)
         if decision is not None:
             await self.session.rollback()
+            self.session.info.pop(QUOTA_LOCK_SESSION_KEY, None)
             return decision
 
         stale = row.state == "processing"
@@ -80,6 +85,7 @@ class SqlAlchemyGithubIdempotencyRepository:
         row.tombstone_expires_at = None
         row.updated_at = now
         await self.session.commit()
+        self.session.info.pop(QUOTA_LOCK_SESSION_KEY, None)
         acquired_decision = ClaimDecision.STALE_TAKEOVER if stale else ClaimDecision.ACQUIRED
         return ClaimResult(acquired_decision, lease_id, lease_expires_at)
 
@@ -187,6 +193,8 @@ class SqlAlchemyGithubIdempotencyRepository:
         return int(result.rowcount or 0)
 
     async def _begin_write(self, project_id: int) -> None:
+        if self.session.in_transaction() and self.session.info.get(QUOTA_LOCK_SESSION_KEY):
+            return
         if self.session.get_bind().dialect.name == "sqlite":
             await self.session.execute(text("BEGIN IMMEDIATE"))
             return
@@ -209,7 +217,11 @@ class SqlAlchemyGithubIdempotencyRepository:
         *,
         now: dt.datetime,
     ) -> ClaimResult | None:
-        if row.project_id != command.project_id or row.payload_hash != command.payload_hash:
+        if (
+            row.project_id != command.project_id
+            or row.github_owner_id != command.github_owner_id
+            or row.payload_hash != command.payload_hash
+        ):
             return ClaimResult(ClaimDecision.CONFLICT)
         if row.state == "tombstoned":
             tombstone_expiry = _aware(row.tombstone_expires_at)
