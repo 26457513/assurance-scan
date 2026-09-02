@@ -55,6 +55,10 @@
   }
 
   onMount(async () => {
+    if ($page.url.pathname === '/auth/login') {
+      bootstrapped = true;
+      return;
+    }
     const initialRunId = selectedRunFromUrl($page.url);
     lastUrlRunId = initialRunId;
     if (initialRunId) {
@@ -80,21 +84,27 @@
   }
 </script>
 
-<div
-  class="app-shell grid h-screen overflow-hidden bg-surface-base"
->
-  <div class="col-start-1 col-end-2 row-start-1 row-end-3 min-h-0">
-    <Sidebar />
-  </div>
-  <div class="relative z-30 col-start-2 col-end-3 row-start-1 row-end-2 min-w-0 overflow-visible">
-    <Header />
-  </div>
-  <main class="relative z-0 col-start-2 col-end-3 row-start-2 row-end-3 overflow-auto min-w-0">
+{#if $page.url.pathname === '/auth/login'}
+  <main class="h-screen overflow-auto bg-surface-base">
     <slot />
   </main>
-</div>
+{:else}
+  <div
+    class="app-shell grid h-screen overflow-hidden bg-surface-base"
+  >
+    <div class="col-start-1 col-end-2 row-start-1 row-end-3 min-h-0">
+      <Sidebar />
+    </div>
+    <div class="relative z-30 col-start-2 col-end-3 row-start-1 row-end-2 min-w-0 overflow-visible">
+      <Header />
+    </div>
+    <main class="relative z-0 col-start-2 col-end-3 row-start-2 row-end-3 overflow-auto min-w-0">
+      <slot />
+    </main>
+  </div>
 
-<Toaster />
+  <Toaster />
+{/if}
 
 <style>
   .app-shell {

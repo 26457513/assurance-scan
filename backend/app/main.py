@@ -267,8 +267,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         @app.middleware("http")
         async def _auth(request, call_next):
             path = request.url.path
-            # Healthcheck (container-internal) and the login flow stay open.
-            if path == "/health" or path.startswith("/auth/"):
+            # Healthcheck, browser authentication, and immutable frontend
+            # assets stay public. The branded login page is part of the SPA;
+            # GitHub credentials are still entered only on github.com.
+            if (
+                path == "/health"
+                or path.startswith("/auth/")
+                or path.startswith("/_app/")
+                or path.startswith("/static/")
+                or path == "/favicon.svg"
+            ):
                 return await call_next(request)
             # GitHub authenticates the webhook's exact raw body using its own
             # HMAC boundary; browser login must never intercept this endpoint.

@@ -35,7 +35,7 @@ def _require_ready(request: Request) -> None:
         raise HTTPException(status_code=503, detail="GitHub sign-in is not configured")
 
 
-@router.get("/auth/login")
+@router.get("/auth/github/start")
 async def start_github_signin(
     request: Request,
     session: AsyncSession = SessionDep,

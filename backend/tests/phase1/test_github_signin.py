@@ -81,7 +81,7 @@ async def test_github_signin_provisions_by_numeric_id_and_replay_fails(tmp_path,
 
     monkeypatch.setattr(github_auth, "exchange_and_verify_github_authorization", verified)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://scan.example.test") as client:
-        started = await client.get("/auth/login", params={"next": "/setup"})
+        started = await client.get("/auth/github/start", params={"next": "/setup"})
         assert started.status_code == 302
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(started.headers["location"]).query)
         assert query["redirect_uri"] == ["https://scan.example.test/auth/github/callback"]

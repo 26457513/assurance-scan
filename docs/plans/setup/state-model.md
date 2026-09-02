@@ -30,7 +30,8 @@ and replaced by the repository picker—not silently substituted.
 | Access stale | expired entitlement | Retry access check | mutation locked |
 | Installation suspended | verified suspension | Manage GitHub App | locked |
 
-Authentication occurs at `/auth/login`; authenticated users do not see a
+Authentication begins at the branded `/auth/login` page and hands credential
+entry to GitHub through `/auth/github/start`; authenticated users do not see a
 misleading “Connect GitHub” action. Accounts are created only from immutable
 GitHub user identity; there is no email merge or legacy linking flow.
 
