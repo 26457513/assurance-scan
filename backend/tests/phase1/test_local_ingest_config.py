@@ -14,11 +14,23 @@ def test_local_ingest_is_disabled_by_default(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.delenv("SCAN_TOKEN_CREATION_ENABLED", raising=False)
     monkeypatch.delenv("SCAN_TOKEN_CREATION_USER_ALLOWLIST", raising=False)
     monkeypatch.delenv("LOCAL_INGEST_REPOSITORY_ALLOWLIST", raising=False)
+    monkeypatch.delenv("GITHUB_OIDC_INGEST_ENABLED", raising=False)
     settings = load_settings()
     assert settings.local_ingest_enabled is False
     assert settings.scan_token_creation_enabled is False
     assert settings.scan_token_creation_user_allowlist == frozenset()
     assert settings.local_ingest_repository_allowlist == frozenset()
+    assert settings.github_oidc_ingest_enabled is False
+
+
+def test_github_oidc_ingest_requires_an_explicit_strict_boolean(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_OIDC_INGEST_ENABLED", "true")
+    assert load_settings().github_oidc_ingest_enabled is True
+    monkeypatch.setenv("GITHUB_OIDC_INGEST_ENABLED", "enable-ish")
+    with pytest.raises(ValueError, match="GITHUB_OIDC_INGEST_ENABLED"):
+        load_settings()
 
 
 def test_local_ingest_accepts_explicit_boolean(monkeypatch: pytest.MonkeyPatch) -> None:

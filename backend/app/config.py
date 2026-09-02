@@ -227,6 +227,7 @@ class Settings:
     github_webhook_previous_secret: str
     github_webhook_previous_valid_until: str
     migration_github_linking_enabled: bool
+    github_oidc_ingest_enabled: bool
 
     # GitHub CI polling (phase-2 ingest). Poller runs only when both a
     # token and at least one repo are configured.
@@ -335,6 +336,7 @@ def load_settings() -> Settings:
         github_webhook_previous_secret=_env("GITHUB_WEBHOOK_PREVIOUS_SECRET", ""),
         github_webhook_previous_valid_until=_env("GITHUB_WEBHOOK_PREVIOUS_VALID_UNTIL", ""),
         migration_github_linking_enabled=_env_bool("MIGRATION_GITHUB_LINKING_ENABLED"),
+        github_oidc_ingest_enabled=_env_bool("GITHUB_OIDC_INGEST_ENABLED"),
     )
 
 
