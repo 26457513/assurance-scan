@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.infrastructure.db.repositories.github_reconciliation import (
     SqlAlchemyGithubRepositoryReconciliationRepository,
+    load_github_installation_repository_cache,
 )
 from app.infrastructure.db.repositories.github_webhooks import (
     SqlAlchemyGithubWebhookDeliveryRepository,
@@ -130,12 +131,21 @@ async def github_webhook_worker_loop(
     """Continuously drain authenticated webhook mutations from durable storage."""
 
     async def load_snapshot(installation_id: int, refreshed_at: dt.datetime):
+        async with session_factory() as session:
+            cache = await load_github_installation_repository_cache(
+                session,
+                installation_id,
+            )
         return await asyncio.to_thread(
             fetch_authoritative_installation,
             github_app_id=github_app_id,
             private_key_pem=private_key_pem,
             github_installation_id=installation_id,
             now=refreshed_at,
+            repositories_etag=cache.repositories_etag,
+            cached_repositories=(
+                cache.repositories if cache.repositories_etag is not None else None
+            ),
         )
 
     while True:

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.infrastructure.db.models import GithubAppInstallation
 from app.infrastructure.db.repositories.github_reconciliation import (
     SqlAlchemyGithubRepositoryReconciliationRepository,
+    load_github_installation_repository_cache,
 )
 from app.infrastructure.github_app_api import (
     GithubAppApiError,
@@ -138,12 +139,21 @@ async def github_reconciliation_loop(
         installation_id: int,
         checked_at: dt.datetime,
     ) -> GithubInstallationSnapshot:
+        async with session_factory() as session:
+            cache = await load_github_installation_repository_cache(
+                session,
+                installation_id,
+            )
         return await asyncio.to_thread(
             fetch_authoritative_installation,
             github_app_id=github_app_id,
             private_key_pem=private_key_pem,
             github_installation_id=installation_id,
             now=checked_at,
+            repositories_etag=cache.repositories_etag,
+            cached_repositories=(
+                cache.repositories if cache.repositories_etag is not None else None
+            ),
         )
 
     while True:

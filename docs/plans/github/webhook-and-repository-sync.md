@@ -14,8 +14,8 @@ by immutable installation ID because a suspended/deleted installation may not
 mint a token. Thirty-day delivery cleanup and the six-hour repair loop are also
 complete in disabled candidate code. Explicit primary and secondary GitHub
 rate-limit responses defer webhook work without a retry storm and stop the
-current repair batch; conditional requests and persisted cursors remain before
-activation.
+current repair batch. Conditional requests safely reuse only a complete active
+single-page projection; persisted cursors remain before activation.
 
 ## Endpoint security
 
@@ -78,8 +78,8 @@ after a complete authenticated listing; a present suspended installation is
 disabled without minting a token, and every other due installation receives a
 full repository refresh. Reconciliation timestamps fence older concurrent
 snapshots. Delivery claims are removed by the shared retention transaction once
-their contractual 30 days expire. Conditional ETag requests and persisted
-pagination cursors remain required before production activation.
+their contractual 30 days expire. Persisted pagination cursors remain required
+before production activation.
 
 ## Authoritative refresh
 

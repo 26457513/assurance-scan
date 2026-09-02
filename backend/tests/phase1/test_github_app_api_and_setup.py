@@ -53,8 +53,14 @@ NOW = dt.datetime(2026, 9, 2, 20, 0, tzinfo=dt.timezone.utc)
 
 
 class FakeGithubHttp:
-    def __init__(self, *, user_has_access: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        user_has_access: bool = True,
+        repositories_not_modified: bool = False,
+    ) -> None:
         self.user_has_access = user_has_access
+        self.repositories_not_modified = repositories_not_modified
         self.requests: list[tuple[str, str, dict[str, str], bytes | None]] = []
 
     def request(
@@ -101,6 +107,8 @@ class FakeGithubHttp:
         if url == f"{GITHUB_API_ROOT}/app/installations/9001/access_tokens":
             return GithubApiResponse({"token": "installation-token"}, {})
         if url.startswith(f"{GITHUB_API_ROOT}/installation/repositories?"):
+            if self.repositories_not_modified:
+                return GithubApiResponse({}, {"etag": '"repositories-v1"'}, status=304)
             return GithubApiResponse(
                 {
                     "repositories": [
@@ -206,6 +214,87 @@ def test_worker_fetch_uses_app_credentials_without_a_user_token() -> None:
     assert snapshot.github_installation_id == 9001
     assert http.requests[0][1] == f"{GITHUB_API_ROOT}/app/installations/9001"
     assert all("/user/installations" not in request[1] for request in http.requests)
+
+
+def test_repository_etag_reuses_only_an_explicit_complete_cache() -> None:
+    cached = (
+        GithubRepositorySnapshot(
+            github_repository_id=424242,
+            github_owner_id=26457513,
+            full_name="example-org/example-repo",
+            default_branch="main",
+            visibility=GithubRepositoryVisibility.PRIVATE,
+            archived=False,
+            disabled=False,
+        ),
+    )
+    http = FakeGithubHttp(repositories_not_modified=True)
+
+    snapshot = fetch_authoritative_installation(
+        github_app_id="12345",
+        private_key_pem=_private_pem(_private_key()),
+        github_installation_id=9001,
+        now=NOW,
+        repositories_etag='"repositories-v1"',
+        cached_repositories=cached,
+        http=http,
+    )
+
+    assert snapshot.repositories == cached
+    repository_request = next(
+        request for request in http.requests if "/installation/repositories?" in request[1]
+    )
+    assert repository_request[2]["If-None-Match"] == '"repositories-v1"'
+
+    with pytest.raises(GithubAppApiError, match="unusable conditional"):
+        fetch_authoritative_installation(
+            github_app_id="12345",
+            private_key_pem=_private_pem(_private_key()),
+            github_installation_id=9001,
+            now=NOW,
+            repositories_etag='"repositories-v1"',
+            cached_repositories=None,
+            http=FakeGithubHttp(repositories_not_modified=True),
+        )
+
+
+def test_paginated_repository_scope_does_not_persist_a_page_etag() -> None:
+    class PaginatedGithubHttp(FakeGithubHttp):
+        def request(self, method, url, *, headers, body=None):
+            if url.startswith(f"{GITHUB_API_ROOT}/installation/repositories?"):
+                self.requests.append((method, url, headers, body))
+                page = int(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["page"][0])
+                count = 100 if page == 1 else 1
+                offset = 0 if page == 1 else 100
+                return GithubApiResponse(
+                    {
+                        "repositories": [
+                            {
+                                "id": 500000 + offset + index,
+                                "full_name": f"example-org/repository-{offset + index}",
+                                "owner": {"id": 26457513},
+                                "default_branch": "main",
+                                "visibility": "private",
+                                "archived": False,
+                                "disabled": False,
+                            }
+                            for index in range(count)
+                        ]
+                    },
+                    {"etag": '"page-one"'},
+                )
+            return super().request(method, url, headers=headers, body=body)
+
+    snapshot = fetch_authoritative_installation(
+        github_app_id="12345",
+        private_key_pem=_private_pem(_private_key()),
+        github_installation_id=9001,
+        now=NOW,
+        http=PaginatedGithubHttp(),
+    )
+
+    assert len(snapshot.repositories) == 101
+    assert snapshot.repositories_etag is None
 
 
 def test_complete_app_installation_listing_carries_only_authoritative_state() -> None:

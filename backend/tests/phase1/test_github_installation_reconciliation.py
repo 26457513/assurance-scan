@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from app.infrastructure.db.models import (
+    GithubAppInstallation,
     GithubInstallationRepository,
     Project,
     ProjectMembership,
@@ -18,6 +19,7 @@ from app.infrastructure.db.repositories.github_installation_states import (
 )
 from app.infrastructure.db.repositories.github_reconciliation import (
     SqlAlchemyGithubRepositoryReconciliationRepository,
+    load_github_installation_repository_cache,
 )
 from app.infrastructure.db.repositories.identity_sessions import (
     SqlAlchemyBrowserSessionRepository,
@@ -235,6 +237,29 @@ async def test_reconciliation_blocks_installation_owner_identity_change(session)
             verified_at=NOW + dt.timedelta(minutes=1),
             repository=adapter,
         )
+
+
+@pytest.mark.asyncio
+async def test_conditional_cache_contains_only_the_last_complete_active_scope(session) -> None:
+    adapter = SqlAlchemyGithubRepositoryReconciliationRepository(session)
+    await reconcile_github_repositories(
+        _snapshot(_repository(101, "first"), _repository(102, "second", archived=True)),
+        verified_at=NOW,
+        repository=adapter,
+    )
+
+    cache = await load_github_installation_repository_cache(session, 9001)
+
+    assert cache.repositories_etag == '"repositories-v1"'
+    assert [item.github_repository_id for item in cache.repositories] == [101, 102]
+    assert cache.repositories[1].archived is True
+
+    installation = await session.get(GithubAppInstallation, 9001)
+    assert installation is not None
+    installation.suspended_at = NOW
+    await session.commit()
+    suspended_cache = await load_github_installation_repository_cache(session, 9001)
+    assert suspended_cache.repositories_etag is None
 
 
 @pytest.mark.asyncio

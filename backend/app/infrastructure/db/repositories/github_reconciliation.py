@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 
 from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,10 +17,63 @@ from app.infrastructure.db.models import (
 )
 from app.modules.atomic.access.github_repository_reconciliation import (
     GithubInstallationSnapshot,
+    GithubRepositorySnapshot,
+    GithubRepositoryVisibility,
     ReconciliationResult,
     ReconciliationValidationError,
 )
 from app.modules.atomic.provenance.repository_identity import normalize_github_repository_key
+
+
+@dataclass(frozen=True)
+class GithubInstallationRepositoryCache:
+    repositories_etag: str | None
+    repositories: tuple[GithubRepositorySnapshot, ...]
+
+
+async def load_github_installation_repository_cache(
+    session: AsyncSession,
+    github_installation_id: int,
+) -> GithubInstallationRepositoryCache:
+    """Load the last complete projection eligible for conditional revalidation."""
+    installation = await session.get(GithubAppInstallation, github_installation_id)
+    if installation is None:
+        return GithubInstallationRepositoryCache(None, ())
+    rows = (
+        (
+            await session.execute(
+                select(GithubInstallationRepository)
+                .where(
+                    GithubInstallationRepository.github_installation_id
+                    == github_installation_id,
+                    GithubInstallationRepository.removed_at.is_(None),
+                )
+                .order_by(GithubInstallationRepository.github_repository_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    repositories = tuple(
+        GithubRepositorySnapshot(
+            github_repository_id=row.github_repository_id,
+            github_owner_id=row.github_owner_id,
+            full_name=row.repository_full_name,
+            default_branch=row.default_branch,
+            visibility=GithubRepositoryVisibility(row.visibility),
+            archived=row.archived,
+            disabled=row.disabled,
+        )
+        for row in rows
+    )
+    return GithubInstallationRepositoryCache(
+        repositories_etag=(
+            installation.repositories_etag
+            if installation.suspended_at is None and installation.deleted_at is None
+            else None
+        ),
+        repositories=repositories,
+    )
 
 
 class SqlAlchemyGithubRepositoryReconciliationRepository:
@@ -396,4 +450,8 @@ def _empty_result(github_installation_id: int) -> ReconciliationResult:
     )
 
 
-__all__ = ["SqlAlchemyGithubRepositoryReconciliationRepository"]
+__all__ = [
+    "GithubInstallationRepositoryCache",
+    "SqlAlchemyGithubRepositoryReconciliationRepository",
+    "load_github_installation_repository_cache",
+]

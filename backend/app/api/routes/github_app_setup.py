@@ -20,6 +20,7 @@ from app.infrastructure.db.repositories.github_installation_states import (
 )
 from app.infrastructure.db.repositories.github_reconciliation import (
     SqlAlchemyGithubRepositoryReconciliationRepository,
+    load_github_installation_repository_cache,
 )
 from app.infrastructure.db.repositories.identity_sessions import (
     SecureIdentityRandom,
@@ -165,6 +166,10 @@ async def finish_github_app_installation(
             raise HTTPException(status_code=503, detail="GitHub authorization is unavailable")
         try:
             private_key = load_github_app_private_key(settings.github_app_private_key_path)
+            cache = await load_github_installation_repository_cache(
+                session,
+                installation_id,
+            )
             snapshot = await asyncio.to_thread(
                 fetch_authoritative_installation_for_user,
                 user_token=user_token,
@@ -172,6 +177,10 @@ async def finish_github_app_installation(
                 private_key_pem=private_key,
                 github_installation_id=installation_id,
                 now=now,
+                repositories_etag=cache.repositories_etag,
+                cached_repositories=(
+                    cache.repositories if cache.repositories_etag is not None else None
+                ),
             )
             await reconcile_github_repositories(
                 snapshot,

@@ -52,6 +52,7 @@ class GithubRateLimitError(GithubAppApiError):
 class GithubApiResponse:
     payload: dict[str, Any] | list[Any]
     headers: dict[str, str]
+    status: int = 200
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,13 @@ class UrllibGithubHttp:
             response_headers = {
                 key.casefold(): value for key, value in (exc.headers.items() if exc.headers else ())
             }
+            if exc.code == 304:
+                response_url = exc.geturl()
+                if not response_url.startswith(f"{GITHUB_API_ROOT}/"):
+                    raise GithubAppApiError(
+                        "GitHub API redirected outside its fixed origin"
+                    ) from exc
+                return GithubApiResponse(payload={}, headers=response_headers, status=304)
             retry_at = _rate_limit_retry_at(
                 status=exc.code,
                 headers=response_headers,
@@ -184,6 +192,8 @@ def fetch_authoritative_installation_for_user(
     private_key_pem: bytes,
     github_installation_id: int,
     now: dt.datetime,
+    repositories_etag: str | None = None,
+    cached_repositories: tuple[GithubRepositorySnapshot, ...] | None = None,
     http: GithubHttpPort | None = None,
 ) -> GithubInstallationSnapshot:
     """Prove user access, then fetch full scope with an installation token."""
@@ -200,6 +210,8 @@ def fetch_authoritative_installation_for_user(
         private_key_pem=private_key_pem,
         github_installation_id=installation_id,
         now=current,
+        repositories_etag=repositories_etag,
+        cached_repositories=cached_repositories,
         http=transport,
     )
 
@@ -210,6 +222,8 @@ def fetch_authoritative_installation(
     private_key_pem: bytes,
     github_installation_id: int,
     now: dt.datetime,
+    repositories_etag: str | None = None,
+    cached_repositories: tuple[GithubRepositorySnapshot, ...] | None = None,
     http: GithubHttpPort | None = None,
 ) -> GithubInstallationSnapshot:
     """Fetch one complete installation snapshot using only App credentials."""
@@ -237,7 +251,16 @@ def fetch_authoritative_installation(
     installation_token = _object(token_response.payload, "installation token").get("token")
     if not isinstance(installation_token, str) or not installation_token:
         raise GithubAppApiError("GitHub did not return an installation token")
-    repositories, etag = _installation_repositories(transport, _headers(installation_token))
+    repositories, etag = _installation_repositories(
+        transport,
+        _headers(installation_token),
+        repositories_etag=repositories_etag,
+    )
+    if repositories is None:
+        if repositories_etag is None or cached_repositories is None:
+            raise GithubAppApiError("GitHub returned an unusable conditional response")
+        repositories = cached_repositories
+        etag = repositories_etag
     snapshot = _snapshot(
         _object(installation_response.payload, "installation"),
         installation_id=installation_id,
@@ -392,16 +415,30 @@ def _repository_permission(value: object) -> GithubProjectPermission | None:
 
 
 def _installation_repositories(
-    http: GithubHttpPort, headers: dict[str, str]
-) -> tuple[tuple[GithubRepositorySnapshot, ...], str | None]:
+    http: GithubHttpPort,
+    headers: dict[str, str],
+    *,
+    repositories_etag: str | None = None,
+) -> tuple[tuple[GithubRepositorySnapshot, ...] | None, str | None]:
     repositories: list[GithubRepositorySnapshot] = []
     etag: str | None = None
     for page in range(1, _MAX_PAGES + 1):
+        request_headers = dict(headers)
+        if page == 1 and repositories_etag is not None:
+            if not _safe_etag(repositories_etag):
+                raise GithubAppApiError("stored GitHub repository ETag is invalid")
+            request_headers["If-None-Match"] = repositories_etag
         response = http.request(
             "GET",
             f"{GITHUB_API_ROOT}/installation/repositories?per_page=100&page={page}",
-            headers=headers,
+            headers=request_headers,
         )
+        if response.status == 304:
+            if page != 1 or repositories_etag is None:
+                raise GithubAppApiError("GitHub returned an invalid conditional response")
+            return None, repositories_etag
+        if response.status != 200:
+            raise GithubAppApiError("GitHub returned an unexpected response status")
         if page == 1:
             etag = response.headers.get("etag")
         items = _object(response.payload, "installation repositories").get("repositories")
@@ -409,8 +446,15 @@ def _installation_repositories(
             raise GithubAppApiError("GitHub returned invalid installation repositories")
         repositories.extend(_repository(item) for item in items)
         if len(items) < 100:
-            return tuple(repositories), etag
+            return tuple(repositories), etag if page == 1 else None
     raise GithubAppApiError("GitHub repository pagination exceeded the safety limit")
+
+
+def _safe_etag(value: str) -> bool:
+    return bool(value) and len(value) <= 256 and all(
+        character in {"\t", " "} or 33 <= ord(character) <= 126
+        for character in value
+    )
 
 
 def _snapshot(
