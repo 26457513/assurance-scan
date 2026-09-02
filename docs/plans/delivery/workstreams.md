@@ -69,10 +69,11 @@ preserve linked user/run ownership and block every ambiguous identity.
 
 ## WS7c — GitHub App access plane
 
-Status: in progress. The dormant installation/repository/setup-state schema and
-the raw-body webhook authentication plus delivery-idempotency boundary are
-complete in candidate code. No public webhook, setup-return, reconciliation or
-entitlement-refresh route is enabled yet.
+Status: in progress. The dormant installation/repository schema, independent
+single-use setup state, raw-body webhook authentication/delivery idempotency,
+and atomic authoritative repository projection are complete in candidate code.
+No public webhook, setup-return, GitHub API refresh, scheduler or entitlement
+route is enabled yet.
 
 Implement installation return, signed webhooks, repository reconciliation and
 expiring query-time entitlements using the WS7b GitHub identity foundation.

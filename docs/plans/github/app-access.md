@@ -1,5 +1,10 @@
 # GitHub App access plane
 
+Implementation status: durable installation/repository records, independent
+single-use installation state and atomic numeric-identity repository projection
+are complete in dormant candidate code. GitHub API adapters, setup-return HTTP
+flow and query-time entitlement refresh remain disabled until later WS7c slices.
+
 ## Exact app configuration
 
 The public Assurance Scan GitHub App uses:

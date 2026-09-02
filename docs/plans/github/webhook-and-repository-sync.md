@@ -5,8 +5,8 @@ Status: binding GitHub state contract.
 Implementation status: the additive access-plane schema, exact-byte signature
 verification, bounded two-secret overlap, event/action classification and
 30-day delivery claim are complete in dormant candidate code. HTTP exposure,
-authoritative mutation/reconciliation and retention scheduling remain disabled
-until their WS7c slices pass independently.
+GitHub API fetching and retention scheduling remain disabled until their WS7c
+slices pass independently.
 
 ## Endpoint security
 
@@ -45,6 +45,13 @@ mutation is idempotent and enqueues a full installation or repository refresh;
 payload display names are hints until confirmed through the GitHub API.
 
 ## Authoritative refresh
+
+The transaction that projects one already-verified complete installation
+snapshot is implemented in candidate code. It creates projects only from
+numeric repository IDs, blocks owner/installation reassignment pending audited
+rebind, disables removed/transferred repositories, and immediately expires
+affected GitHub-derived memberships. Fetching that snapshot from GitHub and
+scheduling six-hour repair remain separate disabled slices.
 
 Webhooks reduce staleness but are not authorization evidence. Before every
 GitHub Actions upload, create a short-lived installation token and call GitHub
