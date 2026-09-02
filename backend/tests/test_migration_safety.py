@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_REVISION = "0016_project_scan_ref"
-HEAD_REVISION = "0025_finding_source_contexts"
+HEAD_REVISION = "0026_github_identity_sessions"
 
 
 def _alembic(database: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -43,10 +43,12 @@ def _revision(database: Path) -> str:
 
 def _tables(database: Path) -> set[str]:
     with sqlite3.connect(database) as connection:
-        return {
-            str(row[0])
-            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
-        }
+        return {str(row[0]) for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+
+
+def _columns(database: Path, table: str) -> set[str]:
+    with sqlite3.connect(database) as connection:
+        return {str(row[1]) for row in connection.execute(f'PRAGMA table_info("{table}")')}
 
 
 def test_empty_database_migrates_forward_to_head(tmp_path: Path) -> None:
@@ -62,7 +64,15 @@ def test_empty_database_migrates_forward_to_head(tmp_path: Path) -> None:
         "project_checkouts",
         "source_contexts",
         "source_context_findings",
+        "browser_sessions",
+        "github_oauth_states",
     }.issubset(_tables(database))
+    assert {
+        "user_id",
+        "github_user_id",
+        "encrypted_user_token",
+        "credential_key_id",
+    }.issubset(_columns(database, "github_accounts"))
 
 
 def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_path: Path) -> None:
@@ -204,6 +214,18 @@ def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_p
             "INSERT INTO users (email, role, created_at) VALUES (?, ?, ?)",
             ("user@example.test", "user", "2026-08-28 09:00:00"),
         )
+        connection.execute(
+            """
+            INSERT INTO github_accounts (email, login, token_encrypted, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "legacy@example.test",
+                "legacy-login",
+                "legacy-encrypted-token",
+                "2026-08-28 09:00:00",
+            ),
+        )
         connection.commit()
 
     shutil.copy2(source, dry_run_copy)
@@ -214,8 +236,7 @@ def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_p
     assert _revision(dry_run_copy) == HEAD_REVISION
     with sqlite3.connect(dry_run_copy) as connection:
         migrated = connection.execute(
-            "SELECT project_id, origin, commit_sha, git_branch, working_tree_dirty "
-            "FROM runs WHERE run_id = ?",
+            "SELECT project_id, origin, commit_sha, git_branch, working_tree_dirty FROM runs WHERE run_id = ?",
             ("migration-safety-run",),
         ).fetchone()
         related_counts = {
@@ -231,8 +252,19 @@ def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_p
                 "users",
             )
         }
+        legacy_github_account = connection.execute(
+            "SELECT email, login, token_encrypted, user_id, github_user_id FROM github_accounts WHERE email = ?",
+            ("legacy@example.test",),
+        ).fetchone()
     assert migrated == (1, "server", "a" * 40, "main", None)
     assert all(count >= 1 for count in related_counts.values())
+    assert legacy_github_account == (
+        "legacy@example.test",
+        "legacy-login",
+        "legacy-encrypted-token",
+        None,
+        None,
+    )
 
     # Exercise SQLite's online backup API, then restore into a distinct file.
     with sqlite3.connect(dry_run_copy) as source_connection, sqlite3.connect(backup) as backup_connection:
