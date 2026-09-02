@@ -267,6 +267,7 @@ class ProjectMembership(Base):
     permission: Mapped[str] = mapped_column(String(16), nullable=False)
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     verified_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("user_id", "project_id", "source", name="uq_project_memberships_source"),
@@ -275,8 +276,12 @@ class ProjectMembership(Base):
             name="ck_project_memberships_permission",
         ),
         CheckConstraint(
-            "source IN ('github', 'manual')",
+            "source IN ('github', 'github_app', 'manual')",
             name="ck_project_memberships_source",
+        ),
+        CheckConstraint(
+            "source != 'github_app' OR expires_at IS NOT NULL",
+            name="ck_project_memberships_github_app_expiry",
         ),
         Index("ix_project_memberships_user_project", "user_id", "project_id"),
         Index("ix_project_memberships_project", "project_id"),
@@ -337,9 +342,9 @@ class GithubAccount(Base):
     __tablename__ = "github_accounts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
+    email: Mapped[str | None] = mapped_column(String(256), nullable=True, unique=True)
     login: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
     github_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

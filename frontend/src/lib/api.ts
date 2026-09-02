@@ -225,6 +225,11 @@ export const api = {
 
   me: () => getJson<{ email: string; role: string }>('/api/users/me'),
 
+  githubAccountLinkStatus: () =>
+    getJson<{ enabled: boolean; linked: boolean; login: string | null }>(
+      '/api/v2/github/link/status'
+    ),
+
   listUsers: () => getJson<{ users: { email: string; role: string; last_login_at: string | null }[] }>('/api/users'),
 
   setUserRole: (email: string, role: string) =>

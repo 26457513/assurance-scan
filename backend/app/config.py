@@ -224,6 +224,9 @@ class Settings:
     session_secret: str
     public_base_url: str
     token_encryption_key: str
+    github_app_client_id: str
+    github_app_client_secret: str
+    migration_github_linking_enabled: bool
 
     # GitHub CI polling (phase-2 ingest). Poller runs only when both a
     # token and at least one repo are configured.
@@ -325,6 +328,9 @@ def load_settings() -> Settings:
         session_secret=_env("SESSION_SECRET", ""),
         public_base_url=_env("PUBLIC_BASE_URL", ""),
         token_encryption_key=_env("TOKEN_ENCRYPTION_KEY", ""),
+        github_app_client_id=_env("GITHUB_APP_CLIENT_ID", ""),
+        github_app_client_secret=_env("GITHUB_APP_CLIENT_SECRET", ""),
+        migration_github_linking_enabled=_env_bool("MIGRATION_GITHUB_LINKING_ENABLED"),
     )
 
 

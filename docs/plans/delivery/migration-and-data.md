@@ -74,7 +74,10 @@ Delivery is split into four gated slices without changing the atomic cutover:
 1. read-only inventory/checksum and ambiguity blockers — complete;
 2. additive GitHub identity, OAuth-state and server-session foundations —
    complete in dormant storage/domain code; the live sign-in path is unchanged;
-3. migration-only explicit account linking and membership rebuild;
+3. migration-only explicit account linking plus the deterministic, expiring
+   GitHub App membership projection adapter — complete in feature-gated
+   candidate code; WS7c supplies the installation entitlements used to populate
+   that projection;
 4. journalled data transformation, two rehearsals and the final schema switch.
 
 Use one forward migration with a journal table recording phase, checksum and

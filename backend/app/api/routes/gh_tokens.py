@@ -71,7 +71,7 @@ async def resolve_user_token(request: Request, session: AsyncSession) -> tuple[s
     if row is None:
         return None, None
     key = request.app.state.settings.token_encryption_key
-    token = decrypt(row.token_encrypted, key) if key else None
+    token = decrypt(row.token_encrypted, key) if key and row.token_encrypted else None
     return token, row.login
 
 

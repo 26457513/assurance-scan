@@ -85,7 +85,11 @@ async def sync_github_memberships(
         return True
     if not settings.token_encryption_key:
         return False
-    token = decrypt(account.token_encrypted, settings.token_encryption_key)
+    token = (
+        decrypt(account.token_encrypted, settings.token_encryption_key)
+        if account.token_encrypted is not None
+        else None
+    )
     if not token:
         return False
     try:
@@ -134,7 +138,8 @@ def project_access_clause(
 ):
     if principal.sees_all_projects:
         return Project.hidden.is_(False)
-    cutoff = dt.datetime.now(dt.timezone.utc) - ACCESS_TTL
+    now = dt.datetime.now(dt.timezone.utc)
+    cutoff = now - ACCESS_TTL
     membership = ProjectMembership
     return (
         Project.hidden.is_(False)
@@ -143,7 +148,11 @@ def project_access_clause(
             membership.project_id == Project.id,
             membership.user_id == principal.user_id,
             membership.permission.in_(allowed_permissions(required)),
-            or_(membership.source == "manual", membership.verified_at >= cutoff),
+            or_(
+                membership.source == "manual",
+                (membership.source == "github") & (membership.verified_at >= cutoff),
+                (membership.source == "github_app") & (membership.expires_at > now),
+            ),
         )
     )
 

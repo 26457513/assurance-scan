@@ -142,6 +142,7 @@
   let me: { email: string; role: string } | null = null;
   let users: { email: string; role: string; last_login_at: string | null }[] = [];
   let roleSaving = '';
+  let githubLink: { enabled: boolean; linked: boolean; login: string | null } | null = null;
 
   $: isAdmin = me?.role === 'admin' || me?.role === 'superuser';
 
@@ -279,6 +280,11 @@
     loadOrgs();
     loadUsers();
     loadWorkflows();
+    try {
+      githubLink = await api.githubAccountLinkStatus();
+    } catch {
+      githubLink = null;
+    }
   });
 
   async function addOrg() {
@@ -340,6 +346,27 @@
       Administration, your account, and how the pieces fit together.
     </div>
   </div>
+
+  {#if githubLink?.enabled}
+    <div class="border border-line-strong rounded-sm bg-surface-panel p-4 mb-5 flex items-center justify-between gap-4">
+      <div>
+        <div class="text-[12px] text-ink-primary font-mono mb-1">GitHub identity migration</div>
+        <p class="text-[11px] text-ink-muted leading-relaxed">
+          {#if githubLink.linked}
+            Linked to @{githubLink.login}. Your existing scan ownership is preserved.
+          {:else}
+            Link your existing account using GitHub. Email and login names are never used to match accounts.
+          {/if}
+        </p>
+      </div>
+      {#if !githubLink.linked}
+        <a
+          href="/api/v2/github/link/start"
+          class="shrink-0 px-3 py-2 rounded-sm bg-accent text-white text-[11px] font-mono hover:opacity-90"
+        >Link GitHub</a>
+      {/if}
+    </div>
+  {/if}
 
   <div class="border-b border-line-hairline mb-5 flex gap-0.5">
     {#each TABS as t (t.id)}

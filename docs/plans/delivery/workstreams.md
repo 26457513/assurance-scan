@@ -54,9 +54,9 @@ every negative fixture identically.
 
 ## WS7b — identity and data migration
 
-Status: in progress. The read-only, checksum-bound preflight and dormant
-identity/session foundation slices are complete. Account linking,
-transformation and rehearsals remain.
+Status: in progress. The read-only preflight, dormant identity/session
+foundations, and feature-gated migration-linking slice are complete in candidate
+code. The journalled transformation and rehearsals remain.
 
 Implement GitHub OAuth/PKCE, secure browser sessions, the migration-only account-
 linking window, preflight, journalled migrations, project/run disposition and
