@@ -44,6 +44,7 @@ def _database(path: Path, *, conflicts: bool = False) -> Path:
               github_run_id INTEGER,
               github_run_number INTEGER,
               github_run_attempt INTEGER,
+              submitted_by_user_id INTEGER,
               FOREIGN KEY (project_id) REFERENCES projects(id)
             );
             CREATE TABLE project_memberships (
@@ -59,9 +60,9 @@ def _database(path: Path, *, conflicts: bool = False) -> Path:
             INSERT INTO projects VALUES (10, 4242, 'private/repository');
             INSERT INTO projects VALUES (20, NULL, 'legacy/repository');
             INSERT INTO github_accounts VALUES (100, 1, 9001, 'private-login');
-            INSERT INTO runs VALUES ('gh-old', 10, 'github-actions', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 70, 26, 1);
-            INSERT INTO runs VALUES ('server-old', 10, 'server', NULL, NULL, NULL, NULL);
-            INSERT INTO runs VALUES ('local-old', 10, 'local', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', NULL, NULL, NULL);
+            INSERT INTO runs VALUES ('gh-old', 10, 'github-actions', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 70, 26, 1, NULL);
+            INSERT INTO runs VALUES ('server-old', 10, 'server', NULL, NULL, NULL, NULL, NULL);
+            INSERT INTO runs VALUES ('local-old', 10, 'local', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', NULL, NULL, NULL, 1);
             INSERT INTO project_memberships VALUES (1, 1, 10, 'github');
             INSERT INTO project_memberships VALUES (2, 1, 20, 'manual');
             """
@@ -72,14 +73,12 @@ def _database(path: Path, *, conflicts: bool = False) -> Path:
                 INSERT INTO github_accounts VALUES (101, 1, 9002, 'another-login');
                 INSERT INTO github_accounts VALUES (102, 2, 9001, 'third-login');
                 INSERT INTO projects VALUES (30, 4242, 'conflicting/repository');
-                INSERT INTO runs VALUES ('gh-duplicate', 10, 'github-actions', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 70, 27, 1);
-                INSERT INTO runs VALUES ('gh-incomplete', 10, 'github-actions', NULL, 71, 28, 1);
+                INSERT INTO runs VALUES ('gh-duplicate', 10, 'github-actions', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 70, 27, 1, NULL);
+                INSERT INTO runs VALUES ('gh-incomplete', 10, 'github-actions', NULL, 71, 28, 1, NULL);
                 """
             )
             connection.execute("PRAGMA foreign_keys=OFF")
-            connection.execute(
-                "INSERT INTO project_memberships VALUES (3, 999, 10, 'manual')"
-            )
+            connection.execute("INSERT INTO project_memberships VALUES (3, 999, 10, 'manual')")
         connection.commit()
     return path
 
@@ -133,27 +132,40 @@ def test_preflight_blocks_every_ambiguous_identity_and_run_key(tmp_path: Path) -
         "repository_identity_conflict",
         "user_has_multiple_github_identities",
     }
-    assert next(
-        item for item in report.conflicts if item.code == "repository_identity_conflict"
-    ).row_ids == ("10", "30")
+    assert next(item for item in report.conflicts if item.code == "repository_identity_conflict").row_ids == (
+        "10",
+        "30",
+    )
 
 
 def test_legacy_email_keyed_github_rows_are_never_inferred_as_linked(tmp_path: Path) -> None:
     database = _database(tmp_path / "legacy.sqlite")
     with sqlite3.connect(database) as connection:
         connection.execute("DROP TABLE github_accounts")
-        connection.execute(
-            "CREATE TABLE github_accounts (id INTEGER PRIMARY KEY, email TEXT, token_encrypted TEXT)"
-        )
-        connection.execute(
-            "INSERT INTO github_accounts VALUES (1, 'private-one@example.test', 'ciphertext')"
-        )
+        connection.execute("CREATE TABLE github_accounts (id INTEGER PRIMARY KEY, email TEXT, token_encrypted TEXT)")
+        connection.execute("INSERT INTO github_accounts VALUES (1, 'private-one@example.test', 'ciphertext')")
         connection.commit()
 
     report = inspect_identity_migration(database)
 
     assert report.linked_user_ids == ()
     assert report.unlinked_user_ids == (1, 2)
+
+
+def test_preflight_blocks_ownerless_local_and_future_public_id_collision(
+    tmp_path: Path,
+) -> None:
+    database = _database(tmp_path / "unsafe-runs.sqlite")
+    with sqlite3.connect(database) as connection:
+        connection.execute("UPDATE runs SET submitted_by_user_id=NULL WHERE run_id='local-old'")
+        connection.execute("INSERT INTO runs VALUES ('gh-4242-70-1',10,'server',NULL,NULL,NULL,NULL,NULL)")
+        connection.commit()
+
+    report = inspect_identity_migration(database)
+    conflicts = {item.code: item.row_ids for item in report.conflicts}
+
+    assert conflicts["local_run_missing_owner"] == ("local-old",)
+    assert conflicts["future_github_public_id_collision"] == ("gh-old",)
 
 
 def test_preflight_rejects_symlink_and_non_application_database(tmp_path: Path) -> None:

@@ -80,9 +80,7 @@ def inspect_identity_migration(database: Path) -> IdentityMigrationPreflight:
             for item in sorted(conflicts, key=lambda item: (item.code, item.row_ids))
         ],
     }
-    checksum = hashlib.sha256(
-        json.dumps(stable, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    checksum = hashlib.sha256(json.dumps(stable, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return IdentityMigrationPreflight(
         schema=PREFLIGHT_SCHEMA,
         schema_revision=revision,
@@ -115,10 +113,7 @@ def _validated_database(database: Path) -> Path:
 
 
 def _tables(connection: sqlite3.Connection) -> set[str]:
-    return {
-        str(row[0])
-        for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    }
+    return {str(row[0]) for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
 
 
 def _require_tables(tables: set[str]) -> None:
@@ -142,9 +137,7 @@ def _integer_ids(connection: sqlite3.Connection, table: str, column: str) -> set
     return {int(row[0]) for row in connection.execute(f'SELECT "{column}" FROM "{table}"')}
 
 
-def _github_identities(
-    connection: sqlite3.Connection, tables: set[str]
-) -> tuple[set[int], list[PreflightConflict]]:
+def _github_identities(connection: sqlite3.Connection, tables: set[str]) -> tuple[set[int], list[PreflightConflict]]:
     if "github_accounts" not in tables:
         return set(), []
     columns = _columns(connection, "github_accounts")
@@ -178,28 +171,16 @@ def _projects(
     columns = _columns(connection, "projects")
     if "github_repository_id" not in columns:
         return set(), []
-    rows = connection.execute(
-        "SELECT id, github_repository_id FROM projects ORDER BY id"
-    ).fetchall()
+    rows = connection.execute("SELECT id, github_repository_id FROM projects ORDER BY id").fetchall()
     bound = {int(row["id"]) for row in rows if row["github_repository_id"] is not None}
-    counts = Counter(
-        str(row["github_repository_id"])
-        for row in rows
-        if row["github_repository_id"] is not None
-    )
+    counts = Counter(str(row["github_repository_id"]) for row in rows if row["github_repository_id"] is not None)
     duplicated = {value for value, count in counts.items() if count > 1}
     conflicts = []
     if duplicated:
         conflicts.append(
             PreflightConflict(
                 "repository_identity_conflict",
-                tuple(
-                    sorted(
-                        str(row["id"])
-                        for row in rows
-                        if str(row["github_repository_id"]) in duplicated
-                    )
-                ),
+                tuple(sorted(str(row["id"]) for row in rows if str(row["github_repository_id"]) in duplicated)),
             )
         )
     return bound, conflicts
@@ -217,12 +198,14 @@ def _runs(
         "github_run_id",
         "github_run_number",
         "github_run_attempt",
+        "submitted_by_user_id",
     }
     if not required.issubset(columns):
         raise IdentityPreflightError("run provenance columns are not migration-ready")
     rows = connection.execute(
         "SELECT r.run_id, r.origin, r.commit_sha, r.github_run_id, "
-        "r.github_run_number, r.github_run_attempt, p.github_repository_id "
+        "r.github_run_number, r.github_run_attempt, r.submitted_by_user_id, "
+        "p.github_repository_id "
         "FROM runs r JOIN projects p ON p.id = r.project_id ORDER BY r.run_id"
     ).fetchall()
     github = [row for row in rows if row["origin"] == "github-actions"]
@@ -240,9 +223,7 @@ def _runs(
             )
         )
     ]
-    insufficient = sorted(
-        str(row["run_id"]) for row in github if row not in sufficient
-    )
+    insufficient = sorted(str(row["run_id"]) for row in github if row not in sufficient)
     keys: dict[tuple[int, int, int], list[str]] = {}
     for row in sufficient:
         key = (
@@ -251,14 +232,31 @@ def _runs(
             int(row["github_run_attempt"]),
         )
         keys.setdefault(key, []).append(str(row["run_id"]))
-    duplicate_ids = sorted(
-        run_id for run_ids in keys.values() if len(run_ids) > 1 for run_id in run_ids
+    duplicate_ids = sorted(run_id for run_ids in keys.values() if len(run_ids) > 1 for run_id in run_ids)
+    existing_ids = {str(row["run_id"]) for row in rows}
+    future_id_collisions = sorted(
+        str(row["run_id"])
+        for row in sufficient
+        if (
+            target_id := (
+                f"gh-{int(row['github_repository_id'])}-{int(row['github_run_id'])}-{int(row['github_run_attempt'])}"
+            )
+        )
+        in existing_ids
+        and target_id != str(row["run_id"])
     )
     conflicts = []
     if insufficient:
         conflicts.append(PreflightConflict("github_run_missing_provenance", tuple(insufficient)))
     if duplicate_ids:
         conflicts.append(PreflightConflict("duplicate_future_github_run_key", tuple(duplicate_ids)))
+    if future_id_collisions:
+        conflicts.append(PreflightConflict("future_github_public_id_collision", tuple(future_id_collisions)))
+    ownerless_local_ids = sorted(
+        str(row["run_id"]) for row in rows if row["origin"] == "local" and row["submitted_by_user_id"] is None
+    )
+    if ownerless_local_ids:
+        conflicts.append(PreflightConflict("local_run_missing_owner", tuple(ownerless_local_ids)))
     return (
         {
             "migratable_github_run_ids": sorted(str(row["run_id"]) for row in sufficient),
@@ -273,9 +271,7 @@ def _membership_counts(connection: sqlite3.Connection, tables: set[str]) -> dict
     counts = {"github": 0, "github_app": 0, "manual": 0}
     if "project_memberships" not in tables:
         return counts
-    for source, count in connection.execute(
-        "SELECT source, count(*) FROM project_memberships GROUP BY source"
-    ):
+    for source, count in connection.execute("SELECT source, count(*) FROM project_memberships GROUP BY source"):
         if str(source) in counts:
             counts[str(source)] = int(count)
     return counts

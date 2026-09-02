@@ -10,6 +10,7 @@ Each row's state is the worst state across its `satisfied_by` FRs in
 the latest run for the project. Rationale + confidence from the mapping
 are surfaced so the user can review agent proposals.
 """
+
 from __future__ import annotations
 
 import json
@@ -58,9 +59,7 @@ async def list_frameworks(
         allowed_ids = await visible_project_ids(session, principal)
         if allowed_ids is not None:
             stmt = stmt.where(ComplianceMapping.project_id.in_(allowed_ids))
-    rows = (await session.execute(stmt.order_by(
-        ComplianceMapping.loaded_at.desc()
-    ))).scalars().all()
+    rows = (await session.execute(stmt.order_by(ComplianceMapping.loaded_at.desc()))).scalars().all()
 
     framework_counts: dict[str, dict[str, int]] = defaultdict(lambda: {"rows": 0, "frs": 0})
     for mapping_row in rows:
@@ -73,10 +72,7 @@ async def list_frameworks(
             framework_counts[ruleset]["frs"] += len(entry.get("satisfied_by", []))
 
     return {
-        "frameworks": [
-            {"id": fw, "rows": c["rows"], "frs": c["frs"]}
-            for fw, c in sorted(framework_counts.items())
-        ]
+        "frameworks": [{"id": fw, "rows": c["rows"], "frs": c["frs"]} for fw, c in sorted(framework_counts.items())]
     }
 
 
@@ -99,24 +95,33 @@ async def branch_compliance_grid(
         raise HTTPException(status_code=404, detail="project not found")
 
     snaps = (
-        await session.execute(
-            select(CatalogueSnapshot)
-            .where(CatalogueSnapshot.project_id == project_id)
-            .order_by(CatalogueSnapshot.created_at.desc())
+        (
+            await session.execute(
+                select(CatalogueSnapshot)
+                .where(CatalogueSnapshot.project_id == project_id)
+                .order_by(CatalogueSnapshot.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     runs = (
-        await session.execute(
-            select(Run)
-            .where(
-                Run.project_id == project_id,
-                Run.catalogue_snapshot_id.isnot(None),
-                Run.git_branch.isnot(None),
+        (
+            await session.execute(
+                select(Run)
+                .where(
+                    Run.project_id == project_id,
+                    Run.legacy_retained.is_(False),
+                    Run.catalogue_snapshot_id.isnot(None),
+                    Run.git_branch.isnot(None),
+                )
+                .order_by(Run.started_at.desc())
             )
-            .order_by(Run.started_at.desc())
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     newest: dict[str, Run] = {}
     branches: set[str] = set()
@@ -168,6 +173,7 @@ async def branch_compliance_grid(
         "cells": cells,
     }
 
+
 @router.get("/compliance/{framework}")
 async def compliance_matrix(
     framework: str,
@@ -194,30 +200,31 @@ async def compliance_matrix(
     if mapping_hash:
         # Historical mapping snapshot selected by content hash.
         from app.infrastructure.db.models import ComplianceMappingSnapshot
+
         snap = (
-            await session.execute(
-                select(ComplianceMappingSnapshot)
-                .where(
-                    ComplianceMappingSnapshot.project_id == project_id,
-                    ComplianceMappingSnapshot.content_hash == mapping_hash,
+            (
+                await session.execute(
+                    select(ComplianceMappingSnapshot)
+                    .where(
+                        ComplianceMappingSnapshot.project_id == project_id,
+                        ComplianceMappingSnapshot.content_hash == mapping_hash,
+                    )
+                    .order_by(ComplianceMappingSnapshot.loaded_at.desc())
+                    .limit(1)
                 )
-                .order_by(ComplianceMappingSnapshot.loaded_at.desc())
-                .limit(1)
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if snap is None:
-            raise HTTPException(
-                status_code=404, detail=f"no mapping snapshot with hash {mapping_hash}"
-            )
+            raise HTTPException(status_code=404, detail=f"no mapping snapshot with hash {mapping_hash}")
         mapping_doc = json.loads(snap.mapping_doc_json)
         mapping_project_id = snap.project_id
         mapping_loaded_at = snap.loaded_at
         resolved_hash = snap.content_hash
 
     if mapping_doc is None:
-        mapping_stmt = select(ComplianceMapping).where(
-            ComplianceMapping.project_id == project_id
-        )
+        mapping_stmt = select(ComplianceMapping).where(ComplianceMapping.project_id == project_id)
         mapping_stmt = mapping_stmt.order_by(ComplianceMapping.loaded_at.desc()).limit(1)
         mapping_row = (await session.execute(mapping_stmt)).scalars().first()
 
@@ -231,10 +238,7 @@ async def compliance_matrix(
         mapping_loaded_at = mapping_row.loaded_at
         resolved_hash = mapping_row.content_hash
 
-    entries = [
-        m for m in mapping_doc.get("mappings", [])
-        if m.get("ruleset") == framework
-    ]
+    entries = [m for m in mapping_doc.get("mappings", []) if m.get("ruleset") == framework]
     if not entries:
         raise HTTPException(
             status_code=404,
@@ -245,16 +249,17 @@ async def compliance_matrix(
     pack_data = _load_compliance_pack(framework, entries)
 
     # Latest run for the project (for state lookups).
-    run_stmt = select(Run).where(Run.project_id == mapping_project_id)
+    run_stmt = select(Run).where(
+        Run.project_id == mapping_project_id,
+        Run.legacy_retained.is_(False),
+    )
     run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(1)
     run = (await session.execute(run_stmt)).scalars().first()
 
     # Build FR-state index for the latest run.
     state_by_fr: dict[str, str] = {}
     if run:
-        state_rows = (await session.execute(
-            select(FrState).where(FrState.run_id == run.run_id)
-        )).scalars().all()
+        state_rows = (await session.execute(select(FrState).where(FrState.run_id == run.run_id))).scalars().all()
         state_by_fr = {s.fr_id: s.state for s in state_rows}
 
     matrix: list[dict[str, Any]] = []
@@ -270,20 +275,22 @@ async def compliance_matrix(
             fr_state_values = [state_by_fr.get(fid, "untested") for fid in fr_ids]
             worst = _worst_state(fr_state_values)
             fr_states = dict(zip(fr_ids, fr_state_values))
-        matrix.append({
-            "row_id": row_id,
-            "title": pack_info.get("title", row_id),
-            "description": pack_info.get("description", ""),
-            "section": pack_info.get("section", ""),
-            "level": pack_info.get("level", ""),
-            "version": entry.get("version"),
-            "appropriate": appropriate,
-            "fr_ids": fr_ids,
-            "fr_states": fr_states,
-            "worst_state": worst,
-            "rationale": entry.get("rationale", ""),
-            "confidence": entry.get("confidence", "medium"),
-        })
+        matrix.append(
+            {
+                "row_id": row_id,
+                "title": pack_info.get("title", row_id),
+                "description": pack_info.get("description", ""),
+                "section": pack_info.get("section", ""),
+                "level": pack_info.get("level", ""),
+                "version": entry.get("version"),
+                "appropriate": appropriate,
+                "fr_ids": fr_ids,
+                "fr_states": fr_states,
+                "worst_state": worst,
+                "rationale": entry.get("rationale", ""),
+                "confidence": entry.get("confidence", "medium"),
+            }
+        )
 
     matrix.sort(key=lambda e: e["row_id"])
 

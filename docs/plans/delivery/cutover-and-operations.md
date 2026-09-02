@@ -8,8 +8,10 @@ Status: required runbook for WS7g.
 2. Configure distinct development, staging, and production App registrations and OIDC audiences.
 3. Complete the account-linking window and resolve every blocking preflight item
    in [Migration and data disposition](migration-and-data.md).
-4. Apply migrations to a restored production-like backup and record duration,
-   free space, row counts, foreign keys and checksums.
+4. Apply the additive migration to two independent copies of the same frozen
+   production-like backup, run the journalled transformation with the same fixed
+   cutover timestamp, and use the rehearsal comparator to prove identical row
+   counts and checksums. Retain both reports and the comparison result.
 5. Exercise OAuth, installation, signed webhooks, missed-delivery repair,
    repository selection, entitlement refresh, OIDC replay rejection, local
    upload, rejected-attempt visibility and visibility denial.
@@ -26,15 +28,21 @@ Status: required runbook for WS7g.
 1. Announce and enter the maintenance window.
 2. Stop schedulers and workers that can poll or import GitHub results.
 3. Take and verify a database backup.
-4. Run the stopped-database identity preflight and compare it with the rehearsal.
-5. Deploy the journalled migration and push-only backend with public ingest
-   disabled.
-6. Deploy the redesigned frontend and verified scanner/CLI release set.
-7. Install or enable the production GitHub App for pilot repositories and
+4. Apply the additive journal migration while the old application remains
+   stopped; do not enable the new backend or either ingest path.
+5. Run the stopped-database identity preflight, resolve every blocker, and retain
+   its exact checksum. Production counts may differ from an older rehearsal, so
+   never substitute the rehearsal checksum.
+6. Run the journalled cutover with the stopped-database checksum, a single fixed
+   timestamp and explicit `--confirm-switch`; require clean foreign keys and a
+   `switch_complete` report.
+7. Deploy the push-only backend with public ingest disabled, the redesigned
+   frontend, and the verified scanner/CLI release set.
+8. Install or enable the production GitHub App for pilot repositories and
    process a signed repository refresh.
-8. Enable GitHub/local ingest, run required smoke tests and inspect correlation
+9. Enable GitHub/local ingest, run required smoke tests and inspect correlation
    IDs, ingest attempts, audit events and queue health.
-9. Exit maintenance only after allowed and denied visibility checks pass.
+10. Exit maintenance only after allowed and denied visibility checks pass.
 
 Do not run polling and push ingestion concurrently. Old workflow uploads fail closed during maintenance rather than entering a legacy path.
 

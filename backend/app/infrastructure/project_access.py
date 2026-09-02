@@ -86,9 +86,7 @@ async def sync_github_memberships(
     if not settings.token_encryption_key:
         return False
     token = (
-        decrypt(account.token_encrypted, settings.token_encryption_key)
-        if account.token_encrypted is not None
-        else None
+        decrypt(account.token_encrypted, settings.token_encryption_key) if account.token_encrypted is not None else None
     )
     if not token:
         return False
@@ -99,16 +97,13 @@ async def sync_github_memberships(
         return False
 
     grants = {
-        str(repository.get("full_name") or "").casefold(): _github_permission(repository)
-        for repository in repositories
+        str(repository.get("full_name") or "").casefold(): _github_permission(repository) for repository in repositories
     }
     projects = (
-        await session.execute(
-            select(Project).where(
-                Project.hidden.is_(False), Project.github_repo_key.is_not(None)
-            )
-        )
-    ).scalars().all()
+        (await session.execute(select(Project).where(Project.hidden.is_(False), Project.github_repo_key.is_not(None))))
+        .scalars()
+        .all()
+    )
     await session.execute(
         delete(ProjectMembership).where(
             ProjectMembership.user_id == user.id,
@@ -141,19 +136,15 @@ def project_access_clause(
     now = dt.datetime.now(dt.timezone.utc)
     cutoff = now - ACCESS_TTL
     membership = ProjectMembership
-    return (
-        Project.hidden.is_(False)
-        & exists()
-        .where(
-            membership.project_id == Project.id,
-            membership.user_id == principal.user_id,
-            membership.permission.in_(allowed_permissions(required)),
-            or_(
-                membership.source == "manual",
-                (membership.source == "github") & (membership.verified_at >= cutoff),
-                (membership.source == "github_app") & (membership.expires_at > now),
-            ),
-        )
+    return Project.hidden.is_(False) & exists().where(
+        membership.project_id == Project.id,
+        membership.user_id == principal.user_id,
+        membership.permission.in_(allowed_permissions(required)),
+        or_(
+            (membership.source == "manual") & ((membership.expires_at.is_(None)) | (membership.expires_at > now)),
+            (membership.source == "github") & (membership.verified_at >= cutoff),
+            (membership.source == "github_app") & (membership.expires_at > now),
+        ),
     )
 
 
@@ -164,13 +155,7 @@ async def visible_project_ids(
 ) -> set[int] | None:
     if principal.sees_all_projects:
         return None
-    return set(
-        (
-            await session.execute(
-                select(Project.id).where(project_access_clause(principal, required))
-            )
-        ).scalars()
-    )
+    return set((await session.execute(select(Project.id).where(project_access_clause(principal, required)))).scalars())
 
 
 async def require_project(

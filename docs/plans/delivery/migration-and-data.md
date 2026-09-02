@@ -27,9 +27,11 @@ backend/.venv/bin/python backend/scripts/identity-migration-preflight.py <databa
 
 It opens the exact regular file read-only, emits only counts, internal row IDs,
 allowlisted blocker codes and a content checksum, and exits `2` when blocked.
-The restored-production and stopped-production rehearsals must produce the same
-checksum before migration begins. A legacy email-keyed GitHub token never counts
-as a linked immutable GitHub identity.
+Two independent copies of the same frozen production-like snapshot must produce
+the same transformed counts and state checksum. The stopped production database
+gets its own preflight checksum after the additive migration is installed; that
+exact checksum binds the production transformation. A legacy email-keyed GitHub
+token never counts as a linked immutable GitHub identity.
 
 ## Account linking window
 
@@ -78,17 +80,50 @@ Delivery is split into four gated slices without changing the atomic cutover:
    GitHub App membership projection adapter — complete in feature-gated
    candidate code; WS7c supplies the installation entitlements used to populate
    that projection;
-4. journalled data transformation, two rehearsals and the final schema switch.
+4. journalled data transformation and final logical-switch tooling — complete in
+   candidate code; two independent production-like rehearsals remain an
+   operational acceptance gate.
 
-Use one forward migration with a journal table recording phase, checksum and
-completion. Copy/transform into constrained tables, validate counts and foreign
-keys, then switch names within one database transaction where supported. Do not
-drop legacy tables until the rollback window closes.
+The forward migration adds the disposition fields and a journal table without
+activating the new product path. The cutover tool records each transaction's
+phase, input checksum, state checksum, counts and completion time. It transforms
+data, updates composite GitHub run IDs and dependent foreign keys, validates the
+result, and stops before the logical switch unless the operator supplies the
+explicit switch confirmation. Legacy fields and tables are not dropped until
+the rollback window closes.
 
 The rehearsal records duration, required free space and checksums. Production
 must have twice the database size plus 2 GiB free before starting. Every phase
 is restart-safe before the final schema switch; after the switch, failure enters
 the documented rollback path rather than attempting an ad hoc partial rerun.
+
+## Rehearsal and production commands
+
+First upgrade each stopped copy to the additive migration head. Capture the
+preflight JSON and use its `checksum` verbatim:
+
+```text
+backend/.venv/bin/python backend/scripts/identity-migration-preflight.py <copy.sqlite>
+backend/.venv/bin/python backend/scripts/identity-migration-cutover.py <copy.sqlite> \
+  --expected-preflight-checksum <checksum> \
+  --cutover-at <fixed-ISO-8601-time> > rehearsal-1.json
+```
+
+Repeat against a second independent copy of the same frozen snapshot, using the
+same fixed cutover time, then compare the reports:
+
+```text
+backend/.venv/bin/python backend/scripts/identity-migration-compare-rehearsals.py \
+  rehearsal-1.json rehearsal-2.json
+```
+
+The comparator requires both copies to have reached `validated` and requires
+identical preflight checksum, transformed counts and state checksum. It excludes
+duration and filesystem free-space metrics from equality. Any mismatch blocks
+production. On the stopped production database, upgrade to the additive head,
+run a fresh preflight, and execute the cutover with that checksum and
+`--confirm-switch`. Reusing a rehearsal checksum against changed production data
+fails closed.
 
 ## Repository workflow rollout
 

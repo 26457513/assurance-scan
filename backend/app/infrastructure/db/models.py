@@ -97,6 +97,9 @@ class Project(Base):
     github_repository_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     default_scan_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)
     hidden: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    lifecycle_state: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="active", server_default="active"
+    )
     local_run_counter: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
@@ -108,6 +111,10 @@ class Project(Base):
         CheckConstraint(
             "github_repository_id IS NULL OR github_repo_key IS NOT NULL",
             name="ck_projects_repository_id_has_key",
+        ),
+        CheckConstraint(
+            "lifecycle_state IN ('active', 'legacy_unbound')",
+            name="ck_projects_lifecycle_state",
         ),
         Index("uq_projects_local_path", "local_path", unique=True),
         Index("uq_projects_github_repo_key", "github_repo_key", unique=True),
@@ -163,6 +170,9 @@ class Run(Base):
     findings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_bundle_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    legacy_retained: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
 
     scanner_runs: Mapped[list["ScannerRun"]] = relationship(
         back_populates="run",
@@ -427,6 +437,36 @@ class GithubOauthState(Base):
             "ix_github_oauth_states_session_expiry",
             "browser_session_id",
             "expires_at",
+        ),
+    )
+
+
+class IdentityMigrationJournal(Base):
+    """Immutable completion marker for each restart-safe cutover phase."""
+
+    __tablename__ = "identity_migration_journal"
+
+    phase: Mapped[str] = mapped_column(String(32), primary_key=True)
+    preflight_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    state_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    counts_json: Mapped[str] = mapped_column(Text, nullable=False)
+    completed_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "phase IN ('preflight_verified', 'dispositions_applied', "
+            "'run_ids_migrated', 'validated', 'switch_complete')",
+            name="ck_identity_migration_journal_phase",
+        ),
+        CheckConstraint(
+            "length(preflight_checksum) = 64",
+            name="ck_identity_migration_journal_preflight_checksum",
+        ),
+        CheckConstraint(
+            "length(state_checksum) = 64",
+            name="ck_identity_migration_journal_state_checksum",
         ),
     )
 

@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_REVISION = "0016_project_scan_ref"
-HEAD_REVISION = "0027_github_account_linking"
+HEAD_REVISION = "0028_identity_cutover_journal"
 
 
 def _alembic(database: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -66,6 +66,7 @@ def test_empty_database_migrates_forward_to_head(tmp_path: Path) -> None:
         "source_context_findings",
         "browser_sessions",
         "github_oauth_states",
+        "identity_migration_journal",
     }.issubset(_tables(database))
     assert {
         "user_id",

@@ -2,6 +2,7 @@
 
 Returns each FR with: state, test count, test results summary, gap flag.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,9 +39,7 @@ async def list_frs(
         if snapshot is not None and snapshot.project_id != project_id:
             snapshot = None
     if snapshot is None:
-        snapshot_stmt = select(CatalogueSnapshot).where(
-            CatalogueSnapshot.project_id == project_id
-        )
+        snapshot_stmt = select(CatalogueSnapshot).where(CatalogueSnapshot.project_id == project_id)
         snapshot_stmt = snapshot_stmt.order_by(CatalogueSnapshot.created_at.desc()).limit(1)
         snapshot = (await session.execute(snapshot_stmt)).scalars().first()
 
@@ -49,43 +48,42 @@ async def list_frs(
 
     run_stmt = (
         select(Run)
-        .where(Run.project_id == snapshot.project_id)
+        .where(
+            Run.project_id == snapshot.project_id,
+            Run.legacy_retained.is_(False),
+        )
         .order_by(Run.started_at.desc())
         .limit(1)
     )
     run = (await session.execute(run_stmt)).scalars().first()
 
-    fr_rows = (await session.execute(
-        select(Fr).where(Fr.catalogue_snapshot_id == snapshot.id).order_by(Fr.fr_id)
-    )).scalars().all()
+    fr_rows = (
+        (await session.execute(select(Fr).where(Fr.catalogue_snapshot_id == snapshot.id).order_by(Fr.fr_id)))
+        .scalars()
+        .all()
+    )
 
     # Pull test counts per FR from the catalogue snapshot JSON.
     snapshot_doc = json.loads(snapshot.snapshot_json)
-    fr_tests_count: dict[str, int] = {
-        fr["id"]: len(fr.get("tests") or [])
-        for fr in snapshot_doc.get("frs", [])
-    }
+    fr_tests_count: dict[str, int] = {fr["id"]: len(fr.get("tests") or []) for fr in snapshot_doc.get("frs", [])}
 
     state_by_fr: dict[str, str] = {}
     test_results_by_fr: dict[str, Counter] = {}
     if run:
-        state_rows = (await session.execute(
-            select(FrState).where(FrState.run_id == run.run_id)
-        )).scalars().all()
+        state_rows = (await session.execute(select(FrState).where(FrState.run_id == run.run_id))).scalars().all()
         state_by_fr = {s.fr_id: s.state for s in state_rows}
 
-        tr_rows = (await session.execute(
-            select(TestResult).where(TestResult.run_id == run.run_id)
-        )).scalars().all()
+        tr_rows = (await session.execute(select(TestResult).where(TestResult.run_id == run.run_id))).scalars().all()
         for tr in tr_rows:
             test_results_by_fr.setdefault(tr.fr_id, Counter())[tr.result] += 1
 
     # Active waivers — surfaced so the UI can show *why* an FR is waived,
     # not just that it is.
     import datetime as _dt
-    waiver_rows = (await session.execute(
-        select(Waiver).where(Waiver.project_id == snapshot.project_id)
-    )).scalars().all()
+
+    waiver_rows = (
+        (await session.execute(select(Waiver).where(Waiver.project_id == snapshot.project_id))).scalars().all()
+    )
     now = _dt.datetime.now(_dt.timezone.utc)
     waiver_by_fr: dict[str, Waiver] = {}
     for w in waiver_rows:
@@ -109,34 +107,38 @@ async def list_frs(
             if not entry.get("appropriate", True):
                 continue
             for fr_id in entry.get("satisfied_by", []):
-                satisfies_by_fr.setdefault(fr_id, []).append({
-                    "ruleset": entry.get("ruleset", ""),
-                    "row": entry.get("row", ""),
-                })
+                satisfies_by_fr.setdefault(fr_id, []).append(
+                    {
+                        "ruleset": entry.get("ruleset", ""),
+                        "row": entry.get("row", ""),
+                    }
+                )
 
     entries = []
     for fr in fr_rows:
         state = state_by_fr.get(fr.fr_id, "untested")
         result_counts = test_results_by_fr.get(fr.fr_id, Counter())
         waiver = waiver_by_fr.get(fr.fr_id) if state == "waived" else None
-        entries.append({
-            "fr_id": fr.fr_id,
-            "title": fr.title,
-            "category": fr.category or "",
-            "state": state,
-            "waiver_reason": waiver.reason if waiver else None,
-            "waived_by": waiver.waived_by if waiver else None,
-            "waiver_expires_at": waiver.expires_at.isoformat() if waiver and waiver.expires_at else None,
-            "is_gap": state in GAP_STATES,
-            "test_count": fr_tests_count.get(fr.fr_id, 0),
-            "test_results": {
-                "pass": result_counts.get("pass", 0),
-                "fail": result_counts.get("fail", 0),
-                "pending": result_counts.get("pending", 0),
-            },
-            "satisfies": satisfies_by_fr.get(fr.fr_id, []),
-            "depends_on": json.loads(fr.depends_on_json or "[]"),
-        })
+        entries.append(
+            {
+                "fr_id": fr.fr_id,
+                "title": fr.title,
+                "category": fr.category or "",
+                "state": state,
+                "waiver_reason": waiver.reason if waiver else None,
+                "waived_by": waiver.waived_by if waiver else None,
+                "waiver_expires_at": waiver.expires_at.isoformat() if waiver and waiver.expires_at else None,
+                "is_gap": state in GAP_STATES,
+                "test_count": fr_tests_count.get(fr.fr_id, 0),
+                "test_results": {
+                    "pass": result_counts.get("pass", 0),
+                    "fail": result_counts.get("fail", 0),
+                    "pending": result_counts.get("pending", 0),
+                },
+                "satisfies": satisfies_by_fr.get(fr.fr_id, []),
+                "depends_on": json.loads(fr.depends_on_json or "[]"),
+            }
+        )
 
     summary = {
         "total": len(entries),

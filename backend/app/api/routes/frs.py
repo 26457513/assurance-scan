@@ -1,4 +1,5 @@
 """FR detail endpoint (v3)."""
+
 from __future__ import annotations
 
 import json
@@ -26,9 +27,7 @@ from app.infrastructure.db.models import (
 router = APIRouter(tags=["frs"])
 
 
-async def _derive_satisfies(
-    session: AsyncSession, project_id: int, fr_id: str
-) -> list[dict]:
+async def _derive_satisfies(session: AsyncSession, project_id: int, fr_id: str) -> list[dict]:
     """Derive compliance-row references for an FR from the mapping table.
 
     The mapping file owns ASVS↔FR relationships now; the catalogue no longer
@@ -50,10 +49,12 @@ async def _derive_satisfies(
         if not entry.get("appropriate", True):
             continue
         if fr_id in entry.get("satisfied_by", []):
-            result.append({
-                "ruleset": entry.get("ruleset", ""),
-                "row": entry.get("row", ""),
-            })
+            result.append(
+                {
+                    "ruleset": entry.get("ruleset", ""),
+                    "row": entry.get("row", ""),
+                }
+            )
     return result
 
 
@@ -105,9 +106,7 @@ async def save_catalogue(
         source_branch=body.source_branch,
         source_root=project.local_path,
     )
-    await fr_repo.bulk_insert_for_snapshot(
-        snapshot.id, catalogue.doc.get("frs", [])
-    )
+    await fr_repo.bulk_insert_for_snapshot(snapshot.id, catalogue.doc.get("frs", []))
     await session.commit()
     return {
         "status": "saved",
@@ -161,7 +160,10 @@ async def get_fr_detail(
     if run_id is None:
         run_stmt = (
             select(Run)
-            .where(Run.project_id == project_id)
+            .where(
+                Run.project_id == project_id,
+                Run.legacy_retained.is_(False),
+            )
             .order_by(Run.started_at.desc())
             .limit(1)
         )
@@ -175,11 +177,17 @@ async def get_fr_detail(
             raise HTTPException(status_code=404, detail="run not found")
 
     # Test results for this FR.
-    tr_rows = (await session.execute(
-        select(TestResult).where(
-            TestResult.fr_id == fr_id, TestResult.run_id == run_id
-        ).order_by(TestResult.test_id)
-    )).scalars().all()
+    tr_rows = (
+        (
+            await session.execute(
+                select(TestResult)
+                .where(TestResult.fr_id == fr_id, TestResult.run_id == run_id)
+                .order_by(TestResult.test_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
     results_by_test = {tr.test_id: tr for tr in tr_rows}
 
     # State.
@@ -193,14 +201,21 @@ async def get_fr_detail(
 
     # Active waiver (if state is waived) — surface the human-readable reason.
     import datetime as _dt
+
     waiver_row = None
     if state_row and state_row.state == "waived":
         now = _dt.datetime.now(_dt.timezone.utc)
-        waiver_rows = (await session.execute(
-            select(Waiver)
-            .where(Waiver.project_id == project_id, Waiver.fr_id == fr_id)
-            .order_by(Waiver.waived_at.desc())
-        )).scalars().all()
+        waiver_rows = (
+            (
+                await session.execute(
+                    select(Waiver)
+                    .where(Waiver.project_id == project_id, Waiver.fr_id == fr_id)
+                    .order_by(Waiver.waived_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
         for w in waiver_rows:
             if w.expires_at is None or w.expires_at > now:
                 waiver_row = w
@@ -216,7 +231,9 @@ async def get_fr_detail(
             {
                 **test,
                 "result": results_by_test[test["id"]].result if test.get("id") in results_by_test else "pending",
-                "detail": json.loads(results_by_test[test["id"]].detail_json) if test.get("id") in results_by_test else {},
+                "detail": json.loads(results_by_test[test["id"]].detail_json)
+                if test.get("id") in results_by_test
+                else {},
             }
             for test in tests_for_fr
         ],

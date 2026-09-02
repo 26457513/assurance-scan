@@ -1,4 +1,5 @@
 """Trends endpoint — finding counts and severity breakdowns across runs."""
+
 from __future__ import annotations
 
 import asyncio
@@ -30,7 +31,7 @@ async def trends(
     Returns runs in chronological order (oldest first), so the frontend
     can draw a sparkline. Each entry includes count + severity breakdown.
     """
-    run_stmt = select(Run)
+    run_stmt = select(Run).where(Run.legacy_retained.is_(False))
     if project_id is not None:
         project = await require_project(session, principal, project_id)
         if project is None:
@@ -50,47 +51,53 @@ async def trends(
         return {"runs": [], "delta": None}
 
     # One query: count findings per (run, severity).
-    finding_stmt = select(
-        Finding.run_id,
-        Finding.severity,
-        func.count(Finding.id).label("count"),
-    ).where(
-        Finding.run_id.in_([r.run_id for r in runs])
-    ).group_by(Finding.run_id, Finding.severity)
+    finding_stmt = (
+        select(
+            Finding.run_id,
+            Finding.severity,
+            func.count(Finding.id).label("count"),
+        )
+        .where(Finding.run_id.in_([r.run_id for r in runs]))
+        .group_by(Finding.run_id, Finding.severity)
+    )
 
-    tribal_stmt = select(
-        Finding.run_id,
-        func.count(Finding.id).label("count"),
-    ).where(
-        Finding.run_id.in_([r.run_id for r in runs]),
-        Finding.scanner_kind == "tribal",
-    ).group_by(Finding.run_id)
+    tribal_stmt = (
+        select(
+            Finding.run_id,
+            func.count(Finding.id).label("count"),
+        )
+        .where(
+            Finding.run_id.in_([r.run_id for r in runs]),
+            Finding.scanner_kind == "tribal",
+        )
+        .group_by(Finding.run_id)
+    )
 
     severity_by_run: dict[str, Counter] = defaultdict(Counter)
     for run_id, sev, count in (await session.execute(finding_stmt)).all():
         severity_by_run[run_id][sev] = count
-    tribal_by_run = {
-        run_id: count for run_id, count in (await session.execute(tribal_stmt)).all()
-    }
+    tribal_by_run = {run_id: count for run_id, count in (await session.execute(tribal_stmt)).all()}
 
     entries: list[dict[str, Any]] = []
     for run in runs:
         counts = severity_by_run.get(run.run_id, Counter())
         total = sum(counts.values())
-        entries.append({
-            "run_id": run.run_id,
-            "project_id": run.project_id,
-            "origin": run.origin,
-            "status": run.status,
-            "started_at": run.started_at.isoformat() if run.started_at else None,
-            "total_findings": total,
-            "by_severity": dict(counts),
-            "git_branch": run.git_branch,
-            "commit_sha": run.commit_sha,
-            "working_tree_dirty": run.working_tree_dirty,
-            "repository": run.repository_full_name_at_scan,
-            "tribal": tribal_by_run.get(run.run_id, 0),
-        })
+        entries.append(
+            {
+                "run_id": run.run_id,
+                "project_id": run.project_id,
+                "origin": run.origin,
+                "status": run.status,
+                "started_at": run.started_at.isoformat() if run.started_at else None,
+                "total_findings": total,
+                "by_severity": dict(counts),
+                "git_branch": run.git_branch,
+                "commit_sha": run.commit_sha,
+                "working_tree_dirty": run.working_tree_dirty,
+                "repository": run.repository_full_name_at_scan,
+                "tribal": tribal_by_run.get(run.run_id, 0),
+            }
+        )
 
     delta = _compute_delta(entries)
     return {"runs": entries, "delta": delta}
@@ -163,8 +170,7 @@ async def trend_commits(
             ref = await asyncio.to_thread(GitHubClient(token).repo_default_branch, repo)
         except Exception:
             ref = "main"
-    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)
-             ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
         commits = await asyncio.to_thread(
             GitHubClient(token)._get,
