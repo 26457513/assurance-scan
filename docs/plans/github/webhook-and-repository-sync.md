@@ -4,9 +4,10 @@ Status: binding GitHub state contract.
 
 Implementation status: the additive access-plane schema, exact-byte signature
 verification, bounded two-secret overlap, event/action classification and
-30-day delivery claim are complete in dormant candidate code. HTTP exposure,
-GitHub API fetching and retention scheduling remain disabled until their WS7c
-slices pass independently.
+30-day delivery claim and bounded HTTP boundary are complete in candidate code.
+The endpoint remains behind `GITHUB_WEBHOOK_ENABLED=false` while durable
+mutation processing, retention cleanup and scheduled repair are implemented as
+separate WS7c slices.
 
 ## Endpoint security
 
@@ -28,6 +29,12 @@ Store the delivery GUID and body hash for 30 days. The same GUID and hash is an
 idempotent success; the same GUID with another hash is a security event. Rotate
 the webhook secret with an explicit two-secret overlap lasting at most one
 hour, then erase the previous secret.
+
+Webhook exposure has its own rollout switch and does not become public merely
+because installation setup is enabled. Configure the current secret through
+`GITHUB_WEBHOOK_SECRET`; during rotation only, configure both
+`GITHUB_WEBHOOK_PREVIOUS_SECRET` and an aware ISO-8601
+`GITHUB_WEBHOOK_PREVIOUS_VALID_UNTIL` no more than one hour ahead.
 
 ## Events
 

@@ -31,6 +31,7 @@ from app.api.routes import (
     github,
     github_account_link,
     github_app_setup,
+    github_app_webhook,
     health,
     local_ingest,
     notion,
@@ -357,6 +358,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(github.router, prefix="/api")
     app.include_router(github_account_link.router, prefix="/api")
     app.include_router(github_app_setup.router, prefix="/api")
+    app.include_router(github_app_webhook.router, prefix="/api")
     app.include_router(gh_tokens.router, prefix="/api")
     app.include_router(scan_tokens.router, prefix="/api")
     app.include_router(local_ingest.router, prefix="/api")

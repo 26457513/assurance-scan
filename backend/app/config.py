@@ -222,6 +222,10 @@ class Settings:
     github_app_id: str
     github_app_slug: str
     github_app_private_key_path: str
+    github_webhook_enabled: bool
+    github_webhook_secret: str
+    github_webhook_previous_secret: str
+    github_webhook_previous_valid_until: str
     migration_github_linking_enabled: bool
 
     # GitHub CI polling (phase-2 ingest). Poller runs only when both a
@@ -326,6 +330,10 @@ def load_settings() -> Settings:
         github_app_id=_env("GITHUB_APP_ID", ""),
         github_app_slug=_env("GITHUB_APP_SLUG", ""),
         github_app_private_key_path=_env("GITHUB_APP_PRIVATE_KEY_PATH", ""),
+        github_webhook_enabled=_env_bool("GITHUB_WEBHOOK_ENABLED"),
+        github_webhook_secret=_env("GITHUB_WEBHOOK_SECRET", ""),
+        github_webhook_previous_secret=_env("GITHUB_WEBHOOK_PREVIOUS_SECRET", ""),
+        github_webhook_previous_valid_until=_env("GITHUB_WEBHOOK_PREVIOUS_VALID_UNTIL", ""),
         migration_github_linking_enabled=_env_bool("MIGRATION_GITHUB_LINKING_ENABLED"),
     )
 

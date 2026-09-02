@@ -3,9 +3,10 @@
 Implementation status: durable installation/repository records, independent
 single-use installation state, fixed-origin GitHub API adapter, App JWT and
 installation-token exchange, atomic numeric-identity repository projection and
-setup-return HTTP flow are complete in candidate code. The route remains behind
-`GITHUB_APP_ACCESS_ENABLED=false`; query-time entitlement refresh is a later
-WS7c slice.
+setup-return HTTP flow are complete in candidate code. The setup route remains
+behind `GITHUB_APP_ACCESS_ENABLED=false`. The independently gated signed
+webhook boundary is also complete; webhook mutation processing and query-time
+entitlement refresh are later WS7c slices.
 
 ## Exact app configuration
 
