@@ -344,7 +344,7 @@ jobs:
           mv -Tf /root/assurance-scan-runtime/current.next /root/assurance-scan-runtime/current
           ASSURANCE_SCAN_ENV_FILE="$runtime/app.env" \
             ASSURANCE_SCAN_SECRETS_DIR="$runtime/secrets" DOMAIN=scan.squease.ai \
-            docker compose up -d --no-deps --pull never --no-build server
+            docker compose up -d --no-deps --pull never --no-build --force-recreate server
 
           healthy=0
           for _attempt in $(seq 1 30); do
