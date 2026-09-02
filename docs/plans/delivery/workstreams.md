@@ -1,8 +1,8 @@
 # Delivery workstreams
 
 Status: WS6a–WS7d are implemented and quality-gated, subject to WS7b's two
-production-like rehearsals. WS7e–WS7g remain;
-production activation of the new result contract stays deferred to WS7e/WS7g.
+production-like rehearsals. WS7f–WS7g remain;
+production activation of the new result contract stays deferred to WS7g.
 
 ## Completed foundation
 
@@ -129,6 +129,9 @@ Acceptance: only an installed repository's verified default-branch push is
 accepted; every other issuer/audience/event/ref/replay/identity case fails closed.
 
 ## WS7e — producer and standard workflow
+
+Status: implemented in the disabled candidate path; production enablement remains
+part of WS7g.
 
 Update the common scanner producer, verified CI image release and generated
 default-branch-only workflow. Produce source contexts from the exact scan

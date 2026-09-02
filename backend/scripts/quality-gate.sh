@@ -16,6 +16,7 @@ PYTHON_BIN="$($PYTHON_COMMAND -c 'import sys; print(sys.executable)')"
 SEMGREP_IMAGE="semgrep/semgrep:1.136.0@sha256:cda1b566fafbf6010a02a3ea1d265b1c8eba4380e489a13891a102243d81ca6f"
 APP_IMAGE="assurance-scan-quality-gate-app:local"
 CI_IMAGE="assurance-scan-quality-gate-ci:local"
+CI_UPLOAD_IMAGE="assurance-scan-quality-gate-ci-upload:local"
 CLI_IMAGE="assurance-scan-quality-gate-cli:local"
 
 cd "$REPOSITORY_ROOT"
@@ -54,7 +55,7 @@ run_step "Semgrep" docker run --rm \
   --exclude .svelte-kit \
   --exclude __pycache__ \
   backend/app backend/scripts frontend/src .github/workflows backend/resources/templates \
-  Dockerfile backend/Dockerfile.ci backend/Dockerfile.cli
+  Dockerfile backend/Dockerfile.ci backend/Dockerfile.ci-upload backend/Dockerfile.cli
 
 printf '\n==> Frontend dependencies\n'
 (cd frontend && npm ci --ignore-scripts)
@@ -65,6 +66,7 @@ run_step "Frontend build" npm --prefix frontend run build
 
 run_step "Application Dockerfile validation" docker build --check -f Dockerfile .
 run_step "CI Dockerfile validation" docker build --check -f backend/Dockerfile.ci .
+run_step "CI uploader Dockerfile validation" docker build --check -f backend/Dockerfile.ci-upload .
 run_step "CLI Dockerfile validation" docker build --check -f backend/Dockerfile.cli .
 run_step "Application Compose validation" env \
   ASSURANCE_SCAN_ENV_FILE=.env.example \
@@ -109,6 +111,8 @@ cleanup_serve_smoke
 trap - EXIT
 run_step "CI image build" docker build --tag "$CI_IMAGE" -f backend/Dockerfile.ci .
 run_step "CI entrypoint smoke" docker run --rm "$CI_IMAGE" --help
+run_step "CI uploader image build" docker build --tag "$CI_UPLOAD_IMAGE" -f backend/Dockerfile.ci-upload .
+run_step "CI uploader entrypoint smoke" docker run --rm "$CI_UPLOAD_IMAGE" --help
 run_step "CLI image build" docker build \
   --build-arg VERSION=0.1.0 \
   --build-arg REVISION=0000000000000000000000000000000000000000 \
