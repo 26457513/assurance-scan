@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 import datetime as dt
 import json
 import stat
 import urllib.error
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Callable, Coroutine, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -224,6 +225,7 @@ def fetch_authoritative_installation(
     now: dt.datetime,
     repositories_etag: str | None = None,
     cached_repositories: tuple[GithubRepositorySnapshot, ...] | None = None,
+    page_checkpoint: Callable[[str], None] | None = None,
     http: GithubHttpPort | None = None,
 ) -> GithubInstallationSnapshot:
     """Fetch one complete installation snapshot using only App credentials."""
@@ -255,6 +257,7 @@ def fetch_authoritative_installation(
         transport,
         _headers(installation_token),
         repositories_etag=repositories_etag,
+        page_checkpoint=page_checkpoint,
     )
     if repositories is None:
         if repositories_etag is None or cached_repositories is None:
@@ -271,6 +274,36 @@ def fetch_authoritative_installation(
         return validate_installation_snapshot(snapshot)
     except ValueError as exc:
         raise GithubAppApiError("GitHub returned inconsistent installation metadata") from exc
+
+
+async def fetch_authoritative_installation_tracked(
+    *,
+    github_app_id: str,
+    private_key_pem: bytes,
+    github_installation_id: int,
+    now: dt.datetime,
+    checkpoint: Callable[[str], Coroutine[Any, Any, None]],
+    repositories_etag: str | None = None,
+    cached_repositories: tuple[GithubRepositorySnapshot, ...] | None = None,
+    http: GithubHttpPort | None = None,
+) -> GithubInstallationSnapshot:
+    """Fetch off-loop while durably acknowledging each safe pagination boundary."""
+    loop = asyncio.get_running_loop()
+
+    def persist(cursor: str) -> None:
+        asyncio.run_coroutine_threadsafe(checkpoint(cursor), loop).result()
+
+    return await asyncio.to_thread(
+        fetch_authoritative_installation,
+        github_app_id=github_app_id,
+        private_key_pem=private_key_pem,
+        github_installation_id=github_installation_id,
+        now=now,
+        repositories_etag=repositories_etag,
+        cached_repositories=cached_repositories,
+        page_checkpoint=persist,
+        http=http,
+    )
 
 
 def fetch_github_app_installation_states(
@@ -419,6 +452,7 @@ def _installation_repositories(
     headers: dict[str, str],
     *,
     repositories_etag: str | None = None,
+    page_checkpoint: Callable[[str], None] | None = None,
 ) -> tuple[tuple[GithubRepositorySnapshot, ...] | None, str | None]:
     repositories: list[GithubRepositorySnapshot] = []
     etag: str | None = None
@@ -436,6 +470,8 @@ def _installation_repositories(
         if response.status == 304:
             if page != 1 or repositories_etag is None:
                 raise GithubAppApiError("GitHub returned an invalid conditional response")
+            if page_checkpoint is not None:
+                page_checkpoint("complete")
             return None, repositories_etag
         if response.status != 200:
             raise GithubAppApiError("GitHub returned an unexpected response status")
@@ -446,7 +482,11 @@ def _installation_repositories(
             raise GithubAppApiError("GitHub returned invalid installation repositories")
         repositories.extend(_repository(item) for item in items)
         if len(items) < 100:
+            if page_checkpoint is not None:
+                page_checkpoint("complete")
             return tuple(repositories), etag if page == 1 else None
+        if page_checkpoint is not None:
+            page_checkpoint(f"page:{page + 1}")
     raise GithubAppApiError("GitHub repository pagination exceeded the safety limit")
 
 
@@ -610,6 +650,7 @@ __all__ = [
     "UrllibGithubHttp",
     "create_github_app_jwt",
     "fetch_authoritative_installation",
+    "fetch_authoritative_installation_tracked",
     "fetch_authoritative_installation_for_user",
     "fetch_github_app_installation_states",
     "load_github_app_private_key",

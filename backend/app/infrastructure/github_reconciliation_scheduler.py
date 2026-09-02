@@ -15,12 +15,13 @@ from app.infrastructure.db.models import GithubAppInstallation
 from app.infrastructure.db.repositories.github_reconciliation import (
     SqlAlchemyGithubRepositoryReconciliationRepository,
     load_github_installation_repository_cache,
+    record_github_reconciliation_cursor,
 )
 from app.infrastructure.github_app_api import (
     GithubAppApiError,
     GithubAppInstallationState,
     GithubRateLimitError,
-    fetch_authoritative_installation,
+    fetch_authoritative_installation_tracked,
     fetch_github_app_installation_states,
 )
 from app.modules.atomic.access.github_repository_reconciliation import (
@@ -144,8 +145,16 @@ async def github_reconciliation_loop(
                 session,
                 installation_id,
             )
-        return await asyncio.to_thread(
-            fetch_authoritative_installation,
+        async def checkpoint(cursor: str) -> None:
+            async with session_factory() as checkpoint_session:
+                await record_github_reconciliation_cursor(
+                    checkpoint_session,
+                    installation_id,
+                    cursor,
+                    checked_at=checked_at,
+                )
+
+        return await fetch_authoritative_installation_tracked(
             github_app_id=github_app_id,
             private_key_pem=private_key_pem,
             github_installation_id=installation_id,
@@ -154,6 +163,7 @@ async def github_reconciliation_loop(
             cached_repositories=(
                 cache.repositories if cache.repositories_etag is not None else None
             ),
+            checkpoint=checkpoint,
         )
 
     while True:

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from typing import Any, cast
 
-from sqlalchemy import select, text, update
+from sqlalchemy import or_, select, text, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db.models import (
@@ -74,6 +76,36 @@ async def load_github_installation_repository_cache(
         ),
         repositories=repositories,
     )
+
+
+async def record_github_reconciliation_cursor(
+    session: AsyncSession,
+    github_installation_id: int,
+    cursor: str,
+    *,
+    checked_at: dt.datetime,
+) -> bool:
+    """Persist progress without allowing an older fetch to mark newer state."""
+    if not (cursor == "complete" or (cursor.startswith("page:") and cursor[5:].isdigit())):
+        raise ValueError("GitHub reconciliation cursor is invalid")
+    if checked_at.tzinfo is None or checked_at.utcoffset() is None:
+        raise ValueError("GitHub reconciliation cursor timestamp must be timezone-aware")
+    if session.in_transaction():
+        await session.rollback()
+    result = await session.execute(
+        update(GithubAppInstallation)
+        .where(
+            GithubAppInstallation.github_installation_id == github_installation_id,
+            GithubAppInstallation.deleted_at.is_(None),
+            or_(
+                GithubAppInstallation.last_reconciled_at.is_(None),
+                GithubAppInstallation.last_reconciled_at <= checked_at,
+            ),
+        )
+        .values(reconciliation_cursor=cursor)
+    )
+    await session.commit()
+    return cast(CursorResult[Any], result).rowcount == 1
 
 
 class SqlAlchemyGithubRepositoryReconciliationRepository:
@@ -454,4 +486,5 @@ __all__ = [
     "GithubInstallationRepositoryCache",
     "SqlAlchemyGithubRepositoryReconciliationRepository",
     "load_github_installation_repository_cache",
+    "record_github_reconciliation_cursor",
 ]

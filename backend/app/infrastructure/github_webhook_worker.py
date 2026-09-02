@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.infrastructure.db.repositories.github_reconciliation import (
     SqlAlchemyGithubRepositoryReconciliationRepository,
     load_github_installation_repository_cache,
+    record_github_reconciliation_cursor,
 )
 from app.infrastructure.db.repositories.github_webhooks import (
     SqlAlchemyGithubWebhookDeliveryRepository,
@@ -20,7 +21,7 @@ from app.infrastructure.db.repositories.github_webhooks import (
 from app.infrastructure.github_app_api import (
     GithubAppApiError,
     GithubRateLimitError,
-    fetch_authoritative_installation,
+    fetch_authoritative_installation_tracked,
 )
 from app.modules.atomic.access.github_repository_reconciliation import (
     ReconciliationValidationError,
@@ -136,8 +137,16 @@ async def github_webhook_worker_loop(
                 session,
                 installation_id,
             )
-        return await asyncio.to_thread(
-            fetch_authoritative_installation,
+        async def checkpoint(cursor: str) -> None:
+            async with session_factory() as checkpoint_session:
+                await record_github_reconciliation_cursor(
+                    checkpoint_session,
+                    installation_id,
+                    cursor,
+                    checked_at=refreshed_at,
+                )
+
+        return await fetch_authoritative_installation_tracked(
             github_app_id=github_app_id,
             private_key_pem=private_key_pem,
             github_installation_id=installation_id,
@@ -146,6 +155,7 @@ async def github_webhook_worker_loop(
             cached_repositories=(
                 cache.repositories if cache.repositories_etag is not None else None
             ),
+            checkpoint=checkpoint,
         )
 
     while True:

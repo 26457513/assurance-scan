@@ -12,8 +12,9 @@ The six-hour missed-event repair loop, delivery retention and installation-
 scoped query-time entitlement refresh are also complete in candidate code.
 Repository invalidation clears the affected users' freshness markers and an
 expired projection plus a failed GitHub refresh fails closed. Explicit GitHub
-rate-limit deferral and safe single-page conditional ETag revalidation are
-complete; persisted-cursor hardening remains a later WS7c slice.
+rate-limit deferral, safe single-page conditional ETag revalidation and durable
+multi-page progress checkpoints are complete. Interrupted pagination restarts
+from page one and never projects partial scope.
 
 ## Exact app configuration
 

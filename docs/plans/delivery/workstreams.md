@@ -1,7 +1,7 @@
 # Delivery workstreams
 
-Status: WS6a–WS7b are implemented and quality-gated, subject to WS7b's two
-production-like rehearsals. WS7c is in progress and WS7d–WS7g remain;
+Status: WS6a–WS7c are implemented and quality-gated, subject to WS7b's two
+production-like rehearsals. WS7d–WS7g remain;
 production activation of the new result contract stays deferred to WS7e/WS7g.
 
 ## Completed foundation
@@ -70,7 +70,8 @@ preserve linked user/run ownership and block every ambiguous identity.
 
 ## WS7c — GitHub App access plane
 
-Status: in progress. The dormant installation/repository schema, independent
+Status: complete in the disabled candidate code path (2 September 2026). The
+dormant installation/repository schema, independent
 single-use setup state, raw-body webhook authentication/delivery idempotency,
 atomic authoritative repository projection, fixed-origin GitHub API client and
 setup-return workflow, and raw-body webhook HTTP boundary are complete in
@@ -82,9 +83,11 @@ feature remains disabled. The six-hour full-installation repair loop, 30-day
 delivery cleanup and installation-scoped five-minute user-entitlement refresh
 are complete in candidate code but are not production-enabled. Repository
 changes invalidate both grants and freshness markers, and failed refreshes fail
-closed. Explicit GitHub primary and secondary rate-limit deferral is complete;
-single-page conditional ETag revalidation is complete and only reuses a prior
-complete active projection; persisted-cursor hardening remains.
+closed. Explicit GitHub primary and secondary rate-limit deferral and safe
+single-page conditional ETag revalidation are complete. Multi-page progress is
+persisted and stale-worker fenced; an interrupted traversal restarts from page
+one because GitHub pagination is not an immutable snapshot, and partial scope
+is never projected.
 
 Implement installation return, signed webhooks, repository reconciliation and
 expiring query-time entitlements using the WS7b GitHub identity foundation.

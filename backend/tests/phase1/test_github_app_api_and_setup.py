@@ -33,6 +33,7 @@ from app.infrastructure.github_app_api import (
     UrllibGithubHttp,
     create_github_app_jwt,
     fetch_authoritative_installation,
+    fetch_authoritative_installation_tracked,
     fetch_authoritative_installation_for_user,
     fetch_github_app_installation_states,
     load_github_app_private_key,
@@ -295,6 +296,51 @@ def test_paginated_repository_scope_does_not_persist_a_page_etag() -> None:
 
     assert len(snapshot.repositories) == 101
     assert snapshot.repositories_etag is None
+
+
+@pytest.mark.asyncio
+async def test_tracked_fetch_persists_only_safe_page_boundaries() -> None:
+    class PaginatedGithubHttp(FakeGithubHttp):
+        def request(self, method, url, *, headers, body=None):
+            if url.startswith(f"{GITHUB_API_ROOT}/installation/repositories?"):
+                self.requests.append((method, url, headers, body))
+                page = int(urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["page"][0])
+                count = 100 if page == 1 else 0
+                return GithubApiResponse(
+                    {
+                        "repositories": [
+                            {
+                                "id": 600000 + index,
+                                "full_name": f"example-org/tracked-{index}",
+                                "owner": {"id": 26457513},
+                                "default_branch": "main",
+                                "visibility": "private",
+                                "archived": False,
+                                "disabled": False,
+                            }
+                            for index in range(count)
+                        ]
+                    },
+                    {},
+                )
+            return super().request(method, url, headers=headers, body=body)
+
+    checkpoints: list[str] = []
+
+    async def checkpoint(cursor: str) -> None:
+        checkpoints.append(cursor)
+
+    snapshot = await fetch_authoritative_installation_tracked(
+        github_app_id="12345",
+        private_key_pem=_private_pem(_private_key()),
+        github_installation_id=9001,
+        now=NOW,
+        checkpoint=checkpoint,
+        http=PaginatedGithubHttp(),
+    )
+
+    assert len(snapshot.repositories) == 100
+    assert checkpoints == ["page:2", "complete"]
 
 
 def test_complete_app_installation_listing_carries_only_authoritative_state() -> None:

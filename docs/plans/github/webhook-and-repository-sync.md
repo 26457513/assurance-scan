@@ -15,7 +15,9 @@ mint a token. Thirty-day delivery cleanup and the six-hour repair loop are also
 complete in disabled candidate code. Explicit primary and secondary GitHub
 rate-limit responses defer webhook work without a retry storm and stop the
 current repair batch. Conditional requests safely reuse only a complete active
-single-page projection; persisted cursors remain before activation.
+single-page projection. Multi-page progress is persisted and stale-worker
+fenced, while interruption restarts from page one rather than combining pages
+from different traversals. Partial scope is never projected.
 
 ## Endpoint security
 
@@ -78,8 +80,9 @@ after a complete authenticated listing; a present suspended installation is
 disabled without minting a token, and every other due installation receives a
 full repository refresh. Reconciliation timestamps fence older concurrent
 snapshots. Delivery claims are removed by the shared retention transaction once
-their contractual 30 days expire. Persisted pagination cursors remain required
-before production activation.
+their contractual 30 days expire. Pagination checkpoints record `page:<next>`
+or `complete`, cannot overwrite a newer reconciliation, and are cleared only by
+a successful authoritative projection.
 
 ## Authoritative refresh
 

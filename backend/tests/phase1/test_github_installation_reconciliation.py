@@ -20,6 +20,7 @@ from app.infrastructure.db.repositories.github_installation_states import (
 from app.infrastructure.db.repositories.github_reconciliation import (
     SqlAlchemyGithubRepositoryReconciliationRepository,
     load_github_installation_repository_cache,
+    record_github_reconciliation_cursor,
 )
 from app.infrastructure.db.repositories.identity_sessions import (
     SqlAlchemyBrowserSessionRepository,
@@ -260,6 +261,39 @@ async def test_conditional_cache_contains_only_the_last_complete_active_scope(se
     await session.commit()
     suspended_cache = await load_github_installation_repository_cache(session, 9001)
     assert suspended_cache.repositories_etag is None
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_cursor_is_durable_cleared_and_stale_fenced(session) -> None:
+    adapter = SqlAlchemyGithubRepositoryReconciliationRepository(session)
+    await reconcile_github_repositories(
+        _snapshot(_repository(101, "first")),
+        verified_at=NOW,
+        repository=adapter,
+    )
+    assert await record_github_reconciliation_cursor(
+        session,
+        9001,
+        "page:2",
+        checked_at=NOW + dt.timedelta(minutes=1),
+    )
+    installation = await session.get(GithubAppInstallation, 9001)
+    assert installation is not None
+    assert installation.reconciliation_cursor == "page:2"
+
+    await reconcile_github_repositories(
+        _snapshot(_repository(101, "first")),
+        verified_at=NOW + dt.timedelta(minutes=2),
+        repository=adapter,
+    )
+    await session.refresh(installation)
+    assert installation.reconciliation_cursor is None
+    assert not await record_github_reconciliation_cursor(
+        session,
+        9001,
+        "complete",
+        checked_at=NOW + dt.timedelta(minutes=1),
+    )
 
 
 @pytest.mark.asyncio
