@@ -1,7 +1,6 @@
 # Scan ingestion programme
 
-Status: approved direction; WS6a–WS7c implemented, WS7d in progress, and
-WS7e–WS7g pending —
+Status: approved direction; WS6a–WS7d implemented and WS7e–WS7g pending —
 2026-09-02
 
 This folder is the authoritative plan for local scanning, GitHub Actions push

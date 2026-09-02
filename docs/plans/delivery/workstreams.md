@@ -1,7 +1,7 @@
 # Delivery workstreams
 
-Status: WS6a–WS7c are implemented and quality-gated, subject to WS7b's two
-production-like rehearsals. WS7d is in progress; WS7e–WS7g remain;
+Status: WS6a–WS7d are implemented and quality-gated, subject to WS7b's two
+production-like rehearsals. WS7e–WS7g remain;
 production activation of the new result contract stays deferred to WS7e/WS7g.
 
 ## Completed foundation
@@ -97,7 +97,7 @@ declared bounds, and denied users receive no project existence signal.
 
 ## WS7d — push-only ingestion
 
-Status: in progress in the disabled candidate code path (2 September 2026).
+Status: complete in the disabled candidate code path (2 September 2026).
 Strict OIDC verification, single-use JWT replay evidence, live authoritative
 repository authorization, the validated v2 envelope, repository/run/attempt
 idempotency with five-minute fenced leases, and transactionally bound shared
@@ -111,13 +111,15 @@ evidence and 30-day evidence expiry are implemented and quality-gated. Accepted
 attempts commit with their result graph; replays and rejections commit
 independently; internal-failure evidence cannot mask the original failure.
 Local and GitHub ingestion now use the same attempt evidence, correlation-ID
-contract and portable cross-origin quota lock. An immutable usage ledger means
+contract and SQLite-backed cross-process quota lock. An immutable usage ledger means
 failed or stale retries consume fresh capacity while completed replays do not,
 and mutable claim cleanup cannot restore spent capacity. Candidate migrations
 also retain tombstones when either origin's run is deleted and expire attempts,
-tombstones and usage evidence through the common retention job. Deployment may
-lower, but cannot raise, the frozen per-origin and shared limits. No production
-v2 route has been enabled.
+tombstones and usage evidence through bounded common-retention batches. Both
+HTTP boundaries emit the same allowlisted, secret-free terminal request signal
+with the response correlation ID; non-upload local endpoints do not pollute
+upload metrics. Deployment may lower, but cannot raise, the frozen per-origin
+and shared limits. No production v2 route has been enabled.
 
 Implement strict GitHub OIDC verification, authoritative repository refresh,
 shared v2 ingestion, ingest attempts, replay protection and cross-origin limits.

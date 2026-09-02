@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field, replace
@@ -10,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest_asyncio
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
@@ -203,6 +206,60 @@ async def test_valid_upload_passes_only_validated_identity_and_envelope(harness:
     assert command.correlation_id == request_id
     assert command.envelope.metadata["schema_version"] == 2
     assert command.accepted_bytes > sum(len(item[1][1]) for item in _parts())
+
+
+async def test_success_emits_one_safe_correlated_signal(
+    harness: Harness,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="app.api.routes.github_actions_ingest")
+
+    response = await _upload(harness)
+
+    signals = [json.loads(record.message) for record in caplog.records if '"event":"ingest_request"' in record.message]
+    assert signals == [
+        {
+            "code": "scan_created",
+            "correlation_id": response.json()["request_id"],
+            "duration_ms": signals[0]["duration_ms"],
+            "event": "ingest_request",
+            "finding_count": 2,
+            "origin": "github",
+            "outcome": "created",
+            "project_id": 7,
+            "replayed": False,
+            "scanner_count": 1,
+            "status_code": 201,
+            "wire_bytes": signals[0]["wire_bytes"],
+        }
+    ]
+    assert "signed-jwt" not in caplog.text
+    assert "26457513/assurance-scan" not in caplog.text
+
+
+async def test_rejection_emits_one_safe_correlated_signal(
+    harness: Harness,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    harness.authenticator.authentication_rejection = "oidc_invalid"
+    caplog.set_level(logging.INFO, logger="app.api.routes.github_actions_ingest")
+
+    response = await _upload(harness)
+
+    signals = [json.loads(record.message) for record in caplog.records if '"event":"ingest_request"' in record.message]
+    assert signals == [
+        {
+            "code": "oidc_invalid",
+            "correlation_id": response.json()["request_id"],
+            "duration_ms": signals[0]["duration_ms"],
+            "event": "ingest_request",
+            "origin": "github",
+            "outcome": "rejected",
+            "status_code": 401,
+        }
+    ]
+    assert "signed-jwt" not in caplog.text
+    assert "26457513/assurance-scan" not in caplog.text
 
 
 async def test_idempotency_key_is_bound_to_signed_claims(harness: Harness) -> None:

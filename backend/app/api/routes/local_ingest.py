@@ -40,7 +40,7 @@ from app.api.schemas.local_ingest import (
 from app.modules.atomic.access.scan_token import ScanTokenPrincipal
 from app.modules.atomic.ingestion.data_redactor import redact_json
 from app.modules.atomic.ingestion.operational_signals import (
-    LocalIngestRequestSignal,
+    IngestRequestSignal,
     render_request_signal,
 )
 from app.modules.atomic.provenance.repository_identity import (
@@ -81,14 +81,17 @@ class IngestAPIRoute(APIRoute):
             try:
                 return await original(request)
             except IngestProblem as exc:
-                _log_rejection(request, status=exc.status, code=exc.code)
+                if _is_upload_request(request):
+                    _log_rejection(request, status=exc.status, code=exc.code)
                 return problem_response(request, exc)
             except HTTPException as exc:
                 problem = problem_from_http_exception(exc)
-                _log_rejection(request, status=problem.status, code=problem.code)
+                if _is_upload_request(request):
+                    _log_rejection(request, status=problem.status, code=problem.code)
                 return problem_response(request, problem)
             except LocalScanWorkflowError as exc:
-                _log_rejection(request, status=exc.status, code=exc.code)
+                if _is_upload_request(request):
+                    _log_rejection(request, status=exc.status, code=exc.code)
                 headers = {}
                 if exc.retry_after_seconds is not None:
                     headers["Retry-After"] = str(exc.retry_after_seconds)
@@ -105,7 +108,8 @@ class IngestAPIRoute(APIRoute):
                     ),
                 )
             except Exception:
-                _log_rejection(request, status=500, code="internal_error")
+                if _is_upload_request(request):
+                    _log_rejection(request, status=500, code="internal_error")
                 return problem_response(
                     request,
                     IngestProblem(
@@ -698,10 +702,15 @@ def _duration_ms(request: Request) -> int:
     return max(0, round((time.monotonic() - started) * 1000))
 
 
+def _is_upload_request(request: Request) -> bool:
+    return request.method == "POST" and request.url.path.rstrip("/").endswith("/v1/ingest/local-scans")
+
+
 def _log_rejection(request: Request, *, status: int, code: str) -> None:
     _LOGGER.info(
         render_request_signal(
-            LocalIngestRequestSignal(
+            IngestRequestSignal(
+                origin="local",
                 outcome="rejected",
                 status_code=status,
                 duration_ms=_duration_ms(request),
@@ -728,7 +737,8 @@ def _log_success(
         status_code = 202
     _LOGGER.info(
         render_request_signal(
-            LocalIngestRequestSignal(
+            IngestRequestSignal(
+                origin="local",
                 outcome=result.outcome.value,
                 status_code=status_code,
                 duration_ms=_duration_ms(request),

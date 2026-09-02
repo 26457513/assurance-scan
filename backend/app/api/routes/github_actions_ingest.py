@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
+import time
 import uuid
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol, cast
@@ -19,6 +21,7 @@ from app.infrastructure.github_app_api import GithubAppApiError
 from app.infrastructure.github_oidc import GithubOidcInfrastructureError, GithubOidcJwksClient
 from app.infrastructure.ingest_v2_contract import CheckedInEnvelopeSchemaValidator
 from app.modules.atomic.access.github_oidc import GithubOidcClaims, OidcValidationError
+from app.modules.atomic.ingestion.operational_signals import IngestRequestSignal, render_request_signal
 from app.modules.shared.contracts.ingest_v2 import (
     ENVELOPE_LIMITS_V2,
     PART_MEDIA_TYPES,
@@ -47,6 +50,7 @@ _PART_LIMITS = {
     "sbom": ENVELOPE_LIMITS_V2.sbom_bytes,
 }
 _POLICIES = {policy.code: policy for policy in PROBLEM_POLICIES_V2}
+_LOGGER = logging.getLogger(__name__)
 
 
 class GithubActionsRequestAuthenticator(Protocol):
@@ -72,16 +76,23 @@ class GithubActionsIngestRoute(APIRoute):
         original = super().get_route_handler()
 
         async def handler(request: Request) -> Response:
+            request.state.github_ingest_started = time.monotonic()
             request.state.correlation_id = str(uuid.uuid4())
             try:
                 return await original(request)
             except IngestProblem as exc:
+                _log_rejection(request, status=exc.status, code=exc.code)
                 return problem_response(request, exc)
             except OidcValidationError as exc:
-                return problem_response(request, _oidc_problem(exc.code))
+                problem = _oidc_problem(exc.code)
+                _log_rejection(request, status=problem.status, code=problem.code)
+                return problem_response(request, problem)
             except EnvelopeValidationError as exc:
-                return problem_response(request, _problem(exc.code))
+                problem = _problem(exc.code)
+                _log_rejection(request, status=problem.status, code=problem.code)
+                return problem_response(request, problem)
             except GithubIngestError as exc:
+                _log_rejection(request, status=exc.status, code=exc.code)
                 return problem_response(
                     request,
                     IngestProblem(
@@ -98,9 +109,13 @@ class GithubActionsIngestRoute(APIRoute):
                     ),
                 )
             except (GithubAppApiError, GithubOidcInfrastructureError):
-                return problem_response(request, _problem("github_verification_failed"))
+                problem = _problem("github_verification_failed")
+                _log_rejection(request, status=problem.status, code=problem.code)
+                return problem_response(request, problem)
             except Exception:
-                return problem_response(request, _problem("internal_persistence_failed"))
+                problem = _problem("internal_persistence_failed")
+                _log_rejection(request, status=problem.status, code=problem.code)
+                return problem_response(request, problem)
 
         return handler
 
@@ -200,6 +215,13 @@ async def upload_github_actions_result(
             correlation_id=request.state.correlation_id,
         )
     )
+    _log_success(
+        request,
+        result=result,
+        wire_bytes=upload.wire_bytes,
+        finding_count=len(cast(list[Any], envelope.findings["findings"])),
+        scanner_count=len(cast(list[Any], envelope.findings["scanners"])),
+    )
     return _success_response(result, correlation_id=request.state.correlation_id)
 
 
@@ -234,6 +256,59 @@ def _success_response(result: GithubIngestResult, *, correlation_id: str) -> JSO
         },
         status_code=status,
         headers=headers,
+    )
+
+
+def _duration_ms(request: Request) -> int:
+    started = getattr(request.state, "github_ingest_started", time.monotonic())
+    return max(0, round((time.monotonic() - started) * 1000))
+
+
+def _log_rejection(request: Request, *, status: int, code: str) -> None:
+    safe_code = code if code in _POLICIES else "internal_persistence_failed"
+    _LOGGER.info(
+        render_request_signal(
+            IngestRequestSignal(
+                origin="github",
+                outcome="rejected",
+                status_code=status,
+                duration_ms=_duration_ms(request),
+                code=safe_code,
+                correlation_id=request.state.correlation_id,
+            )
+        )
+    )
+
+
+def _log_success(
+    request: Request,
+    *,
+    result: GithubIngestResult,
+    wire_bytes: int,
+    finding_count: int,
+    scanner_count: int,
+) -> None:
+    status_code = 201
+    if result.outcome is GithubIngestOutcome.REPLAYED:
+        status_code = 200
+    elif result.outcome is GithubIngestOutcome.IN_PROGRESS:
+        status_code = 202
+    _LOGGER.info(
+        render_request_signal(
+            IngestRequestSignal(
+                origin="github",
+                outcome=result.outcome.value,
+                status_code=status_code,
+                duration_ms=_duration_ms(request),
+                code=f"scan_{result.outcome.value}",
+                correlation_id=request.state.correlation_id,
+                wire_bytes=wire_bytes,
+                finding_count=finding_count,
+                scanner_count=scanner_count,
+                project_id=result.project_id,
+                replayed=result.outcome is GithubIngestOutcome.REPLAYED,
+            )
+        )
     )
 
 

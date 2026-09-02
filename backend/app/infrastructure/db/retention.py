@@ -27,6 +27,9 @@ from app.infrastructure.db.repositories.github_ingest_requests import (
 from app.modules.shared.contracts.local_scan import RETENTION_DAYS
 
 
+RETENTION_BATCH_SIZE = 500
+
+
 @dataclass(frozen=True)
 class RetentionCleanupResult:
     raw_artifacts: int
@@ -79,20 +82,27 @@ async def run_retention_cleanup(
     normalized_cutoff = timestamp - dt.timedelta(days=RETENTION_DAYS.normalized_history)
     audit_cutoff = timestamp - dt.timedelta(days=RETENTION_DAYS.token_audit_after_inactive)
 
-    raw_result = await session.execute(
-        delete(ScannerArtifact)
+    raw_ids = (
+        select(ScannerArtifact.id)
         .where(ScannerArtifact.created_at <= raw_cutoff)
-        .execution_options(synchronize_session=False)
+        .order_by(ScannerArtifact.created_at, ScannerArtifact.id)
+        .limit(RETENTION_BATCH_SIZE)
+    )
+    raw_result = await session.execute(
+        delete(ScannerArtifact).where(ScannerArtifact.id.in_(raw_ids)).execution_options(synchronize_session=False)
     )
     expired_run_ids = tuple(
         (
             await session.execute(
-                select(Run.run_id).where(
+                select(Run.run_id)
+                .where(
                     or_(
                         Run.completed_at <= normalized_cutoff,
                         (Run.completed_at.is_(None) & (Run.started_at <= normalized_cutoff)),
                     )
                 )
+                .order_by(Run.started_at, Run.run_id)
+                .limit(RETENTION_BATCH_SIZE)
             )
         ).scalars()
     )
@@ -100,42 +110,74 @@ async def run_retention_cleanup(
     run_result = await session.execute(
         delete(Run).where(Run.run_id.in_(expired_run_ids)).execution_options(synchronize_session=False)
     )
-    tombstone_result = await session.execute(
-        delete(IngestRequest)
+    tombstone_ids = (
+        select(IngestRequest.id)
         .where(
             IngestRequest.state == "tombstoned",
             IngestRequest.tombstone_expires_at <= timestamp,
         )
-        .execution_options(synchronize_session=False)
+        .order_by(IngestRequest.tombstone_expires_at, IngestRequest.id)
+        .limit(RETENTION_BATCH_SIZE)
     )
-    github_tombstone_result = await session.execute(
-        delete(GithubIngestRequest)
+    tombstone_result = await session.execute(
+        delete(IngestRequest).where(IngestRequest.id.in_(tombstone_ids)).execution_options(synchronize_session=False)
+    )
+    github_tombstone_ids = (
+        select(GithubIngestRequest.id)
         .where(
             GithubIngestRequest.state == "tombstoned",
             GithubIngestRequest.tombstone_expires_at <= timestamp,
         )
+        .order_by(GithubIngestRequest.tombstone_expires_at, GithubIngestRequest.id)
+        .limit(RETENTION_BATCH_SIZE)
+    )
+    github_tombstone_result = await session.execute(
+        delete(GithubIngestRequest)
+        .where(GithubIngestRequest.id.in_(github_tombstone_ids))
         .execution_options(synchronize_session=False)
     )
-    token_result = await session.execute(
-        delete(ApiToken)
+    token_ids = (
+        select(ApiToken.id)
         .where(
             or_(ApiToken.revoked_at <= audit_cutoff, ApiToken.expires_at <= audit_cutoff),
             ~exists().where(Run.submitting_token_id == ApiToken.id),
             ~exists().where(IngestRequest.submitting_token_id == ApiToken.id),
         )
-        .execution_options(synchronize_session=False)
+        .order_by(ApiToken.expires_at, ApiToken.id)
+        .limit(RETENTION_BATCH_SIZE)
+    )
+    token_result = await session.execute(
+        delete(ApiToken).where(ApiToken.id.in_(token_ids)).execution_options(synchronize_session=False)
+    )
+    webhook_ids = (
+        select(GithubWebhookDelivery.delivery_id)
+        .where(GithubWebhookDelivery.expires_at <= timestamp)
+        .order_by(GithubWebhookDelivery.expires_at, GithubWebhookDelivery.delivery_id)
+        .limit(RETENTION_BATCH_SIZE)
     )
     webhook_result = await session.execute(
         delete(GithubWebhookDelivery)
-        .where(GithubWebhookDelivery.expires_at <= timestamp)
+        .where(GithubWebhookDelivery.delivery_id.in_(webhook_ids))
         .execution_options(synchronize_session=False)
     )
+    attempt_ids = (
+        select(IngestAttempt.id)
+        .where(IngestAttempt.expires_at <= timestamp)
+        .order_by(IngestAttempt.expires_at, IngestAttempt.id)
+        .limit(RETENTION_BATCH_SIZE)
+    )
     attempt_result = await session.execute(
-        delete(IngestAttempt).where(IngestAttempt.expires_at <= timestamp).execution_options(synchronize_session=False)
+        delete(IngestAttempt).where(IngestAttempt.id.in_(attempt_ids)).execution_options(synchronize_session=False)
+    )
+    charge_ids = (
+        select(IngestUsageCharge.id)
+        .where(IngestUsageCharge.expires_at <= timestamp)
+        .order_by(IngestUsageCharge.expires_at, IngestUsageCharge.id)
+        .limit(RETENTION_BATCH_SIZE)
     )
     charge_result = await session.execute(
         delete(IngestUsageCharge)
-        .where(IngestUsageCharge.expires_at <= timestamp)
+        .where(IngestUsageCharge.id.in_(charge_ids))
         .execution_options(synchronize_session=False)
     )
     await session.commit()
@@ -155,6 +197,7 @@ async def run_retention_cleanup(
 
 __all__ = [
     "RetentionCleanupResult",
+    "RETENTION_BATCH_SIZE",
     "prepare_runs_for_deletion",
     "run_retention_cleanup",
 ]

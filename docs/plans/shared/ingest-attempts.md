@@ -43,7 +43,9 @@ claim, creates one usage charge in the same lock-held transaction that acquires
 the claim. Completed replays, active duplicates and retained tombstones create
 no charge. Local and GitHub reservations serialize through one database-backed
 global quota lock so the shared in-flight ceiling remains correct across
-processes and SQL dialects.
+application processes using Assurance Scan's supported SQLite database. Other
+database engines are outside the current product and migration contract and
+must fail closed rather than take an untested locking path.
 
 ## Visibility
 

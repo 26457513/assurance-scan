@@ -8,7 +8,7 @@ import uuid
 import pytest
 
 from app.modules.atomic.ingestion.operational_signals import (
-    LocalIngestRequestSignal,
+    IngestRequestSignal,
     LocalIngestRetentionSignal,
     render_request_signal,
     render_retention_signal,
@@ -18,7 +18,8 @@ from app.modules.atomic.ingestion.operational_signals import (
 def test_request_signal_contains_only_allowlisted_machine_data() -> None:
     correlation_id = str(uuid.uuid4())
     rendered = render_request_signal(
-        LocalIngestRequestSignal(
+        IngestRequestSignal(
+            origin="local",
             outcome="created",
             status_code=201,
             duration_ms=42,
@@ -34,7 +35,8 @@ def test_request_signal_contains_only_allowlisted_machine_data() -> None:
     )
 
     assert json.loads(rendered) == {
-        "event": "local_ingest_request",
+        "event": "ingest_request",
+        "origin": "local",
         "outcome": "created",
         "status_code": 201,
         "duration_ms": 42,
@@ -73,11 +75,26 @@ def test_retention_signal_contains_counts_only() -> None:
 def test_unbounded_or_sensitive_codes_are_rejected(value: str) -> None:
     with pytest.raises(ValueError, match="machine code"):
         render_request_signal(
-            LocalIngestRequestSignal(
+            IngestRequestSignal(
+                origin="local",
                 outcome="rejected",
                 status_code=400,
                 duration_ms=1,
                 code=value,
+                correlation_id=str(uuid.uuid4()),
+            )
+        )
+
+
+def test_unknown_origin_is_rejected() -> None:
+    with pytest.raises(ValueError, match="origin"):
+        render_request_signal(
+            IngestRequestSignal(
+                origin="untrusted",
+                outcome="rejected",
+                status_code=400,
+                duration_ms=1,
+                code="invalid_request",
                 correlation_id=str(uuid.uuid4()),
             )
         )

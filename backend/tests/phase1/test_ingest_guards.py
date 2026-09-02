@@ -7,6 +7,7 @@ import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -14,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.infrastructure.db.models import ApiToken, Base, Project, Run, User
 from app.infrastructure.db.repositories.ingest_requests import SqlAlchemyIdempotencyRepository
 from app.infrastructure.db.repositories.ingest_usage import SqlAlchemyUsageQuotaRepository
+from app.infrastructure.db.repositories.ingest_quota_lock import acquire_global_ingest_quota_lock
 from app.modules.atomic.ingestion.data_redactor import REDACTED, REDACTED_HOST, redact_json
 from app.modules.atomic.ingestion.idempotency_guard import (
     ClaimCommand,
@@ -332,3 +334,12 @@ async def test_sql_quota_release_rolls_back_reservation_lock(tmp_path: Path) -> 
         assert result.reservation is not None
         assert await repository.release(result.reservation, now=NOW)
         assert not session.in_transaction()
+
+
+async def test_quota_lock_fails_closed_for_unsupported_database_dialect() -> None:
+    session = MagicMock()
+    session.in_transaction.return_value = False
+    session.get_bind.return_value.dialect.name = "postgresql"
+
+    with pytest.raises(RuntimeError, match="supported SQLite"):
+        await acquire_global_ingest_quota_lock(session)

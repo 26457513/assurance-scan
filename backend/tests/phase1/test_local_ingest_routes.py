@@ -201,6 +201,29 @@ async def test_authentication_failures_are_uniform_problem_details(
     assert detail not in body["detail"].lower()
 
 
+async def test_only_upload_rejections_emit_correlated_request_signals(
+    harness: RouteHarness,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def reject() -> None:
+        raise HTTPException(status_code=401, detail="secret credential value")
+
+    harness.app.dependency_overrides[require_scan_token_principal] = reject
+    caplog.set_level(logging.INFO, logger="app.api.routes.local_ingest")
+
+    whoami = await harness.client.get("/api/v1/ingest/whoami")
+    assert whoami.status_code == 401
+    assert not [record for record in caplog.records if '"event":"ingest_request"' in record.message]
+
+    upload = await _upload(harness.client)
+    signals = [json.loads(record.message) for record in caplog.records if '"event":"ingest_request"' in record.message]
+    assert len(signals) == 1
+    assert signals[0]["origin"] == "local"
+    assert signals[0]["code"] == "invalid_credential"
+    assert signals[0]["correlation_id"] == upload.json()["request_id"]
+    assert "secret credential value" not in caplog.text
+
+
 async def test_valid_upload_calls_narrow_workflow_with_validated_bundle(
     harness: RouteHarness,
 ) -> None:
@@ -243,15 +266,14 @@ async def test_upload_signal_reports_counts_without_secret_or_host_path(
     )
 
     assert response.status_code == 201
-    signals = [
-        json.loads(record.message) for record in caplog.records if '"event":"local_ingest_request"' in record.message
-    ]
+    signals = [json.loads(record.message) for record in caplog.records if '"event":"ingest_request"' in record.message]
     assert signals == [
         {
+            "origin": "local",
             "code": "scan_created",
             "correlation_id": signals[0]["correlation_id"],
             "duration_ms": signals[0]["duration_ms"],
-            "event": "local_ingest_request",
+            "event": "ingest_request",
             "finding_count": 1,
             "outcome": "created",
             "project_id": 42,

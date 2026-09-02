@@ -1,4 +1,4 @@
-"""Render allowlisted, machine-readable local-ingest operational signals."""
+"""Render allowlisted, machine-readable ingest operational signals."""
 
 from __future__ import annotations
 
@@ -8,15 +8,17 @@ import uuid
 from dataclasses import asdict
 from typing import Any
 
-from .models import LocalIngestRequestSignal, LocalIngestRetentionSignal
+from .models import IngestRequestSignal, LocalIngestRetentionSignal
 
 
 _CODE = re.compile(r"[a-z][a-z0-9_]{0,63}")
 _MAX_COUNTER = 1 << 63
 
 
-def render_request_signal(signal: LocalIngestRequestSignal) -> str:
+def render_request_signal(signal: IngestRequestSignal) -> str:
     """Return stable JSON with no repository, credential, path, or principal fields."""
+    if signal.origin not in {"github", "local"}:
+        raise ValueError("origin must be github or local")
     _validate_code(signal.outcome, field="outcome")
     _validate_code(signal.code, field="code")
     _validate_uuid(signal.correlation_id)
@@ -24,7 +26,7 @@ def render_request_signal(signal: LocalIngestRequestSignal) -> str:
         raise ValueError("status_code must be an HTTP status")
     fields = _without_none(asdict(signal))
     _validate_counters(fields, exclude={"status_code"})
-    return _render("local_ingest_request", fields)
+    return _render("ingest_request", fields)
 
 
 def render_retention_signal(signal: LocalIngestRetentionSignal) -> str:

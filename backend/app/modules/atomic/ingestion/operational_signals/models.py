@@ -1,4 +1,4 @@
-"""Secret-free operational signal contracts for local ingest."""
+"""Secret-free operational signal contracts for result ingestion."""
 
 from __future__ import annotations
 
@@ -6,9 +6,10 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class LocalIngestRequestSignal:
+class IngestRequestSignal:
     """Bounded request telemetry containing no user-controlled text."""
 
+    origin: str
     outcome: str
     status_code: int
     duration_ms: int
@@ -37,4 +38,4 @@ class LocalIngestRetentionSignal:
     usage_charges: int = 0
 
 
-__all__ = ["LocalIngestRequestSignal", "LocalIngestRetentionSignal"]
+__all__ = ["IngestRequestSignal", "LocalIngestRetentionSignal"]
