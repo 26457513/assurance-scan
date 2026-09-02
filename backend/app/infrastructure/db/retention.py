@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db.models import (
     ApiToken,
+    GithubWebhookDelivery,
     IngestRequest,
     Run,
     ScannerArtifact,
@@ -26,6 +27,7 @@ class RetentionCleanupResult:
     runs: int
     tombstones: int
     token_audits: int
+    webhook_deliveries: int
 
 
 async def prepare_runs_for_deletion(
@@ -55,7 +57,7 @@ async def run_retention_cleanup(
     *,
     now: dt.datetime | None = None,
 ) -> RetentionCleanupResult:
-    """Apply v1 retention limits in one idempotent transaction."""
+    """Apply bounded scan, credential and webhook retention in one transaction."""
     timestamp = now or dt.datetime.now(dt.timezone.utc)
     raw_cutoff = timestamp - dt.timedelta(days=RETENTION_DAYS.raw_artifacts)
     normalized_cutoff = timestamp - dt.timedelta(days=RETENTION_DAYS.normalized_history)
@@ -99,12 +101,18 @@ async def run_retention_cleanup(
         )
         .execution_options(synchronize_session=False)
     )
+    webhook_result = await session.execute(
+        delete(GithubWebhookDelivery)
+        .where(GithubWebhookDelivery.expires_at <= timestamp)
+        .execution_options(synchronize_session=False)
+    )
     await session.commit()
     return RetentionCleanupResult(
         raw_artifacts=int(cast(CursorResult[Any], raw_result).rowcount or 0),
         runs=int(cast(CursorResult[Any], run_result).rowcount or 0),
         tombstones=int(cast(CursorResult[Any], tombstone_result).rowcount or 0),
         token_audits=int(cast(CursorResult[Any], token_result).rowcount or 0),
+        webhook_deliveries=int(cast(CursorResult[Any], webhook_result).rowcount or 0),
     )
 
 

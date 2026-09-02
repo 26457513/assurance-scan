@@ -46,13 +46,20 @@ async def suspend_github_installation(
     github_installation_id: int,
     *,
     suspended_at: datetime,
+    verified_at: datetime | None = None,
     repository: GithubRepositoryReconciliationPort,
 ) -> ReconciliationResult:
     """Disable one suspended installation using only its verified numeric ID."""
     if github_installation_id <= 0:
         raise ReconciliationValidationError("installation ID must be positive")
     _aware(suspended_at, "suspension")
-    return await repository.suspend(github_installation_id, suspended_at=suspended_at)
+    checked_at = verified_at or suspended_at
+    _aware(checked_at, "verification")
+    return await repository.suspend(
+        github_installation_id,
+        suspended_at=suspended_at,
+        verified_at=checked_at,
+    )
 
 
 def validate_installation_snapshot(snapshot: GithubInstallationSnapshot) -> GithubInstallationSnapshot:

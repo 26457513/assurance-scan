@@ -57,10 +57,12 @@ def test_retention_signal_contains_counts_only() -> None:
             normalized_runs=2,
             token_audits=1,
             tombstones=3,
+            webhook_deliveries=5,
         )
     )
     assert json.loads(rendered)["event"] == "local_ingest_retention"
     assert "completed" in rendered
+    assert json.loads(rendered)["webhook_deliveries"] == 5
 
 
 @pytest.mark.parametrize("value", ("UPPER", "contains path", "asu_v1_secret.value", "x" * 65))

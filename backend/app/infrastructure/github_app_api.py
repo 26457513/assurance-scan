@@ -37,8 +37,14 @@ class GithubAppApiError(RuntimeError):
 
 @dataclass(frozen=True)
 class GithubApiResponse:
-    payload: dict[str, Any]
+    payload: dict[str, Any] | list[Any]
     headers: dict[str, str]
+
+
+@dataclass(frozen=True)
+class GithubAppInstallationState:
+    github_installation_id: int
+    suspended_at: dt.datetime | None
 
 
 class GithubHttpPort(Protocol):
@@ -88,8 +94,8 @@ class UrllibGithubHttp:
             payload = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise GithubAppApiError("GitHub API returned invalid JSON") from exc
-        if not isinstance(payload, dict):
-            raise GithubAppApiError("GitHub API returned an invalid object")
+        if not isinstance(payload, (dict, list)):
+            raise GithubAppApiError("GitHub API returned invalid structured JSON")
         return GithubApiResponse(payload=payload, headers=response_headers)
 
 
@@ -168,12 +174,12 @@ def fetch_authoritative_installation(
         headers=app_headers,
         body=b"{}",
     )
-    installation_token = token_response.payload.get("token")
+    installation_token = _object(token_response.payload, "installation token").get("token")
     if not isinstance(installation_token, str) or not installation_token:
         raise GithubAppApiError("GitHub did not return an installation token")
     repositories, etag = _installation_repositories(transport, _headers(installation_token))
     snapshot = _snapshot(
-        installation_response.payload,
+        _object(installation_response.payload, "installation"),
         installation_id=installation_id,
         repositories=repositories,
         repositories_etag=etag,
@@ -182,6 +188,48 @@ def fetch_authoritative_installation(
         return validate_installation_snapshot(snapshot)
     except ValueError as exc:
         raise GithubAppApiError("GitHub returned inconsistent installation metadata") from exc
+
+
+def fetch_github_app_installation_states(
+    *,
+    github_app_id: str,
+    private_key_pem: bytes,
+    now: dt.datetime,
+    http: GithubHttpPort | None = None,
+) -> tuple[GithubAppInstallationState, ...]:
+    """List the App's complete installation set for missed-event repair."""
+    transport = http or UrllibGithubHttp()
+    app_jwt = create_github_app_jwt(
+        github_app_id=github_app_id,
+        private_key_pem=private_key_pem,
+        now=_aware(now),
+    )
+    headers = _headers(app_jwt)
+    states: list[GithubAppInstallationState] = []
+    seen: set[int] = set()
+    for page in range(1, _MAX_PAGES + 1):
+        response = transport.request(
+            "GET",
+            f"{GITHUB_API_ROOT}/app/installations?per_page=100&page={page}",
+            headers=headers,
+        )
+        if not isinstance(response.payload, list):
+            raise GithubAppApiError("GitHub returned invalid App installations")
+        for item in response.payload:
+            payload = _object(item, "App installation")
+            installation_id = _positive_integer(payload.get("id"), "installation id")
+            if installation_id in seen:
+                raise GithubAppApiError("GitHub returned duplicate App installations")
+            seen.add(installation_id)
+            states.append(
+                GithubAppInstallationState(
+                    github_installation_id=installation_id,
+                    suspended_at=_timestamp(payload.get("suspended_at")),
+                )
+            )
+        if len(response.payload) < 100:
+            return tuple(states)
+    raise GithubAppApiError("GitHub App installation pagination exceeded the safety limit")
 
 
 def create_github_app_jwt(*, github_app_id: str, private_key_pem: bytes, now: dt.datetime) -> str:
@@ -210,7 +258,7 @@ def _prove_user_installation(http: GithubHttpPort, headers: dict[str, str], inst
             f"{GITHUB_API_ROOT}/user/installations?per_page=100&page={page}",
             headers=headers,
         )
-        installations = response.payload.get("installations")
+        installations = _object(response.payload, "user installations").get("installations")
         if not isinstance(installations, list):
             raise GithubAppApiError("GitHub returned invalid user installations")
         if any(isinstance(item, dict) and item.get("id") == installation_id for item in installations):
@@ -233,7 +281,7 @@ def _installation_repositories(
         )
         if page == 1:
             etag = response.headers.get("etag")
-        items = response.payload.get("repositories")
+        items = _object(response.payload, "installation repositories").get("repositories")
         if not isinstance(items, list):
             raise GithubAppApiError("GitHub returned invalid installation repositories")
         repositories.extend(_repository(item) for item in items)
@@ -332,6 +380,12 @@ def _positive_integer(value: object, label: str) -> int:
     return value
 
 
+def _object(value: object, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise GithubAppApiError(f"GitHub returned invalid {label}")
+    return value
+
+
 def _timestamp(value: object) -> dt.datetime | None:
     if value is None:
         return None
@@ -353,11 +407,13 @@ def _aware(value: dt.datetime) -> dt.datetime:
 __all__ = [
     "GITHUB_API_ROOT",
     "GithubApiResponse",
+    "GithubAppInstallationState",
     "GithubAppApiError",
     "GithubHttpPort",
     "UrllibGithubHttp",
     "create_github_app_jwt",
     "fetch_authoritative_installation",
     "fetch_authoritative_installation_for_user",
+    "fetch_github_app_installation_states",
     "load_github_app_private_key",
 ]

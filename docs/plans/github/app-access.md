@@ -8,7 +8,9 @@ behind `GITHUB_APP_ACCESS_ENABLED=false`. The independently gated signed
 webhook boundary and its installation-ID-bound durable work queue are also
 complete. Its worker performs authoritative full-scope reconciliation and
 immediate signed-ID suspension/deletion while the feature remains disabled.
-Query-time entitlement refresh is a later WS7c slice.
+The six-hour missed-event repair loop and delivery retention are also complete
+in candidate code. ETag/rate-limit/cursor hardening and query-time entitlement
+refresh are later WS7c slices.
 
 ## Exact app configuration
 

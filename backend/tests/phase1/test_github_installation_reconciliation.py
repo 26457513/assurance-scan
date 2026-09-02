@@ -223,3 +223,25 @@ async def test_reconciliation_blocks_installation_owner_identity_change(session)
             verified_at=NOW + dt.timedelta(minutes=1),
             repository=adapter,
         )
+
+
+@pytest.mark.asyncio
+async def test_older_concurrent_snapshot_cannot_overwrite_newer_scope(session) -> None:
+    adapter = SqlAlchemyGithubRepositoryReconciliationRepository(session)
+    await reconcile_github_repositories(
+        _snapshot(_repository(101, "first")),
+        verified_at=NOW,
+        repository=adapter,
+    )
+
+    stale = await reconcile_github_repositories(
+        _snapshot(),
+        verified_at=NOW - dt.timedelta(seconds=1),
+        repository=adapter,
+    )
+
+    project = (await session.execute(select(Project))).scalar_one()
+    repository_row = (await session.execute(select(GithubInstallationRepository))).scalar_one()
+    assert stale.removed_repository_ids == ()
+    assert project.hidden is False
+    assert repository_row.removed_at is None

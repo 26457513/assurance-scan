@@ -124,6 +124,7 @@ async def _lifespan(app: FastAPI):
                     normalized_runs=result.runs,
                     token_audits=result.token_audits,
                     tombstones=result.tombstones,
+                    webhook_deliveries=result.webhook_deliveries,
                 )
                 logging.getLogger(__name__).info(render_retention_signal(signal))
             except Exception:
@@ -139,13 +140,22 @@ async def _lifespan(app: FastAPI):
     retention_task = asyncio.create_task(_retention_loop())
 
     github_webhook_worker_task = None
+    github_reconciliation_task = None
     if github_worker_configuration is not None:
         from app.infrastructure.db.connection import get_sessionmaker
+        from app.infrastructure.github_reconciliation_scheduler import github_reconciliation_loop
         from app.infrastructure.github_webhook_worker import github_webhook_worker_loop
 
         github_app_id, private_key = github_worker_configuration
         github_webhook_worker_task = asyncio.create_task(
             github_webhook_worker_loop(
+                get_sessionmaker(settings),
+                github_app_id=github_app_id,
+                private_key_pem=private_key,
+            )
+        )
+        github_reconciliation_task = asyncio.create_task(
+            github_reconciliation_loop(
                 get_sessionmaker(settings),
                 github_app_id=github_app_id,
                 private_key_pem=private_key,
@@ -172,6 +182,10 @@ async def _lifespan(app: FastAPI):
         try:
             yield
         finally:
+            if github_reconciliation_task is not None:
+                github_reconciliation_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await github_reconciliation_task
             if github_webhook_worker_task is not None:
                 github_webhook_worker_task.cancel()
                 with suppress(asyncio.CancelledError):

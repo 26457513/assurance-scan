@@ -23,9 +23,11 @@ from app.infrastructure.github_app_api import (
     GITHUB_API_ROOT,
     GithubApiResponse,
     GithubAppApiError,
+    GithubAppInstallationState,
     create_github_app_jwt,
     fetch_authoritative_installation,
     fetch_authoritative_installation_for_user,
+    fetch_github_app_installation_states,
     load_github_app_private_key,
 )
 from app.modules.atomic.access.browser_auth import mint_session
@@ -59,6 +61,14 @@ class FakeGithubHttp:
         if url.startswith(f"{GITHUB_API_ROOT}/user/installations?"):
             installations = [{"id": 9001}] if self.user_has_access else []
             return GithubApiResponse({"installations": installations}, {})
+        if url.startswith(f"{GITHUB_API_ROOT}/app/installations?"):
+            return GithubApiResponse(
+                [
+                    {"id": 9001, "suspended_at": None},
+                    {"id": 9002, "suspended_at": "2026-09-02T19:00:00Z"},
+                ],
+                {},
+            )
         if url == f"{GITHUB_API_ROOT}/app/installations/9001":
             return GithubApiResponse(
                 {
@@ -165,6 +175,23 @@ def test_worker_fetch_uses_app_credentials_without_a_user_token() -> None:
     assert snapshot.github_installation_id == 9001
     assert http.requests[0][1] == f"{GITHUB_API_ROOT}/app/installations/9001"
     assert all("/user/installations" not in request[1] for request in http.requests)
+
+
+def test_complete_app_installation_listing_carries_only_authoritative_state() -> None:
+    states = fetch_github_app_installation_states(
+        github_app_id="12345",
+        private_key_pem=_private_pem(_private_key()),
+        now=NOW,
+        http=FakeGithubHttp(),
+    )
+
+    assert states == (
+        GithubAppInstallationState(github_installation_id=9001, suspended_at=None),
+        GithubAppInstallationState(
+            github_installation_id=9002,
+            suspended_at=dt.datetime(2026, 9, 2, 19, 0, tzinfo=dt.timezone.utc),
+        ),
+    )
 
 
 def test_inaccessible_installation_fails_before_app_credentials_are_used() -> None:

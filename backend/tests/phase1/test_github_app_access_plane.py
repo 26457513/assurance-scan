@@ -16,6 +16,7 @@ from app.infrastructure.db.models import GithubWebhookDelivery
 from app.infrastructure.db.repositories.github_webhooks import (
     SqlAlchemyGithubWebhookDeliveryRepository,
 )
+from app.infrastructure.db.retention import run_retention_cleanup
 from app.modules.atomic.access.github_webhook import (
     GithubWebhookError,
     GithubWebhookErrorCode,
@@ -282,3 +283,18 @@ async def test_eighth_mutation_attempt_fails_terminally(session) -> None:
     assert row.status == "failed"
     assert row.processed_at == NOW.replace(tzinfo=None)
     assert row.last_error_code == "github_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_webhook_delivery_claim_expires_after_thirty_days(session) -> None:
+    verified = _verify(_fixture("installation-created.json"))
+    await claim_github_webhook(
+        verified,
+        repository=SqlAlchemyGithubWebhookDeliveryRepository(session),
+        now=NOW,
+    )
+
+    result = await run_retention_cleanup(session, now=NOW + dt.timedelta(days=30))
+
+    assert result.webhook_deliveries == 1
+    assert (await session.execute(select(GithubWebhookDelivery))).scalars().all() == []

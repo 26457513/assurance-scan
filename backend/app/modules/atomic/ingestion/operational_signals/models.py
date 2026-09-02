@@ -31,6 +31,7 @@ class LocalIngestRetentionSignal:
     normalized_runs: int = 0
     token_audits: int = 0
     tombstones: int = 0
+    webhook_deliveries: int = 0
 
 
 __all__ = ["LocalIngestRequestSignal", "LocalIngestRetentionSignal"]

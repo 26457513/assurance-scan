@@ -28,4 +28,5 @@ class GithubRepositoryReconciliationPort(Protocol):
         github_installation_id: int,
         *,
         suspended_at: datetime,
+        verified_at: datetime,
     ) -> ReconciliationResult: ...

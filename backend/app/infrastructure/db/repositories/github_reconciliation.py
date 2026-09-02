@@ -53,14 +53,12 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
             installation = await self.session.get(GithubAppInstallation, github_installation_id)
             if installation is None:
                 await self.session.commit()
-                return ReconciliationResult(
-                    installation_id=github_installation_id,
-                    enabled_repository_ids=(),
-                    disabled_repository_ids=(),
-                    removed_repository_ids=(),
-                    invalidated_project_ids=(),
-                )
+                return _empty_result(github_installation_id)
+            if _is_stale(installation.last_reconciled_at, deleted_at):
+                await self.session.commit()
+                return _empty_result(github_installation_id)
             installation.deleted_at = deleted_at
+            installation.last_reconciled_at = deleted_at
             installation.updated_at = deleted_at
             repositories = (
                 (
@@ -104,6 +102,7 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
         github_installation_id: int,
         *,
         suspended_at: dt.datetime,
+        verified_at: dt.datetime,
     ) -> ReconciliationResult:
         await self._begin_write()
         try:
@@ -112,8 +111,12 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
                 raise ReconciliationValidationError(
                     "suspended installation is not yet known and must be retried"
                 )
+            if _is_stale(installation.last_reconciled_at, verified_at):
+                await self.session.commit()
+                return _empty_result(github_installation_id)
             installation.suspended_at = suspended_at
-            installation.updated_at = suspended_at
+            installation.last_reconciled_at = verified_at
+            installation.updated_at = verified_at
             repositories = (
                 (
                     await self.session.execute(
@@ -130,7 +133,7 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
             disabled: list[int] = []
             for repository_row in repositories:
                 repository_row.disabled = True
-                repository_row.updated_at = suspended_at
+                repository_row.updated_at = verified_at
                 disabled.append(repository_row.github_repository_id)
                 if repository_row.project_id is not None:
                     invalidated.add(repository_row.project_id)
@@ -158,6 +161,8 @@ class SqlAlchemyGithubRepositoryReconciliationRepository:
     ) -> ReconciliationResult:
         installation = await self.session.get(GithubAppInstallation, snapshot.github_installation_id)
         installation_changed = installation is None
+        if installation is not None and _is_stale(installation.last_reconciled_at, verified_at):
+            return _empty_result(snapshot.github_installation_id)
         if installation is not None and installation.github_owner_id != snapshot.github_owner_id:
             raise ReconciliationValidationError("installation owner identity changed and requires audited rebind")
         if installation is None:
@@ -363,6 +368,22 @@ def _timestamp_key(value: dt.datetime | None) -> dt.datetime | None:
     if value is None or value.tzinfo is None:
         return value
     return value.astimezone(dt.timezone.utc).replace(tzinfo=None)
+
+
+def _is_stale(last_reconciled_at: dt.datetime | None, candidate: dt.datetime) -> bool:
+    previous = _timestamp_key(last_reconciled_at)
+    proposed = _timestamp_key(candidate)
+    return previous is not None and proposed is not None and previous > proposed
+
+
+def _empty_result(github_installation_id: int) -> ReconciliationResult:
+    return ReconciliationResult(
+        installation_id=github_installation_id,
+        enabled_repository_ids=(),
+        disabled_repository_ids=(),
+        removed_repository_ids=(),
+        invalidated_project_ids=(),
+    )
 
 
 __all__ = ["SqlAlchemyGithubRepositoryReconciliationRepository"]

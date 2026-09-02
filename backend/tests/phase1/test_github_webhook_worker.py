@@ -24,6 +24,8 @@ from app.infrastructure.db.repositories.github_webhooks import (
     SqlAlchemyGithubWebhookDeliveryRepository,
 )
 from app.infrastructure.github_app_api import GithubAppApiError
+from app.infrastructure.github_app_api import GithubAppInstallationState
+from app.infrastructure.github_reconciliation_scheduler import reconcile_due_github_installations
 from app.infrastructure.github_webhook_worker import process_github_webhook_work_once
 from app.modules.atomic.access.github_repository_reconciliation import (
     GithubAccountType,
@@ -253,3 +255,78 @@ async def test_expired_lease_is_fenced_before_authoritative_projection(tmp_path)
         assert delivery.attempt_count == 1
         assert projects == []
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_scheduled_repair_refreshes_suspends_and_deletes_only_due_installations(tmp_path) -> None:
+    engine, sessions = await _database(tmp_path, "scheduled.sqlite")
+    old = NOW - dt.timedelta(hours=7)
+    async with sessions() as session:
+        await reconcile_github_repositories(
+            _snapshot(),
+            verified_at=old,
+            repository=SqlAlchemyGithubRepositoryReconciliationRepository(session),
+        )
+        session.add_all(
+            [
+                _installation(9002, last_reconciled_at=old),
+                _installation(9003, last_reconciled_at=old),
+                _installation(9004, last_reconciled_at=NOW),
+            ]
+        )
+        await session.commit()
+
+    async def load_states(_checked_at: dt.datetime):
+        return (
+            GithubAppInstallationState(9001, None),
+            GithubAppInstallationState(9002, NOW - dt.timedelta(hours=1)),
+        )
+
+    async def load_installation(installation_id: int, _checked_at: dt.datetime):
+        assert installation_id == 9001
+        return _snapshot()
+
+    result = await reconcile_due_github_installations(
+        sessions,
+        states_loader=load_states,
+        installation_loader=load_installation,
+        now=NOW,
+    )
+
+    assert result.due == 3
+    assert result.refreshed == 1
+    assert result.suspended == 1
+    assert result.deleted == 1
+    assert result.failed == 0
+    async with sessions() as session:
+        installations = {
+            row.github_installation_id: row
+            for row in (await session.execute(select(GithubAppInstallation))).scalars()
+        }
+        assert installations[9001].last_reconciled_at == NOW.replace(tzinfo=None)
+        assert installations[9002].suspended_at == (NOW - dt.timedelta(hours=1)).replace(tzinfo=None)
+        assert installations[9002].deleted_at is None
+        assert installations[9003].deleted_at == NOW.replace(tzinfo=None)
+        assert installations[9004].deleted_at is None
+    await engine.dispose()
+
+
+def _installation(
+    github_installation_id: int,
+    *,
+    last_reconciled_at: dt.datetime,
+) -> GithubAppInstallation:
+    return GithubAppInstallation(
+        github_installation_id=github_installation_id,
+        github_owner_id=github_installation_id + 1000,
+        owner_login_at_last_verify=f"owner-{github_installation_id}",
+        account_type="organization",
+        repository_selection="selected",
+        suspended_at=None,
+        deleted_at=None,
+        repositories_etag=None,
+        reconciliation_cursor=None,
+        last_reconciled_at=last_reconciled_at,
+        created_at=last_reconciled_at,
+        updated_at=last_reconciled_at,
+    )

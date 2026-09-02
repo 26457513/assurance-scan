@@ -11,8 +11,9 @@ five-minute leases, bounded exponential retry and stale-lease protection. The
 restart-safe worker is complete: ordinary mutations fetch the full scope using
 App credentials, while signed suspension/deletion immediately disables access
 by immutable installation ID because a suspended/deleted installation may not
-mint a token. Retention cleanup and scheduled repair remain separate WS7c
-slices.
+mint a token. Thirty-day delivery cleanup and the six-hour repair loop are also
+complete in disabled candidate code; conditional requests, rate-limit backoff
+and persisted cursors remain before activation.
 
 ## Endpoint security
 
@@ -68,6 +69,16 @@ Browser authentication explicitly bypasses only this exact webhook path, so
 hosted login middleware cannot redirect GitHub. Startup fails closed when the
 webhook is enabled without a valid App ID and RSA private key; the webhook and
 worker therefore cannot be activated independently by mistake.
+
+The candidate repair loop lists the App's complete installation set before
+changing state. A missing immutable ID is therefore treated as deletion only
+after a complete authenticated listing; a present suspended installation is
+disabled without minting a token, and every other due installation receives a
+full repository refresh. Reconciliation timestamps fence older concurrent
+snapshots. Delivery claims are removed by the shared retention transaction once
+their contractual 30 days expire. Conditional ETag requests, explicit
+rate-limit backoff and persisted pagination cursors remain required before
+production activation.
 
 ## Authoritative refresh
 

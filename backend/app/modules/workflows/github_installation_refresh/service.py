@@ -45,6 +45,7 @@ async def refresh_github_installation(
         return await suspend_github_installation(
             lease.github_installation_id,
             suspended_at=refreshed_at,
+            verified_at=refreshed_at,
             repository=repository,
         )
     snapshot = await snapshot_loader(lease.github_installation_id, refreshed_at)
