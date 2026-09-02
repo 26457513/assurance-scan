@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import datetime as dt
 from typing import Any, Protocol
 
 
@@ -16,4 +17,15 @@ class RsaSignatureVerifier(Protocol):
     ) -> bool: ...
 
 
-__all__ = ["RsaSignatureVerifier"]
+class GithubOidcReplayRepository(Protocol):
+    async def consume(
+        self,
+        *,
+        jti_digest: bytes,
+        repository_id: int,
+        consumed_at: dt.datetime,
+        expires_at: dt.datetime,
+    ) -> bool: ...
+
+
+__all__ = ["GithubOidcReplayRepository", "RsaSignatureVerifier"]

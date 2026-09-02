@@ -114,7 +114,10 @@ def test_rejects_tampering_duplicate_json_and_oversized_tokens(
 ) -> None:
     key, jwks = signing_material
     valid = _token(key, _claims())
-    tampered = valid[:-1] + ("A" if valid[-1] != "A" else "B")
+    encoded_header, encoded_claims, encoded_signature = valid.split(".")
+    signature = bytearray(base64.urlsafe_b64decode(encoded_signature + "=="))
+    signature[0] ^= 1
+    tampered = f"{encoded_header}.{encoded_claims}.{_b64(bytes(signature))}"
     duplicate_header = _raw_token(
         key,
         b'{"alg":"RS256","alg":"RS256","kid":"test-key","typ":"JWT"}',

@@ -696,6 +696,30 @@ class IngestRequest(Base):
     )
 
 
+class GithubOidcReplay(Base):
+    """Hashed, expiring evidence that one authenticated GitHub JWT was consumed."""
+
+    __tablename__ = "github_oidc_replays"
+
+    jti_digest: Mapped[bytes] = mapped_column(LargeBinary(32), primary_key=True)
+    github_repository_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    consumed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("length(jti_digest) = 32", name="ck_github_oidc_replays_digest"),
+        CheckConstraint(
+            "github_repository_id > 0",
+            name="ck_github_oidc_replays_repository_id",
+        ),
+        CheckConstraint(
+            "expires_at > consumed_at",
+            name="ck_github_oidc_replays_expiry",
+        ),
+        Index("ix_github_oidc_replays_expires", "expires_at"),
+    )
+
+
 class ScannerRun(Base):
     """Per-scanner execution record within a run."""
 

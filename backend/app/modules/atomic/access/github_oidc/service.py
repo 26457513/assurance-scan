@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import json
+import hashlib
 import re
 from collections.abc import Mapping
 from typing import Any, NoReturn
@@ -13,7 +14,7 @@ from urllib.parse import urlsplit
 from app.modules.shared.contracts.ingest_v2 import OIDC_POLICY_V2, OIDC_REQUIRED_CLAIMS
 
 from .models import GithubOidcClaims, GithubRepositoryTrust, OidcValidationError
-from .ports import RsaSignatureVerifier
+from .ports import GithubOidcReplayRepository, RsaSignatureVerifier
 
 
 _ASCII_KID = re.compile(r"[\x21-\x7e]{1,128}\Z")
@@ -159,6 +160,27 @@ def authorize_default_branch_push(
         _invalid()
 
 
+async def consume_github_oidc_jti(
+    claims: GithubOidcClaims,
+    *,
+    repository: GithubOidcReplayRepository,
+    now: dt.datetime,
+) -> None:
+    """Atomically consume replay evidence until after the JWT can no longer validate."""
+    current = _aware(now)
+    expires_at = claims.expires_at + dt.timedelta(
+        seconds=OIDC_POLICY_V2.consumed_jti_extra_retention_seconds
+    )
+    consumed = await repository.consume(
+        jti_digest=hashlib.sha256(claims.jti.encode("utf-8")).digest(),
+        repository_id=claims.repository_id,
+        consumed_at=current,
+        expires_at=expires_at,
+    )
+    if not consumed:
+        raise OidcValidationError("oidc_replayed")
+
+
 def _select_jwk(jwks: Mapping[str, Any], kid: str) -> Mapping[str, Any]:
     keys = jwks.get("keys")
     if not isinstance(keys, list) or len(keys) > 32:
@@ -256,5 +278,6 @@ def _invalid() -> NoReturn:
 __all__ = [
     "authenticate_github_oidc",
     "authorize_default_branch_push",
+    "consume_github_oidc_jti",
     "github_oidc_audience",
 ]

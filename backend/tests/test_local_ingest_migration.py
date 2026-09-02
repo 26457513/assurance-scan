@@ -11,7 +11,7 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 OLD_HEAD = "0021_project_identity_provenance"
-NEW_HEAD = "0031_github_app_entitlement_freshness"
+NEW_HEAD = "0032_github_oidc_replays"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -83,6 +83,25 @@ def test_claim_schema_has_quota_fencing_and_tombstone_guards(tmp_path: Path) -> 
         "ix_ingest_requests_user_created",
     }.issubset(indexes)
     assert any(row[2] == "runs" and row[3] == "run_id" and row[6] == "SET NULL" for row in foreign_keys)
+
+
+def test_github_oidc_replay_schema_has_digest_and_expiry_guards(tmp_path: Path) -> None:
+    database = tmp_path / "oidc-replay.sqlite"
+    _alembic(database, "upgrade", "head")
+    with sqlite3.connect(database) as connection:
+        columns = {
+            str(row[1]): row
+            for row in connection.execute("PRAGMA table_info(github_oidc_replays)")
+        }
+        indexes = {
+            str(row[1])
+            for row in connection.execute("PRAGMA index_list(github_oidc_replays)")
+        }
+
+    assert columns["jti_digest"][5] == 1
+    assert columns["github_repository_id"][3] == 1
+    assert columns["expires_at"][3] == 1
+    assert "ix_github_oidc_replays_expires" in indexes
 
 
 def test_local_display_identity_is_backfilled_in_stable_order(tmp_path: Path) -> None:
