@@ -70,11 +70,11 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /opt/assurance-scan/backend
 
-LABEL org.opencontainers.image.source="https://github.com/jondowson/assurance-scan" \
-      org.opencontainers.image.url="https://github.com/jondowson/assurance-scan" \
-      org.opencontainers.image.documentation="https://github.com/jondowson/assurance-scan/blob/main/docs/mcp-stack-plan.md" \
+LABEL org.opencontainers.image.source="https://github.com/26457513/assurance-scan" \
+      org.opencontainers.image.url="https://github.com/26457513/assurance-scan" \
+      org.opencontainers.image.documentation="https://github.com/26457513/assurance-scan/blob/main/docs/module-architecture.md" \
       org.opencontainers.image.title="assurance-scan" \
-      org.opencontainers.image.description="Single-user, locally-running assurance service exposing scans via REST + MCP and a SvelteKit UI." \
+      org.opencontainers.image.description="Assurance scanning service exposing scans via REST, MCP, and a SvelteKit UI." \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}"
 

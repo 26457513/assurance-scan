@@ -42,8 +42,9 @@ is automatic. **All scanning runs on the target org's own GitHub compute**
 | `backend/resources/templates/assurance-scan.yml` | Vendored stub for repos outside the home org |
 
 The backend module boundaries are documented in
-[`docs/module-architecture.md`](docs/module-architecture.md); feature design
-notes live in `docs/plan-*.md`.
+[`docs/module-architecture.md`](docs/module-architecture.md). The approved
+push-only GitHub, local scan, access, Setup and delivery designs are indexed in
+[`docs/plans/README.md`](docs/plans/README.md).
 
 Operators releasing the public local CLI or enabling local ingest must follow
 the [local scan rollout and rollback runbook](docs/runbooks/local-scan-rollout.md).

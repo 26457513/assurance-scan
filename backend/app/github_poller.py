@@ -1,8 +1,7 @@
-"""Poll GitHub for completed assurance-scan runs and ingest them.
+"""Legacy GitHub Actions result poller.
 
-Pull model (see docs/plan-github-polling-ingest.md): no inbound exposure —
-the server fetches completed workflow runs, downloads the results artifact
-zip, and ingests findings.json + SARIF + SBOM through the ingestion workflow.
+The approved OIDC push cutover in ``docs/plans/delivery/workstreams.md``
+removes this module completely; it is not retained as a fallback.
 
 HTTP is stdlib urllib wrapped in asyncio.to_thread; the poll cadence is one
 listing call per repo per cycle, so no HTTP dependency is warranted.
