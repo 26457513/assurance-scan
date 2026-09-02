@@ -16,7 +16,8 @@ export const navigationItems: readonly NavigationItem[] = [
   { href: '/regimes', label: 'Regimes', glyph: '§', match: '/regimes', scoped: false, divider: false, privileged: true },
   { href: '/frs', label: 'FRs', glyph: '☰', match: '/frs', scoped: true, divider: false, privileged: true },
   { href: '/compliance', label: 'Compliance', glyph: '⚖', match: '/compliance', scoped: true, divider: false, privileged: true },
-  { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix', scoped: false, divider: true, privileged: true }
+  { href: '/fix', label: 'Fix', glyph: '⚑', match: '/fix', scoped: false, divider: true, privileged: true },
+  { href: '/admin', label: 'Admin', glyph: '⌁', match: '/admin', scoped: false, divider: false, privileged: true }
 ];
 
 export function visibleNavigation(privileged: boolean): readonly NavigationItem[] {

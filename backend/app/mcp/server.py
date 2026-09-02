@@ -436,14 +436,14 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             findings_repo = FindingRepository(session)
             from app.infrastructure.project_access import (
                 CURRENT_PROJECT_ACCESS,
-                project_access_clause,
+                run_access_clause,
             )
 
             rows = (
                 await session.execute(
                     sa_select(Run)
                     .join(Project, Project.id == Run.project_id)
-                    .where(project_access_clause(CURRENT_PROJECT_ACCESS.get()))
+                    .where(run_access_clause(CURRENT_PROJECT_ACCESS.get()))
                     .order_by(Run.started_at.desc(), Run.run_id.desc())
                     .limit(limit)
                 )
@@ -498,13 +498,18 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
             project = await _visible_project(session, project_id)
             if project is None:
                 return {"error": "not_found", "project_id": project_id}
+            from app.infrastructure.project_access import (
+                CURRENT_PROJECT_ACCESS,
+                run_access_clause,
+            )
+
             run = (
                 await session.execute(
                     sa_select(Run)
                     .join(Project, Project.id == Run.project_id)
                     .where(
                         Run.project_id == project_id,
-                        Project.hidden.is_(False),
+                        run_access_clause(CURRENT_PROJECT_ACCESS.get()),
                         Run.status == "completed",
                         Run.findings_json.isnot(None),
                     )
@@ -752,9 +757,17 @@ def build_mcp_server(app: FastAPI, deps: McpDeps | None = None) -> FastMCP:
                 _mdoc = json.loads(map_row.mapping_doc_json or "{}")
                 mapping_count = len(_mdoc.get("mappings", []))
 
+            from app.infrastructure.project_access import (
+                CURRENT_PROJECT_ACCESS,
+                run_visibility_clause,
+            )
+
             run_row = (await session.execute(
                 sa_select(Run)
-                .where(Run.project_id == project_id)
+                .where(
+                    Run.project_id == project_id,
+                    run_visibility_clause(CURRENT_PROJECT_ACCESS.get()),
+                )
                 .order_by(Run.started_at.desc())
                 .limit(1)
             )).scalars().first()

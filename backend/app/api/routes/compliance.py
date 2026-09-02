@@ -24,7 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import SessionDep
 from app.api.deps_project_access import ProjectAccessDep
 from app.infrastructure.db.models import ComplianceMapping, FrState, Run
-from app.infrastructure.project_access import require_project, visible_project_ids
+from app.infrastructure.project_access import (
+    require_project,
+    shared_github_run_clause,
+    visible_project_ids,
+)
 
 
 router = APIRouter(tags=["compliance"])
@@ -112,6 +116,7 @@ async def branch_compliance_grid(
                 select(Run)
                 .where(
                     Run.project_id == project_id,
+                    shared_github_run_clause(),
                     Run.legacy_retained.is_(False),
                     Run.catalogue_snapshot_id.isnot(None),
                     Run.git_branch.isnot(None),
@@ -251,6 +256,7 @@ async def compliance_matrix(
     # Latest run for the project (for state lookups).
     run_stmt = select(Run).where(
         Run.project_id == mapping_project_id,
+        shared_github_run_clause(),
         Run.legacy_retained.is_(False),
     )
     run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(1)

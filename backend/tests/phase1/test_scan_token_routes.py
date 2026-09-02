@@ -16,7 +16,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.api.deps_scan_token import require_scan_token_principal
 from app.api.routes.scan_tokens import router
 from app.infrastructure.db.connection import get_session
-from app.infrastructure.db.models import ApiToken, Base, User
+from app.infrastructure.db.models import (
+    ApiToken,
+    Base,
+    GithubAppInstallation,
+    GithubInstallationRepository,
+    Project,
+    ProjectMembership,
+    User,
+)
 from app.infrastructure.db.repositories.api_tokens import (
     SecureScanTokenRandom,
     SqlAlchemyScanTokenRepository,
@@ -70,16 +78,56 @@ async def harness(tmp_path) -> RouteHarness:
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
     async with sessions() as session:
+        alice = User(email="alice@example.test", role="user")
+        bob = User(email="bob@example.test", role="user")
+        disabled = User(
+            email="disabled@example.test",
+            role="user",
+            disabled_at=datetime.now(timezone.utc),
+        )
+        project = Project(
+            tag="eligible",
+            github_repo="example/eligible",
+            github_repo_key="example/eligible",
+            github_repository_id=424242,
+        )
+        session.add_all((alice, bob, disabled, project))
+        await session.flush()
+        now = datetime.now(timezone.utc)
         session.add_all(
-            [
-                User(email="alice@example.test", role="user"),
-                User(email="bob@example.test", role="user"),
-                User(
-                    email="disabled@example.test",
-                    role="user",
-                    disabled_at=datetime.now(timezone.utc),
+            (
+                GithubAppInstallation(
+                    github_installation_id=9001,
+                    github_owner_id=26457513,
+                    owner_login_at_last_verify="example",
+                    account_type="organization",
+                    repository_selection="selected",
+                    created_at=now,
+                    updated_at=now,
                 ),
-            ]
+                GithubInstallationRepository(
+                    github_installation_id=9001,
+                    github_repository_id=424242,
+                    project_id=project.id,
+                    repository_full_name="example/eligible",
+                    github_owner_id=26457513,
+                    default_branch="main",
+                    visibility="private",
+                    archived=False,
+                    disabled=False,
+                    repository_verified_at=now,
+                    enabled_at=now,
+                    updated_at=now,
+                ),
+                ProjectMembership(
+                    user_id=alice.id,
+                    project_id=project.id,
+                    permission="upload",
+                    source="github_app",
+                    verified_at=now,
+                    expires_at=now + timedelta(minutes=5),
+                ),
+            )
         )
         await session.commit()
 
@@ -180,6 +228,106 @@ async def test_creation_user_canary_denies_without_echoing_account_or_allowlist(
     listed = await harness.client.get("/api/users/me/scan-tokens")
     assert listed.json()["creation_enabled"] is True
     assert (await harness.issue("Allowed canary")).status_code == 201
+
+
+async def test_creation_requires_current_github_app_upload_entitlement_without_admin_bypass(
+    harness: RouteHarness,
+) -> None:
+    harness.sign_in("bob@example.test")
+    listed = await harness.client.get("/api/users/me/scan-tokens")
+    assert listed.status_code == 200
+    assert listed.json()["creation_enabled"] is False
+    denied = await harness.issue("No entitlement")
+    assert denied.status_code == 403
+    assert denied.json() == {
+        "detail": "Current GitHub write access to an enabled repository is required."
+    }
+
+    async with harness.sessions() as session:
+        alice = (
+            await session.execute(select(User).where(User.email == "alice@example.test"))
+        ).scalar_one()
+        alice.role = "admin"
+        membership = (
+            await session.execute(
+                select(ProjectMembership).where(ProjectMembership.user_id == alice.id)
+            )
+        ).scalar_one()
+        membership.source = "manual"
+        membership.permission = "manage"
+        membership.expires_at = None
+        await session.commit()
+
+    harness.sign_in("alice@example.test")
+    listed = await harness.client.get("/api/users/me/scan-tokens")
+    assert listed.json()["creation_enabled"] is False
+    assert (await harness.issue("Admin cannot bypass")).status_code == 403
+
+
+async def test_access_loss_blocks_creation_but_preserves_owned_list_and_revoke(
+    harness: RouteHarness,
+) -> None:
+    harness.sign_in("alice@example.test")
+    issued = await harness.issue("Existing laptop")
+    assert issued.status_code == 201
+    token_id = issued.json()["audit"]["id"]
+
+    async with harness.sessions() as session:
+        membership = (await session.execute(select(ProjectMembership))).scalar_one()
+        membership.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        await session.commit()
+
+    listed = await harness.client.get("/api/users/me/scan-tokens")
+    assert listed.status_code == 200
+    assert listed.json()["creation_enabled"] is False
+    assert [row["id"] for row in listed.json()["tokens"]] == [token_id]
+    blocked = await harness.issue("Replacement blocked")
+    assert blocked.status_code == 403
+
+    csrf = await harness.csrf()
+    revoked = await harness.client.delete(
+        f"/api/users/me/scan-tokens/{token_id}",
+        headers={"Origin": PUBLIC_ORIGIN, "X-CSRF-Token": csrf},
+    )
+    assert revoked.status_code == 200
+    assert revoked.json() == {"status": "revoked"}
+
+
+async def test_creation_requires_active_project_repository_and_installation(
+    harness: RouteHarness,
+) -> None:
+    harness.sign_in("alice@example.test")
+    assert (await harness.client.get("/api/users/me/scan-tokens")).json()[
+        "creation_enabled"
+    ] is True
+
+    async with harness.sessions() as session:
+        repository = (await session.execute(select(GithubInstallationRepository))).scalar_one()
+        repository.disabled = True
+        await session.commit()
+    assert (await harness.client.get("/api/users/me/scan-tokens")).json()[
+        "creation_enabled"
+    ] is False
+
+    async with harness.sessions() as session:
+        repository = (await session.execute(select(GithubInstallationRepository))).scalar_one()
+        repository.disabled = False
+        project = (await session.execute(select(Project))).scalar_one()
+        project.hidden = True
+        await session.commit()
+    assert (await harness.client.get("/api/users/me/scan-tokens")).json()[
+        "creation_enabled"
+    ] is False
+
+    async with harness.sessions() as session:
+        project = (await session.execute(select(Project))).scalar_one()
+        project.hidden = False
+        installation = (await session.execute(select(GithubAppInstallation))).scalar_one()
+        installation.suspended_at = datetime.now(timezone.utc)
+        await session.commit()
+    assert (await harness.client.get("/api/users/me/scan-tokens")).json()[
+        "creation_enabled"
+    ] is False
 
 
 async def test_issue_returns_plaintext_once_and_persists_only_digest(

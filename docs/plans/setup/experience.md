@@ -1,6 +1,7 @@
 # Setup experience
 
-Status: approved design; implementation is part of WS7f.
+Status: implemented in the disabled WS7f candidate path. Production activation
+and live GitHub state-transition verification remain part of WS7g.
 
 ## Purpose
 
@@ -108,8 +109,8 @@ frontend/src/lib/features/setup/
   RepositoryPicker.svelte
   ActionsSetupLane.svelte
   LocalSetupLane.svelte
-  LocalTokenStep.svelte
   SetupFailure.svelte
+  SetupSkeleton.svelte
 ```
 
 Shared primitives remain in the existing design system. Route files only compose the feature entry point.

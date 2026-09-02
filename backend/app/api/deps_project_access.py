@@ -11,7 +11,6 @@ from app.api.deps import SessionDep
 from app.api.deps_roles import get_current_user
 from app.infrastructure.db.models import User
 from app.infrastructure.project_access import (
-    ADMIN_ROLES,
     ProjectAccessPrincipal,
     SYSTEM_PRINCIPAL,
     sync_github_app_memberships,
@@ -44,11 +43,10 @@ async def get_project_access_principal(
     if user is None or user.disabled_at is not None:
         raise HTTPException(status_code=401, detail="sign in")
     principal = ProjectAccessPrincipal(user_id=user.id, role=user.role)
-    if user.role not in ADMIN_ROLES:
-        if settings.github_app_access_enabled:
-            await sync_github_app_memberships(session, user, settings)
-        else:
-            await sync_github_memberships(session, user, settings)
+    if settings.github_app_access_enabled:
+        await sync_github_app_memberships(session, user, settings)
+    else:
+        await sync_github_memberships(session, user, settings)
     return principal
 
 

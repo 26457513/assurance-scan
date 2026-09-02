@@ -59,7 +59,10 @@
     lastUrlRunId = initialRunId;
     if (initialRunId) {
       await syncFromUrl(initialRunId);
-    } else if (!$page.url.pathname.match(/^\/projects\/[^/]+$/)) {
+    } else if (
+      $page.url.pathname !== '/setup' &&
+      !$page.url.pathname.match(/^\/projects\/[^/]+$/)
+    ) {
       await autoSelectLatest();
     }
     bootstrapped = true;

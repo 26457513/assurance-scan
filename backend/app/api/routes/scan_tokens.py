@@ -15,7 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
 from app.config import account_identity_is_ready, normalize_account_email
-from app.infrastructure.db.models import ApiToken, User
+from app.infrastructure.db.models import (
+    ApiToken,
+    GithubAppInstallation,
+    GithubInstallationRepository,
+    Project,
+    ProjectMembership,
+    User,
+)
 from app.infrastructure.db.repositories.api_tokens import (
     SecureScanTokenRandom,
     SqlAlchemyScanTokenRepository,
@@ -96,11 +103,15 @@ async def list_scan_tokens(
     )
     now = SystemScanTokenClock().now()
     rows = await SqlAlchemyScanTokenRepository(session).list_for_user(user.user_id)
+    creation_enabled = _creation_enabled_for_user(
+        settings,
+        user.email,
+    ) and await _has_current_upload_entitlement(session, user.user_id, now=now)
     response = JSONResponse(
         {
             "tokens": [_audit(row, now) for row in rows],
             "csrf_token": csrf_token,
-            "creation_enabled": _creation_enabled_for_user(settings, user.email),
+            "creation_enabled": creation_enabled,
         },
         headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
     )
@@ -140,6 +151,16 @@ async def issue_scan_token(
     _require_csrf(request, user)
     repository = SqlAlchemyScanTokenRepository(session)
     clock = SystemScanTokenClock()
+    if not await _has_current_upload_entitlement(
+        session,
+        user.user_id,
+        now=clock.now(),
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Current GitHub write access to an enabled repository is required.",
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
     try:
         issued = await create_scan_token(
             CreateScanTokenCommand(
@@ -189,6 +210,43 @@ def _creation_enabled_for_user(settings: object, email: str) -> bool:
         return normalize_account_email(email) in user_allowlist
     except ValueError:
         return False
+
+
+async def _has_current_upload_entitlement(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    now: dt.datetime,
+) -> bool:
+    """Require a live GitHub App grant through an active installed repository."""
+    statement = (
+        select(ProjectMembership.id)
+        .join(Project, Project.id == ProjectMembership.project_id)
+        .join(
+            GithubInstallationRepository,
+            GithubInstallationRepository.project_id == Project.id,
+        )
+        .join(
+            GithubAppInstallation,
+            GithubAppInstallation.github_installation_id
+            == GithubInstallationRepository.github_installation_id,
+        )
+        .where(
+            ProjectMembership.user_id == user_id,
+            ProjectMembership.source == "github_app",
+            ProjectMembership.permission.in_(("upload", "manage")),
+            ProjectMembership.expires_at.is_not(None),
+            ProjectMembership.expires_at > now,
+            Project.hidden.is_(False),
+            GithubInstallationRepository.removed_at.is_(None),
+            GithubInstallationRepository.disabled.is_(False),
+            GithubInstallationRepository.archived.is_(False),
+            GithubAppInstallation.suspended_at.is_(None),
+            GithubAppInstallation.deleted_at.is_(None),
+        )
+        .limit(1)
+    )
+    return (await session.execute(statement)).scalar_one_or_none() is not None
 
 
 @router.delete("/{token_id}")

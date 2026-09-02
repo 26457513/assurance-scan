@@ -13,12 +13,15 @@
 
   --text-primary: #E6E8EC;
   --text-secondary: #9BA1AB;
-  --text-muted: #5C636F;
+  --text-muted: #858D99;
   --text-inverse: #0E0F11;
 
   --accent: #4ADE80;
   --accent-hover: #22C55E;
   --accent-subtle: rgba(74, 222, 128, 0.12);
+
+  --path-github: #58A6FF;
+  --path-local: #FBBF24;
 
   --state-passed: #4ADE80;
   --state-failed: #F87171;
@@ -35,6 +38,11 @@ html, body {
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--path-github);
+  outline-offset: 2px;
 }
 
 ::selection {
@@ -58,6 +66,15 @@ html, body {
   50%      { opacity: 0.35; }
 }
 .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 /* Standard table primitives — every data table composes these with its own
    grid template. Keeps look-and-feel in one place. */

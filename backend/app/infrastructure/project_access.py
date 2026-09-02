@@ -7,7 +7,7 @@ import datetime as dt
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from sqlalchemy import delete, exists, or_, select
+from sqlalchemy import delete, exists, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
@@ -30,9 +30,6 @@ from app.secrets import decrypt
 
 
 ACCESS_TTL = dt.timedelta(minutes=5)
-ADMIN_ROLES = frozenset(("admin", "superuser"))
-
-
 @dataclass(frozen=True)
 class ProjectAccessPrincipal:
     user_id: int | None
@@ -40,7 +37,11 @@ class ProjectAccessPrincipal:
 
     @property
     def sees_all_projects(self) -> bool:
-        return self.role in ADMIN_ROLES or self.user_id is None
+        """Whether this is the explicit internal system principal.
+
+        Human administration roles never bypass repository entitlement.
+        """
+        return self.user_id is None
 
 
 SYSTEM_PRINCIPAL = ProjectAccessPrincipal(user_id=None, role="system")
@@ -176,6 +177,29 @@ def project_access_clause(
     )
 
 
+def run_visibility_clause(principal: ProjectAccessPrincipal):
+    """Restrict local runs to their submitting user at the SQL boundary."""
+    if principal.user_id is None:
+        return true()
+    return or_(
+        Run.origin != "local",
+        Run.submitted_by_user_id == principal.user_id,
+    )
+
+
+def run_access_clause(
+    principal: ProjectAccessPrincipal,
+    required: ProjectPermission = "view",
+):
+    """Combine current project entitlement with private-local ownership."""
+    return project_access_clause(principal, required) & run_visibility_clause(principal)
+
+
+def shared_github_run_clause():
+    """Select the only origin allowed to contribute to shared aggregates."""
+    return Run.origin == "github-actions"
+
+
 async def visible_project_ids(
     session: AsyncSession,
     principal: ProjectAccessPrincipal,
@@ -212,7 +236,7 @@ async def require_run(
         await session.execute(
             select(Run)
             .join(Project, Project.id == Run.project_id)
-            .where(Run.run_id == run_id, project_access_clause(principal, required))
+            .where(Run.run_id == run_id, run_access_clause(principal, required))
         )
     ).scalar_one_or_none()
 
@@ -225,6 +249,9 @@ __all__ = [
     "project_access_clause",
     "require_project",
     "require_run",
+    "run_access_clause",
+    "shared_github_run_clause",
+    "run_visibility_clause",
     "sync_github_memberships",
     "sync_github_app_memberships",
     "visible_project_ids",

@@ -21,7 +21,8 @@ describe('sidebar navigation policy', () => {
       'Regimes',
       'FRs',
       'Compliance',
-      'Fix'
+      'Fix',
+      'Admin'
     ]);
   });
 });

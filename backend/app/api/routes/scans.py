@@ -25,7 +25,12 @@ from app.infrastructure.db.repositories.runs import RunRepository
 from app.infrastructure.db.models import Run
 from app.infrastructure.db.retention import prepare_runs_for_deletion
 from app.infrastructure.db.repositories.scanner_runs import ScannerRunRepository
-from app.infrastructure.project_access import require_project, require_run, visible_project_ids
+from app.infrastructure.project_access import (
+    require_project,
+    require_run,
+    run_visibility_clause,
+    visible_project_ids,
+)
 from app.worker.queue import ScanQueue
 
 
@@ -95,6 +100,7 @@ async def list_scans(
         limit=limit,
         project_id=project_id,
         project_ids=allowed_ids,
+        visibility_clause=run_visibility_clause(principal),
     )
 
     summaries: list[ScanSummary] = []

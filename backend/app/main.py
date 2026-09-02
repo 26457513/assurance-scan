@@ -41,6 +41,7 @@ from app.api.routes import (
     projects,
     scan_tokens,
     scans,
+    setup,
     stream,
     test_source,
     trends,
@@ -428,6 +429,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(github_actions_ingest.router, prefix="/api")
     app.include_router(gh_tokens.router, prefix="/api")
     app.include_router(scan_tokens.router, prefix="/api")
+    app.include_router(setup.router, prefix="/api")
     app.include_router(local_ingest.router, prefix="/api")
     app.include_router(versions.router, prefix="/api")
     app.include_router(notion.router, prefix="/api")

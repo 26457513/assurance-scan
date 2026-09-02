@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Sequence
 
-from sqlalchemy import select, update
+from sqlalchemy import ColumnElement, select, update
 
 from app.infrastructure.db.models import Run
 from app.infrastructure.db.repositories.base import BaseRepository
@@ -71,6 +71,7 @@ class RunRepository(BaseRepository[Run]):
         project_id: int | None = None,
         origin: str | None = None,
         project_ids: set[int] | None = None,
+        visibility_clause: ColumnElement[bool] | None = None,
     ) -> Sequence[Run]:
         statement = select(Run)
         if project_id is not None:
@@ -79,6 +80,8 @@ class RunRepository(BaseRepository[Run]):
             statement = statement.where(Run.origin == origin)
         if project_ids is not None:
             statement = statement.where(Run.project_id.in_(project_ids))
+        if visibility_clause is not None:
+            statement = statement.where(visibility_clause)
         result = await self.session.execute(
             statement.order_by(Run.started_at.desc(), Run.run_id.desc()).limit(limit)
         )

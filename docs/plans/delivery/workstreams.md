@@ -1,7 +1,7 @@
 # Delivery workstreams
 
-Status: WS6a–WS7d are implemented and quality-gated, subject to WS7b's two
-production-like rehearsals. WS7f–WS7g remain;
+Status: WS6a–WS7f are implemented and quality-gated, subject to WS7b's two
+production-like rehearsals. WS7g remains;
 production activation of the new result contract stays deferred to WS7g.
 
 ## Completed foundation
@@ -141,6 +141,14 @@ Acceptance: direct and merge-created default-branch pushes each yield a
 conformant v2 result; unmerged branch pushes run no scan job and make no upload.
 
 ## WS7f — Setup and access UI
+
+Status: complete in the disabled candidate code path (2 September 2026).
+The typed Setup projection and controller, GitHub/local access lanes, compact
+readiness, private-local visibility predicates and replacement navigation are
+implemented. Component coverage exercises all nine states; browser checks cover
+the feature-gated failure path at desktop and 360 px without overflow or console
+errors. Production state-transition verification remains part of WS7g because
+GitHub App access is disabled by default.
 
 Implement [Setup experience](../setup/experience.md) and
 [Setup state model](../setup/state-model.md), plus project/run query predicates

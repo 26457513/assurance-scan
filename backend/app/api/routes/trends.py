@@ -13,7 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import SessionDep
 from app.api.deps_project_access import ProjectAccessDep
 from app.infrastructure.db.models import Finding, Run
-from app.infrastructure.project_access import require_project, visible_project_ids
+from app.infrastructure.project_access import (
+    require_project,
+    shared_github_run_clause,
+    visible_project_ids,
+)
 
 
 router = APIRouter(tags=["trends"])
@@ -31,7 +35,13 @@ async def trends(
     Returns runs in chronological order (oldest first), so the frontend
     can draw a sparkline. Each entry includes count + severity breakdown.
     """
-    run_stmt = select(Run).where(Run.legacy_retained.is_(False))
+    # Shared trends intentionally exclude private local work and retained
+    # server-era runs. Local scans are available only as an owner-private
+    # overlay, never as shared project history.
+    run_stmt = select(Run).where(
+        shared_github_run_clause(),
+        Run.legacy_retained.is_(False),
+    )
     if project_id is not None:
         project = await require_project(session, principal, project_id)
         if project is None:

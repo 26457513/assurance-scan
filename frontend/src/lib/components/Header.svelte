@@ -23,6 +23,9 @@
   $: path = $page.url.pathname;
   $: section = (() => {
     if (path === '/setup') return 'Setup';
+    if (path === '/admin') return 'Admin';
+    if (path === '/integrations') return 'Integrations';
+    if (path === '/help') return 'Help';
     if (path === '/regimes') return 'Regimes';
     if (path === '/projects' || path.startsWith('/projects/')) return 'Projects';
     if (path === '/scans' || path.startsWith('/scans/')) return 'Scans';
@@ -39,14 +42,16 @@
     <div class="text-[10px] font-mono uppercase tracking-[0.16em] text-ink-muted whitespace-nowrap mr-1">{section}</div>
     <div class="w-px h-3.5 bg-line-hairline"></div>
   {/if}
-  <ProjectSelector />
-  <span class="text-ink-muted font-mono text-[11px]">·</span>
-  <ScanSelector />
+  {#if section !== 'Setup'}
+    <ProjectSelector />
+    <span class="text-ink-muted font-mono text-[11px]">·</span>
+    <ScanSelector />
+  {/if}
   <span class="flex-1"></span>
   {#if $currentUser}
     <a
-      href="/setup?tab=account"
-      title="Settings"
+      href="/integrations"
+      title="Account integrations"
       class="flex items-center gap-2 px-2.5 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors"
     >
       <span class="font-mono text-[11px] text-ink-primary">{$currentUser.email.split('@')[0]}</span>
@@ -60,6 +65,7 @@
       type="button"
       on:click={() => (confirmLogout = true)}
       title="Sign out"
+      aria-label="Sign out"
       class="px-2 py-1.5 rounded-sm border border-line-hairline hover:border-line-strong hover:bg-surface-elevated transition-colors text-[11px] font-mono text-ink-muted hover:text-ink-primary"
     >⏻</button>
   {/if}

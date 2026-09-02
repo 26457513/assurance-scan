@@ -15,6 +15,7 @@ from app.api.deps_project_access import ProjectAccessDep
 from app.infrastructure.project_access import (
     project_access_clause,
     require_project,
+    run_visibility_clause,
     visible_project_ids,
 )
 from app.infrastructure.db.models import (
@@ -239,6 +240,7 @@ async def list_projects(
             func.count(Run.run_id).label("run_count"),
             func.max(Run.started_at).label("last_scan_at"),
         )
+        .where(run_visibility_clause(principal))
         .group_by(Run.project_id)
         .subquery()
     )

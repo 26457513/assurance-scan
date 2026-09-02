@@ -102,8 +102,7 @@ async def test_scan_creation_and_listing_use_project_id(
 
     trends = await client.get("/api/trends", params={"project_id": project_id})
     assert trends.status_code == 200
-    assert trends.json()["runs"][0]["project_id"] == project_id
-    assert trends.json()["runs"][0]["origin"] == "server"
+    assert trends.json()["runs"] == []
 
 
 async def test_scan_creation_rejects_project_without_server_checkout(

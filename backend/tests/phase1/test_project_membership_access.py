@@ -5,13 +5,15 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from sqlalchemy import select
 
 from app.api.routes.projects import list_projects
 from app.api.routes.scans import get_scan, list_scans
+from app.api.routes.trends import trends
 from app.config import load_settings
 from app.infrastructure.db.models import (
+    ApiToken,
     GithubAccount,
     GithubAppInstallation,
     GithubInstallationRepository,
@@ -23,7 +25,9 @@ from app.infrastructure.db.models import (
 from app.infrastructure.project_access import (
     ACCESS_TTL,
     ProjectAccessPrincipal,
+    CURRENT_PROJECT_ACCESS,
     require_project,
+    require_run,
     sync_github_app_memberships,
     sync_github_memberships,
 )
@@ -31,6 +35,7 @@ from app.modules.atomic.access.github_membership_projection import (
     GithubProjectPermission,
     GithubRepositoryEntitlement,
 )
+from app.modules.atomic.access.run_visibility import RunVisibilityContext, can_view_run
 from app.secrets import encrypt
 
 
@@ -51,8 +56,20 @@ async def _seed(session):
     )
     session.add_all(
         (
-            Run(run_id="first-run", project_id=first.id, origin="server", status="completed"),
-            Run(run_id="second-run", project_id=second.id, origin="server", status="completed"),
+            Run(
+                run_id="first-run",
+                project_id=first.id,
+                origin="server",
+                status="completed",
+                started_at=dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc),
+            ),
+            Run(
+                run_id="second-run",
+                project_id=second.id,
+                origin="server",
+                status="completed",
+                started_at=dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc),
+            ),
         )
     )
     await session.commit()
@@ -76,14 +93,165 @@ async def test_dashboard_and_direct_run_access_are_membership_scoped(session) ->
     assert await require_project(session, principal, second.id) is None
 
 
-async def test_permission_levels_and_admin_override(session) -> None:
+async def test_permission_levels_and_admin_do_not_bypass_entitlement(session) -> None:
     user, first, second = await _seed(session)
     principal = ProjectAccessPrincipal(user_id=user.id, role="user")
     admin = ProjectAccessPrincipal(user_id=user.id, role="admin")
 
     assert await require_project(session, principal, first.id, "view") is not None
     assert await require_project(session, principal, first.id, "upload") is None
-    assert await require_project(session, admin, second.id, "manage") is not None
+    assert await require_project(session, admin, second.id, "manage") is None
+
+
+async def test_local_runs_and_project_statistics_are_private_to_submitter(
+    session,
+    session_factory,
+    monkeypatch,
+) -> None:
+    owner, project, _ = await _seed(session)
+    viewer = User(email="viewer@example.test", role="user")
+    session.add(viewer)
+    await session.flush()
+    session.add(
+        ProjectMembership(
+            user_id=viewer.id,
+            project_id=project.id,
+            permission="view",
+            source="manual",
+            verified_at=dt.datetime.now(dt.timezone.utc),
+        )
+    )
+    owner_token = ApiToken(
+        id="11111111-1111-4111-8111-111111111111",
+        user_id=owner.id,
+        label="owner laptop",
+        label_key="owner laptop",
+        selector="A" * 16,
+        secret_digest=b"a" * 32,
+        scope="scans:upload",
+        token_version=1,
+        created_at=dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc),
+        expires_at=dt.datetime(2026, 4, 1, tzinfo=dt.timezone.utc),
+    )
+    viewer_token = ApiToken(
+        id="22222222-2222-4222-8222-222222222222",
+        user_id=viewer.id,
+        label="viewer laptop",
+        label_key="viewer laptop",
+        selector="B" * 16,
+        secret_digest=b"b" * 32,
+        scope="scans:upload",
+        token_version=1,
+        created_at=dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc),
+        expires_at=dt.datetime(2026, 4, 1, tzinfo=dt.timezone.utc),
+    )
+    session.add_all((owner_token, viewer_token))
+    await session.flush()
+    session.add_all(
+        (
+            Run(
+                run_id="github-visible",
+                project_id=project.id,
+                origin="github-actions",
+                status="completed",
+                started_at=dt.datetime(2026, 1, 2, tzinfo=dt.timezone.utc),
+                commit_sha="a" * 40,
+                git_object_format="sha1",
+                working_tree_dirty=False,
+                github_run_id=101,
+            ),
+            Run(
+                run_id="owner-local-private",
+                project_id=project.id,
+                origin="local",
+                submitted_by_user_id=owner.id,
+                submitting_token_id=owner_token.id,
+                status="completed",
+                started_at=dt.datetime(2026, 1, 5, tzinfo=dt.timezone.utc),
+                commit_sha="b" * 40,
+                git_object_format="sha1",
+                working_tree_dirty=True,
+                source_content_hash="b" * 64,
+                source_manifest_version="1",
+                findings_json='{"findings": [], "marker": "owner"}',
+            ),
+            Run(
+                run_id="viewer-local-visible",
+                project_id=project.id,
+                origin="local",
+                submitted_by_user_id=viewer.id,
+                submitting_token_id=viewer_token.id,
+                status="completed",
+                started_at=dt.datetime(2026, 1, 4, tzinfo=dt.timezone.utc),
+                commit_sha="c" * 40,
+                git_object_format="sha1",
+                working_tree_dirty=False,
+                source_content_hash="c" * 64,
+                source_manifest_version="1",
+                findings_json='{"findings": [], "marker": "viewer"}',
+            ),
+        )
+    )
+    await session.commit()
+    principal = ProjectAccessPrincipal(user_id=viewer.id, role="user")
+
+    scans = await list_scans(
+        principal=principal, project_id=project.id, limit=50, session=session
+    )
+    projects = await list_projects(principal=principal, session=session)
+
+    assert [scan.run_id for scan in scans] == [
+        "viewer-local-visible",
+        "github-visible",
+        "first-run",
+    ]
+    assert projects["projects"][0]["run_count"] == 3
+    assert projects["projects"][0]["last_scan_at"] == "2026-01-04T00:00:00"
+    assert await require_run(session, principal, "owner-local-private") is None
+    with pytest.raises(HTTPException) as denied:
+        await get_scan("owner-local-private", principal=principal, session=session)
+    assert denied.value.status_code == 404
+
+    trend_result = await trends(
+        principal=principal,
+        project_id=project.id,
+        limit=20,
+        session=session,
+    )
+    assert [row["run_id"] for row in trend_result["runs"]] == ["github-visible"]
+
+    monkeypatch.setattr("app.mcp.server.get_sessionmaker", lambda: session_factory)
+    from app.mcp.server import build_mcp_server
+
+    mcp = build_mcp_server(FastAPI())
+    token = CURRENT_PROJECT_ACCESS.set(principal)
+    try:
+        mcp_scans = await mcp._tool_manager._tools["list_scans"].fn(limit=50)
+        direct_private = await mcp._tool_manager._tools["get_findings"].fn(
+            run_id="owner-local-private"
+        )
+        latest = await mcp._tool_manager._tools["get_project_findings"].fn(
+            project_id=project.id,
+            severity=None,
+        )
+    finally:
+        CURRENT_PROJECT_ACCESS.reset(token)
+
+    assert {row["run_id"] for row in mcp_scans["scans"]} == {
+        "first-run",
+        "github-visible",
+        "viewer-local-visible",
+    }
+    assert direct_private == {"error": "not_found", "run_id": "owner-local-private"}
+    assert latest["run_id"] == "viewer-local-visible"
+    assert latest["marker"] == "viewer"
+
+
+def test_run_visibility_policy_reserves_bypass_for_internal_system() -> None:
+    assert can_view_run(RunVisibilityContext(None, "local", 99))
+    assert can_view_run(RunVisibilityContext(7, "github-actions", None))
+    assert can_view_run(RunVisibilityContext(7, "local", 7))
+    assert not can_view_run(RunVisibilityContext(7, "local", 8))
 
 
 async def test_expired_github_grant_fails_closed_while_manual_grant_remains(session) -> None:
