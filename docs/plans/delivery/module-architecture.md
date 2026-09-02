@@ -21,6 +21,8 @@ backend/app/modules/
       result_persister/        # existing persistence boundary, extended
     provenance/
       repository_identity/     # existing identity capability, extended
+    operations/
+      identity_migration_preflight/ # read-only WS7b inventory and blockers
     scanning/                  # existing parsers/builders, extended
     local_cli/                 # existing CLI capabilities, extended
   workflows/

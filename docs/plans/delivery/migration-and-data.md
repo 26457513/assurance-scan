@@ -19,6 +19,18 @@ never tokens or findings, for:
 Any conflict blocks migration. Basename, repository text, email and local path
 are never used to guess identity.
 
+Run the frozen preflight against each database copy with:
+
+```text
+backend/.venv/bin/python backend/scripts/identity-migration-preflight.py <database.sqlite>
+```
+
+It opens the exact regular file read-only, emits only counts, internal row IDs,
+allowlisted blocker codes and a content checksum, and exits `2` when blocked.
+The restored-production and stopped-production rehearsals must produce the same
+checksum before migration begins. A legacy email-keyed GitHub token never counts
+as a linked immutable GitHub identity.
+
 ## Account linking window
 
 Before the atomic product cutover, ship a migration-only **Link GitHub** action
@@ -56,6 +68,13 @@ uploads but retained entitled history remains readable. Product-level `hidden`
 is a repository-admin display setting and does not alter identity.
 
 ## Migration mechanics
+
+Delivery is split into four gated slices without changing the atomic cutover:
+
+1. read-only inventory/checksum and ambiguity blockers;
+2. additive GitHub identity, OAuth-state and server-session foundations;
+3. migration-only explicit account linking and membership rebuild;
+4. journalled data transformation, two rehearsals and the final schema switch.
 
 Use one forward migration with a journal table recording phase, checksum and
 completion. Copy/transform into constrained tables, validate counts and foreign
