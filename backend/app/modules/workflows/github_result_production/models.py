@@ -29,7 +29,10 @@ class GitHubResultProductionResult:
         return len(self.scan.findings)
 
 
-GitHubScannerPort = Callable[[str, str | None, Path | None], Awaitable[ScanExecutionResult]]
+GitHubScannerPort = Callable[
+    [str, str, str | None, Path | None],
+    Awaitable[ScanExecutionResult],
+]
 
 
 __all__ = [

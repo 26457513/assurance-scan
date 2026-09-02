@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
-from collections.abc import Mapping
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,7 +64,6 @@ class SqlAlchemyGithubActionsRequestAuthenticator:
     async def authorize(
         self,
         claims: GithubOidcClaims,
-        metadata: Mapping[str, Any],
         *,
         now: dt.datetime,
     ) -> GithubActionsUploadPrincipal:
@@ -91,7 +88,6 @@ class SqlAlchemyGithubActionsRequestAuthenticator:
 
         return await authorize_github_actions_upload(
             claims,
-            metadata,
             now=now,
             repository_loader=load_repository,
             authorization_repository=SqlAlchemyGithubUploadAuthorizationRepository(

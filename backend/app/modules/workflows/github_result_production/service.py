@@ -61,6 +61,7 @@ async def produce_github_result_bundle(
         )
         raw_sbom_path = output_root / ".scanner-sbom.json"
         scan = await scanner(
+            str(snapshot.root),
             command.scanner_snapshot_path,
             command.application_image,
             raw_sbom_path,

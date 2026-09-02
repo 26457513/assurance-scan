@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import io
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
 
+from app.infrastructure.github_oidc_upload import StdlibGithubOidcUploadTransport
 from app.modules.atomic.ingestion.github_oidc_upload_client import (
     GithubUploadConfig,
     GithubUploadError,
@@ -120,3 +123,55 @@ def test_uploader_container_is_minimal_nonroot_and_has_no_docker_cli() -> None:
     assert "docker:27-cli" not in content
     assert "local_cli" not in content
 
+
+def test_stdlib_transport_streams_exact_parts_and_headers(bundle_root: Path) -> None:
+    captured: dict[str, object] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers["Content-Length"])
+            captured["path"] = self.path
+            captured["authorization"] = self.headers["Authorization"]
+            captured["idempotency"] = self.headers["Idempotency-Key"]
+            captured["payload_hash"] = self.headers["X-Assurance-Payload-SHA256"]
+            captured["body"] = self.rfile.read(length)
+            self.send_response(201)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        bundle = load_bundle(bundle_root)
+        result = upload_once(
+            bundle,
+            GithubUploadConfig(
+                f"http://127.0.0.1:{server.server_port}",
+                _JWT,
+                allow_loopback_http=True,
+            ),
+            transport=StdlibGithubOidcUploadTransport(),
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+    assert result.status == 201
+    assert captured["path"] == "/api/v2/ingest/github-actions"
+    assert captured["authorization"] == f"Bearer {_JWT}"
+    assert captured["idempotency"] == "101:303:2"
+    assert captured["payload_hash"] == "a" * 64
+    body = captured["body"]
+    assert isinstance(body, bytes)
+    assert b'name="metadata"' in body
+    assert b'name="findings"' in body
+    assert b'name="source_contexts"' in body
+    assert b'name="sarif"' in body
+    assert b"application/json; charset=utf-8" in body
+    assert b"application/sarif+json" in body

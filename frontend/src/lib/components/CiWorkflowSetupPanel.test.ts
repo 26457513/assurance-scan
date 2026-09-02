@@ -25,8 +25,8 @@ describe('CiWorkflowSetupPanel', () => {
   it('loads and presents the complete standard workflow', async () => {
     vi.spyOn(api, 'getCiWorkflowTemplate').mockResolvedValue({
       filename: '.github/workflows/assurance-scan.yml',
-      default_branch: 'main',
       image: 'ghcr.io/26457513/assurance-scan-ci:latest',
+      uploader_image: 'ghcr.io/26457513/assurance-scan-ci-upload:latest',
       workflow: WORKFLOW
     });
 
@@ -35,30 +35,25 @@ describe('CiWorkflowSetupPanel', () => {
     expect(await screen.findByText('.github/workflows/assurance-scan.yml')).toBeInTheDocument();
     expect(container.textContent).toContain('ghcr.io/26457513/assurance-scan-ci:latest');
     expect(container.textContent).toContain('Pin when required');
-    expect(api.getCiWorkflowTemplate).toHaveBeenCalledWith('main');
+    expect(api.getCiWorkflowTemplate).toHaveBeenCalledWith();
   });
 
-  it('regenerates and copies the workflow for a changed default branch', async () => {
-    const getTemplate = vi.spyOn(api, 'getCiWorkflowTemplate').mockImplementation(async (requestedBranch) => ({
+  it('copies the branch-independent workflow', async () => {
+    const getTemplate = vi.spyOn(api, 'getCiWorkflowTemplate').mockResolvedValue({
       filename: '.github/workflows/assurance-scan.yml',
-      default_branch: requestedBranch ?? 'main',
       image: 'ghcr.io/26457513/assurance-scan-ci:latest',
-      workflow: WORKFLOW.replace('[main]', `[${requestedBranch ?? 'main'}]`)
-    }));
+      uploader_image: 'ghcr.io/26457513/assurance-scan-ci-upload:latest',
+      workflow: WORKFLOW
+    });
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText }
     });
     render(CiWorkflowSetupPanel);
-    await waitFor(() => expect(getTemplate).toHaveBeenCalledWith('main'));
-
-    const branch = screen.getByRole('textbox', { name: 'Default branch' });
-    await fireEvent.input(branch, { target: { value: 'trunk' } });
-    await fireEvent.click(screen.getByRole('button', { name: 'Update file' }));
-    await waitFor(() => expect(getTemplate).toHaveBeenCalledWith('trunk'));
+    await waitFor(() => expect(getTemplate).toHaveBeenCalledWith());
     await fireEvent.click(screen.getByRole('button', { name: 'Copy workflow' }));
 
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('branches: [trunk]'));
+    expect(writeText).toHaveBeenCalledWith(WORKFLOW);
   });
 });

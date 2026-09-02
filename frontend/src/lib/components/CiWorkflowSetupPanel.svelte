@@ -4,7 +4,6 @@
   import { api } from '$lib/api';
   import CopyButton from './CopyButton.svelte';
 
-  let defaultBranch = 'main';
   let workflow = '';
   let filename = '.github/workflows/assurance-scan.yml';
   let image = 'ghcr.io/26457513/assurance-scan-ci:latest';
@@ -15,11 +14,10 @@
     loading = true;
     error = '';
     try {
-      const response = await api.getCiWorkflowTemplate(defaultBranch.trim());
+      const response = await api.getCiWorkflowTemplate();
       workflow = response.workflow;
       filename = response.filename;
       image = response.image;
-      defaultBranch = response.default_branch;
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {
@@ -50,29 +48,6 @@
   </div>
 
   <div class="p-5">
-    <div class="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end mb-3">
-      <label class="block min-w-0">
-        <span class="block text-[9px] font-mono uppercase tracking-[0.12em] text-ink-muted mb-1">
-          Default branch
-        </span>
-        <input
-          bind:value={defaultBranch}
-          on:keydown={(event) => event.key === 'Enter' && generateWorkflow()}
-          autocomplete="off"
-          autocapitalize="off"
-          spellcheck="false"
-          class="w-full px-2.5 py-1.5 border border-line-strong rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-          aria-label="Default branch"
-        />
-      </label>
-      <button
-        type="button"
-        on:click={generateWorkflow}
-        disabled={loading || !defaultBranch.trim()}
-        class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[10px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
-      >{loading ? 'Generating…' : 'Update file'}</button>
-    </div>
-
     <div class="border border-line-hairline rounded-sm bg-surface-inset overflow-hidden">
       <div class="flex items-center justify-between gap-3 px-3 py-2 border-b border-line-hairline">
         <code class="text-[10px] font-mono text-ink-secondary truncate">{filename}</code>
@@ -93,6 +68,7 @@
 
     <div class="mt-3 grid gap-1 text-[10px] leading-relaxed font-mono text-ink-muted">
       <div>Default image: <code class="text-ink-secondary">{image}</code></div>
+      <div>The job follows GitHub’s current default branch automatically; the file does not need regenerating after a branch rename.</div>
       <div>Pin when required: replace <code class="text-ink-secondary">:latest</code> with an approved <code class="text-ink-secondary">:vX.Y.Z</code> or <code class="text-ink-secondary">@sha256:&lt;digest&gt;</code>.</div>
       <div>The workflow writes a safe job summary, retains a bounded diagnostic bundle for seven days, and pushes the result here with GitHub OIDC. No secret is required.</div>
     </div>

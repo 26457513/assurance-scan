@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import yaml
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -13,28 +12,18 @@ from app.api.routes import ci_setup
 from app.modules.atomic.ci_workflow_template import render_ci_workflow
 
 
-def test_renderer_substitutes_one_safe_default_branch(tmp_path: Path) -> None:
+def test_renderer_returns_complete_dynamic_default_branch_workflow(tmp_path: Path) -> None:
     template = tmp_path / "workflow.yml"
-    template.write_text("on:\n  push:\n    branches: [<default branch>]\n", encoding="utf-8")
+    template.write_text("on:\n  push:\njobs:\n  scan:\n    if: github.event.repository.default_branch", encoding="utf-8")
 
-    rendered = render_ci_workflow("release/2026.08", template_path=template)
+    rendered = render_ci_workflow(template_path=template)
 
-    assert "branches: [release/2026.08]" in rendered
-    assert "<default branch>" not in rendered
+    assert "github.event.repository.default_branch" in rendered
     assert rendered.endswith("\n")
 
 
-@pytest.mark.parametrize(
-    "branch",
-    ("", "../main", ".hidden", "feature//one", "feature@{one", "main.lock", "main\nother"),
-)
-def test_renderer_rejects_unsafe_branch_names(branch: str) -> None:
-    with pytest.raises(ValueError, match="default branch name is invalid"):
-        render_ci_workflow(branch)
-
-
 def test_bundled_workflow_is_complete_and_parseable() -> None:
-    rendered = render_ci_workflow("main")
+    rendered = render_ci_workflow()
     document = yaml.safe_load(rendered)
 
     assert document["name"] == "assurance-scan"
@@ -62,18 +51,15 @@ def test_bundled_workflow_is_complete_and_parseable() -> None:
     assert "-v /var/run/docker.sock" not in rendered.split("Push result", 1)[1]
 
 
-def test_route_returns_the_complete_file_and_rejects_invalid_branches() -> None:
+def test_route_returns_the_complete_branch_independent_file() -> None:
     app = FastAPI()
     app.include_router(ci_setup.router, prefix="/api")
     client = TestClient(app)
 
-    response = client.get("/api/ci/workflow-template", params={"default_branch": "trunk"})
+    response = client.get("/api/ci/workflow-template")
     assert response.status_code == 200
     document = response.json()
     assert document["filename"] == ".github/workflows/assurance-scan.yml"
-    assert document["default_branch"] == "trunk"
-    assert "branches: [trunk]" in document["workflow"]
-
-    rejected = client.get("/api/ci/workflow-template", params={"default_branch": "../main"})
-    assert rejected.status_code == 422
-    assert rejected.json()["detail"] == "default branch name is invalid"
+    assert document["uploader_image"] == "ghcr.io/26457513/assurance-scan-ci-upload:latest"
+    assert "github.event.repository.default_branch" in document["workflow"]
+    assert "branches:" not in document["workflow"]

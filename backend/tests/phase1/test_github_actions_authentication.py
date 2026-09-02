@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import replace
-from typing import Any
 
 import pytest
 from sqlalchemy import select, update
@@ -87,30 +86,6 @@ def _claims() -> GithubOidcClaims:
     )
 
 
-def _metadata() -> dict[str, Any]:
-    claims = _claims()
-    return {
-        "repository": {"provider": "github", "full_name": claims.repository},
-        "commit": claims.sha,
-        "branch": "main",
-        "ref": claims.ref,
-        "working_tree_dirty": False,
-        "producer": {
-            "kind": "github-actions",
-            "repository_id": claims.repository_id,
-            "repository_owner_id": claims.repository_owner_id,
-            "run_id": claims.run_id,
-            "run_number": claims.run_number,
-            "run_attempt": claims.run_attempt,
-            "event_name": claims.event_name,
-            "workflow_ref": claims.workflow_ref,
-            "workflow_sha": claims.workflow_sha,
-            "actor": claims.actor,
-            "actor_id": claims.actor_id,
-        },
-    }
-
-
 async def _database(tmp_path):
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'github-upload.sqlite'}")
     sessions = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -137,7 +112,6 @@ async def test_live_repository_state_authorizes_and_refreshes_project(tmp_path) 
     async with sessions() as session:
         principal = await authorize_github_actions_upload(
             _claims(),
-            _metadata(),
             now=NOW,
             repository_loader=load,
             authorization_repository=SqlAlchemyGithubUploadAuthorizationRepository(session),
@@ -155,8 +129,6 @@ async def test_live_repository_state_authorizes_and_refreshes_project(tmp_path) 
 async def test_uninstalled_repository_fails_before_github_request(tmp_path) -> None:
     engine, sessions = await _database(tmp_path)
     claims = replace(_claims(), repository_id=999999)
-    metadata = _metadata()
-    metadata["producer"]["repository_id"] = 999999
 
     async def forbidden(*_args):
         raise AssertionError("uninstalled repositories must not mint installation tokens")
@@ -165,7 +137,6 @@ async def test_uninstalled_repository_fails_before_github_request(tmp_path) -> N
         with pytest.raises(OidcValidationError, match="repository_not_authorized"):
             await authorize_github_actions_upload(
                 claims,
-                metadata,
                 now=NOW,
                 repository_loader=forbidden,
                 authorization_repository=SqlAlchemyGithubUploadAuthorizationRepository(session),
@@ -192,7 +163,6 @@ async def test_scope_change_during_github_request_fails_closed(tmp_path) -> None
         with pytest.raises(OidcValidationError, match="stale_entitlement"):
             await authorize_github_actions_upload(
                 _claims(),
-                _metadata(),
                 now=NOW,
                 repository_loader=suspend,
                 authorization_repository=SqlAlchemyGithubUploadAuthorizationRepository(session),
@@ -212,7 +182,6 @@ async def test_default_branch_is_taken_from_live_github_response(tmp_path) -> No
         with pytest.raises(OidcValidationError, match="non_default_branch"):
             await authorize_github_actions_upload(
                 _claims(),
-                _metadata(),
                 now=NOW,
                 repository_loader=renamed_default,
                 authorization_repository=SqlAlchemyGithubUploadAuthorizationRepository(session),

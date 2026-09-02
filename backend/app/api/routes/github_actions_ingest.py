@@ -6,7 +6,7 @@ import datetime as dt
 import logging
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Any, Protocol, cast
 
 from fastapi import APIRouter, Request
@@ -20,7 +20,11 @@ from app.api.problem_details import IngestProblem, problem_response
 from app.infrastructure.github_app_api import GithubAppApiError
 from app.infrastructure.github_oidc import GithubOidcInfrastructureError, GithubOidcJwksClient
 from app.infrastructure.ingest_v2_contract import CheckedInEnvelopeSchemaValidator
-from app.modules.atomic.access.github_oidc import GithubOidcClaims, OidcValidationError
+from app.modules.atomic.access.github_oidc import (
+    GithubOidcClaims,
+    OidcValidationError,
+    validate_github_payload_metadata,
+)
 from app.modules.atomic.ingestion.operational_signals import IngestRequestSignal, render_request_signal
 from app.modules.shared.contracts.ingest_v2 import (
     ENVELOPE_LIMITS_V2,
@@ -59,7 +63,6 @@ class GithubActionsRequestAuthenticator(Protocol):
     async def authorize(
         self,
         claims: GithubOidcClaims,
-        metadata: Mapping[str, Any],
         *,
         now: dt.datetime,
     ) -> GithubActionsUploadPrincipal: ...
@@ -186,6 +189,7 @@ async def upload_github_actions_result(
     expected_key = f"{claims.repository_id}:{claims.run_id}:{claims.run_attempt}"
     if request.headers.get("idempotency-key") != expected_key:
         raise _problem("artifact_mismatch")
+    principal = await authenticator.authorize(claims, now=now)
 
     upload = await read_bounded_multipart(
         request,
@@ -199,7 +203,7 @@ async def upload_github_actions_result(
         upload.parts,
         schema_validator=CheckedInEnvelopeSchemaValidator(),
     )
-    principal = await authenticator.authorize(claims, envelope.metadata, now=now)
+    validate_github_payload_metadata(claims, envelope.metadata)
     workflow = get_github_actions_ingest_workflow(request, session)
     result = await workflow.ingest(
         GithubIngestCommand(

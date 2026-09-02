@@ -36,6 +36,7 @@ async def _image_exists(tag: str) -> bool:
 
 async def run_scanners(
     project_path: str,
+    scanner_project_path: str,
     image: str | None,
     sbom_path: Path | None,
 ) -> ScanExecutionResult:
@@ -45,7 +46,7 @@ async def run_scanners(
         image = None
     scanners = ci_scanner_set(image)
 
-    runner = DockerRunner(project_path)
+    runner = DockerRunner(scanner_project_path)
     findings: list[ParsedFinding] = []
     outcomes: list[ScannerOutcome] = []
     sbom: dict[str, object] | None = None

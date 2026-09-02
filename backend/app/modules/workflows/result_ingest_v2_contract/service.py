@@ -120,6 +120,7 @@ def validate_envelope_relationships(parts: Mapping[str, Any | None]) -> None:
     for name in OPTIONAL_PARTS:
         if artifacts.get(name) != (parts.get(name) is not None):
             raise EnvelopeValidationError(f"metadata artifact flag for {name} is inconsistent")
+    _validate_optional_artifacts(parts)
 
     scanners = findings_document.get("scanners")
     findings = findings_document.get("findings")
@@ -170,6 +171,30 @@ def validate_envelope_relationships(parts: Mapping[str, Any | None]) -> None:
                 or context.get("highlight_end") != finding.get("line_end")
             ):
                 raise EnvelopeValidationError("source context does not match its finding")
+
+
+def _validate_optional_artifacts(parts: Mapping[str, Any | None]) -> None:
+    sarif = parts.get("sarif")
+    if sarif is not None and (
+        not isinstance(sarif, Mapping)
+        or sarif.get("version") != "2.1.0"
+        or not isinstance(sarif.get("runs"), list)
+    ):
+        raise EnvelopeValidationError(
+            "SARIF artifact does not satisfy the supported profile",
+            code="schema_validation_failed",
+        )
+    sbom = parts.get("sbom")
+    if sbom is not None and (
+        not isinstance(sbom, Mapping)
+        or sbom.get("bomFormat") != "CycloneDX"
+        or not isinstance(sbom.get("specVersion"), str)
+        or not isinstance(sbom.get("components", []), list)
+    ):
+        raise EnvelopeValidationError(
+            "SBOM artifact does not satisfy the supported CycloneDX profile",
+            code="schema_validation_failed",
+        )
 
 
 def _required_object(parts: Mapping[str, Any | None], name: str) -> Mapping[str, Any]:

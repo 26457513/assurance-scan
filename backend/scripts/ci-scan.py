@@ -56,8 +56,17 @@ def main() -> int:
     if step_summary:
         with Path(step_summary).open("a", encoding="utf-8") as handle:
             handle.write(summary)
+    make_bundle_readable(result.output_root)
     print(f"produced v2 bundle ({result.finding_count} findings)")
     return 0
+
+
+def make_bundle_readable(root: Path) -> None:
+    """Allow the distinct non-root upload container to read only final artifacts."""
+    for artifact in root.iterdir():
+        if artifact.is_file() and not artifact.is_symlink():
+            artifact.chmod(0o444)
+    root.chmod(0o555)
 
 
 if __name__ == "__main__":

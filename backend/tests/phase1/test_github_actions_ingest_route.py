@@ -69,8 +69,8 @@ class FakeAuthenticator:
             raise OidcValidationError(self.authentication_rejection)
         return _claims()
 
-    async def authorize(self, claims, metadata, *, now):
-        del metadata, now
+    async def authorize(self, claims, *, now):
+        del now
         self.authorized += 1
         if self.authorization_rejection:
             raise OidcValidationError(self.authorization_rejection)
@@ -283,6 +283,22 @@ async def test_oidc_rejections_are_safe_and_do_not_read_body(harness: Harness) -
 async def test_workload_policy_rejections_use_frozen_problem_codes(harness: Harness) -> None:
     harness.authenticator.authorization_rejection = "non_default_branch"
     response = await _upload(harness)
+    _assert_problem(response, 403, "non_default_branch")
+    assert harness.authenticator.authorized == 1
+    assert harness.workflow.commands == []
+
+
+async def test_repository_authorization_and_replay_fence_precede_body_parsing(
+    harness: Harness,
+) -> None:
+    harness.authenticator.authorization_rejection = "non_default_branch"
+
+    response = await harness.client.post(
+        "/api/v2/ingest/github-actions",
+        headers={"Authorization": "Bearer signed-jwt", "Idempotency-Key": KEY},
+        content=b"this body must not be parsed",
+    )
+
     _assert_problem(response, 403, "non_default_branch")
     assert harness.authenticator.authorized == 1
     assert harness.workflow.commands == []

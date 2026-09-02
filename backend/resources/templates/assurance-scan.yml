@@ -9,7 +9,6 @@ name: assurance-scan
 
 on:
   push:
-    branches: [<default branch>]
 
 permissions:
   contents: read

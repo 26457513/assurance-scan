@@ -21,7 +21,9 @@ JSON parts use `application/json; charset=utf-8`; SARIF and SBOM declare their
 registered JSON media type or `application/json`. Reject transfer/content
 encoding and compressed/archive parts. The 32 MiB total wire limit dominates
 the individual per-part limits, so maximum-sized optional parts cannot all
-appear together.
+appear together. Present SARIF must identify version 2.1.0 with a `runs` array;
+present SBOM must identify CycloneDX with a string `specVersion` and an optional
+`components` array. Arbitrary JSON under either artifact name is rejected.
 
 `asu_v1` identifies the independent local bearer-token format; it does not mean
 the upload envelope is v1.

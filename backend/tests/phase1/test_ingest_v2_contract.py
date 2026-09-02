@@ -80,6 +80,36 @@ def test_positive_corpus_satisfies_frozen_schemas(fixture: str, schema: str) -> 
     _validator(schema).validate(_json(FIXTURES / fixture))
 
 
+@pytest.mark.parametrize(
+    ("part", "invalid"),
+    (
+        ("sarif", {"version": "2.0.0", "runs": []}),
+        ("sarif", {"version": "2.1.0", "runs": {}}),
+        ("sbom", {"bomFormat": "SPDX", "specVersion": "1.6", "components": []}),
+        ("sbom", {"bomFormat": "CycloneDX", "components": []}),
+    ),
+)
+def test_optional_artifacts_must_match_supported_json_profiles(
+    part: str,
+    invalid: dict[str, Any],
+) -> None:
+    parts = {
+        "metadata": _json(FIXTURES / "github-metadata.json"),
+        "findings": _json(FIXTURES / "findings.json"),
+        "source_contexts": _json(FIXTURES / "source-contexts.json"),
+        "sarif": None,
+        "sbom": None,
+    }
+    parts["metadata"]["artifacts"] = {"sarif": False, "sbom": False}
+    parts[part] = invalid
+    parts["metadata"]["artifacts"][part] = True
+
+    with pytest.raises(EnvelopeValidationError, match="supported") as exc:
+        validate_envelope_relationships(parts)
+
+    assert exc.value.code == "schema_validation_failed"
+
+
 def test_every_negative_schema_fixture_is_rejected() -> None:
     corpus = _json(FIXTURES / "negative-cases.json")
     for case in corpus["cases"]:

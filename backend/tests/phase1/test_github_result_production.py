@@ -75,12 +75,13 @@ def test_workflow_scans_snapshot_and_materializes_valid_bundle(
     scanned: list[str] = []
 
     async def scanner(
-        snapshot_path: str,
+        source_snapshot_path: str,
+        scanner_snapshot_path: str,
         _image: str | None,
         _sbom_path: Path | None,
     ) -> ScanExecutionResult:
-        scanned.append(snapshot_path)
-        assert (Path(snapshot_path) / "app.py").is_file()
+        scanned.append(scanner_snapshot_path)
+        assert (Path(source_snapshot_path) / "app.py").is_file()
         return ScanExecutionResult(
             findings=(
                 ParsedFinding(
@@ -169,4 +170,3 @@ def test_workflow_rejects_dirty_checkout_without_running_scanners(
         )
 
     assert not output.exists()
-

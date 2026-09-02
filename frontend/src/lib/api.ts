@@ -58,9 +58,9 @@ export const api = {
   listWorkflows: () =>
     getJson<{ workflows: { name: string; description: string; parameters: { name: string; description?: string }[] }[] }>('/api/workflows'),
 
-  getCiWorkflowTemplate: (defaultBranch = 'main') =>
-    getJson<{ filename: string; default_branch: string; image: string; workflow: string }>(
-      `/api/ci/workflow-template?default_branch=${encodeURIComponent(defaultBranch)}`
+  getCiWorkflowTemplate: () =>
+    getJson<{ filename: string; image: string; uploader_image: string; workflow: string }>(
+      '/api/ci/workflow-template'
     ),
 
   postNotionDigest: () =>

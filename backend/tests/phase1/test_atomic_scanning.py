@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import stat
 from pathlib import Path
 
 from app.modules.atomic.platform.docker_port import (
@@ -109,3 +110,20 @@ def test_ci_script_delegates_result_production_to_workflow() -> None:
     spec.loader.exec_module(module)
 
     assert module.produce_github_result_bundle is produce_github_result_bundle
+
+
+def test_ci_script_makes_finished_bundle_readable_by_isolated_uploader(
+    tmp_path: Path,
+) -> None:
+    script = Path(__file__).parents[2] / "scripts" / "ci-scan.py"
+    spec = importlib.util.spec_from_file_location("assurance_scan_ci_permissions", script)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    artifact = tmp_path / "metadata.json"
+    artifact.write_text("{}", encoding="utf-8")
+
+    module.make_bundle_readable(tmp_path)
+
+    assert stat.S_IMODE(tmp_path.stat().st_mode) == 0o555
+    assert stat.S_IMODE(artifact.stat().st_mode) == 0o444

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Awaitable, Callable, Mapping
-from typing import Any
+from collections.abc import Awaitable, Callable
 
 from app.modules.atomic.access.github_oidc import (
     GithubOidcClaims,
@@ -13,7 +12,6 @@ from app.modules.atomic.access.github_oidc import (
     OidcValidationError,
     authorize_default_branch_push,
     consume_github_oidc_jti,
-    validate_github_payload_metadata,
 )
 from app.modules.atomic.access.github_repository_reconciliation import (
     GithubRepositorySnapshot,
@@ -32,7 +30,6 @@ AuthoritativeRepositoryLoader = Callable[
 
 async def authorize_github_actions_upload(
     claims: GithubOidcClaims,
-    metadata: Mapping[str, Any],
     *,
     now: dt.datetime,
     repository_loader: AuthoritativeRepositoryLoader,
@@ -40,7 +37,6 @@ async def authorize_github_actions_upload(
     replay_repository: GithubOidcReplayRepository,
 ) -> GithubActionsUploadPrincipal:
     """Authorize one project only after a live GitHub metadata verification."""
-    validate_github_payload_metadata(claims, metadata)
     candidate = await authorization_repository.load_active(claims.repository_id)
     if candidate is None or candidate.github_owner_id != claims.repository_owner_id:
         raise OidcValidationError("repository_not_authorized")
