@@ -330,8 +330,10 @@ async def test_outer_browser_auth_never_intercepts_workload_identity() -> None:
 
     settings = replace(
         load_settings(),
-        app_auth_user="browser-user",
-        app_auth_password="browser-password",
+        github_app_access_enabled=True,
+        github_app_client_id="client-id",
+        github_app_client_secret="client-secret",
+        token_encryption_key="encryption-key",
         github_oidc_ingest_enabled=True,
         public_base_url="https://scan.example.test",
         github_app_id="12345",

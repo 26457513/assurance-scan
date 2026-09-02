@@ -9,12 +9,11 @@ import urllib.parse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
 from app.api.deps_roles import get_current_user
-from app.infrastructure.db.models import GithubAccount, User
+from app.infrastructure.db.models import User
 from app.infrastructure.db.repositories.github_installation_states import (
     SqlAlchemyGithubInstallationStateRepository,
 )
@@ -31,6 +30,7 @@ from app.infrastructure.github_app_api import (
     fetch_authoritative_installation_for_user,
     load_github_app_private_key,
 )
+from app.infrastructure.github_user_credentials import usable_github_access_token
 from app.infrastructure.project_access import sync_github_app_memberships
 from app.modules.atomic.access.github_installation_state import (
     issue_github_installation_state,
@@ -43,7 +43,6 @@ from app.modules.atomic.access.server_session import (
     authenticate_browser_session,
     issue_browser_session,
 )
-from app.secrets import decrypt
 
 
 router = APIRouter(prefix="/v2/github", tags=["github-app-setup"])
@@ -72,21 +71,6 @@ def _settings(request: Request):
     return settings
 
 
-async def _linked_account(session: AsyncSession, user_id: int) -> GithubAccount:
-    account = (
-        await session.execute(
-            select(GithubAccount).where(
-                GithubAccount.user_id == user_id,
-                GithubAccount.github_user_id.isnot(None),
-                GithubAccount.disconnected_at.is_(None),
-            )
-        )
-    ).scalar_one_or_none()
-    if account is None or account.encrypted_user_token is None:
-        raise HTTPException(status_code=409, detail="GitHub authorization is required")
-    return account
-
-
 @router.get("/install/start")
 async def start_github_app_installation(
     request: Request,
@@ -97,8 +81,14 @@ async def start_github_app_installation(
     settings = _settings(request)
     if user is None or user.disabled_at is not None:
         raise HTTPException(status_code=401, detail="GitHub-linked sign-in is required")
-    await _linked_account(session, user.id)
     now = dt.datetime.now(dt.timezone.utc)
+    if await usable_github_access_token(
+        session,
+        user_id=user.id,
+        settings=settings,
+        now=now,
+    ) is None:
+        raise HTTPException(status_code=409, detail="GitHub authorization must be renewed")
     random = SecureIdentityRandom()
     browser = issue_browser_session(user_id=user.id, now=now, random=random)
     await SqlAlchemyBrowserSessionRepository(session).create(browser.record)
@@ -157,13 +147,14 @@ async def finish_github_app_installation(
             )
         if setup_action not in {"install", "update"} or installation_id is None or installation_id <= 0:
             raise HTTPException(status_code=400, detail="GitHub returned an invalid installation result")
-        account = await _linked_account(session, user_id)
-        token_expires_at = _aware(account.token_expires_at)
-        if token_expires_at is not None and token_expires_at <= now:
-            raise HTTPException(status_code=409, detail="GitHub authorization must be renewed")
-        user_token = decrypt(account.encrypted_user_token or "", settings.token_encryption_key)
+        user_token = await usable_github_access_token(
+            session,
+            user_id=user_id,
+            settings=settings,
+            now=now,
+        )
         if not user_token:
-            raise HTTPException(status_code=503, detail="GitHub authorization is unavailable")
+            raise HTTPException(status_code=409, detail="GitHub authorization must be renewed")
         try:
             private_key = load_github_app_private_key(settings.github_app_private_key_path)
             cache = await load_github_installation_repository_cache(
@@ -210,9 +201,3 @@ def _redirect(location: str) -> RedirectResponse:
     response = RedirectResponse(location, status_code=302)
     response.delete_cookie(_COOKIE, path="/api/v2/github/setup-return")
     return response
-
-
-def _aware(value: dt.datetime | None) -> dt.datetime | None:
-    if value is None or value.tzinfo is not None:
-        return value
-    return value.replace(tzinfo=dt.timezone.utc)

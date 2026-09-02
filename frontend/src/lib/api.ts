@@ -123,16 +123,6 @@ export const api = {
 
   listProjects: () => getJson<{ projects: ProjectSummary[] }>('/api/projects'),
 
-  githubBranches: (repo: string) =>
-    getJson<{ repo: string; branches: string[] }>(`/api/github/branches?repo=${encodeURIComponent(repo)}`),
-
-  githubRepos: () =>
-    getJson<{
-      org?: string;
-      repos: { full_name: string; name?: string; org?: string; pushed_at?: string; html_url?: string }[];
-      errors?: string[];
-    }>('/api/github/repos'),
-
   createProject: (
     tag: string,
     localPath: string | null,
@@ -177,9 +167,8 @@ export const api = {
     ),
 
   logout: async (): Promise<void> => {
-    // redirect:'manual' — the endpoint 307s to the login flow, and following
-    // it into the Google redirect chain fails fetch on CORS. The cookie is
-    // cleared by the first response either way.
+    // Avoid following the endpoint redirect; the first response revokes the
+    // server-side session and clears the browser cookie.
     await fetch('/auth/logout', { method: 'GET', redirect: 'manual' });
   },
 
@@ -223,58 +212,16 @@ export const api = {
       }
     ),
 
-  me: () => getJson<{ email: string; role: string }>('/api/users/me'),
+  me: () => getJson<{ id: number; login: string; role: string }>('/api/users/me'),
 
-  githubAccountLinkStatus: () =>
-    getJson<{ enabled: boolean; linked: boolean; login: string | null }>(
-      '/api/v2/github/link/status'
-    ),
+  listUsers: () => getJson<{ users: { id: number; login: string; role: string; last_login_at: string | null }[] }>('/api/users'),
 
-  listUsers: () => getJson<{ users: { email: string; role: string; last_login_at: string | null }[] }>('/api/users'),
-
-  setUserRole: (email: string, role: string) =>
-    getJson<{ email: string; role: string }>('/api/users', {
+  setUserRole: (userId: number, role: string) =>
+    getJson<{ id: number; login: string; role: string }>('/api/users', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role })
+      body: JSON.stringify({ user_id: userId, role })
     }),
-
-  listOrgs: () => getJson<{ orgs: { name: string; login: string | null; created_at: string | null; home?: boolean }[] }>('/api/orgs'),
-
-  putOrg: (name: string, token: string) =>
-    getJson<{ status: string; name: string; login: string; repos_visible: number }>('/api/orgs', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, token })
-    }),
-
-  deleteOrg: (name: string) =>
-    getJson<{ status: string }>(`/api/orgs?name=${encodeURIComponent(name)}`, { method: 'DELETE' }),
-
-  getGithubToken: () => getJson<{ configured: boolean; login?: string; created_at?: string }>('/api/github/token'),
-
-  putGithubToken: (token: string) =>
-    getJson<{ configured: boolean; login: string }>('/api/github/token', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token })
-    }),
-
-  deleteGithubToken: () =>
-    getJson<{ configured: boolean }>('/api/github/token', { method: 'DELETE' }),
-
-  scanRemote: (projectId: number, ref = '') =>
-    getJson<{ status: string; mode: string; repo: string; ref: string; warning?: string; detail?: string }>('/api/scans/remote', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_id: projectId, ref })
-    }),
-
-  pollNow: () =>
-    getJson<{ ingested?: number; skipped?: number; failed?: number; error?: string; hint?: string }>(
-      '/api/poller/poll-now',
-      { method: 'POST' }
-    ),
 
   deleteScan: (runId: string) =>
     getJson<{ status: string; run_id: string }>(`/api/scans/${runId}`, { method: 'DELETE' }),

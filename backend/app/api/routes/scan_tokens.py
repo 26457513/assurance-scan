@@ -14,10 +14,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
-from app.config import account_identity_is_ready, normalize_account_email
+from app.api.deps_roles import get_current_user
+from app.config import account_identity_is_ready
 from app.infrastructure.db.models import (
     ApiToken,
     GithubAppInstallation,
+    GithubAccount,
     GithubInstallationRepository,
     Project,
     ProjectMembership,
@@ -28,7 +30,6 @@ from app.infrastructure.db.repositories.api_tokens import (
     SqlAlchemyScanTokenRepository,
     SystemScanTokenClock,
 )
-from app.modules.atomic.access.browser_auth import verify_session
 from app.modules.atomic.access.browser_csrf import (
     CSRF_COOKIE_NAME,
     mint_csrf_token,
@@ -55,7 +56,7 @@ class BrowserScanTokenUser:
     """Minimal authenticated browser identity needed by these routes."""
 
     user_id: int
-    email: str
+    github_user_id: int
 
 
 class CreateScanTokenBody(BaseModel):
@@ -65,25 +66,30 @@ class CreateScanTokenBody(BaseModel):
     expires_in_days: Literal[30, 90, 180] = 90
 
 
-async def require_google_scan_token_user(
+async def require_github_scan_token_user(
     request: Request,
     session: AsyncSession = SessionDep,
+    user: User | None = Depends(get_current_user),
 ) -> BrowserScanTokenUser:
-    """Require an existing, enabled user authenticated by Google session."""
+    """Require an enabled user authenticated by a GitHub server session."""
     settings = request.app.state.settings
     if not account_identity_is_ready(settings):
-        raise HTTPException(status_code=401, detail="Google sign-in is required")
-    email = verify_session(request.cookies.get("as_session"), settings.session_secret)
-    if not email:
-        raise HTTPException(status_code=401, detail="Google sign-in is required")
-    user = (
-        await session.execute(select(User).where(User.email == email))
-    ).scalar_one_or_none()
+        raise HTTPException(status_code=401, detail="GitHub sign-in is required")
     if user is None:
-        raise HTTPException(status_code=401, detail="Google sign-in is required")
+        raise HTTPException(status_code=401, detail="GitHub sign-in is required")
     if user.disabled_at is not None:
         raise HTTPException(status_code=403, detail="account is disabled")
-    identity = BrowserScanTokenUser(user_id=user.id, email=user.email)
+    github_user_id = (
+        await session.execute(
+            select(GithubAccount.github_user_id).where(
+                GithubAccount.user_id == user.id,
+                GithubAccount.disconnected_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if github_user_id is None:
+        raise HTTPException(status_code=401, detail="GitHub sign-in is required")
+    identity = BrowserScanTokenUser(user_id=user.id, github_user_id=github_user_id)
     # Leave the adapter a clean transaction so it can serialize creation.
     await session.rollback()
     return identity
@@ -92,7 +98,7 @@ async def require_google_scan_token_user(
 @router.get("")
 async def list_scan_tokens(
     request: Request,
-    user: BrowserScanTokenUser = Depends(require_google_scan_token_user),
+    user: BrowserScanTokenUser = Depends(require_github_scan_token_user),
     session: AsyncSession = SessionDep,
 ) -> JSONResponse:
     """List the caller's token audits and mint a signed CSRF token."""
@@ -105,7 +111,7 @@ async def list_scan_tokens(
     rows = await SqlAlchemyScanTokenRepository(session).list_for_user(user.user_id)
     creation_enabled = _creation_enabled_for_user(
         settings,
-        user.email,
+        user.github_user_id,
     ) and await _has_current_upload_entitlement(session, user.user_id, now=now)
     response = JSONResponse(
         {
@@ -131,7 +137,7 @@ async def list_scan_tokens(
 async def issue_scan_token(
     body: CreateScanTokenBody,
     request: Request,
-    user: BrowserScanTokenUser = Depends(require_google_scan_token_user),
+    user: BrowserScanTokenUser = Depends(require_github_scan_token_user),
     session: AsyncSession = SessionDep,
 ) -> JSONResponse:
     """Create a token and return its plaintext exactly once."""
@@ -142,7 +148,7 @@ async def issue_scan_token(
             detail="Scan-token creation is disabled.",
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
         )
-    if not _creation_enabled_for_user(settings, user.email):
+    if not _creation_enabled_for_user(settings, user.github_user_id):
         raise HTTPException(
             status_code=403,
             detail="Scan-token creation is not enabled for this account.",
@@ -196,20 +202,15 @@ async def issue_scan_token(
     )
 
 
-def _creation_enabled_for_user(settings: object, email: str) -> bool:
+def _creation_enabled_for_user(settings: object, github_user_id: int) -> bool:
     if not getattr(settings, "scan_token_creation_enabled", False):
         return False
     user_allowlist: frozenset[str] = getattr(
         settings,
-        "scan_token_creation_user_allowlist",
+        "scan_token_creation_github_user_allowlist",
         frozenset(),
     )
-    if not user_allowlist:
-        return True
-    try:
-        return normalize_account_email(email) in user_allowlist
-    except ValueError:
-        return False
+    return not user_allowlist or github_user_id in user_allowlist
 
 
 async def _has_current_upload_entitlement(
@@ -253,7 +254,7 @@ async def _has_current_upload_entitlement(
 async def revoke_scan_token(
     token_id: str,
     request: Request,
-    user: BrowserScanTokenUser = Depends(require_google_scan_token_user),
+    user: BrowserScanTokenUser = Depends(require_github_scan_token_user),
     session: AsyncSession = SessionDep,
 ) -> dict[str, str]:
     """Idempotently revoke one of the caller's tokens without enumeration."""
@@ -318,6 +319,6 @@ def _aware(value: dt.datetime) -> dt.datetime:
 
 __all__ = [
     "BrowserScanTokenUser",
-    "require_google_scan_token_user",
+    "require_github_scan_token_user",
     "router",
 ]

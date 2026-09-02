@@ -42,7 +42,11 @@ function bootstrap(state: Record<string, unknown>, selection: Record<string, unk
 
 describe('setup payload parser', () => {
   it.each([
-    ['signed_out', { kind: 'signed_out', sign_in_url: '/login' }, { status: 'none', requested_repository_id: null }],
+    [
+      'signed_out',
+      { kind: 'signed_out', sign_in_url: '/auth/login?next=/setup' },
+      { status: 'none', requested_repository_id: null },
+    ],
     [
       'github_connected',
       { kind: 'github_connected', identity, install_url: 'https://github.com/apps/assurance-scan/installations/new' },

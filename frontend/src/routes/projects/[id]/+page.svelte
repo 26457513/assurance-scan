@@ -24,12 +24,6 @@
   let selectedRunId = '';
   let loading = true;
   let error: string | null = null;
-  let polling = false;
-  let scanRef = '';
-  let dispatching = false;
-  let scanConfirmOpen = false;
-  let scanBranches: string[] = [];
-  let scanBranchError = false;
   let originFilter: ScanOriginFilter = 'all';
   let comparisonRunId = '';
   const routeGate = createRequestGate<number>();
@@ -40,16 +34,6 @@
     error = 'Invalid project ID';
   }
 
-  async function loadScanBranches(repo: string) {
-    scanBranchError = false;
-    scanBranches = [];
-    if (!repo) return;
-    try {
-      scanBranches = (await api.githubBranches(repo)).branches;
-    } catch {
-      scanBranchError = true;
-    }
-  }
   let selected = new Set<string>();
   let deleteModalOpen = false;
   $: selectedCount = selected.size;
@@ -99,8 +83,7 @@
     const wanted = selectedRunFromUrl($page.url);
     try {
       let nextScans = await api.listScans(targetProjectId, 200);
-      // A ?run= deep link selects its run; if it isn't ingested yet, one
-      // getScan triggers the server's lazy pull, then we reload.
+      // A ?run= deep link selects a result already pushed to Assurance Scan.
       let nextSelectedRunId = selectedRunId;
       let nextPage = pg;
       if (wanted) {
@@ -111,15 +94,7 @@
           nextPage = Math.floor(idx / pageSize);  // jump pagination to the row
           return true;
         };
-        if (!selectWanted()) {
-          try {
-            await api.getScan(wanted);  // lazy pull for un-ingested runs
-            nextScans = await api.listScans(targetProjectId, 200);
-            selectWanted();
-          } catch {
-            /* unknown run id — fall through to default selection */
-          }
-        }
+        selectWanted();
       }
       if (!nextScans.some((scan) => scan.run_id === nextSelectedRunId)) {
         nextSelectedRunId = nextScans[0]?.run_id ?? '';
@@ -144,7 +119,6 @@
     pg = 0;
     scans = [];
     project = null;
-    defaultScanRef = null;
     error = null;
     loading = true;
     selectProject(targetProjectId);
@@ -153,10 +127,7 @@
       const projects = await api.listProjects();
       if (!routeGate.isCurrent(ticket)) return;
       project = projects.projects.find((item) => item.id === targetProjectId) ?? null;
-      defaultScanRef = project?.default_scan_ref ?? null;
-    } catch {
-      if (routeGate.isCurrent(ticket)) defaultScanRef = null;
-    }
+    } catch { /* project list failure is reflected by the scan request */ }
   }
 
   // Reactive, not onMount: SvelteKit keeps this component alive across
@@ -210,56 +181,6 @@
   );
   $: latestFailed = latestScan?.status === 'failed' ? latestScan : null;
 
-  $: projectRepo = project?.github_repo ?? '';
-
-  // Seed the Scan-now ref with the project's default branch preference
-  // (from the registry) the first time the field is still empty.
-  $: if (defaultScanRef && !scanRef && !dispatching) {
-    scanRef = defaultScanRef;
-  }
-  let defaultScanRef: string | null = null;
-
-  function confirmScan() {
-    scanConfirmOpen = true;
-    loadScanBranches(projectRepo);
-  }
-
-  async function scanNow() {
-    scanConfirmOpen = false;
-    dispatching = true;
-    try {
-      const res = await api.scanRemote(projectId, scanRef.trim());
-      if (res.warning) {
-        pushToast('error', `Dispatched to ${res.repo}@${res.ref}, but: ${res.warning}`);
-      } else {
-        pushToast('success', `Scan dispatched to ${res.repo}@${res.ref} — watch the scans table`);
-      }
-      scanRef = '';
-    } catch (e) {
-      pushToast('error', `${(e as Error).message ?? e}`);
-    } finally {
-      dispatching = false;
-    }
-  }
-
-  async function pollNow() {
-    polling = true;
-    try {
-      const res = await api.pollNow();
-      if (res.error) {
-        pushToast('error', res.error);
-      } else {
-        const parts = [`${res.ingested ?? 0} new`, `${res.skipped ?? 0} up to date`];
-        if (res.failed) parts.push(`${res.failed} failed`);
-        pushToast(res.failed ? 'error' : 'success', `GitHub poll: ${parts.join(', ')}`);
-      }
-    } catch (e) {
-      pushToast('error', `GitHub poll failed: ${e}`);
-    } finally {
-      polling = false;
-      await loadScans();
-    }
-  }
 
   function fmtDuration(s: ScanSummary): string {
     if (!s.completed_at) return '—';
@@ -319,18 +240,6 @@
         <span aria-live="polite" class="normal-case tracking-normal">{projectScans.length} shown</span>
       </div>
       <div class="flex flex-wrap justify-end items-center gap-2">
-      <button
-        type="button"
-        on:click={confirmScan}
-        disabled={dispatching || !projectRepo}
-        title="Scan now — dispatches this repo's own assurance-scan workflow (stub required)"
-        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors disabled:opacity-50"
-      >
-        <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none">
-          <path d="M6 1.5v6M3.2 5.8L6 8.5l2.8-2.7M2 10.5h8" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span>{dispatching ? 'Dispatching…' : 'Scan now'}</span>
-      </button>
       {#if selectedCount > 0}
         <button
           type="button"
@@ -339,18 +248,6 @@
           style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent); background: color-mix(in srgb, var(--state-failed) 8%, transparent);"
         >Delete {selectedCount} selected</button>
       {/if}
-      <button
-        type="button"
-        on:click={pollNow}
-        disabled={polling}
-        title="Fetch completed assurance-scan runs from GitHub Actions"
-        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-ink-primary transition-colors disabled:opacity-50"
-      >
-        <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none">
-          <path d="M10 6a4 4 0 11-1.2-2.8M10 1v2.5H7.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span class="text-[11px] font-mono uppercase tracking-[0.1em]">{polling ? 'Retrieving…' : 'Retrieve from GitHub'}</span>
-      </button>
       </div>
     </div>
     {#if loading}
@@ -485,61 +382,6 @@
     {/if}
   </div>
 
-  {#if scanConfirmOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (scanConfirmOpen = false)} aria-label="Close"></button>
-      <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-md w-full p-5">
-        <div class="text-[13px] text-ink-primary mb-3 font-mono">Start scan?</div>
-        <div class="space-y-3 mb-4">
-          <div>
-            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="scan-repo">Repository</label>
-            <div id="scan-repo" class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-inset font-mono text-[11px] text-ink-secondary">
-              {projectRepo}
-            </div>
-          </div>
-          <div>
-            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="scan-branch">Branch (defaults to the project's preference or repo default)</label>
-            {#if scanBranchError}
-              <p class="text-[10px] font-mono mb-1" style="color: var(--state-failed);">couldn't load branches — type a branch or SHA below</p>
-            {/if}
-            {#if scanBranches.length > 0}
-              <select
-                id="scan-branch"
-                bind:value={scanRef}
-                class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-              >
-                <option value="">(repo default)</option>
-                {#each scanBranches as b (b)}
-                  <option value={b}>{b}</option>
-                {/each}
-              </select>
-            {:else}
-              <input
-                id="scan-branch"
-                type="text"
-                bind:value={scanRef}
-                placeholder="branch/sha (default)"
-                class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-              />
-            {/if}
-          </div>
-        </div>
-        <p class="text-[12px] text-ink-secondary leading-relaxed mb-5">
-          This dispatches the <code>assurance-scan</code> workflow on the repo's own
-          GitHub Actions — you can follow it live on the repo's Actions page. Results
-          appear here automatically within a minute, or immediately via the
-          <em>Retrieve from GitHub</em> button.
-        </p>
-        <div class="flex justify-end gap-2">
-          <button type="button" on:click={() => (scanConfirmOpen = false)}
-            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
-          <button type="button" on:click={scanNow}
-            class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Start scan</button>
-        </div>
-      </div>
-    </div>
-  {/if}
-
   {#if deleteModalOpen}
     <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
       <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (deleteModalOpen = false)} aria-label="Close"></button>
@@ -547,7 +389,7 @@
         <div class="text-[13px] text-ink-primary mb-2 font-mono">Delete {selectedCount} scan{selectedCount === 1 ? '' : 's'}?</div>
         <p class="text-[12px] text-ink-secondary leading-relaxed mb-5">
           This removes the scan information from <strong>assurance-scan only</strong> — nothing is deleted from GitHub.
-          The scans will be restored the next time <em>Retrieve from GitHub</em> runs.
+          A future GitHub Actions or local upload can create a new scan for the same commit.
         </p>
         <div class="flex justify-end gap-2">
           <button

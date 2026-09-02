@@ -13,13 +13,13 @@ from app.modules.shared.contracts.ingest_v2 import GITHUB_USAGE_LIMITS_V2
 def test_local_ingest_is_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("LOCAL_INGEST_ENABLED", raising=False)
     monkeypatch.delenv("SCAN_TOKEN_CREATION_ENABLED", raising=False)
-    monkeypatch.delenv("SCAN_TOKEN_CREATION_USER_ALLOWLIST", raising=False)
+    monkeypatch.delenv("SCAN_TOKEN_CREATION_GITHUB_USER_ALLOWLIST", raising=False)
     monkeypatch.delenv("LOCAL_INGEST_REPOSITORY_ALLOWLIST", raising=False)
     monkeypatch.delenv("GITHUB_OIDC_INGEST_ENABLED", raising=False)
     settings = load_settings()
     assert settings.local_ingest_enabled is False
     assert settings.scan_token_creation_enabled is False
-    assert settings.scan_token_creation_user_allowlist == frozenset()
+    assert settings.scan_token_creation_github_user_allowlist == frozenset()
     assert settings.local_ingest_repository_allowlist == frozenset()
     assert settings.github_oidc_ingest_enabled is False
 
@@ -80,37 +80,52 @@ def test_canary_allowlist_is_canonical_case_insensitive_and_strict(
             load_settings()
 
 
-def test_token_creation_user_allowlist_normalizes_and_rejects_ambiguous_values(
+def test_token_creation_github_user_allowlist_requires_unique_numeric_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(
-        "SCAN_TOKEN_CREATION_USER_ALLOWLIST",
-        "Admin@Example.COM,tester@example.com",
+        "SCAN_TOKEN_CREATION_GITHUB_USER_ALLOWLIST",
+        "123,456",
     )
-    assert load_settings().scan_token_creation_user_allowlist == frozenset({"admin@example.com", "tester@example.com"})
+    assert load_settings().scan_token_creation_github_user_allowlist == frozenset({123, 456})
     for invalid in (
-        "admin@example.com,",
-        "admin@example.com, tester@example.com",
-        "admin@example.com,ADMIN@example.com",
-        "not-an-email",
-        "admin@localhost",
+        "123,",
+        "123, 456",
+        "123,123",
+        "not-an-id",
+        "0",
     ):
-        monkeypatch.setenv("SCAN_TOKEN_CREATION_USER_ALLOWLIST", invalid)
-        with pytest.raises(ValueError, match="SCAN_TOKEN_CREATION_USER_ALLOWLIST"):
+        monkeypatch.setenv("SCAN_TOKEN_CREATION_GITHUB_USER_ALLOWLIST", invalid)
+        with pytest.raises(ValueError, match="SCAN_TOKEN_CREATION_GITHUB_USER_ALLOWLIST"):
             load_settings()
 
 
-def test_account_identity_readiness_requires_https_origin_and_strong_session_secret() -> None:
+def test_admin_bootstrap_requires_unique_numeric_github_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_ADMIN_USER_IDS", "123,456")
+    assert load_settings().github_admin_user_ids == frozenset({123, 456})
+    for invalid in ("123,", "123, 456", "123,123", "login-name", "0"):
+        monkeypatch.setenv("GITHUB_ADMIN_USER_IDS", invalid)
+        with pytest.raises(ValueError, match="GITHUB_ADMIN_USER_IDS"):
+            load_settings()
+
+
+def test_account_identity_readiness_requires_github_credentials_and_safe_origin() -> None:
     ready = SimpleNamespace(
-        google_client_id="client",
-        google_client_secret="secret",
-        session_secret="session-secret-at-least-32-bytes-long",
+        github_app_client_id="client",
+        github_app_client_secret="secret",
+        session_secret="session-secret",
+        token_encryption_key="encryption-key",
         public_base_url="https://scan.example.test",
     )
     assert account_identity_is_ready(ready) is True
-    ready.session_secret = "short"
+    ready.token_encryption_key = ""
     assert account_identity_is_ready(ready) is False
-    ready.session_secret = "session-secret-at-least-32-bytes-long"
+    ready.token_encryption_key = "encryption-key"
+    ready.session_secret = ""
+    assert account_identity_is_ready(ready) is False
+    ready.session_secret = "session-secret"
     ready.public_base_url = "http://scan.example.test"
     assert account_identity_is_ready(ready) is False
     ready.public_base_url = "http://127.0.0.1:8000"

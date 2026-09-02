@@ -59,6 +59,6 @@ Setup additionally requires keyboard-only navigation, 360 px and desktop viewpor
   from unmerged branches, local upload, token revocation, App suspension, and
   a denied viewer.
 - Run `git diff --check` and review the final diff for generated files, secrets, unrelated changes, and stale polling references.
-- Record commands, versions, counts, known limitations, migration duration, and image digests in the release evidence.
+- Record commands, versions, counts, known limitations, deployment duration, and image digests in the release evidence.
 
 A slice is not complete because its code exists; it is complete when all applicable gates pass and the evidence is recorded.

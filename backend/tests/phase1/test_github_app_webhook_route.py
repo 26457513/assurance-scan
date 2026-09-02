@@ -135,8 +135,10 @@ async def test_webhook_is_invisible_when_disabled_and_rejects_oversize_before_ve
 async def test_browser_auth_never_intercepts_the_github_webhook_boundary() -> None:
     settings = replace(
         load_settings(),
-        app_auth_user="team",
-        app_auth_password="secret",
+        github_app_access_enabled=True,
+        github_app_client_id="client-id",
+        github_app_client_secret="client-secret",
+        token_encryption_key="encryption-key",
         github_webhook_enabled=True,
         github_webhook_secret=SECRET,
         github_webhook_previous_secret="",

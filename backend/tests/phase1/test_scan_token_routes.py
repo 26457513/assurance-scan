@@ -14,11 +14,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.api.deps_scan_token import require_scan_token_principal
+from app.api.deps_roles import get_current_user
 from app.api.routes.scan_tokens import router
 from app.infrastructure.db.connection import get_session
 from app.infrastructure.db.models import (
     ApiToken,
     Base,
+    GithubAccount,
     GithubAppInstallation,
     GithubInstallationRepository,
     Project,
@@ -30,7 +32,6 @@ from app.infrastructure.db.repositories.api_tokens import (
     SqlAlchemyScanTokenRepository,
     SystemScanTokenClock,
 )
-from app.modules.atomic.access.browser_auth import mint_session
 from app.modules.atomic.access.scan_token import (
     CreateScanTokenCommand,
     ScanTokenActiveLimitError,
@@ -48,14 +49,10 @@ class RouteHarness:
     client: AsyncClient
     sessions: async_sessionmaker[AsyncSession]
     settings: SimpleNamespace
+    app: FastAPI
 
     def sign_in(self, email: str) -> None:
-        self.client.cookies.set(
-            "as_session",
-            mint_session(email, SESSION_SECRET),
-            domain="scan.example.test",
-            path="/",
-        )
+        self.app.state.test_email = email
 
     async def csrf(self) -> str:
         response = await self.client.get("/api/users/me/scan-tokens")
@@ -127,6 +124,9 @@ async def harness(tmp_path) -> RouteHarness:
                     verified_at=now,
                     expires_at=now + timedelta(minutes=5),
                 ),
+                GithubAccount(user_id=alice.id, github_user_id=101, login_at_last_verify="alice"),
+                GithubAccount(user_id=bob.id, github_user_id=102, login_at_last_verify="bob"),
+                GithubAccount(user_id=disabled.id, github_user_id=103, login_at_last_verify="disabled"),
             )
         )
         await session.commit()
@@ -136,12 +136,13 @@ async def harness(tmp_path) -> RouteHarness:
             yield session
 
     settings = SimpleNamespace(
-        google_client_id="google-client",
-        google_client_secret="google-secret",
+        github_app_client_id="github-client",
+        github_app_client_secret="github-secret",
+        token_encryption_key="encryption-key",
         session_secret=SESSION_SECRET,
         public_base_url=PUBLIC_ORIGIN,
         scan_token_creation_enabled=True,
-        scan_token_creation_user_allowlist=frozenset(),
+        scan_token_creation_github_user_allowlist=frozenset(),
     )
     app = FastAPI()
     app.state.settings = settings
@@ -154,11 +155,20 @@ async def harness(tmp_path) -> RouteHarness:
         return {"user_id": principal.user_id, "token_id": principal.token_id}
 
     app.dependency_overrides[get_session] = session_override
+
+    async def current_user_override():
+        email = getattr(app.state, "test_email", "")
+        if not email:
+            return None
+        async with sessions() as session:
+            return (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
+
+    app.dependency_overrides[get_current_user] = current_user_override
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url=PUBLIC_ORIGIN,
     ) as client:
-        yield RouteHarness(client=client, sessions=sessions, settings=settings)
+        yield RouteHarness(client=client, sessions=sessions, settings=settings, app=app)
     await engine.dispose()
 
 
@@ -207,9 +217,7 @@ async def test_creation_user_canary_denies_without_echoing_account_or_allowlist(
     harness: RouteHarness,
 ) -> None:
     harness.sign_in("alice@example.test")
-    harness.settings.scan_token_creation_user_allowlist = frozenset(
-        {"admin@example.test"}
-    )
+    harness.settings.scan_token_creation_github_user_allowlist = frozenset({999})
     response = await harness.issue("Blocked canary")
     assert response.status_code == 403
     assert response.json() == {
@@ -222,9 +230,7 @@ async def test_creation_user_canary_denies_without_echoing_account_or_allowlist(
     listed = await harness.client.get("/api/users/me/scan-tokens")
     assert listed.json()["creation_enabled"] is False
 
-    harness.settings.scan_token_creation_user_allowlist = frozenset(
-        {"alice@example.test"}
-    )
+    harness.settings.scan_token_creation_github_user_allowlist = frozenset({101})
     listed = await harness.client.get("/api/users/me/scan-tokens")
     assert listed.json()["creation_enabled"] is True
     assert (await harness.issue("Allowed canary")).status_code == 201
@@ -253,9 +259,8 @@ async def test_creation_requires_current_github_app_upload_entitlement_without_a
                 select(ProjectMembership).where(ProjectMembership.user_id == alice.id)
             )
         ).scalar_one()
-        membership.source = "manual"
         membership.permission = "manage"
-        membership.expires_at = None
+        membership.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
         await session.commit()
 
     harness.sign_in("alice@example.test")
@@ -476,7 +481,7 @@ async def test_revoke_is_owned_and_idempotent(harness: RouteHarness) -> None:
     assert (first.status_code, second.status_code, missing.status_code) == (200, 200, 200)
 
 
-async def test_routes_reject_missing_disabled_auth_off_and_basic_only_users(
+async def test_routes_reject_missing_disabled_and_unconfigured_github_users(
     harness: RouteHarness,
 ) -> None:
     harness.sign_in("missing@example.test")
@@ -486,10 +491,10 @@ async def test_routes_reject_missing_disabled_auth_off_and_basic_only_users(
     assert (await harness.client.get("/api/users/me/scan-tokens")).status_code == 403
 
     harness.sign_in("alice@example.test")
-    harness.settings.google_client_id = ""
+    harness.settings.github_app_client_id = ""
     auth_off = await harness.client.get("/api/users/me/scan-tokens")
     assert auth_off.status_code == 401
-    harness.client.cookies.clear()
+    harness.app.state.test_email = ""
     basic_only = await harness.client.get(
         "/api/users/me/scan-tokens",
         headers={"Authorization": "Basic dXNlcjpwYXNz"},

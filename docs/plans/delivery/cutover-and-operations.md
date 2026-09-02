@@ -1,93 +1,37 @@
-# Cutover and operations
+# Production activation and recovery
 
-Status: required runbook for WS7g.
+Status: clean-launch runbook for WS7g.
 
-## Pre-production
+The former production Droplet is not a migration source. Assurance Scan launches with GitHub-only identity and push-only ingestion; there is no account-linking window, polling overlap, PAT retention, dual-read or rollback to the old identity model.
 
-1. Create the GitHub App with the exact callbacks, permissions, events, and installation policy in [GitHub App access](../github/app-access.md).
-2. Configure distinct development, staging, and production App registrations and OIDC audiences.
-3. Complete the account-linking window and resolve every blocking preflight item
-   in [Migration and data disposition](migration-and-data.md).
-4. Apply the additive migration to two independent copies of the same frozen
-   production-like backup, run the journalled transformation with the same fixed
-   cutover timestamp, and use the rehearsal comparator to prove identical row
-   counts and checksums. Retain both reports and the comparison result.
-5. Exercise OAuth, installation, signed webhooks, missed-delivery repair,
-   repository selection, entitlement refresh, OIDC replay rejection, local
-   upload, rejected-attempt visibility and visibility denial.
-6. Publish the scanner image by immutable digest and prove `latest` resolves and
-   verifies to the approved digest.
-7. Run the standard workflow against a disposable repository for both a direct
-   default-branch push and the default-branch push produced by merging a pull
-   request; confirm an unmerged branch does not upload.
-8. Commit the new workflow in every pilot repository and classify every other
-   production repository as `updated`, `scheduled` or `owner_action_required`.
+## Protected production environment
 
-## Atomic production cutover
+The GitHub Environment `production` is the sole source for runtime configuration. The deployment validates every required value and the decoded App private key before stopping the service. It installs an immutable, root-only runtime configuration release and mounts the key read-only. The repository `.env` and any historical Droplet `.env` are not deployment inputs.
 
-1. Announce and enter the maintenance window.
-2. Stop schedulers and workers that can poll or import GitHub results.
-3. Take and verify a database backup.
-4. Apply the additive journal migration while the old application remains
-   stopped; do not enable the new backend or either ingest path.
-5. Run the stopped-database identity preflight, resolve every blocker, and retain
-   its exact checksum. Production counts may differ from an older rehearsal, so
-   never substitute the rehearsal checksum.
-6. Run the journalled cutover with the stopped-database checksum, a single fixed
-   timestamp and explicit `--confirm-switch`; require clean foreign keys and a
-   `switch_complete` report.
-7. Deploy the push-only backend with public ingest disabled, the redesigned
-   frontend, and the verified scanner/CLI release set.
-8. Install or enable the production GitHub App for pilot repositories and
-   process a signed repository refresh.
-9. Enable GitHub/local ingest, run required smoke tests and inspect correlation
-   IDs, ingest attempts, audit events and queue health.
-10. Exit maintenance only after allowed and denied visibility checks pass.
+The required names and mappings are listed in the repository README. `APP_ACCESS_ENABLED` must be `true`, the public URL/domain must be the canonical production values, and `APP_ADMIN_GITHUB_IDS` must identify at least one protected administrator.
 
-Do not run polling and push ingestion concurrently. Old workflow uploads fail closed during maintenance rather than entering a legacy path.
+## Activation order
 
-## Removal checklist
+1. Configure the production GitHub App with callback `/auth/github/callback`, setup return `/api/v2/github/setup-return`, webhook `/api/v2/github/webhook`, expiring user tokens, selected-repository installation, and the minimal permissions in [GitHub App access](../github/app-access.md).
+2. Populate and protect the `production` GitHub Environment.
+3. Publish the reviewed application and scanner/CLI images by immutable digest.
+4. Dispatch `deploy-production` for a full reviewed `main` revision. Confirm configuration validation, backup, migration to the declared schema head, immutable image identity and public health.
+5. Sign in using an ID in `APP_ADMIN_GITHUB_IDS`, install the App for pilot repositories, and verify that repository selection and human visibility match GitHub.
+6. Enable signed webhooks and exercise installation add/remove/suspend reconciliation.
+7. Enable OIDC ingestion and run the standard workflow for a direct default-branch push and a merge-created default-branch push. Confirm feature branches do not upload.
+8. Enable local token creation/local ingest and complete one private local scan from an entitled checkout.
+9. Verify denied repository visibility, callback replay rejection, OIDC replay rejection, source context, audit evidence, queue health and quotas.
 
-- GitHub result poller and scheduler entry removed.
-- Pull/import endpoints and jobs removed.
-- Stored GitHub PAT fields, secrets, and configuration removed.
-- Polling setup controls and copy removed.
-- Polling metrics, alerts, and runbooks removed or renamed.
-- Repository and deployment search finds no callable polling path.
-- Previously stored PATs are revoked after the successful cutover.
-- Legacy identity tables are removed only after the rollback window closes.
+Each feature flag is changed in the protected Environment and deployed through the same validated workflow. A partial or disabled GitHub identity configuration fails closed on hosted deployments.
 
-## Rollback
+## Recovery
 
-The rollback window lasts 24 hours from production enablement. During it, legacy
-PATs and tables remain encrypted and disabled; polling never runs alongside
-push ingestion. A rollback stops all ingress, disables the GitHub App endpoints,
-restores the pre-cutover application and verified database backup, and only then
-reactivates the former system. This is whole-release recovery, not a fallback in
-the new application.
-
-Accepted post-migration payload objects are written under a release-specific
-quarantine prefix. Before rollback, preserve its signed manifest of request IDs,
-object hashes and run keys for controlled replay after the next cutover; never
-merge rows into an older schema ad hoc. Orphan objects remain inaccessible and
-are deleted after the replay/retention decision.
-
-At the end of the successful 24-hour window, take a new backup, revoke and erase
-legacy PATs, remove legacy tables/configuration, and declare the old system
-irreversible. Subsequent incidents use forward recovery; they do not restore
-polling.
+Before each deployment, retain the verified SQLite backup and prior immutable image identity. If migration or startup fails, keep all ingress closed and restore the matching application/database pair. Do not revive polling, PAT endpoints, Google login or manual project grants. Once a new upload has been accepted, prefer forward recovery; restoring an older database would discard accepted evidence and requires an explicit operator decision.
 
 ## Operational controls
 
-- Audit OAuth connect/disconnect, installation changes, token lifecycle, entitlement refresh, accepted/rejected uploads, and administrative actions.
+- Audit GitHub sign-in/logout, installation changes, token lifecycle, entitlement refresh, uploads and role changes.
 - Attach a correlation ID to every upload response and structured log.
-- Alert on sustained authentication failures, replay attempts, quota rejection spikes, ingest latency, queue backlog, and entitlement-refresh failures.
-- Cache GitHub entitlements only within the bounds in [GitHub App access](../github/app-access.md).
-- Cache JWKS only within the bounds in [OIDC ingestion](../github/oidc-ingestion.md).
-- Document key rotation, App suspension, compromised local token, and GitHub outage procedures before production enablement.
-- Alert on default-branch metadata drift, webhook reconciliation drift and
-  release-manifest/signature verification failure.
-
-## Data lifecycle
-
-OIDC replay records, raw upload objects, normalized findings, source contexts, audit events, and revoked-token records use the retention periods defined by their contracts. A scheduled deletion job must be observable, idempotent, and tested against legal-hold exclusions if those are introduced.
+- Alert on authentication/replay failures, quota spikes, ingest latency, queue backlog, entitlement-refresh failures, webhook drift and signature verification failures.
+- Rotate App, webhook, session and encryption secrets through the protected Environment; preserve the active token-encryption key whenever encrypted user authorizations must remain readable.
+- Treat GitHub unavailability as fail-closed for entitlement refresh and new uploads; retained authorized history remains subject to its last valid grant and expiry contract.

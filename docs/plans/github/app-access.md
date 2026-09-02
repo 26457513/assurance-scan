@@ -27,7 +27,7 @@ The public Assurance Scan GitHub App uses:
   `installation_target`;
 - expiring user authorization tokens enabled;
 - request user authorization during install disabled;
-- exact OAuth callback URL: `${PUBLIC_BASE_URL}/api/v2/github/callback`;
+- exact OAuth callback URL: `${PUBLIC_BASE_URL}/auth/github/callback`;
 - exact setup URL: `${PUBLIC_BASE_URL}/api/v2/github/setup-return`;
 - redirect on installation update enabled;
 - wildcard callback matching disabled.
@@ -38,14 +38,20 @@ source or edit repository selection.
 
 ## Separate user and installation flows
 
-**GitHub sign-in/authorization** is an OAuth web flow using a random state plus PKCE S256. It
-links immutable GitHub user ID after explicit confirmation; email/login never
-links accounts. The callback consumes state once and stores encrypted expiring
-user/refresh tokens server-side only.
+**GitHub sign-in/authorization** is the only browser sign-in. It uses an
+independent pre-authentication cookie, random state and PKCE S256, then creates
+or resolves the account solely by immutable GitHub user ID. Email is never an
+identity key and the mutable login is display metadata only. The callback
+consumes both proofs once and stores encrypted expiring user/refresh tokens
+server-side only. The server rotates a user token shortly before expiry using
+the encrypted refresh token, reverifies the immutable GitHub user ID, and fails
+closed without changing stored credentials if refresh or identity verification
+fails.
 
-OAuth and installation state use separate 256-bit random values, stored only as
-server-side hashes, bound to the initiating browser session and consumed once
-within ten minutes. Return paths are a fixed internal allowlist. Browser sessions
+Sign-in and installation state use separate 256-bit random values, stored only
+as server-side hashes. Sign-in binds state to an independent pre-authentication
+cookie; installation binds state to the authenticated browser session. Each is
+consumed once within ten minutes. Return paths are a fixed internal allowlist. Browser sessions
 use rotated opaque server-side IDs with `Secure`, `HttpOnly`, `SameSite=Lax` and
 `Path=/` cookies, a 12-hour idle limit and seven-day absolute limit. Logout,
 disconnect, role change and account disable revoke active sessions. Browser
@@ -120,9 +126,9 @@ storage or logs.
 
 ## Account lifecycle
 
-GitHub authorization is the primary interactive sign-in. Existing authenticated
-accounts enter a one-time explicit linking flow; no email-based automatic merge
-occurs. Collision on immutable GitHub user ID stops for operator resolution.
+GitHub authorization is the only interactive sign-in. There is no legacy
+account-linking flow and no email-based merge. A configured immutable GitHub ID
+receives the protected administrator role on first sign-in.
 
 Disconnect revokes GitHub authorization and every active local scan token,
 expires memberships and hides projects/runs. Reconnecting the same immutable

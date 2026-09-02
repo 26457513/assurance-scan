@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.api.routes import github_app_setup as setup_routes
+from app.api.deps_roles import get_current_user
 from app.infrastructure.db.connection import get_session
 from app.infrastructure.db.models import Base, GithubAccount, Project, User
 from app.infrastructure.github_app_api import (
@@ -39,7 +40,6 @@ from app.infrastructure.github_app_api import (
     fetch_github_app_installation_states,
     load_github_app_private_key,
 )
-from app.modules.atomic.access.browser_auth import mint_session
 from app.modules.atomic.access.github_membership_projection import GithubProjectPermission
 from app.modules.atomic.access.github_repository_reconciliation import (
     GithubAccountType,
@@ -510,13 +510,19 @@ async def test_setup_return_is_state_bound_user_proven_and_reconciled(tmp_path, 
                 login_at_last_verify="octocat",
                 encrypted_user_token=encrypt("user-token", settings.token_encryption_key),
                 credential_key_id="primary",
-                token_expires_at=NOW + dt.timedelta(hours=1),
+                token_expires_at=dt.datetime(2099, 1, 1, tzinfo=dt.timezone.utc),
                 linked_at=NOW,
                 verified_at=NOW,
                 created_at=NOW,
             )
         )
         await database_session.commit()
+
+    async def user_override():
+        async with sessions() as database_session:
+            return await database_session.get(User, user.id)
+
+    app.dependency_overrides[get_current_user] = user_override
 
     expected = GithubInstallationSnapshot(
         github_installation_id=9001,
@@ -548,12 +554,6 @@ async def test_setup_return_is_state_bound_user_proven_and_reconciled(tmp_path, 
     refresh = AsyncMock(return_value=True)
     monkeypatch.setattr(setup_routes, "sync_github_app_memberships", refresh)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://scan.example.test") as client:
-        client.cookies.set(
-            "as_session",
-            mint_session("owner@example.test", settings.session_secret),
-            domain="scan.example.test",
-            path="/",
-        )
         started = await client.get("/api/v2/github/install/start")
         assert started.status_code == 302
         parsed = urllib.parse.urlsplit(started.headers["location"])

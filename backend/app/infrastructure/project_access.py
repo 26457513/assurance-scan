@@ -2,31 +2,28 @@
 
 from __future__ import annotations
 
-import asyncio
 import datetime as dt
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from sqlalchemy import delete, exists, or_, select, true
+from sqlalchemy import exists, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.github_poller import GitHubClient
 from app.infrastructure.db.models import (
-    GithubAccount,
     Project,
     ProjectMembership,
     Run,
     User,
 )
-from app.infrastructure.db.repositories.github_account_links import (
+from app.infrastructure.db.repositories.github_memberships import (
     SqlAlchemyGithubMembershipProjectionRepository,
 )
 from app.infrastructure.github_app_api import GithubAppUserEntitlementClient
+from app.infrastructure.github_user_credentials import usable_github_access_token
 from app.modules.workflows.github_app_access import refresh_github_app_memberships
 from app.modules.atomic.access.project_membership import allowed_permissions
 from app.modules.atomic.access.project_membership.service import ProjectPermission
-from app.secrets import decrypt
 
 
 ACCESS_TTL = dt.timedelta(minutes=5)
@@ -50,89 +47,6 @@ CURRENT_PROJECT_ACCESS: ContextVar[ProjectAccessPrincipal] = ContextVar(
 )
 
 
-def _github_permission(repository: dict) -> str | None:
-    permissions = repository.get("permissions") or {}
-    if permissions.get("admin") or permissions.get("maintain"):
-        return "manage"
-    if permissions.get("push"):
-        return "upload"
-    if permissions.get("pull") or permissions.get("triage"):
-        return "view"
-    return None
-
-
-async def sync_github_memberships(
-    session: AsyncSession,
-    user: User,
-    settings: Settings,
-    *,
-    force: bool = False,
-) -> bool:
-    """Replace one user's GitHub-derived grants from an authoritative repo listing."""
-    now = dt.datetime.now(dt.timezone.utc)
-    synced_at = user.github_access_synced_at
-    if synced_at is not None and synced_at.tzinfo is None:
-        synced_at = synced_at.replace(tzinfo=dt.timezone.utc)
-    if not force and synced_at is not None and now - synced_at < ACCESS_TTL:
-        return True
-
-    account = (
-        await session.execute(select(GithubAccount).where(GithubAccount.email == user.email))
-    ).scalar_one_or_none()
-    if account is None:
-        await session.execute(
-            delete(ProjectMembership).where(
-                ProjectMembership.user_id == user.id,
-                ProjectMembership.source == "github",
-            )
-        )
-        user.github_access_synced_at = now
-        await session.commit()
-        return True
-    if not settings.token_encryption_key:
-        return False
-    token = (
-        decrypt(account.token_encrypted, settings.token_encryption_key) if account.token_encrypted is not None else None
-    )
-    if not token:
-        return False
-    try:
-        repositories = await asyncio.to_thread(GitHubClient(token).user_repositories)
-    except Exception:
-        await session.rollback()
-        return False
-
-    grants = {
-        str(repository.get("full_name") or "").casefold(): _github_permission(repository) for repository in repositories
-    }
-    projects = (
-        (await session.execute(select(Project).where(Project.hidden.is_(False), Project.github_repo_key.is_not(None))))
-        .scalars()
-        .all()
-    )
-    await session.execute(
-        delete(ProjectMembership).where(
-            ProjectMembership.user_id == user.id,
-            ProjectMembership.source == "github",
-        )
-    )
-    for project in projects:
-        permission = grants.get(project.github_repo_key or "")
-        if permission is not None:
-            session.add(
-                ProjectMembership(
-                    user_id=user.id,
-                    project_id=project.id,
-                    permission=permission,
-                    source="github",
-                    verified_at=now,
-                )
-            )
-    user.github_access_synced_at = now
-    await session.commit()
-    return True
-
-
 async def sync_github_app_memberships(
     session: AsyncSession,
     user: User,
@@ -143,13 +57,22 @@ async def sync_github_app_memberships(
     """Refresh installation-scoped GitHub App grants for one linked user."""
     if not settings.github_app_access_enabled:
         return False
+    now = dt.datetime.now(dt.timezone.utc)
+    user_id = user.id
+    if await usable_github_access_token(
+        session,
+        user_id=user_id,
+        settings=settings,
+        now=now,
+    ) is None:
+        return False
     repository = SqlAlchemyGithubMembershipProjectionRepository(
         session,
         encryption_key=settings.token_encryption_key,
     )
     return await refresh_github_app_memberships(
-        user_id=user.id,
-        now=dt.datetime.now(dt.timezone.utc),
+        user_id=user_id,
+        now=now,
         repository=repository,
         github=GithubAppUserEntitlementClient(),
         force=force,
@@ -163,17 +86,12 @@ def project_access_clause(
     if principal.sees_all_projects:
         return Project.hidden.is_(False)
     now = dt.datetime.now(dt.timezone.utc)
-    cutoff = now - ACCESS_TTL
     membership = ProjectMembership
     return Project.hidden.is_(False) & exists().where(
         membership.project_id == Project.id,
         membership.user_id == principal.user_id,
         membership.permission.in_(allowed_permissions(required)),
-        or_(
-            (membership.source == "manual") & ((membership.expires_at.is_(None)) | (membership.expires_at > now)),
-            (membership.source == "github") & (membership.verified_at >= cutoff),
-            (membership.source == "github_app") & (membership.expires_at > now),
-        ),
+        (membership.source == "github_app") & (membership.expires_at > now),
     )
 
 
@@ -252,7 +170,6 @@ __all__ = [
     "run_access_clause",
     "shared_github_run_clause",
     "run_visibility_clause",
-    "sync_github_memberships",
     "sync_github_app_memberships",
     "visible_project_ids",
 ]

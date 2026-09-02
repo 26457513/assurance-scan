@@ -73,8 +73,9 @@ async def _seed_identity(session) -> None:
             user_id=7,
             project_id=42,
             permission="upload",
-            source="manual",
+            source="github_app",
             verified_at=now,
+            expires_at=now + timedelta(minutes=5),
         )
     )
     session.add(

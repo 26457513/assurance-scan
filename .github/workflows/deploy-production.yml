@@ -34,6 +34,7 @@ env:
 jobs:
   prepare-backup:
     if: inputs.operation == 'deploy'
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -63,6 +64,94 @@ jobs:
           printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_ed25519"
           chmod 600 "$HOME/.ssh/id_ed25519"
           ssh-keyscan -H 165.232.106.224 >> "$HOME/.ssh/known_hosts"
+      - name: Validate and stage protected production configuration
+        env:
+          APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
+          APP_ID: ${{ vars.APP_ID }}
+          APP_SLUG: ${{ vars.APP_SLUG }}
+          APP_PUBLIC_BASE_URL: ${{ vars.APP_PUBLIC_BASE_URL }}
+          APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+          APP_ADMIN_GITHUB_IDS: ${{ vars.APP_ADMIN_GITHUB_IDS }}
+          APP_ACCESS_ENABLED: ${{ vars.APP_ACCESS_ENABLED }}
+          APP_WEBHOOK_ENABLED: ${{ vars.APP_WEBHOOK_ENABLED }}
+          APP_OIDC_INGEST_ENABLED: ${{ vars.APP_OIDC_INGEST_ENABLED }}
+          APP_LOCAL_INGEST_ENABLED: ${{ vars.APP_LOCAL_INGEST_ENABLED }}
+          APP_SCAN_TOKEN_CREATION_ENABLED: ${{ vars.APP_SCAN_TOKEN_CREATION_ENABLED }}
+          APP_LOG_LEVEL: ${{ vars.APP_LOG_LEVEL }}
+          APP_PARALLELISM: ${{ vars.APP_PARALLELISM }}
+          APP_CLIENT_SECRET: ${{ secrets.APP_CLIENT_SECRET }}
+          APP_PRIVATE_KEY_B64: ${{ secrets.APP_PRIVATE_KEY_B64 }}
+          APP_SESSION_SECRET: ${{ secrets.APP_SESSION_SECRET }}
+          APP_TOKEN_ENCRYPTION_KEY: ${{ secrets.APP_TOKEN_ENCRYPTION_KEY }}
+          APP_WEBHOOK_SECRET: ${{ secrets.APP_WEBHOOK_SECRET }}
+          APP_MCP_TOKEN: ${{ secrets.APP_MCP_TOKEN }}
+          ROLLOUT_ID: ${{ github.run_id }}
+        run: |
+          set -Eeuo pipefail
+          set +x
+          umask 077
+          test "$APP_ACCESS_ENABLED" = true
+          test "$APP_PUBLIC_BASE_URL" = https://scan.squease.ai
+          test "$APP_DOMAIN" = scan.squease.ai
+          test -n "$APP_CLIENT_ID"
+          test -n "$APP_ID"
+          test -n "$APP_SLUG"
+          test -n "$APP_ADMIN_GITHUB_IDS"
+          test -n "$APP_CLIENT_SECRET"
+          test -n "$APP_PRIVATE_KEY_B64"
+          test -n "$APP_SESSION_SECRET"
+          test -n "$APP_TOKEN_ENCRYPTION_KEY"
+          test -n "$APP_WEBHOOK_SECRET"
+          case "$APP_ADMIN_GITHUB_IDS" in *[!0-9,]*|','*|*','|'') exit 2 ;; esac
+          for flag in "$APP_WEBHOOK_ENABLED" "$APP_OIDC_INGEST_ENABLED" \
+            "$APP_LOCAL_INGEST_ENABLED" "$APP_SCAN_TOKEN_CREATION_ENABLED"; do
+            case "$flag" in true|false) ;; *) exit 2 ;; esac
+          done
+          runtime="$RUNNER_TEMP/assurance-scan-runtime"
+          install -d -m 700 "$runtime/secrets"
+          printf '%s' "$APP_PRIVATE_KEY_B64" | base64 --decode > "$runtime/secrets/github-app.pem"
+          chmod 600 "$runtime/secrets/github-app.pem"
+          openssl pkey -in "$runtime/secrets/github-app.pem" -check -noout >/dev/null
+          {
+            printf 'PUBLIC_BASE_URL=%s\n' "$APP_PUBLIC_BASE_URL"
+            printf 'DOMAIN=%s\n' "$APP_DOMAIN"
+            printf 'SESSION_SECRET=%s\n' "$APP_SESSION_SECRET"
+            printf 'TOKEN_ENCRYPTION_KEY=%s\n' "$APP_TOKEN_ENCRYPTION_KEY"
+            printf 'GITHUB_APP_ACCESS_ENABLED=%s\n' "$APP_ACCESS_ENABLED"
+            printf 'GITHUB_APP_CLIENT_ID=%s\n' "$APP_CLIENT_ID"
+            printf 'GITHUB_APP_CLIENT_SECRET=%s\n' "$APP_CLIENT_SECRET"
+            printf 'GITHUB_APP_ID=%s\n' "$APP_ID"
+            printf 'GITHUB_APP_SLUG=%s\n' "$APP_SLUG"
+            printf 'GITHUB_APP_PRIVATE_KEY_PATH=/run/secrets/assurance-scan/github-app.pem\n'
+            printf 'GITHUB_ADMIN_USER_IDS=%s\n' "$APP_ADMIN_GITHUB_IDS"
+            printf 'GITHUB_WEBHOOK_ENABLED=%s\n' "$APP_WEBHOOK_ENABLED"
+            printf 'GITHUB_WEBHOOK_SECRET=%s\n' "$APP_WEBHOOK_SECRET"
+            printf 'GITHUB_OIDC_INGEST_ENABLED=%s\n' "$APP_OIDC_INGEST_ENABLED"
+            printf 'LOCAL_INGEST_ENABLED=%s\n' "$APP_LOCAL_INGEST_ENABLED"
+            printf 'SCAN_TOKEN_CREATION_ENABLED=%s\n' "$APP_SCAN_TOKEN_CREATION_ENABLED"
+            printf 'ASSURANCE_SCAN_LOG_LEVEL=%s\n' "${APP_LOG_LEVEL:-INFO}"
+            printf 'ASSURANCE_SCAN_PARALLELISM=%s\n' "${APP_PARALLELISM:-4}"
+            printf 'MCP_TOKEN=%s\n' "$APP_MCP_TOKEN"
+          } > "$runtime/app.env"
+          chmod 600 "$runtime/app.env"
+          ssh "$DEPLOY_HOST" "install -d -m 700 /root/assurance-scan-runtime/incoming-$ROLLOUT_ID"
+          scp "$runtime/app.env" "$DEPLOY_HOST:/root/assurance-scan-runtime/incoming-$ROLLOUT_ID/app.env"
+          scp -r "$runtime/secrets" "$DEPLOY_HOST:/root/assurance-scan-runtime/incoming-$ROLLOUT_ID/"
+          ssh "$DEPLOY_HOST" bash -s -- "$ROLLOUT_ID" <<'REMOTE'
+          set -Eeuo pipefail
+          set +x
+          umask 077
+          rollout_id="$1"
+          root=/root/assurance-scan-runtime
+          incoming="$root/incoming-$rollout_id"
+          release="$root/release-$rollout_id"
+          test -f "$incoming/app.env"
+          test -f "$incoming/secrets/github-app.pem"
+          test "$(stat -c '%a' "$incoming/app.env")" = 600
+          test "$(stat -c '%a' "$incoming/secrets/github-app.pem")" = 600
+          test ! -e "$release"
+          mv "$incoming" "$release"
+          REMOTE
       - name: Stop writers, preflight, and create verified backup
         env:
           REVISION: ${{ steps.release.outputs.revision }}
@@ -84,6 +173,7 @@ jobs:
           esac
 
           repository=/root/assurance-scan
+          runtime="/root/assurance-scan-runtime/release-$rollout_id"
           candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
           evidence_dir="/root/assurance-scan-backups/cutover-$revision-$rollout_id"
           cutover_tool=/opt/assurance-scan/backend/scripts/local-cutover.py
@@ -93,7 +183,14 @@ jobs:
             status=$?
             if [ "$status" -ne 0 ] && [ "$server_stopped" -eq 1 ]; then
               cd "$repository"
-              docker compose up -d --no-deps --pull never --no-build server || true
+              if test -r /root/assurance-scan-runtime/current/app.env; then
+                ASSURANCE_SCAN_ENV_FILE=/root/assurance-scan-runtime/current/app.env \
+                  ASSURANCE_SCAN_SECRETS_DIR=/root/assurance-scan-runtime/current/secrets \
+                  DOMAIN=scan.squease.ai \
+                  docker compose up -d --no-deps --pull never --no-build server || true
+              else
+                docker compose up -d --no-deps --pull never --no-build server || true
+              fi
             fi
             exit "$status"
           }
@@ -105,10 +202,8 @@ jobs:
           git merge-base --is-ancestor "$revision" origin/main
           git checkout --quiet main
           git merge --ff-only "$revision"
-          if grep -Eq '^[[:space:]]*LOCAL_INGEST_ENABLED[[:space:]]*=[[:space:]]*(1|true|yes|on)[[:space:]]*$' .env; then
-            printf 'LOCAL_INGEST_ENABLED must remain false for the initial cutover\n' >&2
-            exit 1
-          fi
+          test -r "$runtime/app.env"
+          test -r "$runtime/secrets/github-app.pem"
 
           docker pull --quiet "$candidate_ref" >/dev/null
           test "$(docker image inspect "$candidate_ref" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
@@ -119,9 +214,13 @@ jobs:
           test ! -e "$evidence_dir"
           install -d -m 700 "$evidence_dir"
 
-          docker compose stop server
+          ASSURANCE_SCAN_ENV_FILE="$runtime/app.env" \
+            ASSURANCE_SCAN_SECRETS_DIR="$runtime/secrets" DOMAIN=scan.squease.ai \
+            docker compose stop server
           server_stopped=1
-          test -z "$(docker compose ps --status running -q server)"
+          test -z "$(ASSURANCE_SCAN_ENV_FILE="$runtime/app.env" \
+            ASSURANCE_SCAN_SECRETS_DIR="$runtime/secrets" DOMAIN=scan.squease.ai \
+            docker compose ps --status running -q server)"
 
           docker run --rm \
             -v "$data_volume:/data" \
@@ -179,11 +278,21 @@ jobs:
         run: find "$RUNNER_TEMP/production-backup" -type f -delete 2>/dev/null || true
       - name: Restart previous service when preparation or off-host backup fails
         if: failure()
-        run: ssh "$DEPLOY_HOST" 'cd /root/assurance-scan && docker compose up -d --no-deps --pull never --no-build server'
+        run: |
+          ssh "$DEPLOY_HOST" 'cd /root/assurance-scan &&
+            if test -r /root/assurance-scan-runtime/current/app.env; then
+              ASSURANCE_SCAN_ENV_FILE=/root/assurance-scan-runtime/current/app.env \
+              ASSURANCE_SCAN_SECRETS_DIR=/root/assurance-scan-runtime/current/secrets \
+              DOMAIN=scan.squease.ai \
+              docker compose up -d --no-deps --pull never --no-build server;
+            else
+              docker compose up -d --no-deps --pull never --no-build server;
+            fi'
 
   deploy:
     if: inputs.operation == 'deploy'
     needs: prepare-backup
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -207,12 +316,15 @@ jobs:
           revision="$1"
           rollout_id="$2"
           repository=/root/assurance-scan
+          runtime="/root/assurance-scan-runtime/release-$rollout_id"
           candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
           evidence_dir="/root/assurance-scan-backups/cutover-$revision-$rollout_id"
 
           cd "$repository"
           test "$(git rev-parse HEAD)" = "$revision"
-          test -z "$(docker compose ps --status running -q server)"
+          test -z "$(ASSURANCE_SCAN_ENV_FILE="$runtime/app.env" \
+            ASSURANCE_SCAN_SECRETS_DIR="$runtime/secrets" DOMAIN=scan.squease.ai \
+            docker compose ps --status running -q server)"
           test -r "$evidence_dir/db.sqlite.pre-cutover"
           test -r "$evidence_dir/db.sqlite.pre-cutover.json"
           data_volume="$(docker inspect assurance-scan-server-1 --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
@@ -220,7 +332,7 @@ jobs:
           docker volume inspect "$data_volume" >/dev/null
 
           docker run --rm \
-            --env-file .env \
+            --env-file "$runtime/app.env" \
             -e ASSURANCE_SCAN_DB_PATH=/data/db.sqlite \
             -v "$data_volume:/data" \
             -w /opt/assurance-scan/backend \
@@ -228,7 +340,11 @@ jobs:
             -c /opt/assurance-scan/backend/alembic.ini upgrade head
 
           docker image tag "$candidate_ref" ghcr.io/26457513/assurance-scan-app:latest
-          docker compose up -d --no-deps --pull never --no-build server
+          ln -sfn "$runtime" /root/assurance-scan-runtime/current.next
+          mv -Tf /root/assurance-scan-runtime/current.next /root/assurance-scan-runtime/current
+          ASSURANCE_SCAN_ENV_FILE="$runtime/app.env" \
+            ASSURANCE_SCAN_SECRETS_DIR="$runtime/secrets" DOMAIN=scan.squease.ai \
+            docker compose up -d --no-deps --pull never --no-build server
 
           healthy=0
           for _attempt in $(seq 1 30); do
@@ -243,17 +359,23 @@ jobs:
           test "$(docker inspect assurance-scan-server-1 --format '{{.Image}}')" = \
             "$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
           docker exec assurance-scan-server-1 \
-            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0024_project_memberships",), row'
+            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0037_github_signin",), row'
           # Re-resolve the recreated server container's Docker-network address.
           # Caddy can retain the previous address and otherwise return 502 even
           # though the replacement application is healthy on the host port.
-          docker compose restart caddy
+          ASSURANCE_SCAN_ENV_FILE="$runtime/app.env" \
+            ASSURANCE_SCAN_SECRETS_DIR="$runtime/secrets" DOMAIN=scan.squease.ai \
+            docker compose restart caddy
           REMOTE
+      - name: Remove runner configuration copy
+        if: always()
+        run: find "$RUNNER_TEMP/assurance-scan-runtime" -type f -delete 2>/dev/null || true
       - name: Verify the public health endpoint
         run: curl --fail --silent --show-error --retry 5 --retry-delay 2 https://scan.squease.ai/health
 
   verify:
     if: inputs.operation == 'verify'
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -313,7 +435,7 @@ jobs:
             exit 1
           fi
           test "$running_image_id" = "$candidate_image_id"
-          test "$schema_revision" = 0024_project_memberships
+          test "$schema_revision" = 0037_github_signin
           curl --fail --silent --show-error http://127.0.0.1:8742/health >/dev/null
           sleep 10
           final_restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"

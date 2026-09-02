@@ -85,7 +85,11 @@ afterEach(() => {
 
 describe('Setup state presentation', () => {
   it.each<[string, SetupState, string]>([
-    ['signed_out', { kind: 'signed_out', sign_in_url: '/login' }, 'Sign in with GitHub'],
+    [
+      'signed_out',
+      { kind: 'signed_out', sign_in_url: '/auth/login?next=/setup' },
+      'Sign in with GitHub',
+    ],
     [
       'github_connected',
       { kind: 'github_connected', identity, install_url: 'https://github.com/apps/assurance-scan/installations/new' },
@@ -280,7 +284,7 @@ describe('Repository picker and narrow layout structure', () => {
           JSON.stringify({
             version: 2,
             selection: { status: 'none', requested_repository_id: null },
-            state: { kind: 'signed_out', sign_in_url: '/login' },
+            state: { kind: 'signed_out', sign_in_url: '/auth/login?next=/setup' },
             installations: [],
             installations_next_cursor: null,
             machine_tokens: [],

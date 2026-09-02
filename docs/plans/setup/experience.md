@@ -29,7 +29,7 @@ GitHub Actions remains the primary team workflow. Local scanning is a private de
 
 GitHub authentication and GitHub App installation are separate actions:
 
-- **Sign in with GitHub** occurs at `/login` using OAuth with PKCE; Setup shows
+- **Sign in with GitHub** occurs at `/auth/login` using OAuth with PKCE; Setup shows
   the connected identity and offers reconnect only when authorization expires.
 - **Install GitHub App** opens GitHub's installation page.
 - **Manage repository access** opens the installation settings on GitHub; they are not embedded in an iframe.

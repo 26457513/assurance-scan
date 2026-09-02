@@ -71,8 +71,9 @@ async def harness() -> RouteHarness:
     app = FastAPI()
     app.state.settings = SimpleNamespace(
         local_ingest_enabled=True,
-        google_client_id="client",
-        google_client_secret="secret",
+        github_app_client_id="client",
+        github_app_client_secret="secret",
+        token_encryption_key="encryption-key",
         session_secret="session-secret-at-least-32-bytes-long",
         public_base_url="https://scan.example.test",
         local_ingest_repository_allowlist=frozenset(),
@@ -173,10 +174,10 @@ async def test_feature_disabled_fails_closed_before_workflow(harness: RouteHarne
     assert harness.workflow.commands == []
 
 
-async def test_feature_fails_closed_without_account_bound_google_identity(
+async def test_feature_fails_closed_without_account_bound_github_identity(
     harness: RouteHarness,
 ) -> None:
-    harness.app.state.settings.google_client_id = ""
+    harness.app.state.settings.github_app_client_id = ""
     response = await _upload(harness.client)
     _assert_problem(response, status=503, code="local_ingest_disabled")
     assert harness.workflow.commands == []
@@ -476,11 +477,11 @@ async def test_outer_auth_middleware_allows_ingest_dependency_to_decide() -> Non
 
     settings = replace(
         load_settings(),
-        app_auth_user="outer-user",
-        app_auth_password="outer-password",
+        github_app_access_enabled=True,
         local_ingest_enabled=True,
-        google_client_id="client",
-        google_client_secret="secret",
+        github_app_client_id="client",
+        github_app_client_secret="secret",
+        token_encryption_key="encryption-key",
         session_secret="session-secret-at-least-32-bytes-long",
         public_base_url="https://scan.example.test",
     )

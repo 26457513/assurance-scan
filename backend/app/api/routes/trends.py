@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections import Counter, defaultdict
 from typing import Any
 
@@ -132,72 +131,3 @@ def _compute_delta(entries: list[dict[str, Any]]) -> dict[str, Any] | None:
         "total_delta": latest["total_findings"] - prev["total_findings"],
         "by_severity": severity_delta,
     }
-
-
-@router.get("/trends/commits")
-async def trend_commits(
-    principal: ProjectAccessDep,
-    project_id: int = Query(..., gt=0),
-    branch: str = Query(default=""),
-    session: AsyncSession = SessionDep,
-) -> dict[str, Any]:
-    """Commits per day for the project's repo (default: last 30 days),
-    for the activity strip under the trends chart."""
-    import datetime as dt
-
-    from app.infrastructure.db.models import Organisation
-    from app.github_poller import GitHubClient
-    from app.secrets import decrypt
-
-    reg = await require_project(session, principal, project_id)
-    if reg is None:
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=404, detail="project not found")
-    repo = reg.github_repo or ""
-    if not repo:
-        return {"repo": "", "days": []}
-
-    from app.config import load_settings
-
-    settings = load_settings()
-    tokens: dict[str, str] = {}
-    if settings.github_poll_token and settings.github_org:
-        tokens[settings.github_org.lower()] = settings.github_poll_token
-    if settings.token_encryption_key:
-        for row in (await session.execute(select(Organisation))).scalars().all():
-            tok = decrypt(row.token_encrypted, settings.token_encryption_key)
-            if tok:
-                tokens[row.name.lower()] = tok
-    owner = repo.split("/")[0].lower()
-    token = tokens.get(owner)
-    if not token:
-        return {"repo": repo, "days": [], "error": "no token for this org"}
-
-    ref = branch or (reg.default_scan_ref if reg is not None else "") or ""
-    if not ref:
-        try:
-            ref = await asyncio.to_thread(GitHubClient(token).repo_default_branch, repo)
-        except Exception:
-            ref = "main"
-    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    try:
-        commits = await asyncio.to_thread(
-            GitHubClient(token)._get,
-            f"https://api.github.com/repos/{repo}/commits?sha={ref}&since={since}&per_page=100",
-        )
-    except Exception:
-        return {"repo": repo, "days": [], "error": "commit history unavailable"}
-
-    by_day: dict[str, int] = {}
-    for c in commits:
-        d = (c.get("commit", {}).get("author", {}).get("date") or "")[:10]
-        if d:
-            by_day[d] = by_day.get(d, 0) + 1
-    days: list[dict[str, Any]] = [
-        {"date": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=i)).strftime("%Y-%m-%d")}
-        for i in range(29, -1, -1)
-    ]
-    for d in days:
-        d["count"] = by_day.get(d["date"], 0)
-    return {"repo": repo, "branch": ref, "days": days}

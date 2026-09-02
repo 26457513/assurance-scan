@@ -14,11 +14,12 @@ import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import (
+    accounts,
     catalogue_drift,
     cli_releases,
     ci_setup,
@@ -28,16 +29,13 @@ from app.api.routes import (
     folders,
     frs,
     frs_list,
-    gh_tokens,
-    github,
-    github_account_link,
+    github_auth,
     github_app_setup,
     github_app_webhook,
     github_actions_ingest,
     health,
     local_ingest,
     notion,
-    poller,
     projects,
     scan_tokens,
     scans,
@@ -166,20 +164,6 @@ async def _lifespan(app: FastAPI):
             )
         )
 
-    poller_task = None
-    if settings.github_poll_token and (settings.poll_repos or settings.github_org):
-        from app.infrastructure.db.connection import get_sessionmaker
-        from app.github_poller import poller_loop
-
-        poller_task = asyncio.create_task(
-            poller_loop(
-                get_sessionmaker(settings),
-                settings.github_poll_token,
-                settings.github_org,
-                settings.poll_interval_seconds,
-            )
-        )
-
     # The MCP server's session manager needs lifespan initialization.
     mcp_server = app.state.mcp_server
     async with mcp_server.session_manager.run():
@@ -194,10 +178,6 @@ async def _lifespan(app: FastAPI):
                 github_webhook_worker_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await github_webhook_worker_task
-            if poller_task is not None:
-                poller_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await poller_task
             retention_task.cancel()
             with suppress(asyncio.CancelledError):
                 await retention_task
@@ -218,27 +198,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.scan_token_failure_limiter = AuthenticationFailureLimiter()
 
-    google_on = bool(
-        settings.google_client_id
-        and settings.google_client_secret
-        and settings.session_secret
-        and settings.public_base_url
-    )
+    hosted_mode = bool(settings.public_base_url)
 
-    if google_on or (settings.app_auth_user and settings.app_auth_password):
-        import asyncio
+    if hosted_mode:
         import urllib.parse as _urlparse
 
         from fastapi.responses import JSONResponse, RedirectResponse
-
-        from app.modules.atomic.access.browser_auth import (
-            GOOGLE_AUTH_URL,
-            allowed_google_account,
-            basic_auth_ok,
-            exchange_google_code,
-            mint_session,
-            verify_session,
-        )
 
         async def _mcp_user_principal(header: str):
             """A per-user MCP token (Setup → My account) matches by hash."""
@@ -251,7 +216,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from app.infrastructure.project_access import (
                 ProjectAccessPrincipal,
                 sync_github_app_memberships,
-                sync_github_memberships,
             )
 
             h = hashlib.sha256(header[7:].encode()).hexdigest()
@@ -273,12 +237,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
                 if row is None:
                     return None
-                if row.role not in {"admin", "superuser"}:
-                    if settings.github_app_access_enabled:
-                        await sync_github_app_memberships(session, row, settings)
-                    else:
-                        await sync_github_memberships(session, row, settings)
+                await sync_github_app_memberships(session, row, settings)
                 return ProjectAccessPrincipal(user_id=row.id, role=row.role)
+
+        async def _browser_user_id(cookie: str) -> int | None:
+            from app.infrastructure.db.connection import get_sessionmaker
+            from app.infrastructure.db.repositories.identity_sessions import (
+                SqlAlchemyBrowserSessionRepository,
+            )
+            from app.modules.atomic.access.server_session import (
+                authenticate_browser_session,
+                refreshed_idle_expiry,
+            )
+
+            now = dt.datetime.now(dt.timezone.utc)
+            async with get_sessionmaker(settings)() as session:
+                repository = SqlAlchemyBrowserSessionRepository(session)
+                record = await repository.find_by_cookie(cookie)
+                result = authenticate_browser_session(cookie, record, now=now)
+                if not result.authenticated or record is None:
+                    return None
+                await repository.touch(
+                    record.session_id,
+                    now=now,
+                    idle_expires_at=refreshed_idle_expiry(record, now=now),
+                )
+                return result.user_id
 
         @app.middleware("http")
         async def _auth(request, call_next):
@@ -326,86 +310,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     {"detail": "unauthorized: MCP requires a bearer token — generate one in Setup → My account"},
                     status_code=401,
                 )
-            if google_on and verify_session(request.cookies.get("as_session"), settings.session_secret):
+            user_id = await _browser_user_id(request.cookies.get("as_session", ""))
+            if user_id is not None:
+                request.state.authenticated_user_id = user_id
                 return await call_next(request)
-            if settings.app_auth_user and basic_auth_ok(
-                request.headers.get("authorization"),
-                settings.app_auth_user,
-                settings.app_auth_password,
-            ):
-                return await call_next(request)
-            if google_on and not path.startswith("/api/"):
+            if not path.startswith("/api/"):
                 # Browsers get the login redirect; API clients get JSON 401s.
                 nxt = _urlparse.quote(path)
                 return RedirectResponse(f"/auth/login?next={nxt}")
             return JSONResponse(
                 {"detail": "unauthorized"},
                 status_code=401,
-                headers={"WWW-Authenticate": 'Basic realm="assurance-scan"'},
             )
-
-        @app.get("/auth/login")
-        async def auth_login(next: str = "/"):
-            params = _urlparse.urlencode(
-                {
-                    "client_id": settings.google_client_id,
-                    "redirect_uri": f"{settings.public_base_url}/auth/callback",
-                    "response_type": "code",
-                    "scope": "openid email",
-                    "access_type": "online",
-                    "prompt": "select_account",
-                }
-            )
-            resp = RedirectResponse(f"{GOOGLE_AUTH_URL}?{params}")
-            resp.set_cookie("as_next", next, max_age=600, httponly=True, samesite="lax")
-            return resp
-
-        @app.get("/auth/callback")
-        async def auth_callback(request: Request, code: str = "", error: str = "", error_description: str = ""):
-            if error:
-                return JSONResponse(
-                    {"detail": f"google auth error: {error}", "description": error_description},
-                    status_code=401,
-                )
-            if not code:
-                return JSONResponse({"detail": "missing code"}, status_code=400)
-            try:
-                payload = await asyncio.to_thread(
-                    exchange_google_code,
-                    code,
-                    settings.google_client_id,
-                    settings.google_client_secret,
-                    f"{settings.public_base_url}/auth/callback",
-                )
-            except Exception:
-                return JSONResponse({"detail": "google exchange failed"}, status_code=502)
-            if not allowed_google_account(payload, settings.google_domain):
-                return JSONResponse(
-                    {"detail": f"account not in @{settings.google_domain}"},
-                    status_code=403,
-                )
-            nxt = request.cookies.get("as_next") or "/"
-            if not nxt.startswith("/"):  # internal paths only
-                nxt = "/"
-            resp = RedirectResponse(nxt, status_code=302)
-            resp.set_cookie(
-                "as_session",
-                mint_session(payload["email"], settings.session_secret),
-                max_age=30 * 24 * 3600,
-                httponly=True,
-                # Secure cookies are dropped by browsers (Safari notably) on
-                # plain http — set only when the instance is actually https.
-                secure=settings.public_base_url.startswith("https://"),
-                samesite="lax",
-            )
-            resp.delete_cookie("as_next")
-            return resp
-
-        @app.get("/auth/logout")
-        async def auth_logout():
-            resp = RedirectResponse("/")
-            resp.delete_cookie("as_session")
-            return resp
 
     app.include_router(health.router)
     app.include_router(scans.router, prefix="/api")
@@ -421,13 +337,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ci_setup.router, prefix="/api")
     app.include_router(cli_releases.router, prefix="/api")
     app.include_router(projects.router, prefix="/api")
-    app.include_router(poller.router, prefix="/api")
-    app.include_router(github.router, prefix="/api")
-    app.include_router(github_account_link.router, prefix="/api")
+    app.include_router(github_auth.router)
     app.include_router(github_app_setup.router, prefix="/api")
     app.include_router(github_app_webhook.router, prefix="/api")
     app.include_router(github_actions_ingest.router, prefix="/api")
-    app.include_router(gh_tokens.router, prefix="/api")
+    app.include_router(accounts.router, prefix="/api")
     app.include_router(scan_tokens.router, prefix="/api")
     app.include_router(setup.router, prefix="/api")
     app.include_router(local_ingest.router, prefix="/api")

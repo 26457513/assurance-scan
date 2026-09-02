@@ -6,7 +6,6 @@ import datetime as dt
 
 import pytest
 from fastapi import FastAPI, HTTPException
-from sqlalchemy import select
 
 from app.api.routes.projects import list_projects
 from app.api.routes.scans import get_scan, list_scans
@@ -23,13 +22,11 @@ from app.infrastructure.db.models import (
     User,
 )
 from app.infrastructure.project_access import (
-    ACCESS_TTL,
     ProjectAccessPrincipal,
     CURRENT_PROJECT_ACCESS,
     require_project,
     require_run,
     sync_github_app_memberships,
-    sync_github_memberships,
 )
 from app.modules.atomic.access.github_membership_projection import (
     GithubProjectPermission,
@@ -50,8 +47,9 @@ async def _seed(session):
             user_id=user.id,
             project_id=first.id,
             permission="view",
-            source="manual",
+            source="github_app",
             verified_at=dt.datetime.now(dt.timezone.utc),
+            expires_at=dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5),
         )
     )
     session.add_all(
@@ -117,8 +115,9 @@ async def test_local_runs_and_project_statistics_are_private_to_submitter(
             user_id=viewer.id,
             project_id=project.id,
             permission="view",
-            source="manual",
+            source="github_app",
             verified_at=dt.datetime.now(dt.timezone.utc),
+            expires_at=dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5),
         )
     )
     owner_token = ApiToken(
@@ -252,84 +251,6 @@ def test_run_visibility_policy_reserves_bypass_for_internal_system() -> None:
     assert can_view_run(RunVisibilityContext(7, "github-actions", None))
     assert can_view_run(RunVisibilityContext(7, "local", 7))
     assert not can_view_run(RunVisibilityContext(7, "local", 8))
-
-
-async def test_expired_github_grant_fails_closed_while_manual_grant_remains(session) -> None:
-    user, first, second = await _seed(session)
-    principal = ProjectAccessPrincipal(user_id=user.id, role="user")
-    session.add(
-        ProjectMembership(
-            user_id=user.id,
-            project_id=second.id,
-            permission="manage",
-            source="github",
-            verified_at=dt.datetime.now(dt.timezone.utc) - ACCESS_TTL - dt.timedelta(seconds=1),
-        )
-    )
-    await session.commit()
-
-    assert await require_project(session, principal, first.id) is not None
-    assert await require_project(session, principal, second.id) is None
-
-
-async def test_github_sync_replaces_grants_and_maps_repository_permissions(
-    session, monkeypatch
-) -> None:
-    monkeypatch.setenv("TOKEN_ENCRYPTION_KEY", "membership-test-key")
-    settings = load_settings()
-    user = User(email="github@example.test", role="user")
-    projects = [
-        Project(
-            tag=name,
-            github_repo=f"Example/{name}",
-            github_repo_key=f"example/{name}",
-        )
-        for name in ("viewer", "uploader", "manager", "removed")
-    ]
-    session.add_all((user, *projects))
-    await session.flush()
-    session.add(
-        GithubAccount(
-            email=user.email,
-            login="github-user",
-            token_encrypted=encrypt("github-token", settings.token_encryption_key),
-        )
-    )
-    session.add(
-        ProjectMembership(
-            user_id=user.id,
-            project_id=projects[3].id,
-            permission="manage",
-            source="github",
-        )
-    )
-    await session.commit()
-
-    monkeypatch.setattr(
-        "app.infrastructure.project_access.GitHubClient.user_repositories",
-        lambda _client: [
-            {"full_name": "Example/viewer", "permissions": {"pull": True}},
-            {"full_name": "Example/uploader", "permissions": {"push": True}},
-            {"full_name": "Example/manager", "permissions": {"admin": True}},
-        ],
-    )
-
-    assert await sync_github_memberships(session, user, settings, force=True)
-    memberships = (
-        await session.execute(
-            select(ProjectMembership)
-            .where(
-                ProjectMembership.user_id == user.id,
-                ProjectMembership.source == "github",
-            )
-            .order_by(ProjectMembership.project_id)
-        )
-    ).scalars().all()
-    assert [(row.project_id, row.permission) for row in memberships] == [
-        (projects[0].id, "view"),
-        (projects[1].id, "upload"),
-        (projects[2].id, "manage"),
-    ]
 
 
 async def test_github_app_refresh_is_installation_scoped_and_fails_closed(

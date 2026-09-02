@@ -1,4 +1,4 @@
-"""Role-based authorization: current-user lookup + role dependencies.
+"""Role-based authorization for GitHub-backed server sessions.
 
 Roles: admin (protected, seeded, API-immutable) > superuser (delegated,
 revocable) > user (default on first login).
@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
 from app.infrastructure.db.models import User
-from app.modules.atomic.access.browser_auth import verify_session
 
 ADMIN_ROLES = {"admin", "superuser"}
 MUTABLE_ROLES = {"user", "superuser"}
@@ -19,26 +18,12 @@ MUTABLE_ROLES = {"user", "superuser"}
 async def get_current_user(
     request: Request, session: AsyncSession = SessionDep
 ) -> User | None:
-    """Resolve the signed-in user, provisioning on first login."""
-    import datetime as dt
-
-    from sqlalchemy import select as sa_select
-
-    settings = request.app.state.settings
-    if not settings.session_secret:
+    """Resolve the user authenticated by the GitHub session middleware."""
+    user_id = getattr(request.state, "authenticated_user_id", None)
+    if not isinstance(user_id, int) or user_id <= 0:
         return None
-    email = verify_session(request.cookies.get("as_session"), settings.session_secret)
-    if not email:
-        return None
-    row = (
-        await session.execute(sa_select(User).where(User.email == email))
-    ).scalars().first()
-    if row is None:
-        row = User(email=email, role="user")
-        session.add(row)
-    row.last_login_at = dt.datetime.now(dt.timezone.utc)
-    await session.commit()
-    return row
+    row = await session.get(User, user_id)
+    return row if row is not None and row.disabled_at is None else None
 
 
 def require_role(*roles: str):

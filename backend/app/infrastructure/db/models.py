@@ -236,27 +236,14 @@ class Run(Base):
     )
 
 
-class Organisation(Base):
-    """A GitHub organisation whose repos this instance polls and serves."""
-
-    __tablename__ = "organisations"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
-    login: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-
-
 class User(Base):
-    """UI account. Provisioned on first Google login; role gates admin
-    surfaces. `admin` rows are immutable through the API (break-glass);
-    `superuser` is delegated admin, revocable."""
+    """GitHub-backed UI account; application roles gate admin surfaces."""
 
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    email: Mapped[str] = mapped_column(String(256), nullable=False, unique=True)
+    email: Mapped[str | None] = mapped_column(String(256), nullable=True, unique=True)
+    github_login: Mapped[str | None] = mapped_column(String(128), nullable=True)
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     last_login_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -265,7 +252,6 @@ class User(Base):
     # at generation/rotation and never stored.
     mcp_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mcp_token_generated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    github_access_synced_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     github_app_access_synced_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
@@ -288,14 +274,8 @@ class ProjectMembership(Base):
             "permission IN ('view', 'upload', 'manage')",
             name="ck_project_memberships_permission",
         ),
-        CheckConstraint(
-            "source IN ('github', 'github_app', 'manual')",
-            name="ck_project_memberships_source",
-        ),
-        CheckConstraint(
-            "source != 'github_app' OR expires_at IS NOT NULL",
-            name="ck_project_memberships_github_app_expiry",
-        ),
+        CheckConstraint("source = 'github_app'", name="ck_project_memberships_source"),
+        CheckConstraint("expires_at IS NOT NULL", name="ck_project_memberships_github_app_expiry"),
         Index("ix_project_memberships_user_project", "user_id", "project_id"),
         Index("ix_project_memberships_project", "project_id"),
     )
@@ -350,17 +330,14 @@ class ProjectCheckout(Base):
 
 
 class GithubAccount(Base):
-    """Legacy credential row plus the dormant immutable-identity projection."""
+    """Immutable GitHub identity and encrypted expiring user credentials."""
 
     __tablename__ = "github_accounts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    email: Mapped[str | None] = mapped_column(String(256), nullable=True, unique=True)
-    login: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
-    github_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    github_user_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     login_at_last_verify: Mapped[str | None] = mapped_column(String(128), nullable=True)
     encrypted_user_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     encrypted_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -373,10 +350,7 @@ class GithubAccount(Base):
     __table_args__ = (
         Index("uq_github_accounts_user_id", "user_id", unique=True),
         Index("uq_github_accounts_github_user_id", "github_user_id", unique=True),
-        CheckConstraint(
-            "(user_id IS NULL AND github_user_id IS NULL) OR (user_id IS NOT NULL AND github_user_id IS NOT NULL)",
-            name="ck_github_accounts_identity_pair",
-        ),
+        CheckConstraint("github_user_id > 0", name="ck_github_accounts_github_user_id"),
     )
 
 
@@ -488,17 +462,14 @@ class BrowserSession(Base):
     )
 
 
-class GithubOauthState(Base):
-    """Single-use OAuth state and encrypted PKCE verifier bound to a session."""
+class GithubSigninState(Base):
+    """Single-use pre-authentication GitHub OAuth transaction."""
 
-    __tablename__ = "github_oauth_states"
+    __tablename__ = "github_signin_states"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     state_digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False, unique=True)
-    browser_session_id: Mapped[str] = mapped_column(
-        ForeignKey("browser_sessions.id", ondelete="CASCADE"), nullable=False
-    )
-    flow_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    transaction_digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
     return_path: Mapped[str] = mapped_column(String(64), nullable=False)
     pkce_verifier_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     credential_key_id: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -507,19 +478,15 @@ class GithubOauthState(Base):
     consumed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        CheckConstraint("length(id) = 36", name="ck_github_oauth_states_id"),
-        CheckConstraint("length(state_digest) = 32", name="ck_github_oauth_states_digest"),
-        CheckConstraint("flow_kind IN ('signin', 'link')", name="ck_github_oauth_states_flow"),
+        CheckConstraint("length(id) = 36", name="ck_github_signin_states_id"),
+        CheckConstraint("length(state_digest) = 32", name="ck_github_signin_states_state_digest"),
+        CheckConstraint("length(transaction_digest) = 32", name="ck_github_signin_states_transaction_digest"),
         CheckConstraint(
             "return_path IN ('/', '/projects', '/setup')",
-            name="ck_github_oauth_states_return_path",
+            name="ck_github_signin_states_return_path",
         ),
-        CheckConstraint("expires_at > created_at", name="ck_github_oauth_states_expiry"),
-        Index(
-            "ix_github_oauth_states_session_expiry",
-            "browser_session_id",
-            "expires_at",
-        ),
+        CheckConstraint("expires_at > created_at", name="ck_github_signin_states_expiry"),
+        Index("ix_github_signin_states_transaction_expiry", "transaction_digest", "expires_at"),
     )
 
 
@@ -585,34 +552,6 @@ class GithubWebhookDelivery(Base):
         CheckConstraint("expires_at > received_at", name="ck_github_webhook_deliveries_expiry"),
         Index("ix_github_webhook_deliveries_expiry", "expires_at"),
         Index("ix_github_webhook_deliveries_work", "status", "available_at", "received_at"),
-    )
-
-
-class IdentityMigrationJournal(Base):
-    """Immutable completion marker for each restart-safe cutover phase."""
-
-    __tablename__ = "identity_migration_journal"
-
-    phase: Mapped[str] = mapped_column(String(32), primary_key=True)
-    preflight_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
-    state_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
-    counts_json: Mapped[str] = mapped_column(Text, nullable=False)
-    completed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    __table_args__ = (
-        CheckConstraint(
-            "phase IN ('preflight_verified', 'dispositions_applied', "
-            "'run_ids_migrated', 'validated', 'switch_complete')",
-            name="ck_identity_migration_journal_phase",
-        ),
-        CheckConstraint(
-            "length(preflight_checksum) = 64",
-            name="ck_identity_migration_journal_preflight_checksum",
-        ),
-        CheckConstraint(
-            "length(state_checksum) = 64",
-            name="ck_identity_migration_journal_state_checksum",
-        ),
     )
 
 
@@ -1216,7 +1155,6 @@ __all__ = [
     "Project",
     "Fr",
     "Run",
-    "Organisation",
     "User",
     "ApiToken",
     "ProjectCheckout",

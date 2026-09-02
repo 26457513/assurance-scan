@@ -24,9 +24,7 @@ from app.infrastructure.db.models import (
     ComplianceMappingSnapshot,
     FindingAcceptance,
     Project,
-    ProjectMembership,
     Run,
-    User,
     Waiver,
 )
 from app.modules.atomic.provenance.repository_identity import (
@@ -56,7 +54,6 @@ def _project_payload(project: Project, **statistics: Any) -> dict[str, Any]:
         "default_scan_ref": project.default_scan_ref,
         **statistics,
     }
-
 
 async def _find_conflict(
     session: AsyncSession,
@@ -275,101 +272,3 @@ async def list_projects(
             for project, run_count, last_scan_at, catalogue_project_id in rows
         ]
     }
-
-
-class MembershipUpdate(BaseModel):
-    email: str
-    permission: str
-
-
-@router.get("/{project_id}/members")
-async def list_project_members(
-    project_id: int,
-    principal: ProjectAccessDep,
-    session: AsyncSession = SessionDep,
-) -> dict[str, Any]:
-    if await require_project(session, principal, project_id, "manage") is None:
-        raise HTTPException(status_code=404, detail="project not found")
-    rows = (
-        await session.execute(
-            select(ProjectMembership, User)
-            .join(User, User.id == ProjectMembership.user_id)
-            .where(ProjectMembership.project_id == project_id)
-            .order_by(User.email, ProjectMembership.source)
-        )
-    ).all()
-    return {
-        "members": [
-            {
-                "email": user.email,
-                "permission": membership.permission,
-                "source": membership.source,
-                "verified_at": membership.verified_at.isoformat(),
-            }
-            for membership, user in rows
-        ]
-    }
-
-
-@router.put("/{project_id}/members")
-async def put_project_member(
-    project_id: int,
-    principal: ProjectAccessDep,
-    update: MembershipUpdate,
-    session: AsyncSession = SessionDep,
-) -> dict[str, Any]:
-    if await require_project(session, principal, project_id, "manage") is None:
-        raise HTTPException(status_code=404, detail="project not found")
-    permission = update.permission.strip().lower()
-    if permission not in {"view", "upload", "manage"}:
-        raise HTTPException(status_code=422, detail="permission must be view, upload, or manage")
-    user = (
-        await session.execute(select(User).where(User.email == update.email.strip()))
-    ).scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=404, detail="user not found")
-    membership = (
-        await session.execute(
-            select(ProjectMembership).where(
-                ProjectMembership.user_id == user.id,
-                ProjectMembership.project_id == project_id,
-                ProjectMembership.source == "manual",
-            )
-        )
-    ).scalar_one_or_none()
-    if membership is None:
-        membership = ProjectMembership(
-            user_id=user.id,
-            project_id=project_id,
-            permission=permission,
-            source="manual",
-        )
-        session.add(membership)
-    else:
-        membership.permission = permission
-    await session.commit()
-    return {"email": user.email, "permission": permission, "source": "manual"}
-
-
-@router.delete("/{project_id}/members/{email}")
-async def delete_project_member(
-    project_id: int,
-    email: str,
-    principal: ProjectAccessDep,
-    session: AsyncSession = SessionDep,
-) -> dict[str, Any]:
-    if await require_project(session, principal, project_id, "manage") is None:
-        raise HTTPException(status_code=404, detail="project not found")
-    user = (
-        await session.execute(select(User).where(User.email == email))
-    ).scalar_one_or_none()
-    if user is not None:
-        await session.execute(
-            delete(ProjectMembership).where(
-                ProjectMembership.user_id == user.id,
-                ProjectMembership.project_id == project_id,
-                ProjectMembership.source == "manual",
-            )
-        )
-        await session.commit()
-    return {"status": "removed", "email": email}

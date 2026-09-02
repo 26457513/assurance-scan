@@ -15,19 +15,10 @@ describe('numeric project API contracts', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('scopes scan listing and dispatch by project_id', async () => {
+  it('scopes scan listing by project_id', async () => {
     await api.listScans(42, 200);
-    await api.scanRemote(42, 'feature/local');
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/scans?project_id=42&limit=200', undefined);
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      '/api/scans/remote',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ project_id: 42, ref: 'feature/local' })
-      })
-    );
+    expect(fetchMock).toHaveBeenCalledWith('/api/scans?project_id=42&limit=200', undefined);
   });
 
   it('registers canonical project fields without path aliases', async () => {

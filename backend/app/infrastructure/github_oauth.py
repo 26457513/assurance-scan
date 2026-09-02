@@ -37,7 +37,30 @@ def exchange_and_verify_github_authorization(
         headers={"Accept": "application/json"},
         method="POST",
     )
-    token_payload = _request_json(token_request)
+    return _verify_authorization(_request_json(token_request))
+
+
+def refresh_and_verify_github_authorization(
+    *, refresh_token: str, client_id: str, client_secret: str
+) -> VerifiedGithubAuthorization:
+    """Rotate an expiring GitHub App user token and reverify its identity."""
+    token_request = urllib.request.Request(
+        GITHUB_TOKEN_URL,
+        data=urllib.parse.urlencode(
+            {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+            }
+        ).encode(),
+        headers={"Accept": "application/json"},
+        method="POST",
+    )
+    return _verify_authorization(_request_json(token_request))
+
+
+def _verify_authorization(token_payload: dict[str, object]) -> VerifiedGithubAuthorization:
     access_token = token_payload.get("access_token")
     refresh_token = token_payload.get("refresh_token")
     expires_in = token_payload.get("expires_in")

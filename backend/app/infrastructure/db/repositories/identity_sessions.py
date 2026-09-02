@@ -1,4 +1,4 @@
-"""SQLAlchemy persistence for dormant GitHub OAuth and browser sessions."""
+"""SQLAlchemy persistence for authenticated browser sessions."""
 
 from __future__ import annotations
 
@@ -6,22 +6,15 @@ import datetime as dt
 import secrets
 from typing import Any, cast
 
-from sqlalchemy import select, text, update
+from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.db.models import BrowserSession, GithubOauthState
-from app.modules.atomic.access.github_oauth_state import (
-    ConsumedGithubOauthState,
-    GithubOauthFlow,
-    GithubOauthStateMaterial,
-    digest_oauth_state,
-)
+from app.infrastructure.db.models import BrowserSession
 from app.modules.atomic.access.server_session import (
     BrowserSessionRecord,
     digest_session_cookie,
 )
-from app.secrets import decrypt, encrypt
 
 
 class SecureIdentityRandom:
@@ -91,76 +84,6 @@ class SqlAlchemyBrowserSessionRepository:
         return bool(result.rowcount)
 
 
-class SqlAlchemyGithubOauthStateRepository:
-    """Persist state hashes and consume each callback state at most once."""
-
-    def __init__(self, session: AsyncSession, *, encryption_keys: dict[str, str], active_key_id: str) -> None:
-        if active_key_id not in encryption_keys:
-            raise ValueError("active OAuth credential key is unavailable")
-        self.session = session
-        self.encryption_keys = dict(encryption_keys)
-        self.active_key_id = active_key_id
-
-    async def create(self, material: GithubOauthStateMaterial) -> None:
-        self.session.add(
-            GithubOauthState(
-                id=material.state_id,
-                state_digest=material.state_digest,
-                browser_session_id=material.browser_session_id,
-                flow_kind=material.flow_kind.value,
-                return_path=material.return_path,
-                pkce_verifier_encrypted=encrypt(material.pkce_verifier, self.encryption_keys[self.active_key_id]),
-                credential_key_id=self.active_key_id,
-                created_at=material.created_at,
-                expires_at=material.expires_at,
-            )
-        )
-        await self.session.commit()
-
-    async def consume(
-        self,
-        state: str,
-        *,
-        browser_session_id: str,
-        now: dt.datetime,
-    ) -> ConsumedGithubOauthState | None:
-        try:
-            digest = digest_oauth_state(state)
-        except ValueError:
-            return None
-        await self._begin_write()
-        row = (
-            await self.session.execute(
-                select(GithubOauthState).where(
-                    GithubOauthState.state_digest == digest,
-                    GithubOauthState.browser_session_id == browser_session_id,
-                    GithubOauthState.consumed_at.is_(None),
-                    GithubOauthState.expires_at > now,
-                )
-            )
-        ).scalar_one_or_none()
-        if row is None:
-            await self.session.rollback()
-            return None
-        row.consumed_at = now
-        await self.session.commit()
-        key = self.encryption_keys.get(row.credential_key_id)
-        verifier = decrypt(row.pkce_verifier_encrypted, key) if key is not None else None
-        if verifier is None:
-            return None
-        return ConsumedGithubOauthState(
-            pkce_verifier=verifier,
-            flow_kind=GithubOauthFlow(row.flow_kind),
-            return_path=row.return_path,
-        )
-
-    async def _begin_write(self) -> None:
-        if self.session.in_transaction():
-            await self.session.rollback()
-        if self.session.get_bind().dialect.name == "sqlite":
-            await self.session.execute(text("BEGIN IMMEDIATE"))
-
-
 def _session_record(row: BrowserSession) -> BrowserSessionRecord:
     return BrowserSessionRecord(
         session_id=row.id,
@@ -182,5 +105,4 @@ def _aware(value: dt.datetime) -> dt.datetime:
 __all__ = [
     "SecureIdentityRandom",
     "SqlAlchemyBrowserSessionRepository",
-    "SqlAlchemyGithubOauthStateRepository",
 ]

@@ -42,7 +42,7 @@ async def get_setup_bootstrap(
     if user is not None:
         await sync_github_app_memberships(session, user, request.app.state.settings)
     repository_id = _optional_github_id(github_repository_id)
-    sign_in_url = "/auth/login?next=/setup" if user is None else "/api/v2/github/link/start"
+    sign_in_url = "/auth/login?next=/setup"
     try:
         result = await setup_bootstrap(
             user_id=user.id if user is not None else None,

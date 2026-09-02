@@ -10,7 +10,7 @@
 
   onMount(async () => {
     try {
-      // getScan lazy-pulls un-ingested gh- runs server-side.
+      // Resolve only scan evidence already accepted by Assurance Scan.
       const scan = await api.getScan(runId);
       goto(`/projects/${scan.project_id}?run=${runId}`, { replaceState: true });
     } catch {

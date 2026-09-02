@@ -30,9 +30,9 @@ and replaced by the repository picker—not silently substituted.
 | Access stale | expired entitlement | Retry access check | mutation locked |
 | Installation suspended | verified suspension | Manage GitHub App | locked |
 
-Authentication occurs at `/login`; authenticated users do not see a misleading
-“Connect GitHub” action. Existing pre-cutover accounts enter the migration-link
-flow described in [Migration and data disposition](../delivery/migration-and-data.md).
+Authentication occurs at `/auth/login`; authenticated users do not see a
+misleading “Connect GitHub” action. Accounts are created only from immutable
+GitHub user identity; there is no email merge or legacy linking flow.
 
 ## Local token interaction
 

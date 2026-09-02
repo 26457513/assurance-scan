@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import os
 import ipaddress
-import re
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -63,6 +61,21 @@ def _env_bool(name: str, default: bool = False) -> bool:
     raise ValueError(f"invalid boolean value for {name}")
 
 
+def _env_positive_int_set(name: str) -> frozenset[int]:
+    raw = os.environ.get(name, "")
+    if not raw:
+        return frozenset()
+    values: set[int] = set()
+    for item in raw.split(","):
+        if item != item.strip() or not item.isascii() or not item.isdecimal():
+            raise ValueError(f"{name} must contain comma-separated positive integers")
+        value = int(item)
+        if value <= 0 or value in values:
+            raise ValueError(f"{name} must contain unique positive integers")
+        values.add(value)
+    return frozenset(values)
+
+
 def _env_repository_allowlist(name: str) -> frozenset[str]:
     raw = os.environ.get(name)
     if raw is None or raw == "":
@@ -85,58 +98,22 @@ def _env_repository_allowlist(name: str) -> frozenset[str]:
     return frozenset(normalized)
 
 
-_EMAIL_LOCAL = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}")
-_EMAIL_DOMAIN_LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
-
-
-def normalize_account_email(value: str) -> str:
-    """Normalize one conservative Google-account email for rollout matching."""
-    normalized = unicodedata.normalize("NFKC", value).casefold()
-    local, separator, domain = normalized.partition("@")
-    labels = domain.split(".")
-    if (
-        not separator
-        or "@" in domain
-        or len(normalized) > 254
-        or not _EMAIL_LOCAL.fullmatch(local)
-        or len(labels) < 2
-        or any(not _EMAIL_DOMAIN_LABEL.fullmatch(label) for label in labels)
-    ):
-        raise ValueError("invalid account email")
-    return normalized
-
-
-def _env_email_allowlist(name: str) -> frozenset[str]:
-    raw = os.environ.get(name)
-    if raw is None or raw == "":
-        return frozenset()
-    normalized: set[str] = set()
-    for value in raw.split(","):
-        if not value or value != value.strip():
-            raise ValueError(f"{name} must contain comma-separated account emails")
-        try:
-            email = normalize_account_email(value)
-        except ValueError as exc:
-            raise ValueError(f"{name} must contain comma-separated account emails") from exc
-        if email in normalized:
-            raise ValueError(f"{name} contains a duplicate account email")
-        normalized.add(email)
-    return frozenset(normalized)
-
-
 def _env_path(name: str, default: Path) -> Path:
     return Path(_env(name, str(default)))
 
 
 def account_identity_is_ready(settings: object) -> bool:
     """Return whether account-bound browser and bearer-token features are ready."""
-    client_id = getattr(settings, "google_client_id", "")
-    client_secret = getattr(settings, "google_client_secret", "")
+    client_id = getattr(settings, "github_app_client_id", "")
+    client_secret = getattr(settings, "github_app_client_secret", "")
     session_secret = getattr(settings, "session_secret", "")
+    encryption_key = getattr(settings, "token_encryption_key", "")
     public_base_url = getattr(settings, "public_base_url", "")
     if not all(isinstance(value, str) and value.strip() for value in (client_id, client_secret)):
         return False
-    if not isinstance(session_secret, str) or len(session_secret) < 32 or not session_secret.strip():
+    if not isinstance(encryption_key, str) or not encryption_key.strip():
+        return False
+    if not isinstance(session_secret, str) or not session_secret.strip():
         return False
     if not isinstance(public_base_url, str):
         return False
@@ -201,10 +178,6 @@ class Settings:
     # Logging level.
     log_level: str
 
-    # Shared Basic Auth credentials; unset (default) disables auth.
-    app_auth_user: str
-    app_auth_password: str
-
     # Notion standup digest
     notion_token: str
     notion_page_id: str
@@ -214,16 +187,13 @@ class Settings:
     # when auth is on — /mcp never accepts the browser login redirect.
     mcp_token: str
 
-    # Google Workspace login (takes precedence over Basic Auth when set,
-    # which stays valid as a fallback for curl etc.).
-    google_client_id: str
-    google_client_secret: str
-    google_domain: str
+    # GitHub-only browser identity and server-side session/CSRF material.
     session_secret: str
     public_base_url: str
     token_encryption_key: str
     github_app_client_id: str
     github_app_client_secret: str
+    github_admin_user_ids: frozenset[int]
     github_app_access_enabled: bool
     github_app_id: str
     github_app_slug: str
@@ -232,22 +202,14 @@ class Settings:
     github_webhook_secret: str
     github_webhook_previous_secret: str
     github_webhook_previous_valid_until: str
-    migration_github_linking_enabled: bool
     github_oidc_ingest_enabled: bool
     github_ingest_usage_limits: GitHubUsageLimitsV2
     shared_ingest_usage_limits: SharedUsageLimitsV2
 
-    # GitHub CI polling (phase-2 ingest). Poller runs only when both a
-    # token and at least one repo are configured.
-    poll_repos: tuple[str, ...]
-    poll_interval_seconds: int
-    github_poll_token: str
-    github_org: str
-
-    # Version-one local upload remains closed until explicitly enabled by an
-    # operator with account-bound Google/session identity configured.
+    # Local upload remains closed until explicitly enabled by an operator
+    # with GitHub-backed account identity configured.
     scan_token_creation_enabled: bool
-    scan_token_creation_user_allowlist: frozenset[str]
+    scan_token_creation_github_user_allowlist: frozenset[int]
     local_ingest_enabled: bool
     local_ingest_repository_allowlist: frozenset[str]
     local_ingest_upload_limits: UploadLimits
@@ -268,12 +230,10 @@ def load_settings() -> Settings:
     )
     return Settings(
         db_path=db_path,
-        poll_repos=tuple(r.strip() for r in _env("POLL_REPOS", "").split(",") if r.strip()),
-        poll_interval_seconds=_env_int("POLL_INTERVAL_SECONDS", 60),
-        github_poll_token=_env("GITHUB_POLL_TOKEN", ""),
-        github_org=_env("GITHUB_ORG", ""),
         scan_token_creation_enabled=_env_bool("SCAN_TOKEN_CREATION_ENABLED"),
-        scan_token_creation_user_allowlist=_env_email_allowlist("SCAN_TOKEN_CREATION_USER_ALLOWLIST"),
+        scan_token_creation_github_user_allowlist=_env_positive_int_set(
+            "SCAN_TOKEN_CREATION_GITHUB_USER_ALLOWLIST"
+        ),
         local_ingest_enabled=_env_bool("LOCAL_INGEST_ENABLED"),
         local_ingest_repository_allowlist=_env_repository_allowlist("LOCAL_INGEST_REPOSITORY_ALLOWLIST"),
         local_ingest_upload_limits=UploadLimits(
@@ -349,20 +309,16 @@ def load_settings() -> Settings:
         host=_env("ASSURANCE_SCAN_HOST", "127.0.0.1"),
         port=_env_int("ASSURANCE_SCAN_PORT", 8000),
         log_level=_env("ASSURANCE_SCAN_LOG_LEVEL", "INFO"),
-        app_auth_user=_env("APP_AUTH_USER", ""),
-        app_auth_password=_env("APP_AUTH_PASSWORD", ""),
         mcp_token=_env("MCP_TOKEN", ""),
         notion_token=_env("NOTION_TOKEN", ""),
         notion_page_id=_env("NOTION_PAGE_ID", ""),
         notion_orgs=_env("NOTION_ORGS", ""),
-        google_client_id=_env("GOOGLE_CLIENT_ID", ""),
-        google_client_secret=_env("GOOGLE_CLIENT_SECRET", ""),
-        google_domain=_env("GOOGLE_DOMAIN", "barkleygen.com"),
         session_secret=_env("SESSION_SECRET", ""),
         public_base_url=_env("PUBLIC_BASE_URL", ""),
         token_encryption_key=_env("TOKEN_ENCRYPTION_KEY", ""),
         github_app_client_id=_env("GITHUB_APP_CLIENT_ID", ""),
         github_app_client_secret=_env("GITHUB_APP_CLIENT_SECRET", ""),
+        github_admin_user_ids=_env_positive_int_set("GITHUB_ADMIN_USER_IDS"),
         github_app_access_enabled=_env_bool("GITHUB_APP_ACCESS_ENABLED"),
         github_app_id=_env("GITHUB_APP_ID", ""),
         github_app_slug=_env("GITHUB_APP_SLUG", ""),
@@ -371,7 +327,6 @@ def load_settings() -> Settings:
         github_webhook_secret=_env("GITHUB_WEBHOOK_SECRET", ""),
         github_webhook_previous_secret=_env("GITHUB_WEBHOOK_PREVIOUS_SECRET", ""),
         github_webhook_previous_valid_until=_env("GITHUB_WEBHOOK_PREVIOUS_VALID_UNTIL", ""),
-        migration_github_linking_enabled=_env_bool("MIGRATION_GITHUB_LINKING_ENABLED"),
         github_oidc_ingest_enabled=_env_bool("GITHUB_OIDC_INGEST_ENABLED"),
     )
 

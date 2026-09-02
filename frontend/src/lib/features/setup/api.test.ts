@@ -6,7 +6,7 @@ import { SetupPayloadError } from './models';
 const signedOut = {
   version: 2,
   selection: { status: 'none', requested_repository_id: null },
-  state: { kind: 'signed_out', sign_in_url: '/login' },
+  state: { kind: 'signed_out', sign_in_url: '/auth/login?next=/setup' },
   installations: [],
   installations_next_cursor: null,
   machine_tokens: [],

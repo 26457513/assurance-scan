@@ -1,5 +1,6 @@
 # Local secrets — never commit
 .env
+.secrets/
 scanner-config.yaml
 .claude/settings.local.json
 

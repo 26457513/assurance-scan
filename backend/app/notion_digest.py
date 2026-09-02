@@ -48,106 +48,13 @@ def _days_ago(iso: str | None) -> str:
     return "today" if n == 0 else (f"{n}d ago")
 
 
-async def _fetch_json(client, url: str, attempts: int = 2):
-    import asyncio as _a
-
-    for attempt in range(1, attempts + 1):
-        try:
-            return await _a.to_thread(client._get, url)
-        except urllib.error.HTTPError:
-            raise  # 403/404 are not transient
-        except Exception:
-            if attempt == attempts:
-                raise
-            await _a.sleep(1.5 * attempt)
-    raise RuntimeError("unreachable")
-
-
 async def _repo_stats(session, projects: list[tuple[str, str, list[str]]]) -> dict[str, dict[str, Any]]:
-    """Per-repo GitHub stats via the org token chain: branches, commits in
-    the last 7 days, open PRs. One retry per call; errors are classified
-    so the digest can say *why* something is missing."""
-    from app.config import load_settings
-    from app.infrastructure.db.models import Organisation
-    from app.github_poller import GitHubClient
-    from app.secrets import decrypt
-
-    settings = load_settings()
-    tokens: dict[str, str] = {}
-    if settings.github_poll_token and settings.github_org:
-        tokens[settings.github_org.lower()] = settings.github_poll_token
-    if settings.token_encryption_key:
-        for row in (await session.execute(sa_select(Organisation))).scalars().all():
-            tok = decrypt(row.token_encrypted, settings.token_encryption_key)
-            if tok:
-                tokens[row.name.lower()] = tok
-
-    since = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=7)
-             ).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    out: dict[str, dict[str, Any]] = {}
-    for base, full_name, scan_branches in projects:
-        owner = full_name.split("/")[0].lower()
-        token = tokens.get(owner)
-        if not token:
-            out[base] = {"error": "no token for this org"}
-            continue
-        client = GitHubClient(token)
-        stats: dict[str, Any] = {}
-        for key, url in (
-            ("branches", f"https://api.github.com/repos/{full_name}/branches?per_page=100"),
-            ("commits", f"https://api.github.com/repos/{full_name}/commits?since={since}&per_page=100"),
-            ("prs", f"https://api.github.com/repos/{full_name}/pulls?state=open&per_page=10"),
-        ):
-            try:
-                stats[key] = await _fetch_json(client, url)
-            except urllib.error.HTTPError as exc:
-                stats[key] = {"error": "permission" if exc.code == 403 else f"http {exc.code}"}
-            except Exception:
-                stats[key] = {"error": "network"}
-
-        if isinstance(stats.get("prs"), list):
-            for pr in stats["prs"]:
-                try:
-                    detail = await _fetch_json(
-                        client,
-                        f"https://api.github.com/repos/{full_name}/pulls/{pr['number']}",
-                    )
-                    pr["changed_files"] = detail.get("changed_files")
-                    pr["additions"] = detail.get("additions")
-                    pr["deletions"] = detail.get("deletions")
-                except Exception:
-                    pass  # diff stats are optional garnish
-
-        # Commits per branch in the window, attributed to where they
-        # happened. Repos can carry 100+ stale branches, so we only look at
-        # branches this instance has actually scanned — the team-relevant
-        # set — fetched concurrently (commit listings are the flakiest
-        # call from this box).
-        import asyncio as _a
-
-        async def branch_dates(name: str) -> tuple[str, list[str]] | None:
-            try:
-                cms = await _fetch_json(
-                    client,
-                    f"https://api.github.com/repos/{full_name}/commits"
-                    f"?sha={name}&since={since}&per_page=100",
-                    attempts=3,
-                )
-            except Exception:
-                return None
-            return name, [
-                (c.get("commit", {}).get("author", {}).get("date") or "")[:10]
-                for c in cms
-            ]
-
-        interesting = list(dict.fromkeys(scan_branches))[:6]
-        results = await _a.gather(*(branch_dates(b) for b in interesting))
-        per_branch = {n: ds for r in results if r for n, ds in [(r[0], r[1])] if ds}
-        if per_branch:
-            stats["per_branch"] = per_branch
-        out[base] = stats
-    return out
+    """Never pull repository metadata; uploaded scan evidence is authoritative."""
+    del session
+    return {
+        base: {"error": "GitHub metadata pull is disabled"}
+        for base, _full_name, _scan_branches in projects
+    }
 
 
 async def build_digest() -> tuple[list[dict[str, Any]], dict[str, Any]]:

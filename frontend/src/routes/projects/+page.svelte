@@ -3,71 +3,16 @@
   import { pushToast } from '$lib/stores/toasts';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
-  import { isPrivilegedUser, loadCurrentUser } from '$lib/stores/currentUser';
+  import { loadCurrentUser } from '$lib/stores/currentUser';
   import { selectProject } from '$lib/stores/selectedProject';
   import type { ProjectSummary } from '$lib/types';
 
   let projects: ProjectSummary[] = [];
   let loading = true;
   let error: string | null = null;
-  let canRegisterProjects = false;
 
   const PAGE_SIZE = 5;
   let page = 0;
-  let addOpen = false;
-  let newTag = '';
-  let newRepo = '';
-  let adding = false;
-  let availableRepos: { full_name: string; org?: string; pushed_at?: string }[] = [];
-  let repoFilter = '';
-  const REPO_PAGE_SIZE = 10;
-  let repoPage = 0;
-  $: repoPageCount = Math.max(1, Math.ceil(filteredRepos.length / REPO_PAGE_SIZE));
-  $: repoPageVisible = filteredRepos.slice(repoPage * REPO_PAGE_SIZE, (repoPage + 1) * REPO_PAGE_SIZE);
-  let branches: string[] = [];
-  let selectedBranch = '';
-
-  async function loadAvailableRepos() {
-    if (availableRepos.length > 0) return;
-    try {
-      availableRepos = (await api.githubRepos()).repos;
-    } catch {
-      availableRepos = [];
-    }
-  }
-
-  function repoFullName(): string {
-    const m = newRepo.trim().match(/github\.com\/([^/]+\/[^/#?]+)/);
-    return m ? m[1] : (newRepo.includes('/') && !newRepo.includes(' ') ? newRepo.trim() : '');
-  }
-
-  let branchesError = false;
-
-  async function loadBranches() {
-    const full = repoFullName();
-    branchesError = false;
-    if (!full) { branches = []; return; }
-    try {
-      branches = (await api.githubBranches(full)).branches;
-    } catch {
-      branches = [];
-      branchesError = true;
-    }
-  }
-
-  function pickRepo(fullName: string) {
-    newRepo = `https://github.com/${fullName}`;
-    if (!newTag.trim()) newTag = fullName.split('/').pop() ?? fullName;
-    selectedBranch = '';
-    loadBranches();
-  }
-
-  // Reset pagination when the filter changes so results are reachable.
-  $: if (repoFilter) repoPage = 0;
-
-  $: filteredRepos = repoFilter.trim()
-    ? availableRepos.filter((r) => r.full_name.toLowerCase().includes(repoFilter.trim().toLowerCase()))
-    : availableRepos;
 
   let editOpen = false;
   let editId: number | null = null;
@@ -146,23 +91,6 @@
     }
   }
 
-  async function addProject() {
-    adding = true;
-    try {
-      const tag = newTag.trim() || repoFullName().split('/').pop() || '';
-      await api.createProject(tag, null, repoFullName(), selectedBranch || null);
-      pushToast('success', `Project "${newTag.trim()}" registered`);
-      addOpen = false;
-      newTag = newRepo = '';
-      loading = true;
-      await load();
-    } catch (e) {
-      pushToast('error', `Register failed: ${e}`);
-    } finally {
-      adding = false;
-    }
-  }
-
   $: pageCount = Math.max(1, Math.ceil(projects.length / PAGE_SIZE));
   $: visible = projects.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
@@ -182,13 +110,9 @@
     }
   }
 
-  async function loadIdentity() {
-    canRegisterProjects = isPrivilegedUser(await loadCurrentUser());
-  }
-
   onMount(() => {
     void load();
-    void loadIdentity();
+    void loadCurrentUser();
   });
 
   function fmtDate(iso: string | null): string {
@@ -215,14 +139,6 @@
           style="color: var(--state-failed); border-color: color-mix(in srgb, var(--state-failed) 35%, transparent); background: color-mix(in srgb, var(--state-failed) 8%, transparent);"
         >Delete {selectedCount} selected</button>
       {/if}
-      {#if canRegisterProjects}<button
-        type="button"
-        on:click={() => { addOpen = true; repoPage = 0; loadAvailableRepos(); }}
-        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary transition-colors"
-      >
-      <svg viewBox="0 0 12 12" class="h-3 w-3" stroke="currentColor" stroke-width="1.6" fill="none"><path d="M6 2v8M2 6h8" stroke-linecap="round" /></svg>
-        Add project
-      </button>{/if}
     </div>
   </div>
 
@@ -232,9 +148,7 @@
     <div class="text-[12px] text-state-failed font-mono">{error}</div>
   {:else if projects.length === 0}
     <div class="py-12 text-center text-[12px] text-ink-muted font-mono">
-      {canRegisterProjects
-        ? 'No projects yet — register a repository to begin.'
-        : 'No accessible projects. Connect GitHub in Setup or ask a project administrator for access.'}
+      No accessible projects. Install or update the GitHub App from Setup, or ask a repository administrator for access.
     </div>
   {:else}
     <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
@@ -371,104 +285,4 @@
     </div>
   {/if}
 
-  {#if addOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <button type="button" class="absolute inset-0 bg-black/65 backdrop-blur-[2px]" on:click={() => (addOpen = false)} aria-label="Close"></button>
-      <div class="relative border border-line-strong rounded-sm bg-surface-panel max-w-lg w-full p-5">
-        <div class="text-[13px] text-ink-primary mb-4 font-mono">Add project</div>
-        <div class="space-y-3 mb-5">
-          <div>
-            <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-tag">Tag (defaults to repo name)</label>
-            <input id="np-tag" type="text" bind:value={newTag} placeholder="repo name is used if left blank"
-              class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary" />
-          </div>
-
-          {#if availableRepos.length > 0}
-            <div>
-              <input
-                type="text"
-                bind:value={repoFilter}
-                placeholder="filter repositories…"
-                class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-secondary"
-              />
-              <div class="as-table text-[11px] mt-2">
-                <div class="as-head grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_120px] gap-2">
-                  <div>Repository</div>
-                  <div>Organisation</div>
-                  <div>Last push</div>
-                </div>
-                {#each repoPageVisible as r (r.full_name)}
-                  <button
-                    type="button"
-                    on:click={() => pickRepo(r.full_name)}
-                    class="as-row as-row-click grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_120px] gap-2 px-2 py-1.5 w-full text-left"
-                    class:as-row-sel={newRepo === `https://github.com/${r.full_name}`}
-                  >
-                    <span class="text-ink-primary truncate">{r.full_name}</span>
-                    <span class="text-ink-muted truncate">{r.org}</span>
-                    <span class="text-ink-muted truncate">{r.pushed_at ? r.pushed_at.slice(0, 10) : '—'}</span>
-                  </button>
-                {:else}
-                  <div class="px-2 py-4 text-center text-ink-muted">no matches</div>
-                {/each}
-              </div>
-              {#if repoPageCount > 1}
-                <div class="flex items-center justify-between mt-2 font-mono text-[10px] text-ink-muted">
-                  <button type="button" on:click={() => (repoPage = Math.max(0, repoPage - 1))}
-                    disabled={repoPage === 0}
-                    class="px-2 py-0.5 border border-line-hairline rounded-sm disabled:opacity-40">‹</button>
-                  <span>{repoPage + 1} / {repoPageCount} ({filteredRepos.length} repos)</span>
-                  <button type="button" on:click={() => (repoPage = Math.min(repoPageCount - 1, repoPage + 1))}
-                    disabled={repoPage >= repoPageCount - 1}
-                    class="px-2 py-0.5 border border-line-hairline rounded-sm disabled:opacity-40">›</button>
-                </div>
-              {/if}
-            </div>
-          {:else}
-            <p class="text-[11px] text-ink-muted font-mono">Loading repositories…</p>
-          {/if}
-
-          {#if newRepo}
-            <div>
-              <label class="block text-[11px] font-mono text-ink-secondary mb-1" for="np-branch">Branch to scan</label>
-              {#if branchesError}
-                <p class="text-[10px] font-mono" style="color: var(--state-failed);">couldn't load branches — check the repo URL</p>
-              {/if}
-              <select
-                id="np-branch"
-                bind:value={selectedBranch}
-                class="w-full px-2 py-1 border border-line-hairline rounded-sm bg-surface-base font-mono text-[11px] text-ink-primary"
-              >
-                <option value="">(repo default)</option>
-                {#each branches as b (b)}
-                  <option value={b}>{b}</option>
-                {/each}
-              </select>
-            </div>
-            <div class="border border-line-hairline bg-surface-inset rounded-sm px-3 py-2 text-[10px] text-ink-muted leading-relaxed">
-              Registering <span class="font-mono text-ink-secondary">{repoFullName()}</span> gives
-              GitHub Actions and local scans one shared project identity. To scan a checkout from
-              your machine, finish the copyable steps under
-              <a href="/setup?tab=account#local-scanner-setup" class="text-accent hover:underline">Setup → My account</a>.
-            </div>
-          {/if}
-        </div>
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[10px] font-mono text-ink-muted truncate">
-            {#if newRepo}
-              <span class="text-ink-secondary">{repoFullName()}</span>{selectedBranch ? ` · ${selectedBranch}` : ''}
-            {:else}
-              click a repository row to select it
-            {/if}
-          </span>
-          <div class="flex gap-2">
-            <button type="button" on:click={() => (addOpen = false)}
-              class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary">Cancel</button>
-            <button type="button" on:click={addProject} disabled={adding || !newRepo.trim()}
-              class="px-3 py-1.5 rounded-sm border border-line-strong bg-surface-elevated hover:bg-surface-base hover:border-accent text-[11px] font-mono uppercase tracking-[0.1em] text-ink-primary disabled:opacity-50">{adding ? 'Saving…' : 'Register'}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  {/if}
 </div>

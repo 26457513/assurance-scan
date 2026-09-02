@@ -33,7 +33,7 @@ async def client():
 async def test_preview_then_apply_stores_hash_not_plaintext(client) -> None:
     from sqlalchemy import select
 
-    from app.api.routes.gh_tokens import ApplyMcpTokenBody, apply_mcp_token, preview_mcp_token
+    from app.api.routes.accounts import ApplyMcpTokenBody, apply_mcp_token, preview_mcp_token
     from app.infrastructure.db.connection import get_sessionmaker
     from app.infrastructure.db.models import User
 

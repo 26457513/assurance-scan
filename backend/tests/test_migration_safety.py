@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_REVISION = "0016_project_scan_ref"
-HEAD_REVISION = "0036_ingest_usage_ledger"
+HEAD_REVISION = "0037_github_signin"
 
 
 def _alembic(database: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -65,19 +65,23 @@ def test_empty_database_migrates_forward_to_head(tmp_path: Path) -> None:
         "source_contexts",
         "source_context_findings",
         "browser_sessions",
-        "github_oauth_states",
-        "identity_migration_journal",
         "github_app_installations",
         "github_installation_repositories",
         "github_installation_states",
         "github_webhook_deliveries",
     }.issubset(_tables(database))
+    assert {"organisations", "github_oauth_states", "identity_migration_journal"}.isdisjoint(
+        _tables(database)
+    )
     assert {
         "user_id",
         "github_user_id",
         "encrypted_user_token",
         "credential_key_id",
     }.issubset(_columns(database, "github_accounts"))
+    assert {"email", "login", "token_encrypted"}.isdisjoint(
+        _columns(database, "github_accounts")
+    )
     assert {
         "github_installation_id",
         "github_owner_id",
@@ -282,19 +286,10 @@ def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_p
                 "users",
             )
         }
-        legacy_github_account = connection.execute(
-            "SELECT email, login, token_encrypted, user_id, github_user_id FROM github_accounts WHERE email = ?",
-            ("legacy@example.test",),
-        ).fetchone()
+        github_account_count = connection.execute("SELECT count(*) FROM github_accounts").fetchone()
     assert migrated == (1, "server", "a" * 40, "main", None)
     assert all(count >= 1 for count in related_counts.values())
-    assert legacy_github_account == (
-        "legacy@example.test",
-        "legacy-login",
-        "legacy-encrypted-token",
-        None,
-        None,
-    )
+    assert github_account_count == (0,)
 
     # Exercise SQLite's online backup API, then restore into a distinct file.
     with sqlite3.connect(dry_run_copy) as source_connection, sqlite3.connect(backup) as backup_connection:

@@ -7,9 +7,9 @@
 #             `docker compose pull server && docker compose up -d`
 #             so the VM never builds (publish-app-image builds in CI).
 #
-# The DB is a single SQLite file inside the named volume — backup = copy it.
-# The docker socket mount keeps local-folder scans working where a real
-# docker daemon is present; omit it on hosts that shouldn't scan locally.
+# The DB is a single SQLite file inside the named volume. Local project scans
+# run through the separate public CLI image; the hosted server has no Docker
+# socket or host-source mount.
 # ---------------------------------------------------------------------------
 name: assurance-scan
 
@@ -22,7 +22,7 @@ services:
     image: ghcr.io/26457513/assurance-scan-app:latest
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8742:8000"   # loopback only; expose via tailscale/VPN or a proxy
+      - "127.0.0.1:${ASSURANCE_SCAN_UI_PORT:-8742}:8000"   # loopback only; expose via a proxy
     env_file: ${ASSURANCE_SCAN_ENV_FILE:-.env}
     environment:
       ASSURANCE_SCAN_DB_PATH: /data/db.sqlite
@@ -30,9 +30,7 @@ services:
       CLI_RELEASE_BUNDLE_PATH: /data/cli-release/latest.sigstore.json
     volumes:
       - assurance-data:/data
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${HOME}/Development:${HOME}/Development:ro   # local-folder scan targets
-    working_dir: ${PWD}
+      - ${ASSURANCE_SCAN_SECRETS_DIR:-./.secrets}:/run/secrets/assurance-scan:ro
 
   # Public TLS front. Start with:
   #   DOMAIN=scan.example.com docker compose --profile public up -d

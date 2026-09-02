@@ -1,7 +1,6 @@
 # Scan ingestion programme
 
-Status: approved direction; WS6a–WS7f implemented and WS7g pending —
-2026-09-02
+Status: approved direction; WS6a–WS7f implemented and WS7g candidate implementation in progress — 2026-09-03
 
 This folder is the authoritative plan for local scanning, GitHub Actions push
 ingestion, GitHub-derived access and the replacement Setup experience. It
@@ -41,7 +40,6 @@ supersedes the former monolithic `plan-local-scan-upload.md` and
 | Setup states and transitions | [Setup state model](setup/state-model.md) |
 | New capability placement in the existing module architecture | [Module architecture](delivery/module-architecture.md) |
 | Remaining implementation order | [Workstreams](delivery/workstreams.md) |
-| Existing-data migration | [Migration and data disposition](delivery/migration-and-data.md) |
 | Production change and recovery | [Cutover and operations](delivery/cutover-and-operations.md) |
 | Required validation | [Quality gates](delivery/quality-gates.md) |
 | Already completed foundation | [Completed work](history/completed-work.md) |
@@ -52,8 +50,7 @@ Each decision has one owning document. Other files link to it instead of
 restating the contract. If two documents appear to conflict, the concern owner
 in the table above wins and the conflict must be removed before implementation.
 
-Runtime/API backward compatibility is not required. A migration-only GitHub
-identity-linking action ships before cutover and is removed by the coordinated
-server, frontend, workflow and public-CLI release. Rollback means restoring the
-verified pre-cutover database and previous matching application set; there are
-no dual-read, dual-write, poll fallback or legacy UI paths in the new release.
+Runtime/API backward compatibility is not required. This is a clean GitHub-only
+launch: there is no Google-to-GitHub linking window, dual-read, dual-write, poll
+fallback, PAT surface or legacy UI path. Recovery restores only a matching
+push-only application/database pair.

@@ -1,8 +1,7 @@
 # Delivery workstreams
 
-Status: WS6a–WS7f are implemented and quality-gated, subject to WS7b's two
-production-like rehearsals. WS7g remains;
-production activation of the new result contract stays deferred to WS7g.
+Status: WS6a–WS7f are implemented and quality-gated. WS7g clean-launch
+implementation is in progress; production activation remains deferred.
 
 ## Completed foundation
 
@@ -53,20 +52,12 @@ enabled.
 Acceptance: producers and server pass the same golden contract corpus and reject
 every negative fixture identically.
 
-## WS7b — identity and data migration
+## WS7b — GitHub identity foundation
 
-Status: implementation complete in candidate code. The read-only preflight,
-dormant identity/session foundations, feature-gated migration linking, and
-journalled restart-safe transformation/switch tooling are quality-gated. Two
-independent production-like rehearsals remain an operational acceptance gate.
-
-Implement GitHub OAuth/PKCE, secure browser sessions, the migration-only account-
-linking window, preflight, journalled migrations, project/run disposition and
-membership rebuild in
-[Migration and data disposition](migration-and-data.md).
-
-Acceptance: two production-like rehearsals produce identical counts/checksums,
-preserve linked user/run ownership and block every ambiguous identity.
+Status: superseded by the agreed clean-launch model. Permanent GitHub OAuth with
+PKCE, independent pre-authentication state, immutable numeric identity and
+digest-only server sessions replaces the temporary Google-account linking and
+identity-migration design. No email-based merge or compatibility path ships.
 
 ## WS7c — GitHub App access plane
 
@@ -159,15 +150,19 @@ does not flicker; local data remains invisible to another entitled user.
 
 ## WS7g — removal and production cutover
 
+Status: candidate implementation in progress (3 September 2026). Permanent
+GitHub sign-in, push-only runtime wiring, legacy route/UI removal and protected
+Environment deployment configuration are implemented; full quality gate and
+production activation evidence remain.
+
 Goal: replace every polling/pull path with GitHub-authorized, push-only ingestion and ship the redesigned setup experience.
 
 Remove pollers, pull endpoints, scheduler entries, polling UI/configuration and
-obsolete tests; perform the rehearsal and execute
+obsolete tests; validate the clean launch and execute
 [Cutover and operations](cutover-and-operations.md).
 
-Acceptance: the full definition of done below passes in production, the 24-hour
-rollback window closes, legacy PATs are revoked/erased, and the deployment has no
-callable scan-result polling path.
+Acceptance: the full definition of done below passes in production, legacy PAT
+storage is absent, and the deployment has no callable scan-result polling path.
 
 Each slice merges only after its own quality gate. New ingestion remains disabled
 until WS7g, so incremental implementation creates neither compatibility behavior

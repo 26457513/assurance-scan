@@ -14,9 +14,7 @@ from app.infrastructure.project_access import (
     ProjectAccessPrincipal,
     SYSTEM_PRINCIPAL,
     sync_github_app_memberships,
-    sync_github_memberships,
 )
-from app.modules.atomic.access.browser_auth import basic_auth_ok
 
 
 async def get_project_access_principal(
@@ -24,29 +22,13 @@ async def get_project_access_principal(
     session: AsyncSession = SessionDep,
     user: User | None = Depends(get_current_user),
 ) -> ProjectAccessPrincipal:
-    settings = request.app.state.settings
-    google_on = bool(
-        settings.google_client_id
-        and settings.google_client_secret
-        and settings.session_secret
-        and settings.public_base_url
-    )
-    basic_on = bool(settings.app_auth_user and settings.app_auth_password)
-    if basic_on and basic_auth_ok(
-        request.headers.get("authorization"),
-        settings.app_auth_user,
-        settings.app_auth_password,
-    ):
-        return SYSTEM_PRINCIPAL
-    if not google_on and not basic_on:
+    if not request.app.state.settings.public_base_url:
+        # Explicit local/test mode has no hosted browser identity boundary.
         return SYSTEM_PRINCIPAL
     if user is None or user.disabled_at is not None:
-        raise HTTPException(status_code=401, detail="sign in")
+        raise HTTPException(status_code=401, detail="sign in with GitHub")
     principal = ProjectAccessPrincipal(user_id=user.id, role=user.role)
-    if settings.github_app_access_enabled:
-        await sync_github_app_memberships(session, user, settings)
-    else:
-        await sync_github_memberships(session, user, settings)
+    await sync_github_app_memberships(session, user, request.app.state.settings)
     return principal
 
 

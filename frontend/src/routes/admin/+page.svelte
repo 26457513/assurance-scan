@@ -3,7 +3,7 @@
   import { api } from '$lib/api';
   import { pushToast } from '$lib/stores/toasts';
 
-  type Account = { email: string; role: string; last_login_at: string | null };
+  type Account = { id: number; login: string; role: string; last_login_at: string | null };
   let users: Account[] = [];
   let loading = true;
   let error = '';
@@ -17,10 +17,10 @@
     finally { loading = false; }
   }
 
-  async function setRole(email: string, event: Event) {
-    saving = email;
+  async function setRole(account: Account, event: Event) {
+    saving = String(account.id);
     const role = (event.currentTarget as HTMLSelectElement).value;
-    try { await api.setUserRole(email, role); pushToast('success', `${email} → ${role}`); await load(); }
+    try { await api.setUserRole(account.id, role); pushToast('success', `@${account.login} → ${role}`); await load(); }
     catch (cause) { pushToast('error', `Role change failed: ${cause}`); }
     finally { saving = ''; }
   }
@@ -34,7 +34,7 @@
     <div class="section-heading"><div><p>Accounts</p><h2 id="accounts-heading">Interface roles</h2></div><button type="button" on:click={load}>Refresh</button></div>
     {#if loading}<p class="state">Loading accounts…</p>
     {:else if error}<p class="state error" role="alert">Accounts could not be loaded. {error}</p>
-    {:else}<div class="rows">{#each users as user (user.email)}<div class="row"><span><strong>{user.email}</strong><small>{user.last_login_at ? `Last active ${user.last_login_at.slice(0,10)}` : 'No recorded login'}</small></span>{#if user.role === 'admin'}<code>admin · protected</code>{:else}<label><span class="sr-only">Role for {user.email}</span><select value={user.role} disabled={saving === user.email} on:change={(event) => setRole(user.email,event)}><option value="user">user</option><option value="superuser">superuser</option></select></label>{/if}</div>{/each}</div>{/if}
+    {:else}<div class="rows">{#each users as user (user.id)}<div class="row"><span><strong>@{user.login}</strong><small>{user.last_login_at ? `Last active ${user.last_login_at.slice(0,10)}` : 'No recorded login'}</small></span>{#if user.role === 'admin'}<code>admin · protected</code>{:else}<label><span class="sr-only">Role for {user.login}</span><select value={user.role} disabled={saving === String(user.id)} on:change={(event) => setRole(user,event)}><option value="user">user</option><option value="superuser">superuser</option></select></label>{/if}</div>{/each}</div>{/if}
   </section>
 </div>
 

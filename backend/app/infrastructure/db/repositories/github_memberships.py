@@ -1,4 +1,4 @@
-"""Transactional adapter for immutable GitHub account links."""
+"""Persistence for GitHub App-derived project membership projections."""
 
 from __future__ import annotations
 
@@ -15,76 +15,16 @@ from app.infrastructure.db.models import (
     ProjectMembership,
     User,
 )
-from app.modules.atomic.access.github_account_link import (
-    GithubAccountLinkDecision,
-    LinkGithubAccountCommand,
-)
 from app.modules.atomic.access.github_membership_projection import (
     GithubMembershipProjection,
     GithubRepositoryEntitlement,
     validate_membership_projection,
 )
-from app.secrets import decrypt, encrypt
-
-
-class SqlAlchemyGithubAccountLinkRepository:
-    """Serialize links and encrypt credentials before persistence."""
-
-    def __init__(self, session: AsyncSession, *, encryption_key: str, key_id: str) -> None:
-        if not encryption_key or not key_id:
-            raise ValueError("GitHub credential encryption is not configured")
-        self.session = session
-        self.encryption_key = encryption_key
-        self.key_id = key_id
-
-    async def link(self, command: LinkGithubAccountCommand, *, linked_at: dt.datetime) -> GithubAccountLinkDecision:
-        await self._begin_write()
-        user = await self.session.get(User, command.user_id)
-        if user is None or user.disabled_at is not None:
-            await self.session.rollback()
-            return GithubAccountLinkDecision.USER_ALREADY_LINKED
-        github_owner = (
-            await self.session.execute(
-                select(GithubAccount).where(GithubAccount.github_user_id == command.github_user_id)
-            )
-        ).scalar_one_or_none()
-        if github_owner is not None and github_owner.user_id != command.user_id:
-            await self.session.rollback()
-            return GithubAccountLinkDecision.IDENTITY_COLLISION
-        user_link = (
-            await self.session.execute(select(GithubAccount).where(GithubAccount.user_id == command.user_id))
-        ).scalar_one_or_none()
-        if user_link is not None and user_link.github_user_id != command.github_user_id:
-            await self.session.rollback()
-            return GithubAccountLinkDecision.USER_ALREADY_LINKED
-        row = user_link or github_owner
-        if row is None:
-            row = GithubAccount(email=None, token_encrypted=None, created_at=linked_at)
-            self.session.add(row)
-        row.user_id = command.user_id
-        row.github_user_id = command.github_user_id
-        row.login_at_last_verify = command.login
-        row.encrypted_user_token = encrypt(command.user_token, self.encryption_key)
-        row.encrypted_refresh_token = (
-            encrypt(command.refresh_token, self.encryption_key) if command.refresh_token is not None else None
-        )
-        row.credential_key_id = self.key_id
-        row.token_expires_at = command.token_expires_at
-        row.linked_at = row.linked_at or linked_at
-        row.verified_at = command.verified_at or linked_at
-        row.disconnected_at = None
-        await self.session.commit()
-        return GithubAccountLinkDecision.LINKED
-
-    async def _begin_write(self) -> None:
-        if self.session.in_transaction():
-            await self.session.rollback()
-        if self.session.get_bind().dialect.name == "sqlite":
-            await self.session.execute(text("BEGIN IMMEDIATE"))
+from app.secrets import decrypt
 
 
 class SqlAlchemyGithubMembershipProjectionRepository:
-    """Replace only GitHub App-derived rows, preserving manual/legacy rows."""
+    """Persist the current GitHub App-derived grants for one user."""
 
     def __init__(self, session: AsyncSession, *, encryption_key: str = "") -> None:
         self.session = session
@@ -104,16 +44,13 @@ class SqlAlchemyGithubMembershipProjectionRepository:
             await self.session.execute(
                 select(GithubAccount).where(
                     GithubAccount.user_id == user_id,
-                    GithubAccount.github_user_id.isnot(None),
                     GithubAccount.disconnected_at.is_(None),
                 )
             )
         ).scalar_one_or_none()
         if row is None or row.encrypted_user_token is None:
             return None
-        token_expires_at = (
-            _aware(row.token_expires_at) if row.token_expires_at is not None else None
-        )
+        token_expires_at = _aware(row.token_expires_at) if row.token_expires_at is not None else None
         if token_expires_at is not None and token_expires_at <= now:
             return None
         token = decrypt(row.encrypted_user_token, self.encryption_key)
@@ -224,7 +161,4 @@ def _aware(value: dt.datetime) -> dt.datetime:
     return value
 
 
-__all__ = [
-    "SqlAlchemyGithubAccountLinkRepository",
-    "SqlAlchemyGithubMembershipProjectionRepository",
-]
+__all__ = ["SqlAlchemyGithubMembershipProjectionRepository"]

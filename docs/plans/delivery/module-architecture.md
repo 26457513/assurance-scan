@@ -10,7 +10,7 @@ New backend work follows the established module boundaries:
 backend/app/modules/
   atomic/
     access/
-      github_identity/
+      github_signin_transaction/
       github_installation/
       repository_entitlement/
       scan_token/              # existing token capability, extended
@@ -22,8 +22,6 @@ backend/app/modules/
       result_persister/        # existing persistence boundary, extended
     provenance/
       repository_identity/     # existing identity capability, extended
-    operations/
-      identity_migration_preflight/ # read-only WS7b inventory and blockers
     scanning/                  # existing parsers/builders, extended
     local_cli/                 # existing CLI capabilities, extended
   workflows/

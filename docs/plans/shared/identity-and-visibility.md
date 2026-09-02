@@ -20,12 +20,12 @@ preserving project history.
 Installation add idempotently creates or reactivates a project by numeric
 repository ID. Removal or suspension disables uploads and hides the project
 without deleting history. Archive disables uploads while retaining entitled
-read access. Exact legacy disposition is defined in
-[Migration and data disposition](../delivery/migration-and-data.md).
+read access. The clean-launch activation contract is defined in
+[Cutover and operations](../delivery/cutover-and-operations.md).
 
 ## Canonical run identity
 
-Origins are `github-actions`, `local` and retained historical `server`.
+Origins are `github-actions`, `local` and internal `server`.
 
 - GitHub uniqueness: `(github_repository_id, github_run_id, run_attempt)`.
 - GitHub public ID: `gh-{repository_id}-{run_id}-{run_attempt}`.
@@ -34,8 +34,7 @@ Origins are `github-actions`, `local` and retained historical `server`.
 - Local public ID: server-generated `local-{uuid}`.
 - Branch is provenance, not identity.
 
-Historical `server` runs are labelled legacy, remain read-only under current
-project entitlement and never participate in current latest-run pointers,
+Internal `server` runs never participate in current latest-run pointers,
 trends or compliance aggregates.
 
 GitHub stores signed checkout SHA/ref plus PR head metadata when applicable.
