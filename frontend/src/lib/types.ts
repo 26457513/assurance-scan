@@ -154,6 +154,7 @@ export interface ScanResponse {
 
 export interface FindingResponse {
   id: number;
+  finding_key: string | null;
   run_id: string;
   scanner_kind: string;
   rule_id: string | null;
@@ -165,6 +166,22 @@ export interface FindingResponse {
   theme: string | null;
   fix_strategy: string | null;
   compliance_tags: string[];
+}
+
+export interface SourceContextResponse {
+  available: boolean;
+  provider: string | null;
+  path: string | null;
+  window_start: number | null;
+  window_end: number | null;
+  highlight_start: number | null;
+  highlight_end: number | null;
+  highlight_truncated: boolean;
+  lines: { number: number; text: string; truncated: boolean }[];
+  source_hash: string | null;
+  redaction_version: number | null;
+  redaction_changed: boolean;
+  unavailable_reason: string | null;
 }
 
 export interface FindingsListResponse {

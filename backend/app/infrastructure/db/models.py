@@ -1,9 +1,4 @@
-"""SQLAlchemy ORM models.
-
-Phase 1 schema: the full 13-table layout per `docs/mcp-stack-plan.md` §6.
-Split into logical groups (catalogue, run, evidence, state, audit) for
-readability — the table list itself is identical to the plan.
-"""
+"""SQLAlchemy ORM models for the Alembic-managed Assurance Scan schema."""
 from __future__ import annotations
 
 import datetime as dt
@@ -523,6 +518,7 @@ class Finding(Base):
     __tablename__ = "findings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    finding_key: Mapped[str | None] = mapped_column(String(36), nullable=True)
     run_id: Mapped[str] = mapped_column(
         String(64),
         ForeignKey("runs.run_id", ondelete="CASCADE"),
@@ -541,10 +537,57 @@ class Finding(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
+        UniqueConstraint("run_id", "finding_key", name="uq_findings_run_key"),
         Index("ix_findings_run", "run_id"),
         Index("ix_findings_run_severity", "run_id", "severity"),
         Index("ix_findings_run_file", "run_id", "file_path"),
     )
+
+
+class SourceContext(Base):
+    """One bounded, redacted source window uploaded with scan results."""
+
+    __tablename__ = "source_contexts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("runs.run_id", ondelete="CASCADE"), nullable=False
+    )
+    context_key: Mapped[str] = mapped_column(String(36), nullable=False)
+    available: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    window_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    window_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    highlight_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    highlight_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    highlight_truncated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    lines_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    source_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    redaction_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    redaction_changed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    unavailable_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "context_key", name="uq_source_contexts_run_key"),
+        Index("ix_source_contexts_run", "run_id"),
+    )
+
+
+class SourceContextFinding(Base):
+    """Many-to-many link between deduplicated contexts and findings."""
+
+    __tablename__ = "source_context_findings"
+
+    context_id: Mapped[int] = mapped_column(
+        ForeignKey("source_contexts.id", ondelete="CASCADE"), primary_key=True
+    )
+    finding_id: Mapped[int] = mapped_column(
+        ForeignKey("findings.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    __table_args__ = (Index("ix_source_context_findings_finding", "finding_id"),)
 
 
 # ---------------------------------------------------------------------------

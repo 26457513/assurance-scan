@@ -6,6 +6,7 @@ import os
 import urllib.parse
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 from .models import Finding
@@ -223,9 +224,10 @@ def ci_payload(
     github_run_id: str | None = None,
     branch: str | None = None,
     commit: str | None = None,
+    source_root: Path | None = None,
 ) -> dict[str, Any]:
     """Render the existing version-one GitHub Actions findings payload."""
-    return {
+    payload: dict[str, Any] = {
         "schema_version": 1,
         "source": "github-actions",
         "repo": repo,
@@ -257,3 +259,14 @@ def ci_payload(
             for index, finding in enumerate(findings)
         ],
     }
+    if source_root is not None:
+        from app.modules.atomic.ingestion.source_context import extract_source_contexts
+
+        extracted = extract_source_contexts(
+            source_root,
+            payload["findings"],
+            schema_version=1,
+        )
+        payload["findings"] = list(extracted.findings)
+        payload["source_contexts"] = list(extracted.contexts)
+    return payload

@@ -7,6 +7,7 @@ from typing import Any, TypedDict
 class FindingPayload(TypedDict, total=False):
     """Finding shape emitted by the existing CI findings bundle."""
 
+    finding_key: str
     scanner: str
     rule_id: str | None
     severity: str | None

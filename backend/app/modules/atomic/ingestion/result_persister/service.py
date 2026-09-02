@@ -1,6 +1,8 @@
 """Persist one normalized result bundle through an explicit storage port."""
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from app.modules.shared.contracts.findings import NormalizedFinding
 from app.modules.shared.contracts.ingest import (
     ARTIFACT_SPECS,
@@ -8,6 +10,7 @@ from app.modules.shared.contracts.ingest import (
     RunRecord,
     ScannerResult,
 )
+from app.modules.shared.contracts.source_context import SourceContextPayload
 
 from .ports import ResultPersistencePort
 
@@ -17,6 +20,7 @@ async def persist_result_bundle(
     record: RunRecord,
     bundle: ResultBundle,
     findings: list[NormalizedFinding],
+    source_contexts: Sequence[SourceContextPayload] = (),
 ) -> None:
     """Stage a complete result graph and its claim, then commit exactly once."""
     try:
@@ -52,6 +56,8 @@ async def persist_result_bundle(
 
         if findings:
             await persistence.insert_findings(findings)
+        if source_contexts:
+            await persistence.insert_source_contexts(record.run_id, source_contexts)
         await persistence.before_commit(record.run_id)
         await persistence.commit()
     except BaseException:

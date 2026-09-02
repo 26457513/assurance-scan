@@ -15,6 +15,11 @@ def normalize_findings(
     return [
         {
             "run_id": run_id,
+            **(
+                {"finding_key": finding["finding_key"]}
+                if finding.get("finding_key") is not None
+                else {}
+            ),
             "scanner_kind": finding["scanner"],
             "rule_id": finding.get("rule_id"),
             "severity": finding.get("severity"),

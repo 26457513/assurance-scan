@@ -13,8 +13,10 @@ from app.infrastructure.db.repositories.findings import FindingRepository
 from app.infrastructure.db.repositories.runs import RunRepository
 from app.infrastructure.db.repositories.scanner_artifacts import ScannerArtifactRepository
 from app.infrastructure.db.repositories.scanner_runs import ScannerRunRepository
+from app.infrastructure.db.repositories.source_contexts import SourceContextRepository
 from app.modules.shared.contracts.findings import NormalizedFinding
 from app.modules.shared.contracts.ingest import RunRecord, ScannerResult
+from app.modules.shared.contracts.source_context import SourceContextPayload
 
 
 class SqlAlchemyIngestPersistence:
@@ -26,6 +28,7 @@ class SqlAlchemyIngestPersistence:
         self._scanner_runs = ScannerRunRepository(session)
         self._artifacts = ScannerArtifactRepository(session)
         self._findings = FindingRepository(session)
+        self._source_contexts = SourceContextRepository(session)
 
     async def get(self, run_id: str) -> object | None:
         return await self._runs.get(run_id)
@@ -133,6 +136,13 @@ class SqlAlchemyIngestPersistence:
         findings: Sequence[NormalizedFinding],
     ) -> None:
         await self._findings.bulk_insert(findings)
+
+    async def insert_source_contexts(
+        self,
+        run_id: str,
+        contexts: Sequence[SourceContextPayload],
+    ) -> None:
+        await self._source_contexts.bulk_insert(run_id, contexts)
 
     async def commit(self) -> None:
         await self._session.commit()

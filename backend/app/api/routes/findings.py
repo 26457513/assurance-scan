@@ -13,9 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
 from app.api.deps_project_access import ProjectAccessDep
-from app.api.schemas.finding import FindingResponse, FindingsListResponse
-from app.infrastructure.db.models import FindingAcceptance
+from app.api.schemas.finding import (
+    FindingResponse,
+    FindingsListResponse,
+    SourceContextResponse,
+)
+from app.infrastructure.db.models import Finding, FindingAcceptance
 from app.infrastructure.db.repositories.findings import FindingRepository
+from app.infrastructure.db.repositories.source_contexts import SourceContextRepository
 from app.infrastructure.project_access import require_project, require_run
 
 
@@ -66,9 +71,47 @@ async def get_findings_json(
     return PlainTextResponse(run.findings_json, media_type="application/json")
 
 
+@router.get(
+    "/scans/{run_id}/findings/{finding_id}/source-context",
+    response_model=SourceContextResponse,
+)
+async def get_source_context(
+    run_id: str,
+    finding_id: int,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> SourceContextResponse:
+    """Return only source captured from the immutable scanned snapshot."""
+
+    if await require_run(session, principal, run_id) is None:
+        raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
+    finding = await session.get(Finding, finding_id)
+    if finding is None or finding.run_id != run_id:
+        raise HTTPException(status_code=404, detail="finding not found")
+    context = await SourceContextRepository(session).get_for_finding(run_id, finding_id)
+    if context is None:
+        return SourceContextResponse(available=False, unavailable_reason="not_uploaded")
+    return SourceContextResponse(
+        available=context.available,
+        provider=context.provider,
+        path=context.file_path,
+        window_start=context.window_start,
+        window_end=context.window_end,
+        highlight_start=context.highlight_start,
+        highlight_end=context.highlight_end,
+        highlight_truncated=context.highlight_truncated,
+        lines=json.loads(context.lines_json),
+        source_hash=context.source_hash,
+        redaction_version=context.redaction_version,
+        redaction_changed=context.redaction_changed,
+        unavailable_reason=context.unavailable_reason,
+    )
+
+
 def _row_to_response(row) -> FindingResponse:
     return FindingResponse(
         id=row.id,
+        finding_key=row.finding_key,
         run_id=row.run_id,
         scanner_kind=row.scanner_kind,
         rule_id=row.rule_id,

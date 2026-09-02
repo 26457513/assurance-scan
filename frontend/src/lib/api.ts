@@ -20,6 +20,7 @@ import type {
   ScanResponse,
   ScanStatus,
   ScanSummary,
+  SourceContextResponse,
   TestSourceResponse,
   TrendCommits,
   TrendsResponse,
@@ -131,15 +132,6 @@ export const api = {
       repos: { full_name: string; name?: string; org?: string; pushed_at?: string; html_url?: string }[];
       errors?: string[];
     }>('/api/github/repos'),
-
-  githubSource: (repo: string, commit: string, path: string, line?: number | null) =>
-    getJson<{
-      unavailable?: boolean;
-      start_line?: number;
-      end_line?: number;
-      highlight?: number;
-      lines?: { n: number; text: string }[];
-    }>(`/api/github/source?repo=${encodeURIComponent(repo)}&commit=${encodeURIComponent(commit)}&path=${encodeURIComponent(path)}${line ? `&line=${line}` : ''}`),
 
   createProject: (
     tag: string,
@@ -301,6 +293,11 @@ export const api = {
     const qs = severity ? `?severity=${encodeURIComponent(severity)}` : '';
     return getJson<FindingsListResponse>(`/api/scans/${runId}/findings${qs}`);
   },
+
+  findingSourceContext: (runId: string, findingId: number) =>
+    getJson<SourceContextResponse>(
+      `/api/scans/${encodeURIComponent(runId)}/findings/${findingId}/source-context`
+    ),
 
   findingsJson: async (runId: string): Promise<string> => {
     const res = await fetch(`/api/scans/${runId}/findings.json`);

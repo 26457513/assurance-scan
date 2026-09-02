@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any, Literal, Mapping, Sequence
 
 from .findings import FindingPayload
+from .source_context import SourceContextPayload
 
 
 IngestStatus = Literal["ingested", "exists"]
@@ -62,6 +63,7 @@ class ResultBundle:
     schema_version: int
     scanners: Sequence[ScannerResult] = ()
     findings: Sequence[FindingPayload] = ()
+    source_contexts: Sequence[SourceContextPayload] = ()
     artifacts: Mapping[str, bytes] = field(default_factory=dict)
 
 

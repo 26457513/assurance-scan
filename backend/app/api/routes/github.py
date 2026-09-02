@@ -1,14 +1,12 @@
-"""GitHub org repos + source peek for the CI-centric UI (phase 3)."""
+"""GitHub repository discovery for the CI-centric UI."""
 from __future__ import annotations
 
 import asyncio
-import functools
-import urllib.error
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 
 from app.api.deps import SessionDep
 from app.api.deps_project_access import ProjectAccessDep
@@ -17,10 +15,6 @@ from app.infrastructure.project_access import require_project
 
 
 router = APIRouter(prefix="/github", tags=["github"])
-
-MAX_PEEK_BYTES = 1_000_000
-CONTEXT_PAD = 3  # lines above/below the flagged line
-
 
 @router.get("/repos")
 async def list_repos(
@@ -142,72 +136,3 @@ async def list_branches(
     except Exception as exc:
         raise _HTTP(status_code=422, detail=f"cannot read branches ({source}): {exc}")
     return {"repo": repo, "branches": branches}
-
-
-def _window(lines: list[str], line: int | None, pad: int = CONTEXT_PAD) -> dict[str, Any]:
-    """1-indexed `line` plus `pad` lines either side."""
-    if line is None or line < 1:
-        line = 1
-    start = max(1, line - pad)
-    end = min(len(lines), line + pad)
-    return {
-        "start_line": start,
-        "end_line": end,
-        "highlight": min(line, max(len(lines), 1)),
-        "lines": [
-            {"n": n, "text": lines[n - 1]} for n in range(start, end + 1)
-        ],
-    }
-
-
-@functools.lru_cache(maxsize=128)
-def _fetch_file(token: str, repo: str, commit: str, path: str) -> str | None:
-    """Raw text or None when unavailable (missing, binary, too large).
-
-    None results are cached too — a missing file at an immutable sha stays
-    missing, and repeat peeks shouldn't hammer the API.
-    """
-    client = GitHubClient(token)
-    try:
-        raw = client.file_contents(repo, commit, path)
-    except urllib.error.HTTPError:
-        return None
-    except Exception:
-        return None
-    if len(raw) > MAX_PEEK_BYTES or b"\0" in raw[:8192]:
-        return None
-    return raw.decode("utf-8", errors="replace")
-
-
-@router.get("/source")
-async def source_peek(
-    request: Request,
-    principal: ProjectAccessDep,
-    repo: str,
-    commit: str,
-    path: str,
-    session: AsyncSession = SessionDep,
-    line: int | None = None,
-) -> dict[str, Any]:
-    from app.infrastructure.db.models import Project
-    from app.modules.atomic.provenance.repository_identity import normalize_github_repository_key
-    from sqlalchemy import select as _select
-
-    project = (
-        await session.execute(
-            _select(Project).where(
-                Project.github_repo_key == normalize_github_repository_key(repo)
-            )
-        )
-    ).scalar_one_or_none()
-    if project is None or await require_project(session, principal, project.id) is None:
-        raise HTTPException(status_code=404, detail="project not found")
-    settings = request.app.state.settings
-    if not settings.github_poll_token:
-        raise HTTPException(status_code=503, detail="GitHub token not configured")
-    text = await asyncio.to_thread(
-        _fetch_file, settings.github_poll_token, repo, commit, path
-    )
-    if text is None:
-        return {"unavailable": True, "path": path}
-    return _window(text.splitlines(), line)

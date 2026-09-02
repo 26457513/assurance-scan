@@ -7,7 +7,16 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import select as sa_select
 
-from app.infrastructure.db.models import Finding, Project, Run, ScanJob, ScannerArtifact, ScannerRun
+from app.infrastructure.db.models import (
+    Finding,
+    Project,
+    Run,
+    ScanJob,
+    ScannerArtifact,
+    ScannerRun,
+    SourceContext,
+)
+from app.infrastructure.db.repositories.source_contexts import SourceContextRepository
 from app.modules.atomic.ingestion.result_persister._adapters import SqlAlchemyIngestPersistence
 from app.modules.workflows.result_ingest import (
     ResolvedProject,
@@ -135,6 +144,64 @@ async def test_ingest_is_idempotent(session) -> None:
     assert len(findings) == 2
 
 
+async def test_github_ingest_persists_finding_scoped_source_context(session) -> None:
+    _register_project(session)
+    payload = _payload()
+    finding_keys = (
+        "5f874412-d500-5c0c-a7f2-4758f022af4a",
+        "dd880de8-c625-58d8-a00c-334611e5cdb0",
+    )
+    for finding, finding_key in zip(payload["findings"], finding_keys, strict=True):
+        finding["finding_key"] = finding_key
+    payload["source_contexts"] = [
+        {
+            "context_key": "8365422d-c67f-5135-a7ef-ea4811d7bff5",
+            "finding_keys": [finding_keys[0]],
+            "available": True,
+            "provider": "snapshot",
+            "path": "src/app.py",
+            "window_start": 8,
+            "window_end": 10,
+            "highlight_start": 10,
+            "highlight_end": 10,
+            "highlight_truncated": False,
+            "lines": [
+                {"number": number, "text": f"line {number}", "truncated": False}
+                for number in range(8, 11)
+            ],
+            "source_hash": "a" * 64,
+            "redaction_version": 1,
+            "redaction_changed": False,
+        },
+        {
+            "context_key": "5c54bf67-703f-5b96-ab9e-1242fe48001c",
+            "finding_keys": [finding_keys[1]],
+            "available": False,
+            "provider": "snapshot",
+            "path": "src/app.py",
+            "redaction_version": 1,
+            "redaction_changed": False,
+            "unavailable_reason": "file_too_large",
+        },
+    ]
+    envelope, bundle = build_github_inputs(
+        ResolvedProject(123, "26457513/doc2context", 987654),
+        META,
+        payload,
+    )
+
+    await ingest_result_bundle(SqlAlchemyIngestPersistence(session), envelope, bundle)
+
+    findings = (await session.execute(sa_select(Finding).order_by(Finding.id))).scalars().all()
+    assert [finding.finding_key for finding in findings] == list(finding_keys)
+    contexts = (await session.execute(sa_select(SourceContext))).scalars().all()
+    assert len(contexts) == 2
+    assert {context.provider for context in contexts} == {"snapshot"}
+    repository = SourceContextRepository(session)
+    assert await repository.get_for_finding("gh-32127508239", findings[0].id) is not None
+    assert await repository.get_for_finding("gh-32127508239", findings[1].id) is not None
+
+
 async def test_ingest_failed_run_without_payload(session) -> None:
     _register_project(session)
     failed_meta = {**META, "conclusion": "failure"}
@@ -165,25 +232,6 @@ async def test_valid_results_complete_even_when_github_workflow_failed(session) 
     run = (await session.execute(sa_select(Run))).scalars().one()
     assert run.status == "completed"
     assert run.error_message is None
-
-
-def test_source_window_slices_context() -> None:
-    from app.api.routes.github import _window
-
-    lines = [f"line{i}" for i in range(1, 11)]
-    w = _window(lines, 5)
-    assert w["start_line"] == 2 and w["end_line"] == 8
-    assert [line["n"] for line in w["lines"]] == [2, 3, 4, 5, 6, 7, 8]
-    assert w["highlight"] == 5
-    assert w["lines"][3]["text"] == "line5"
-
-    # Clamp at the top of the file.
-    top = _window(lines, 1)
-    assert top["start_line"] == 1 and top["end_line"] == 4 and top["highlight"] == 1
-
-    # Missing line info defaults to the file start.
-    default = _window(lines, None)
-    assert default["start_line"] == 1 and default["highlight"] == 1
 
 
 def test_resolve_repos_override_and_org_cache() -> None:

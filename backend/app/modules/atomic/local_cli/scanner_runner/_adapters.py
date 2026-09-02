@@ -103,7 +103,11 @@ class DockerLocalScannerRunner:
             if completed == 0:
                 raise ScannerRuntimeError("no scanner produced a valid result")
 
-            document = findings_document(findings, scanner_results)
+            document = findings_document(
+                findings,
+                scanner_results,
+                snapshot_root=snapshot_root,
+            )
             redacted = redact_json(cast(Any, document), repository_root=str(snapshot_root)).value
             if not isinstance(redacted, dict):
                 raise ScannerRuntimeError("normalized scanner result is invalid")

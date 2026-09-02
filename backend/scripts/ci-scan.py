@@ -54,6 +54,7 @@ def main() -> int:
         github_run_id=os.environ.get("GITHUB_RUN_ID"),
         branch=github_branch(),
         commit=os.environ.get("GITHUB_SHA"),
+        source_root=Path(project_path),
     )
     sarif_path.with_name("findings.json").write_text(json.dumps(payload, indent=2))
     print(f"wrote {sarif_path}: {len(findings)} findings")

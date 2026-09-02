@@ -28,6 +28,7 @@ class FindingRepository(BaseRepository[Finding]):
             self.session.add(
                 Finding(
                     run_id=item["run_id"],
+                    finding_key=item.get("finding_key"),
                     scanner_kind=item["scanner_kind"],
                     rule_id=item.get("rule_id"),
                     severity=item["severity"],

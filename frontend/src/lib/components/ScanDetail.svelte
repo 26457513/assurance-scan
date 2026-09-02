@@ -4,13 +4,12 @@
   import { selectScan } from '$lib/stores/selectedScan';
   import ScanResultsView from './ScanResultsView.svelte';
   import ProvenanceStrip from './ProvenanceStrip.svelte';
-  import type { ProjectSummary, ScanStatus, ScanSummary } from '$lib/types';
+  import type { ScanStatus, ScanSummary } from '$lib/types';
 
   export let runId: string;
 
   let scan: ScanSummary | null = null;
   let status: ScanStatus | null = null;
-  let project: ProjectSummary | null = null;
   let loading = true;
   let error: string | null = null;
   const scanGate = createRequestGate<string>();
@@ -21,9 +20,6 @@
     loading = true;
     try {
       const fetched: ScanStatus = await api.getScan(targetRunId);
-      const fetchedProject = (await api.listProjects()).projects.find(
-        (item) => item.id === fetched.project_id
-      ) ?? null;
       if (!scanGate.isCurrent(ticket)) return;
       const fetchedScan: ScanSummary = {
         run_id: fetched.run_id,
@@ -37,7 +33,6 @@
         display_title: (fetched.options as Record<string, unknown>)?.display_title as string | undefined ?? undefined
       };
       status = fetched;
-      project = fetchedProject;
       scan = fetchedScan;
       selectScan(fetchedScan);
       error = null;
@@ -52,9 +47,6 @@
   $: runLabel = typeof status?.options?.run_number === 'number'
     ? `#${status.options.run_number}${status.options.display_title ? ' · ' + status.options.display_title : ''}`
     : runId;
-
-  $: ghRepo = project?.github_repo ?? null;
-  $: ghCommit = status?.commit_sha ?? null;
 
   // Reactive so switching rows in the scans list reloads the detail view
   // (the component is not remounted between selections).
@@ -97,7 +89,7 @@
   {:else if scan}
     {#key scan.run_id}
       <div class="p-6">
-        <ScanResultsView {scan} repo={ghRepo} commit={ghCommit} />
+        <ScanResultsView {scan} />
       </div>
     {/key}
   {/if}

@@ -18,7 +18,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 LEGACY_REVISION = "0016_project_scan_ref"
-HEAD_REVISION = "0024_project_memberships"
+HEAD_REVISION = "0025_finding_source_contexts"
 
 
 def _alembic(database: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -55,7 +55,14 @@ def test_empty_database_migrates_forward_to_head(tmp_path: Path) -> None:
     _alembic(database, "upgrade", "head")
 
     assert _revision(database) == HEAD_REVISION
-    assert {"runs", "projects", "users", "project_checkouts"}.issubset(_tables(database))
+    assert {
+        "runs",
+        "projects",
+        "users",
+        "project_checkouts",
+        "source_contexts",
+        "source_context_findings",
+    }.issubset(_tables(database))
 
 
 def test_copied_representative_database_dry_run_upgrade_and_backup_restore(tmp_path: Path) -> None:

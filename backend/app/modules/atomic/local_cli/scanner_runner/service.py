@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 from app.modules.atomic.scanning.finding_parser import ParsedFinding
 from app.modules.atomic.scanning.scanner_catalog import PROJECT_MOUNT_TARGET, ScannerConfig
@@ -72,9 +73,11 @@ def build_local_scanner_argv(
 def findings_document(
     findings: Sequence[ParsedFinding],
     scanner_results: Sequence[dict[str, Any]],
+    *,
+    snapshot_root: Path | None = None,
 ) -> dict[str, Any]:
     """Render the strict source-neutral v1 findings upload document."""
-    return {
+    document: dict[str, Any] = {
         "schema_version": 1,
         "scanners": list(scanner_results),
         "findings": [
@@ -93,6 +96,17 @@ def findings_document(
             for finding in findings[:20_000]
         ],
     }
+    if snapshot_root is not None:
+        from app.modules.atomic.ingestion.source_context import extract_source_contexts
+
+        extracted = extract_source_contexts(
+            snapshot_root,
+            cast(Sequence[Any], document["findings"]),
+            schema_version=1,
+        )
+        document["findings"] = list(extracted.findings)
+        document["source_contexts"] = list(extracted.contexts)
+    return document
 
 
 __all__ = ["build_local_scanner_argv", "findings_document", "scanner_container_name"]

@@ -18,6 +18,7 @@ from app.modules.shared.contracts.ingest import (
     RunRecord,
     ScannerResult,
 )
+from app.modules.shared.contracts.source_context import SourceContextPayload
 from app.modules.workflows.result_ingest import (
     build_local_result_bundle,
     github_run_id,
@@ -86,6 +87,7 @@ class RecordingPersistence:
         self.events: list[tuple[Any, ...]] = []
         self.artifacts: list[bytes] = []
         self.findings: list[dict[str, Any]] = []
+        self.source_contexts: list[SourceContextPayload] = []
 
     async def get(self, run_id: str) -> object | None:
         self.events.append(("get", run_id))
@@ -121,6 +123,14 @@ class RecordingPersistence:
         self.findings.extend(findings)
         if self.fail_at == "findings":
             raise RuntimeError("injected persistence failure")
+
+    async def insert_source_contexts(
+        self,
+        run_id: str,
+        contexts: Sequence[SourceContextPayload],
+    ) -> None:
+        self.events.append(("source_contexts", run_id, len(contexts)))
+        self.source_contexts.extend(contexts)
 
     async def before_commit(self, run_id: str) -> None:
         self.events.append(("before_commit", run_id))
@@ -220,6 +230,63 @@ async def test_ingest_redacts_findings_artifacts_and_client_provenance() -> None
     assert "/Users/alice" not in persisted
     assert canary not in persistence.findings[0]["message"]
     assert "/Users/alice" not in persistence.findings[0]["message"]
+
+
+async def test_ingest_validates_links_and_reredacts_source_context() -> None:
+    persistence = RecordingPersistence()
+    finding_key = "5f874412-d500-5c0c-a7f2-4758f022af4a"
+    context_key = "8365422d-c67f-5135-a7ef-ea4811d7bff5"
+    bundle = ResultBundle(
+        schema_version=1,
+        scanners=(ScannerResult("semgrep", "completed"),),
+        findings=({
+            "finding_key": finding_key,
+            "scanner": "semgrep",
+            "message": "bad",
+        },),
+        source_contexts=({
+            "context_key": context_key,
+            "finding_keys": [finding_key],
+            "available": True,
+            "provider": "snapshot",
+            "path": "app.py",
+            "window_start": 1,
+            "window_end": 1,
+            "highlight_start": 1,
+            "highlight_end": 1,
+            "highlight_truncated": False,
+            "lines": [{
+                "number": 1,
+                "text": "token=AS_CANARY_SECRET_DO_NOT_PERSIST_123",
+                "truncated": False,
+            }],
+            "source_hash": "a" * 64,
+            "redaction_version": 1,
+            "redaction_changed": False,
+        },),
+    )
+    envelope = LocalIngestEnvelope(
+        run_id="local-42",
+        project=ResolvedProject(42, "owner/repo", 99),
+        submitted_by_user_id=7,
+        submitting_token_id="token-id",
+        submitting_token_label="laptop",
+        payload_hash="b" * 64,
+        commit_sha="a" * 40,
+        git_object_format="sha1",
+        branch="main",
+        working_tree_dirty=True,
+        source_content_hash="c" * 64,
+        source_manifest_version="assurance-snapshot-v1",
+        client_provenance_version=1,
+        client_provenance={},
+        started_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(timezone.utc),
+    )
+
+    assert await ingest_result_bundle(persistence, envelope, bundle) == "ingested"
+    assert persistence.source_contexts[0]["lines"][0]["text"] == "token=[REDACTED]"
+    assert persistence.source_contexts[0]["redaction_changed"] is True
 
 
 async def test_local_ingest_rejects_bundle_without_scanner_results() -> None:

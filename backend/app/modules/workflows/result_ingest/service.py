@@ -9,6 +9,10 @@ from typing import Any, Literal, Mapping, cast
 from app.modules.atomic.ingestion.data_redactor import redact_json, redact_text
 from app.modules.atomic.ingestion.finding_normalizer import normalize_findings
 from app.modules.atomic.ingestion.result_persister import persist_result_bundle
+from app.modules.atomic.ingestion.source_context import (
+    sanitize_source_contexts,
+    validate_source_context_links,
+)
 from app.modules.shared.contracts.ingest import (
     GitHubIngestEnvelope,
     IngestEnvelope,
@@ -105,6 +109,7 @@ def build_local_result_bundle(
         schema_version=int(findings_document["schema_version"]),
         scanners=scanners,
         findings=tuple(findings_document["findings"]),
+        source_contexts=tuple(findings_document.get("source_contexts") or ()),
         artifacts=dict(artifacts),
     )
 
@@ -122,7 +127,13 @@ async def ingest_result_bundle(
     if await persistence.get(record.run_id) is not None:
         return "exists"
     findings = normalize_findings(record.run_id, bundle.findings)
-    await persist_result_bundle(persistence, record, bundle, findings)
+    await persist_result_bundle(
+        persistence,
+        record,
+        bundle,
+        findings,
+        list(bundle.source_contexts),
+    )
     log.info(
         "ingested %s run %s (%s, %d findings)",
         record.origin,
@@ -205,6 +216,8 @@ def _validate_result_bundle(envelope: IngestEnvelope, bundle: ResultBundle) -> N
     if not kinds:
         if isinstance(envelope, LocalIngestEnvelope) or envelope.conclusion == "success":
             raise ValueError("result bundle contains no scanner results")
+    if bundle.source_contexts:
+        validate_source_context_links(bundle.findings, bundle.source_contexts)
 
 
 def _findings_json(bundle: ResultBundle) -> str:
@@ -213,6 +226,7 @@ def _findings_json(bundle: ResultBundle) -> str:
             "schema_version": bundle.schema_version,
             "scanners": [asdict(result) for result in bundle.scanners],
             "findings": list(bundle.findings),
+            "source_contexts": list(bundle.source_contexts),
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -224,6 +238,7 @@ def _redact_result_bundle(bundle: ResultBundle) -> ResultBundle:
     if not isinstance(redacted_findings, list):
         raise ValueError("result findings must be a JSON array")
     findings = tuple(cast(FindingPayload, item) for item in redacted_findings)
+    contexts = sanitize_source_contexts(bundle.source_contexts)
     scanners = tuple(
         replace(
             result,
@@ -251,6 +266,7 @@ def _redact_result_bundle(bundle: ResultBundle) -> ResultBundle:
         schema_version=bundle.schema_version,
         scanners=scanners,
         findings=findings,
+        source_contexts=contexts,
         artifacts=artifacts,
     )
     if "findings" in bundle.artifacts:
@@ -293,6 +309,7 @@ def _github_result_bundle(
         schema_version=int(payload.get("schema_version", 1)),
         scanners=scanners,
         findings=tuple(payload.get("findings") or ()),
+        source_contexts=tuple(payload.get("source_contexts") or ()),
         artifacts=_normalize_github_artifacts(blobs),
     )
 

@@ -6,6 +6,7 @@ from typing import Protocol, Sequence
 
 from app.modules.shared.contracts.findings import NormalizedFinding
 from app.modules.shared.contracts.ingest import RunRecord, ScannerResult
+from app.modules.shared.contracts.source_context import SourceContextPayload
 
 
 class ResultPersistencePort(Protocol):
@@ -31,6 +32,12 @@ class ResultPersistencePort(Protocol):
     ) -> None: ...
 
     async def insert_findings(self, findings: Sequence[NormalizedFinding]) -> None: ...
+
+    async def insert_source_contexts(
+        self,
+        run_id: str,
+        contexts: Sequence[SourceContextPayload],
+    ) -> None: ...
 
     async def before_commit(self, run_id: str) -> None:
         """Stage external claim completion in this transaction, without committing."""
