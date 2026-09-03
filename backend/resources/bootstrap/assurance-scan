@@ -200,7 +200,9 @@ run_cli() {
     no_symlink_components "$run_cache"
     group_args=
     if [ "$(uname -s)" = Darwin ]; then
-      socket_gid=$(stat -f '%g' "$socket")
+      # Docker Desktop exposes the host socket as root:root inside its Linux
+      # VM, regardless of the macOS socket's host group (commonly staff/20).
+      socket_gid=0
     else
       socket_gid=$(stat -c '%g' "$socket")
     fi

@@ -83,5 +83,8 @@ def test_wrapper_contract_uses_digest_only_cli_and_bounded_mounts() -> None:
     assert 'ASSURANCE_SCAN_HOST_RUN_CACHE="$run_cache"' in wrapper
     assert '"$PROJECT_ROOT:/workspace:ro"' in wrapper
     assert '"$CONFIG_ROOT:/config:ro"' in wrapper
+    assert 'if [ "$(uname -s)" = Darwin ]; then\n      # Docker Desktop' in wrapper
+    assert "socket_gid=0" in wrapper
+    assert "socket_gid=$(stat -c '%g' \"$socket\")" in wrapper
     assert "ssh://" not in wrapper
     assert "$IMAGE:stable" not in wrapper
