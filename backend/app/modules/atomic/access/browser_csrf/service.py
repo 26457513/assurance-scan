@@ -10,7 +10,10 @@ import time
 from urllib.parse import urlsplit
 
 
-CSRF_COOKIE_NAME = "as_csrf"
+# Version the browser cookie name so an older path-scoped cookie cannot shadow
+# the current double-submit value after a deployment. Keep the cookie host-only
+# by omitting Domain at the HTTP boundary.
+CSRF_COOKIE_NAME = "as_scan_token_csrf_v2"
 _TOKEN_TTL_SECONDS = 60 * 60
 
 

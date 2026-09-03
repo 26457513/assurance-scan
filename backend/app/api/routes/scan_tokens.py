@@ -128,7 +128,9 @@ async def list_scan_tokens(
         httponly=True,
         secure=urlsplit(settings.public_base_url).scheme == "https",
         samesite="strict",
-        path="/api/users/me/scan-tokens",
+        # A host-wide path prevents a second cookie with the same name and a
+        # different path from making request-cookie parsing order-dependent.
+        path="/",
     )
     return response
 

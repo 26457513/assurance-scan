@@ -180,11 +180,28 @@ async def test_get_mints_bound_http_only_strict_csrf_cookie(harness: RouteHarnes
     assert response.json()["creation_enabled"] is True
     csrf = response.json()["csrf_token"]
     cookie = response.headers["set-cookie"]
-    assert f"as_csrf={csrf}" in cookie
+    assert f"as_scan_token_csrf_v2={csrf}" in cookie
     assert "HttpOnly" in cookie
     assert "SameSite=strict" in cookie
     assert "Secure" in cookie
+    assert "Path=/" in cookie
     assert response.headers["cache-control"] == "no-store"
+
+
+async def test_legacy_path_cookie_cannot_shadow_current_csrf_cookie(
+    harness: RouteHarness,
+) -> None:
+    harness.sign_in("alice@example.test")
+    harness.client.cookies.set(
+        "as_csrf",
+        "stale",
+        domain="scan.example.test",
+        path="/",
+    )
+
+    response = await harness.issue("Migrated browser")
+
+    assert response.status_code == 201
 
 
 async def test_creation_flag_fails_closed_but_list_and_revoke_remain_available(
