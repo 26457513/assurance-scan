@@ -103,6 +103,10 @@ async def test_wrapper_and_displayed_checksum_match() -> None:
     ).hexdigest()
     assert wrapper.status_code == 200
     assert wrapper.content.startswith(b"#!/bin/sh\n")
+    assert b"--network none" in wrapper.content
+    assert b"--new-bundle-format" in wrapper.content
+    assert b"--trusted-root /release/trusted-root.json" in wrapper.content
+    assert b"TRUSTED_ROOT_SHA256=" in wrapper.content
     assert checksum.text.strip() == expected
 
 

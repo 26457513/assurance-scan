@@ -9,6 +9,8 @@ DEFAULT_RELEASE_ORIGIN=https://scan.squease.ai
 VERIFIER_IMAGE=ghcr.io/sigstore/cosign/cosign@sha256:278d0b6c728608731d8fa2123c00c8b8dd6207aa53f079b195dea906b29ab0b2
 SIGNING_ISSUER=https://token.actions.githubusercontent.com
 SIGNING_IDENTITY_REGEX='^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+TRUSTED_ROOT_URL=https://raw.githubusercontent.com/sigstore/root-signing/6583aedcf68a09e51524eadb609a4225d3a3dc94/targets/trusted_root.json
+TRUSTED_ROOT_SHA256=6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66
 
 fail() {
   printf 'assurance-scan: %s\n' "$*" >&2
@@ -42,10 +44,39 @@ json_string() {
   printf '%s' "$value"
 }
 
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+ensure_trusted_root() {
+  if [ -f "$TRUSTED_ROOT" ] && [ "$(sha256_file "$TRUSTED_ROOT")" = "$TRUSTED_ROOT_SHA256" ]; then
+    return
+  fi
+  temporary=$RELEASE_CACHE/trusted-root.json.$$.tmp
+  rm -f "$temporary"
+  curl -fsS --proto '=https' --tlsv1.2 --max-filesize 65536 \
+    "$TRUSTED_ROOT_URL" -o "$temporary" || {
+    rm -f "$temporary"
+    fail "cannot retrieve the pinned Sigstore trusted root"
+  }
+  [ "$(sha256_file "$temporary")" = "$TRUSTED_ROOT_SHA256" ] || {
+    rm -f "$temporary"
+    fail "the Sigstore trusted root does not match the wrapper trust anchor"
+  }
+  chmod 600 "$temporary"
+  mv "$temporary" "$TRUSTED_ROOT"
+}
+
 verify_manifest() {
   docker run --rm --network none \
     -v "$RELEASE_CACHE:/release:ro" \
     "$VERIFIER_IMAGE" verify-blob --offline \
+    --new-bundle-format \
+    --trusted-root /release/trusted-root.json \
     --bundle /release/latest.sigstore.json \
     --certificate-identity-regexp "$SIGNING_IDENTITY_REGEX" \
     --certificate-oidc-issuer "$SIGNING_ISSUER" \
@@ -86,6 +117,7 @@ release_is_fresh() {
 }
 
 load_release() {
+  ensure_trusted_root
   online=0
   if [ "$FORCE_UPDATE" = 1 ] || ! release_is_fresh; then
     if fetch_release; then
@@ -223,6 +255,7 @@ CONFIG_ROOT=${XDG_CONFIG_HOME:-$HOME/.config}/assurance-scan
 CACHE_ROOT=${XDG_CACHE_HOME:-$HOME/.cache}/assurance-scan
 RELEASE_CACHE=$CACHE_ROOT/release
 MANIFEST=$RELEASE_CACHE/latest.json
+TRUSTED_ROOT=$RELEASE_CACHE/trusted-root.json
 RELEASE_ORIGIN=${ASSURANCE_SCAN_RELEASE_ORIGIN:-$DEFAULT_RELEASE_ORIGIN}
 PROJECT_ROOT=$(pwd -P)
 FORCE_UPDATE=0
