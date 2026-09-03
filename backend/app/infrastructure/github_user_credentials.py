@@ -25,11 +25,14 @@ async def usable_github_access_token(
     settings: Settings,
     now: dt.datetime,
 ) -> str | None:
-    """Return a current token, rotating it once near expiry and failing closed."""
+    """Return a current token, rotating it once near expiry and failing closed.
+
+    The caller owns the session transaction. In particular, resolving a token
+    must not roll back identity objects or unrelated pending work loaded by the
+    request dependency graph.
+    """
     lock = _refresh_locks.setdefault(user_id, asyncio.Lock())
     async with lock:
-        if session.in_transaction():
-            await session.rollback()
         account = (
             await session.execute(
                 select(GithubAccount).where(

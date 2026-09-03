@@ -183,6 +183,36 @@ async def test_expiring_user_authorization_rotates_and_reverifies_identity(
 
 
 @pytest.mark.asyncio
+async def test_current_authorization_preserves_callers_transaction(session) -> None:
+    user = User(email=None, github_login="octocat", role="user", created_at=NOW)
+    session.add(user)
+    await session.flush()
+    session.add(
+        GithubAccount(
+            user_id=user.id,
+            github_user_id=4242,
+            login_at_last_verify="octocat",
+            encrypted_user_token=encrypt("current-access", "credential-key"),
+            token_expires_at=NOW + dt.timedelta(hours=1),
+            created_at=NOW,
+        )
+    )
+    await session.commit()
+    user.github_login = "octocat-renamed-locally"
+    settings = SimpleNamespace(token_encryption_key="credential-key")
+
+    token = await github_user_credentials.usable_github_access_token(
+        session,
+        user_id=user.id,
+        settings=settings,
+        now=NOW,
+    )
+
+    assert token == "current-access"
+    assert user.github_login == "octocat-renamed-locally"
+
+
+@pytest.mark.asyncio
 async def test_rotated_user_authorization_rejects_identity_change(session, monkeypatch) -> None:
     user = User(email=None, github_login="octocat", role="user", created_at=NOW)
     session.add(user)

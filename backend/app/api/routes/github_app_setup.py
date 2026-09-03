@@ -81,16 +81,17 @@ async def start_github_app_installation(
     settings = _settings(request)
     if user is None or user.disabled_at is not None:
         raise HTTPException(status_code=401, detail="GitHub-linked sign-in is required")
+    user_id = user.id
     now = dt.datetime.now(dt.timezone.utc)
     if await usable_github_access_token(
         session,
-        user_id=user.id,
+        user_id=user_id,
         settings=settings,
         now=now,
     ) is None:
         raise HTTPException(status_code=409, detail="GitHub authorization must be renewed")
     random = SecureIdentityRandom()
-    browser = issue_browser_session(user_id=user.id, now=now, random=random)
+    browser = issue_browser_session(user_id=user_id, now=now, random=random)
     await SqlAlchemyBrowserSessionRepository(session).create(browser.record)
     state = issue_github_installation_state(
         browser_session_id=browser.record.session_id,

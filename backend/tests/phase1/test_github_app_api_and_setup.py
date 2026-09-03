@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock
 import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -518,9 +518,10 @@ async def test_setup_return_is_state_bound_user_proven_and_reconciled(tmp_path, 
         )
         await database_session.commit()
 
-    async def user_override():
-        async with sessions() as database_session:
-            return await database_session.get(User, user.id)
+    async def user_override(
+        database_session: AsyncSession = Depends(get_session),
+    ):
+        return await database_session.get(User, user.id)
 
     app.dependency_overrides[get_current_user] = user_override
 
