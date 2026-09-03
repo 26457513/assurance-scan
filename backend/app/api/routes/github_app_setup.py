@@ -179,7 +179,7 @@ async def finish_github_app_installation(
                 verified_at=now,
                 repository=SqlAlchemyGithubRepositoryReconciliationRepository(session),
             )
-            if not await sync_github_app_memberships(session, user, settings, force=True):
+            if not await sync_github_app_memberships(session, user_id, settings, force=True):
                 raise HTTPException(
                     status_code=502,
                     detail="GitHub repository access could not be verified",

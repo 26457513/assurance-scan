@@ -317,7 +317,7 @@ async def test_github_app_refresh_is_installation_scoped_and_fails_closed(
         ),
     )
 
-    assert await sync_github_app_memberships(session, user, settings, force=True)
+    assert await sync_github_app_memberships(session, user_id, settings, force=True)
     assert await require_project(session, principal, project_id) is not None
 
     monkeypatch.setattr(
@@ -330,7 +330,7 @@ async def test_github_app_refresh_is_installation_scoped_and_fails_closed(
             ),
         ),
     )
-    assert await sync_github_app_memberships(session, user, settings, force=True)
+    assert await sync_github_app_memberships(session, user_id, settings, force=True)
     assert await require_project(session, principal, project_id) is None
 
     monkeypatch.setattr(
@@ -343,7 +343,7 @@ async def test_github_app_refresh_is_installation_scoped_and_fails_closed(
             ),
         ),
     )
-    assert await sync_github_app_memberships(session, user, settings, force=True)
+    assert await sync_github_app_memberships(session, user_id, settings, force=True)
     assert await require_project(session, principal, project_id) is not None
 
     def unavailable(_client, _token):
@@ -353,5 +353,5 @@ async def test_github_app_refresh_is_installation_scoped_and_fails_closed(
         "app.infrastructure.project_access.GithubAppUserEntitlementClient.fetch",
         unavailable,
     )
-    assert not await sync_github_app_memberships(session, user, settings, force=True)
+    assert not await sync_github_app_memberships(session, user_id, settings, force=True)
     assert await require_project(session, principal, project_id) is None

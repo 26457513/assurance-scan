@@ -14,7 +14,6 @@ from app.infrastructure.db.models import (
     Project,
     ProjectMembership,
     Run,
-    User,
 )
 from app.infrastructure.db.repositories.github_memberships import (
     SqlAlchemyGithubMembershipProjectionRepository,
@@ -49,7 +48,7 @@ CURRENT_PROJECT_ACCESS: ContextVar[ProjectAccessPrincipal] = ContextVar(
 
 async def sync_github_app_memberships(
     session: AsyncSession,
-    user: User,
+    user_id: int,
     settings: Settings,
     *,
     force: bool = False,
@@ -58,7 +57,6 @@ async def sync_github_app_memberships(
     if not settings.github_app_access_enabled:
         return False
     now = dt.datetime.now(dt.timezone.utc)
-    user_id = user.id
     if await usable_github_access_token(
         session,
         user_id=user_id,

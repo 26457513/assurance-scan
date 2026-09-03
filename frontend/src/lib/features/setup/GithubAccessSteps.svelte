@@ -35,8 +35,8 @@
   <li class:complete={confirmed} class:active={accessChosen && !confirmed}>
     <span class="step-marker" aria-hidden="true">{confirmed ? '✓' : '3'}</span>
     <span class="step-copy">
-      <strong>Return automatically</strong>
-      <small>{confirmed ? 'Access verified' : 'Assurance Scan confirms the selection'}</small>
+      <strong>Return and verify</strong>
+      <small>{confirmed ? 'Access verified' : 'Come back after saving on GitHub'}</small>
     </span>
   </li>
 </ol>

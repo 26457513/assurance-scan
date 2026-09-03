@@ -39,13 +39,15 @@ async def get_setup_bootstrap(
     _require_enabled(request)
     if user is not None and user.disabled_at is not None:
         raise HTTPException(status_code=403, detail="account is disabled")
+    user_id = None
     if user is not None:
-        await sync_github_app_memberships(session, user, request.app.state.settings)
+        user_id = user.id
+        await sync_github_app_memberships(session, user_id, request.app.state.settings)
     repository_id = _optional_github_id(github_repository_id)
     sign_in_url = "/auth/login?next=/setup"
     try:
         result = await setup_bootstrap(
-            user_id=user.id if user is not None else None,
+            user_id=user_id,
             selected_repository_id=repository_id,
             installations_cursor=installations_cursor,
             now=dt.datetime.now(dt.timezone.utc),
@@ -76,12 +78,13 @@ async def get_setup_repositories(
         raise HTTPException(status_code=401, detail="sign in is required")
     if user.disabled_at is not None:
         raise HTTPException(status_code=403, detail="account is disabled")
-    if not await sync_github_app_memberships(session, user, request.app.state.settings):
+    user_id = user.id
+    if not await sync_github_app_memberships(session, user_id, request.app.state.settings):
         raise HTTPException(status_code=503, detail="GitHub access could not be refreshed")
     installation_id = _github_id(github_installation_id)
     try:
         result = await setup_repositories(
-            user_id=user.id,
+            user_id=user_id,
             github_installation_id=installation_id,
             query=query,
             cursor=cursor,

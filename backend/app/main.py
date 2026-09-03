@@ -237,8 +237,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
                 if row is None:
                     return None
-                await sync_github_app_memberships(session, row, settings)
-                return ProjectAccessPrincipal(user_id=row.id, role=row.role)
+                user_id = row.id
+                role = row.role
+                await sync_github_app_memberships(session, user_id, settings)
+                return ProjectAccessPrincipal(user_id=user_id, role=role)
 
         async def _browser_user_id(cookie: str) -> int | None:
             from app.infrastructure.db.connection import get_sessionmaker

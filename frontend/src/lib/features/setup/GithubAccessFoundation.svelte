@@ -39,15 +39,21 @@
     <div class="foundation-action"><p>Sign in with the GitHub account you use for the repositories you want to scan.</p><a class="primary" href={state.sign_in_url}>Sign in with GitHub</a></div>
   {:else if state.kind === 'github_connected'}
     <div class="foundation-action">
-      <div class="action-copy"><p>Your identity is connected. On GitHub, choose your personal account or organisation, select <strong>Only select repositories</strong>, then press <strong>Install</strong>.</p><small>You return here automatically. Organisation approval may be required if you are not an owner.</small></div>
-      <a class="primary" href={state.install_url}>Choose GitHub access</a>
+      <div class="action-copy">
+        <p>Your identity is connected. On GitHub, choose your personal account or organisation, select <strong>Only select repositories</strong>, then press <strong>Install</strong> or <strong>Save</strong>.</p>
+        <small>GitHub opens in a new tab and should return that tab to Assurance Scan. If it does not, come back to this tab and check access.</small>
+      </div>
+      <div class="handoff-actions">
+        <a class="primary" href={state.install_url} target="_blank" rel="noopener">Open GitHub to choose access <span aria-hidden="true">↗</span></a>
+        <button type="button" on:click={onRetry}>Check GitHub access</button>
+      </div>
     </div>
   {:else if state.kind === 'approval_pending'}
-    <div class="foundation-action"><div class="action-copy"><p>Your request was sent to the organisation owner.</p><small>No further setup is needed until they approve it in GitHub.</small></div><a href={state.request_url}>View approval request</a></div>
+    <div class="foundation-action"><div class="action-copy"><p>Your request was sent to the organisation owner.</p><small>No further setup is needed until they approve it in GitHub.</small></div><a href={state.request_url} target="_blank" rel="noopener">View approval request <span aria-hidden="true">↗</span></a></div>
   {:else if state.kind === 'installed_no_repositories'}
-    <div class="foundation-action"><div class="action-copy"><p>Assurance Scan is installed for <strong>{state.installation.owner_login}</strong>, but no repositories were selected.</p><small>Choose at least one repository in the GitHub installation settings.</small></div><a class="primary" href={state.installation.manage_url}>Select repositories</a></div>
+    <div class="foundation-action"><div class="action-copy"><p>Assurance Scan is installed for <strong>{state.installation.owner_login}</strong>, but no repositories were selected.</p><small>GitHub opens in a new tab. Select at least one repository, save, then return here.</small></div><a class="primary" href={state.installation.manage_url} target="_blank" rel="noopener">Select repositories <span aria-hidden="true">↗</span></a></div>
   {:else if state.kind === 'installation_suspended'}
-    <div class="foundation-action danger"><p>The GitHub App installation is suspended. Scan setup is locked until it is restored.</p><a href={state.installation.manage_url}>Manage GitHub App</a></div>
+    <div class="foundation-action danger"><p>The GitHub App installation is suspended. Scan setup is locked until it is restored.</p><a href={state.installation.manage_url} target="_blank" rel="noopener">Manage GitHub App <span aria-hidden="true">↗</span></a></div>
   {:else if state.kind === 'access_stale'}
     <div class="foundation-action danger"><p>GitHub access could not be refreshed. The last selection is shown only as stale evidence; setup actions are locked.</p><button type="button" on:click={onRetry}>Retry access check</button></div>
   {:else}
@@ -55,13 +61,13 @@
       <div class="access-confirmed" role="status">
         <span aria-hidden="true">✓</span>
         <p><strong>GitHub access verified.</strong> {enabledRepositories} {enabledRepositories === 1 ? 'repository is' : 'repositories are'} available. Choose one below to configure its scan paths.</p>
-        <a href="/api/v2/github/install/start">Add another organisation</a>
+        <a href="/api/v2/github/install/start" target="_blank" rel="noopener">Add another organisation <span aria-hidden="true">↗</span></a>
       </div>
     {/if}
     {#if state.kind === 'repository_ready' || state.kind === 'repository_ready_write'}
       <div class="selected-repository">
         <div><span>Active repository</span><strong>{state.repository.full_name}</strong><small>{state.repository.default_branch} · {state.repository.permission} access</small></div>
-        <div class="selected-actions"><a href={state.installation.manage_url}>Change access</a><a href="/api/v2/github/install/start">Add organisation</a><button type="button" on:click={onClear}>Choose another</button></div>
+        <div class="selected-actions"><a href={state.installation.manage_url} target="_blank" rel="noopener">Change access <span aria-hidden="true">↗</span></a><a href="/api/v2/github/install/start" target="_blank" rel="noopener">Add organisation <span aria-hidden="true">↗</span></a><button type="button" on:click={onClear}>Choose another</button></div>
       </div>
     {/if}
     {#if !ready || repositories.phase !== 'idle'}
@@ -91,6 +97,7 @@
   .foundation-action p strong { color: var(--text-primary); font-weight: 600; }
   .action-copy { display: grid; gap: .35rem; }
   .action-copy small { max-width: 42rem; color: var(--text-muted); font-size: .66rem; line-height: 1.5; }
+  .handoff-actions { display: grid; min-width: 13rem; gap: .45rem; }
   .foundation-action.danger { border-top-color: color-mix(in srgb,var(--state-failed) 35%,var(--border-hairline)); }
   a,button { min-height: 2.5rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-strong); border-radius: 2px; padding: .55rem .8rem; color: var(--text-primary); font: 600 .65rem 'Geist Mono',monospace; white-space: nowrap; }
   a:hover,button:hover { border-color: var(--path-github); }
@@ -104,6 +111,6 @@
   .selected-repository span,.selected-repository small { color: var(--text-muted); font: 600 .6rem 'Geist Mono',monospace; letter-spacing: .08em; text-transform: uppercase; }
   .selected-repository strong { overflow: hidden; color: var(--text-primary); font: .85rem 'Geist Mono',monospace; text-overflow: ellipsis; }
   .selected-actions { display: flex; gap: .5rem; }
-  @media (max-width: 660px) { header,.foundation-action,.selected-repository,.access-confirmed { align-items: stretch; flex-direction: column; } .identity-evidence { align-self: flex-start; } .selected-actions { display: grid; grid-template-columns: repeat(3,1fr); } }
+  @media (max-width: 660px) { header,.foundation-action,.selected-repository,.access-confirmed { align-items: stretch; flex-direction: column; } .identity-evidence { align-self: flex-start; } .handoff-actions { min-width: 0; } .selected-actions { display: grid; grid-template-columns: repeat(3,1fr); } }
   @media (max-width: 420px) { .selected-actions { grid-template-columns: 1fr; } }
 </style>

@@ -101,7 +101,7 @@ describe('Setup state presentation', () => {
     [
       'github_connected',
       { kind: 'github_connected', identity, install_url: 'https://github.com/apps/assurance-scan/installations/new' },
-      'Choose GitHub access'
+      'Open GitHub to choose access'
     ],
     [
       'approval_pending',
@@ -186,6 +186,31 @@ describe('Setup state presentation', () => {
     expect(screen.getByText('Only select repositories')).toBeInTheDocument();
     expect(screen.getByText(/An owner installs the GitHub App once/)).toBeInTheDocument();
     expect(screen.getByText(/Teammates only sign in/)).toBeInTheDocument();
+  });
+
+  it('opens GitHub in a new tab and provides an explicit return action', async () => {
+    const onRetry = vi.fn();
+    render(GithubAccessFoundation, {
+      bootstrap: bootstrap({
+        kind: 'github_connected',
+        identity,
+        install_url: 'https://github.com/apps/assurance-scan/installations/new'
+      }),
+      repositories: idleSearch,
+      selectedRepositoryId: null,
+      onSearch: vi.fn(),
+      onSelect: vi.fn(),
+      onMore: vi.fn(),
+      onClear: vi.fn(),
+      onRetry
+    });
+
+    const githubLink = screen.getByRole('link', { name: /Open GitHub to choose access/ });
+    expect(githubLink).toHaveAttribute('target', '_blank');
+    expect(githubLink).toHaveAttribute('rel', 'noopener');
+    expect(screen.getByText(/come back to this tab and check access/i)).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole('button', { name: 'Check GitHub access' }));
+    expect(onRetry).toHaveBeenCalledOnce();
   });
 });
 

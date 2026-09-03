@@ -27,8 +27,9 @@ async def get_project_access_principal(
         return SYSTEM_PRINCIPAL
     if user is None or user.disabled_at is not None:
         raise HTTPException(status_code=401, detail="sign in with GitHub")
-    principal = ProjectAccessPrincipal(user_id=user.id, role=user.role)
-    await sync_github_app_memberships(session, user, request.app.state.settings)
+    user_id = user.id
+    principal = ProjectAccessPrincipal(user_id=user_id, role=user.role)
+    await sync_github_app_memberships(session, user_id, request.app.state.settings)
     return principal
 
 
