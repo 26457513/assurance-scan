@@ -109,9 +109,11 @@ function selectedRepositoryFromUrl(url: URL): string | null {
 
 function setupUrl(location: SetupLocation, repositoryId: string | null): URL {
   const next = location.current();
+  const tab = next.searchParams.get('tab');
   next.pathname = '/setup';
   next.search = '';
   next.hash = '';
+  if (tab === 'github' || tab === 'local') next.searchParams.set('tab', tab);
   if (repositoryId !== null) next.searchParams.set('github_repository_id', repositoryId);
   return next;
 }

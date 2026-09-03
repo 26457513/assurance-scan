@@ -134,7 +134,7 @@ conformant v2 result; unmerged branch pushes run no scan job and make no upload.
 ## WS7f — Setup and access UI
 
 Status: complete in the disabled candidate code path (2 September 2026).
-The typed Setup projection and controller, GitHub/local access lanes, compact
+The typed Setup projection and controller, separate GitHub Actions/Local CLI tabs, compact
 readiness, private-local visibility predicates and replacement navigation are
 implemented. Component coverage exercises all nine states; browser checks cover
 the feature-gated failure path at desktop and 360 px without overflow or console

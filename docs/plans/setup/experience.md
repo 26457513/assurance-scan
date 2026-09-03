@@ -5,23 +5,22 @@ and live GitHub state-transition verification remain part of WS7g.
 
 ## Purpose
 
-Setup should answer one question: **how do I get trusted scan results into Assurance Scan and let the right people see them?** It presents GitHub Actions and local scanning as two paths built on one GitHub-backed access foundation.
+Setup should answer one question: **how do I get trusted scan results into Assurance Scan and let the right people see them?** It presents GitHub Actions and local scanning as separate top-level flows with distinct runtime authentication.
 
 ```text
-GitHub identity -> App installation -> enabled repository
-                                      |-- GitHub Actions: team-visible
-                                      `-- Local CLI: private to uploader
+GitHub Actions tab -> App installation -> enabled repository -> OIDC upload -> team-visible
+Local CLI tab     -> verified wrapper -> machine token -> local upload -> private to uploader
 ```
 
-The current setup screen may be replaced without preserving its routes, tabs, component structure, or query parameters.
+The supported deep links are `/setup?tab=github` and `/setup?tab=local`. Obsolete setup tabs and unrelated query state are removed.
 
 ## Information architecture
 
 The page has three persistent regions:
 
-1. **Access topology** — a compact, live diagram of identity, installation, repository, and scan path.
-2. **GitHub access foundation** — connect an identity, install or manage the GitHub App, and choose an enabled repository.
-3. **Scan paths** — configure GitHub Actions or configure a local machine.
+1. **Flow switch** — two keyboard-accessible tabs that name the GitHub Actions and Local CLI trust boundaries.
+2. **GitHub Actions** — connect an identity, install or manage the GitHub App, choose an enabled repository, and copy the workflow.
+3. **Local CLI** — install the verified wrapper, create a machine token, enroll the machine, and scan a branch.
 
 GitHub Actions remains the primary team workflow. Local scanning is a private developer workflow for feature branches and work in progress.
 
@@ -62,14 +61,14 @@ The standard workflow is defined in [Standard workflow](../github/standard-workf
 
 ## Local path
 
-The local path unlocks after the user selects an enabled repository for which they have at least GitHub `write` permission. It shows:
+The Local CLI tab is independent of GitHub App installation and repository selection. A signed-in user sees this exact sequence:
 
-1. create or select a machine token;
-2. copy the one-command container login;
-3. copy the one-command local scan;
-4. view the last private local upload for the active repository.
+1. copy and run the verified wrapper installation command;
+2. create and copy an upload-only machine token;
+3. copy and run the enrollment command, then paste the token at the hidden prompt;
+4. run the one-command local scan from the repository root.
 
-A machine token belongs to the account and machine label, not to the selected repository. The repository is used only to produce the first relevant command example. The token secret is shown once; the token table shows label, status, created date, expiry, last use, and revoke action in one compact row per token.
+A machine token belongs to the account and machine label, not to a selected repository. The token secret is shown once; the token table shows label, status, created date, expiry, last use, and revoke action in one compact row per token. GitHub-backed repository entitlement remains an upload authorization check, but it is not part of machine enrollment and does not gate access to the Local CLI instructions.
 
 Local privacy must be explicit beside the command: `Only you can see local scan runs. Repository access is rechecked before every upload.`
 
@@ -105,11 +104,9 @@ frontend/src/lib/features/setup/
   api.ts
   controller.ts
   SetupExperience.svelte
-  AccessTopology.svelte
   GithubAccessFoundation.svelte
   RepositoryPicker.svelte
   ActionsSetupLane.svelte
-  LocalSetupLane.svelte
   SetupFailure.svelte
   SetupSkeleton.svelte
 ```
@@ -122,7 +119,7 @@ The page should feel like a security control surface, not a marketing dashboard.
 
 - Palette: carbon `#0E0F11`, graphite `#16181C`, chalk `#E6E8EC`, GitHub blue `#58A6FF`, local amber `#FBBF24`, verified green `#4ADE80`.
 - Typography: Geist for interface text and Geist Mono for repository names, permissions, commands, and status evidence.
-- Signature element: the Access Topology visibly connects identity, installation, repository, and the two scan paths.
+- Signature element: the full-width flow switch visibly separates team OIDC delivery from private machine-token delivery.
 - Layout: strong horizontal hierarchy, restrained borders, no gradients, no decorative metric cards, and no card-per-step wizard.
 - Motion: one short transition when the selected repository changes; respect `prefers-reduced-motion`.
 
@@ -131,7 +128,7 @@ The interface must work at 360 px without horizontal page scrolling. Commands ma
 ## Navigation disposition
 
 - `/setup` becomes this experience.
-- GitHub App and machine-token configuration live in `/setup`; the old setup tabs and `run_id` query carry-over are removed.
+- GitHub App and machine-token configuration live in separate `/setup` tabs; obsolete tab values and `run_id` query carry-over are removed.
 - MCP configuration moves to `/integrations`.
 - administrative account and system controls move to `/admin`.
 - explanatory material moves to `/help`.

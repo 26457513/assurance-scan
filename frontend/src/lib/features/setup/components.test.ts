@@ -1,10 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import AccessTopology from './AccessTopology.svelte';
 import ActionsSetupLane from './ActionsSetupLane.svelte';
 import GithubAccessFoundation from './GithubAccessFoundation.svelte';
-import LocalSetupLane from './LocalSetupLane.svelte';
 import RepositoryPicker from './RepositoryPicker.svelte';
 import SetupExperience from './SetupExperience.svelte';
 import type { RepositorySearchState } from './controller';
@@ -155,26 +153,6 @@ describe('Setup state presentation', () => {
     expect(actionElement).not.toBeNull();
   });
 
-  it('shows the complete identity-to-team/private topology in text', () => {
-    render(AccessTopology, {
-      bootstrap: bootstrap({
-        kind: 'repository_ready_write',
-        identity,
-        installation,
-        repository,
-        capabilities: { can_local_scan: true, can_manage: false },
-        actions_readiness: { kind: 'no_scan' }
-      })
-    });
-
-    expect(screen.getByRole('heading', { name: 'One identity. Two trusted scan paths.' })).toBeInTheDocument();
-    expect(screen.getByText('@octocat')).toBeInTheDocument();
-    expect(screen.getByText('1 available')).toBeInTheDocument();
-    expect(screen.getByText('acme/service')).toBeInTheDocument();
-    expect(screen.getByText('Team visible')).toBeInTheDocument();
-    expect(screen.getByText('Private to you')).toBeInTheDocument();
-  });
-
   it('makes the one-time owner installation and teammate access model explicit', () => {
     foundation({
       kind: 'github_connected',
@@ -214,7 +192,7 @@ describe('Setup state presentation', () => {
   });
 });
 
-describe('Setup scan lanes', () => {
+describe('GitHub Actions setup lane', () => {
   it.each<[string, ActionsReadiness, string]>([
     ['no scan', { kind: 'no_scan' }, 'No scan received'],
     [
@@ -253,40 +231,6 @@ describe('Setup scan lanes', () => {
     }
   });
 
-  it('keeps local setup locked without write access and exposes no mutation control', () => {
-    const { container } = render(LocalSetupLane, {
-      repository: { ...repository, permission: 'read' },
-      enabled: false,
-      tokens: [],
-      latestRun: null
-    });
-    expect(container.querySelector('section')).toHaveAttribute('data-lane-state', 'locked');
-    expect(screen.getByText(/requires current GitHub write access/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Set up local scanning' })).not.toBeInTheDocument();
-  });
-
-  it('states private ownership, revalidation and bearer-token limits when local setup is enabled', () => {
-    const { container } = render(LocalSetupLane, {
-      repository,
-      enabled: true,
-      tokens: [
-        {
-          id: 'token-1',
-          label: 'laptop',
-          status: 'active',
-          created_at: '2026-09-01T10:00:00Z',
-          expires_at: '2026-12-01T10:00:00Z',
-          last_used_at: null
-        }
-      ],
-      latestRun: null
-    });
-    expect(container.querySelector('section')).toHaveAttribute('data-lane-state', 'ready');
-    expect(screen.getByText('Only you can see local scan runs.')).toBeInTheDocument();
-    expect(screen.getByText(/Repository access is rechecked before every upload/)).toBeInTheDocument();
-    expect(screen.getByText(/do not prove which physical device holds a bearer token/)).toBeInTheDocument();
-    expect(screen.getByText('1 active token')).toBeInTheDocument();
-  });
 });
 
 describe('Repository picker and narrow layout structure', () => {
@@ -346,9 +290,20 @@ describe('Repository picker and narrow layout structure', () => {
     await waitFor(() => expect(screen.getByRole('link', { name: 'Sign in with GitHub' })).toBeInTheDocument());
 
     expect(container.querySelector('[data-responsive-region="setup-experience"]')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /GitHub Actions/ })).toHaveAttribute('aria-selected', 'true');
+    const localTab = screen.getByRole('tab', { name: /Local CLI/ });
+    expect(localTab).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByRole('list', { name: 'GitHub access setup progress' })).toBeInTheDocument();
     expect(container.querySelector('[data-responsive-region="access-topology"]')).not.toBeInTheDocument();
     expect(container.querySelector('[data-responsive-region="scan-paths"]')).not.toBeInTheDocument();
     expect(container.querySelectorAll('[style*="width:"]')).toHaveLength(0);
+
+    await fireEvent.click(localTab);
+    expect(localTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Sign in before creating a machine token' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign in with GitHub' })).toHaveAttribute(
+      'href',
+      '/auth/login?next=%2Fsetup%3Ftab%3Dlocal'
+    );
   });
 });

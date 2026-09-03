@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
 
   import CopyButton from './CopyButton.svelte';
+  import ScanTokensPanel from './ScanTokensPanel.svelte';
 
   let serverUrl = 'https://scan.example.com';
   let wrapperSha = 'loading…';
@@ -38,8 +39,8 @@ install -m 0755 "$tmp_wrapper" "$HOME/.local/bin/assurance-scan" && rm -f "$tmp_
         Install once. Scan any branch.
       </h2>
       <p class="text-[11px] text-ink-muted leading-relaxed max-w-xl">
-        Install the small verified wrapper, enroll this machine once, then use one command from any
-        registered Git repository. The wrapper keeps the container trust checks out of your way.
+        Install the small verified wrapper first. Then create a token, enroll this machine, and use
+        one command from any registered Git repository.
       </p>
     </div>
     <div class="trust-seal" aria-label="Verified release policy">
@@ -79,9 +80,10 @@ install -m 0755 "$tmp_wrapper" "$HOME/.local/bin/assurance-scan" && rm -f "$tmp_
           <span class="text-[9px] font-mono uppercase tracking-[0.1em] text-ink-muted">in this page</span>
         </div>
         <p class="text-[11px] text-ink-muted leading-relaxed">
-          Use a machine label such as “work laptop”, copy the token when it appears, and leave this
-          page open. It is shown once and can only upload scans.
+          Once the install command has completed, use a machine label such as “work laptop” and
+          copy the token when it appears. It is shown once and can only upload scans.
         </p>
+        <ScanTokensPanel />
       </div>
     </li>
 

@@ -24,6 +24,13 @@ describe('LocalScanSetupPanel', () => {
     expect(container).toHaveTextContent(/Inactive-token audit:\s*400 days/);
     expect(container.textContent).toContain('never passed to scanner containers');
     expect(container).toHaveTextContent(/source\s+snapshot and absolute host paths are not uploaded/);
+    const content = container.textContent ?? '';
+    expect(content.indexOf('Install the host wrapper')).toBeLessThan(
+      content.indexOf('Create an upload token')
+    );
+    expect(content.indexOf('Create an upload token')).toBeLessThan(
+      content.indexOf('Enroll this machine once')
+    );
   });
 
   it('offers one qualified command across supported hosts', () => {

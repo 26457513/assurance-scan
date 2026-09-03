@@ -405,7 +405,7 @@ polling or delete historical scans.
 
 For a compromised or retired machine:
 
-1. Revoke its token under **Setup → My account**; the next request fails.
+1. Revoke its token under **Setup → Local CLI**; the next request fails.
 2. Run `auth logout` to remove the local secret while preserving the non-secret
    installation ID.
 3. Run `cache list`, then `cache prune`; remove a specific retained request only

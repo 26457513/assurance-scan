@@ -124,6 +124,17 @@ describe('setup controller', () => {
     expect(api.getBootstrap).toHaveBeenCalledWith(null, expect.any(AbortSignal));
   });
 
+  it('preserves a supported setup flow while removing unrelated query state', async () => {
+    const api = apiMock();
+    const location = fakeLocation('https://scan.example/setup?tab=local&run_id=old#token');
+    const controller = createSetupController({ api, location });
+
+    await controller.load();
+
+    expect(location.url.href).toBe('https://scan.example/setup?tab=local');
+    expect(api.getBootstrap).toHaveBeenCalledWith(null, expect.any(AbortSignal));
+  });
+
   it('retains visible bootstrap data but locks mutation after a refresh failure', async () => {
     const api = apiMock();
     vi.mocked(api.getBootstrap)
