@@ -17,6 +17,14 @@ from app.modules.shared.paths import RESOURCES_ROOT
 
 
 router = APIRouter(prefix="/v2/cli/releases", tags=["cli-releases"])
+PUBLIC_CLI_RELEASE_PATHS = frozenset(
+    {
+        "/api/v2/cli/releases/wrapper",
+        "/api/v2/cli/releases/wrapper.sha256",
+        "/api/v2/cli/releases/latest",
+        "/api/v2/cli/releases/latest.sigstore.json",
+    }
+)
 _MAX_MANIFEST_BYTES = 64 * 1024
 _MAX_BUNDLE_BYTES = 1024 * 1024
 _WRAPPER_PATH = RESOURCES_ROOT / "bootstrap" / "assurance-scan"

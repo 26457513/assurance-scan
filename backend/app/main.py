@@ -278,6 +278,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 or path.startswith("/_app/")
                 or path.startswith("/static/")
                 or path == "/favicon.svg"
+                or path in cli_releases.PUBLIC_CLI_RELEASE_PATHS
             ):
                 return await call_next(request)
             # GitHub authenticates the webhook's exact raw body using its own

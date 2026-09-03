@@ -16,6 +16,7 @@ from app.modules.atomic.ingestion.data_redactor import redact_json
 from app.modules.atomic.scanning.finding_parser import ParsedFinding, parser_for
 from app.modules.atomic.scanning.result_builder import build_sarif
 from app.modules.atomic.scanning.scanner_catalog import SCANNER_RELEASE_SET, ci_scanner_set
+from app.modules.atomic.scanning.tribal_checks import load_checks, run_checks
 
 from .models import LocalScannerRun, ScannerRuntimeError, ScannerRuntimeLimits
 from .service import build_local_scanner_argv, findings_document, scanner_container_name
@@ -59,6 +60,28 @@ class DockerLocalScannerRunner:
         completed = 0
         successful = False
         try:
+            started = time.monotonic()
+            tribal_status = "failed"
+            tribal_error: str | None = None
+            try:
+                findings.extend(run_checks(snapshot_root, load_checks(snapshot_root)))
+                completed += 1
+                tribal_status = "completed"
+            except Exception:
+                tribal_error = "scanner_output_invalid"
+            scanner_results.append(
+                {
+                    "kind": "tribal",
+                    "status": tribal_status,
+                    "duration_ms": min(
+                        86_400_000, round((time.monotonic() - started) * 1000)
+                    ),
+                    "image": None,
+                    "tool_version": None,
+                    "database_version": None,
+                    "error_code": tribal_error,
+                }
+            )
             for scanner in scanners:
                 started = time.monotonic()
                 stdout_path = results_root / f"{scanner.kind}.stdout"

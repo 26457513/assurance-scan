@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -12,6 +13,8 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from app.api.routes.cli_releases import router
+from app.config import load_settings
+from app.main import create_app
 from app.modules.shared.paths import RESOURCES_ROOT
 
 
@@ -101,3 +104,24 @@ async def test_wrapper_and_displayed_checksum_match() -> None:
     assert wrapper.status_code == 200
     assert wrapper.content.startswith(b"#!/bin/sh\n")
     assert checksum.text.strip() == expected
+
+
+@pytest.mark.anyio
+async def test_hosted_auth_keeps_exact_cli_release_downloads_public() -> None:
+    settings = replace(
+        load_settings(),
+        public_base_url="https://scan.example.test",
+    )
+    app = create_app(settings)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://scan.example.test"
+    ) as client:
+        wrapper = await client.get("/api/v2/cli/releases/wrapper")
+        protected = await client.get("/api/projects")
+        unknown_release = await client.get("/api/v2/cli/releases/not-a-release")
+
+    assert wrapper.status_code == 200
+    assert wrapper.content.startswith(b"#!/bin/sh\n")
+    assert protected.status_code == 401
+    assert unknown_release.status_code == 401

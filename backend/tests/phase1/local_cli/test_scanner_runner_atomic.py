@@ -137,7 +137,9 @@ def test_docker_adapter_normalizes_mocked_scanner_outputs_without_raw_retention(
 
     result = DockerLocalScannerRunner(reviewed_policy_path=policy).scan(source, REQUEST_ID)
 
-    assert len(result.findings_document["scanners"]) == 7
+    assert len(result.findings_document["scanners"]) == 8
+    assert result.findings_document["scanners"][0]["kind"] == "tribal"
+    assert result.findings_document["scanners"][0]["status"] == "completed"
     assert result.findings_document["findings"] == []
     assert result.findings_path.stat().st_mode & 0o077 == 0
     assert result.sarif_path is not None and result.sarif_path.exists()
@@ -145,6 +147,77 @@ def test_docker_adapter_normalizes_mocked_scanner_outputs_without_raw_retention(
     assert not (source / ".assurance-scan").exists()
     assert not list(result.findings_path.parent.glob("*.stdout"))
     assert not list(result.findings_path.parent.glob("*.stderr"))
+
+
+def test_docker_adapter_runs_repository_tribal_checks_with_external_scanners(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.modules.atomic.local_cli.scanner_runner._adapters as adapter_module
+
+    source = tmp_path / REQUEST_ID / "source"
+    source.mkdir(parents=True)
+    (source / "tribal-checks.json").write_text(
+        json.dumps(
+            {
+                "checks": [
+                    {
+                        "id": "required-policy",
+                        "title": "Repository policy is required",
+                        "type": "file_exists",
+                        "severity": "HIGH",
+                        "path": "POLICY.md",
+                    }
+                ]
+            }
+        )
+    )
+
+    monkeypatch.setattr(
+        adapter_module.DockerLocalScannerRunner,
+        "_docker_preflight",
+        staticmethod(lambda: None),
+    )
+    monkeypatch.setattr(
+        adapter_module.DockerLocalScannerRunner,
+        "_ensure_image",
+        staticmethod(lambda _image: None),
+    )
+
+    def fake_capture(
+        argv: list[str], stdout_path: Path, stderr_path: Path, **_kwargs: object
+    ) -> int:
+        scanner_label = next(
+            value for value in argv if value.startswith("dev.assurance-scan.scanner=")
+        )
+        kind = scanner_label.partition("=")[2]
+        payload: object = {"bomFormat": "CycloneDX", "components": []} if kind == "syft" else []
+        if kind in {"semgrep", "trivy-fs", "trivy-config", "osv-scanner"}:
+            payload = {"runs": []} if kind == "semgrep" else {"Results": []}
+        stdout_path.write_text(json.dumps(payload))
+        stderr_path.write_bytes(b"")
+        return 0
+
+    monkeypatch.setattr(adapter_module, "_capture_bounded", fake_capture)
+
+    result = DockerLocalScannerRunner(
+        reviewed_policy_path=SCANNER_MANIFEST_PATH.parent / "semgrep-reviewed.yml"
+    ).scan(source, REQUEST_ID)
+
+    tribal = result.findings_document["scanners"][0]
+    assert tribal["kind"] == "tribal"
+    assert tribal["status"] == "completed"
+    assert tribal["error_code"] is None
+    assert len(result.findings_document["findings"]) == 1
+    tribal_finding = result.findings_document["findings"][0]
+    assert tribal_finding["scanner"] == "tribal"
+    assert tribal_finding["rule_id"] == "required-policy"
+    assert tribal_finding["severity"] == "HIGH"
+    assert tribal_finding["file_path"] == "POLICY.md"
+    assert tribal_finding["line_start"] is None
+    assert tribal_finding["message"] == (
+        "Repository policy is required: required file missing: POLICY.md"
+    )
 
 
 def test_docker_adapter_mounts_host_source_but_reads_container_snapshot(
