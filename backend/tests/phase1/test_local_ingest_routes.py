@@ -19,6 +19,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api.routes import local_ingest
 from app.api.deps_scan_token import require_scan_token_principal
 from app.api.routes.local_ingest import get_local_scan_ingest_workflow, router
+from app.api.routes.local_ingest import refresh_local_project_access
 from app.api.schemas.local_ingest import (
     LocalScanIngestCommand,
     LocalScanIngestOutcome,
@@ -82,6 +83,7 @@ async def harness() -> RouteHarness:
     app.include_router(router, prefix="/api")
     app.dependency_overrides[require_scan_token_principal] = _principal
     app.dependency_overrides[get_local_scan_ingest_workflow] = lambda: workflow
+    app.dependency_overrides[refresh_local_project_access] = lambda: None
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="https://scan.example.test",
@@ -152,6 +154,27 @@ async def test_capabilities_and_whoami_require_token_and_advertise_v1(
     assert whoami.json()["account"] == "alice@example.test"
     assert whoami.json()["token_label"] == "laptop"
     assert whoami.json()["scopes"] == ["scans:upload"]
+
+
+async def test_local_project_access_refreshes_for_token_owner(
+    harness: RouteHarness,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[object, int, object]] = []
+
+    async def refresh(session: object, user_id: int, settings: object) -> bool:
+        calls.append((session, user_id, settings))
+        return True
+
+    monkeypatch.setattr(local_ingest, "sync_github_app_memberships", refresh)
+    session = object()
+    request: Any = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(settings=harness.app.state.settings))
+    )
+
+    await refresh_local_project_access(request, _principal(), session)
+
+    assert calls == [(session, 7, harness.app.state.settings)]
 
 
 async def test_capabilities_advertise_operator_lowered_limits(harness: RouteHarness) -> None:

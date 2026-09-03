@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 from app.api.deps_scan_token import require_scan_token_principal
 from app.api.deps import SessionDep
 from app.config import account_identity_is_ready
+from app.infrastructure.project_access import sync_github_app_memberships
 from app.api.problem_details import (
     IngestProblem,
     problem_from_http_exception,
@@ -165,6 +166,19 @@ def get_local_scan_ingest_workflow(
     )
 
 
+async def refresh_local_project_access(
+    request: Request,
+    principal: ScanTokenPrincipal = Depends(require_scan_token_principal),
+    session: Any = SessionDep,
+) -> None:
+    """Refresh the token owner's expiring GitHub project entitlements."""
+    await sync_github_app_memberships(
+        session,
+        principal.user_id,
+        request.app.state.settings,
+    )
+
+
 @router.get("/capabilities")
 async def capabilities(
     request: Request,
@@ -214,6 +228,7 @@ async def upload_local_scan(
     request: Request,
     _enabled: None = Depends(require_local_ingest_enabled),
     principal: ScanTokenPrincipal = Depends(require_scan_token_principal),
+    _project_access: None = Depends(refresh_local_project_access),
     workflow: LocalScanIngestWorkflow = Depends(get_local_scan_ingest_workflow),
 ) -> JSONResponse:
     """Validate a bounded multipart bundle before invoking durable ingestion."""
@@ -275,6 +290,7 @@ async def local_scan_request_status(
     request_id: str,
     _enabled: None = Depends(require_local_ingest_enabled),
     principal: ScanTokenPrincipal = Depends(require_scan_token_principal),
+    _project_access: None = Depends(refresh_local_project_access),
     session: Any = SessionDep,
 ) -> JSONResponse:
     """Return only the authenticated user's durable request state."""
@@ -783,6 +799,7 @@ def _require_canary_repository(request: Request, metadata: Mapping[str, Any]) ->
 
 __all__ = [
     "get_local_scan_ingest_workflow",
+    "refresh_local_project_access",
     "require_local_ingest_enabled",
     "router",
 ]
