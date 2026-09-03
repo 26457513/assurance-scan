@@ -125,6 +125,69 @@ def test_workflow_scans_snapshot_and_materializes_valid_bundle(
     assert "password=hunter2" not in raw_parts["source_contexts"].decode()
 
 
+def test_workflow_accepts_exact_detached_event_revision(
+    repository: tuple[Path, str],
+    tmp_path: Path,
+) -> None:
+    root, commit = repository
+    _git(root, "checkout", "--detach", commit)
+    output = tmp_path / "bundle"
+
+    async def scanner(
+        _source_snapshot_path: str,
+        _scanner_snapshot_path: str,
+        _image: str | None,
+        _sbom_path: Path | None,
+    ) -> ScanExecutionResult:
+        return ScanExecutionResult(
+            findings=(),
+            scanner_outcomes=(
+                ScannerOutcome(
+                    "semgrep", "completed", 10, SEMGREP.image, SEMGREP.tool_version
+                ),
+            ),
+            sbom=None,
+        )
+
+    result = asyncio.run(
+        produce_github_result_bundle(
+            GitHubResultProductionCommand(
+                project_root=root,
+                output_root=output,
+                scanner_snapshot_path=str(output / ".source-snapshot"),
+                environment=_environment(commit),
+            ),
+            scanner=scanner,
+        )
+    )
+
+    assert result.output_root == output
+    assert (output / "metadata.json").is_file()
+
+
+def test_workflow_rejects_checkout_attached_to_a_different_branch(
+    repository: tuple[Path, str],
+    tmp_path: Path,
+) -> None:
+    root, commit = repository
+    _git(root, "switch", "-c", "feature")
+    output = tmp_path / "bundle"
+
+    with pytest.raises(ValueError, match="checkout branch does not match"):
+        asyncio.run(
+            produce_github_result_bundle(
+                GitHubResultProductionCommand(
+                    project_root=root,
+                    output_root=output,
+                    scanner_snapshot_path=str(output / ".source-snapshot"),
+                    environment=_environment(commit),
+                )
+            )
+        )
+
+    assert not output.exists()
+
+
 def test_workflow_rejects_non_push_before_creating_output(
     repository: tuple[Path, str],
     tmp_path: Path,

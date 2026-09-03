@@ -167,7 +167,7 @@ def _validate_checkout(
         raise ValueError("checkout repository does not match GitHub identity")
     if commit != identity["sha"]:
         raise ValueError("checkout commit does not match GitHub identity")
-    if branch != identity["branch"]:
+    if branch is not None and branch != identity["branch"]:
         raise ValueError("checkout branch does not match GitHub identity")
     if working_tree_dirty:
         raise ValueError("GitHub checkout must be clean before snapshotting")
