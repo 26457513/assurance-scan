@@ -23,3 +23,12 @@ def test_deploy_recreates_server_from_exact_candidate_image() -> None:
     assert deploy_job.index(retag) < deploy_job.index(compose_override)
     assert "--format '{{.Config.Image}}'" in deploy_job
     assert "docker inspect assurance-scan-server-1 --format '{{.Image}}'" in deploy_job
+
+
+def test_verify_checks_github_oauth_handoff() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    verify_job = workflow.split("\n  verify:\n", maxsplit=1)[1]
+
+    assert "oauth_start_status" in verify_job
+    assert "http://127.0.0.1:8742/auth/github/start?next=%2F" in verify_job
+    assert 'if [ "$oauth_status" != 302 ]; then' in verify_job
