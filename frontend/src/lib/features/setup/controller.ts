@@ -92,8 +92,13 @@ const EMPTY_REPOSITORIES: RepositorySearchState = {
 
 function browserLocation(): SetupLocation {
   return {
-    current: () => new URL(window.location.href),
-    replace: (url) => window.history.replaceState({}, '', url)
+    current: () =>
+      typeof window === 'undefined'
+        ? new URL('http://localhost/setup')
+        : new URL(window.location.href),
+    replace: (url) => {
+      if (typeof window !== 'undefined') window.history.replaceState({}, '', url);
+    }
   };
 }
 

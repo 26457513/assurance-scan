@@ -51,6 +51,7 @@
           Choose the GitHub account with access to your repositories. Google or Apple sign-in on
           GitHub only works when already linked to a GitHub account.
         </p>
+        <p class="first-visit"><strong>First visit?</strong> Setup takes under a minute: choose the organisations and repositories to connect on one GitHub screen. Your teammates only need to sign in.</p>
       </div>
 
       <dl class="assurance-points">
@@ -239,6 +240,16 @@
     font-size: 11px;
     line-height: 1.6;
   }
+
+  .first-visit {
+    max-width: 440px;
+    margin: 10px 0 0;
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.55;
+  }
+
+  .first-visit strong { color: var(--text-primary); font-weight: 600; }
 
   .assurance-points {
     display: grid;

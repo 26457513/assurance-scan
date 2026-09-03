@@ -15,8 +15,11 @@
   let workflow = '';
   let workflowFilename = '.github/workflows/assurance-scan.yml';
   let workflowError = '';
+  let installOutcome: 'ready' | 'approval_requested' | null = null;
 
   onMount(() => {
+    const outcome = new URL(window.location.href).searchParams.get('github_install');
+    installOutcome = outcome === 'ready' || outcome === 'approval_requested' ? outcome : null;
     unsubscribe = controller.subscribe((value) => (snapshot = value));
     void controller.load();
     void loadWorkflow();
@@ -55,6 +58,12 @@
 
   <div class="announcer sr-only" aria-live="polite">{snapshot.announcement}</div>
 
+  {#if installOutcome === 'ready'}
+    <div class="return-notice success" role="status"><span aria-hidden="true">✓</span><div><strong>GitHub access connected</strong><p>Your selected organisations and repositories are ready. GitHub permissions now control who can see each project.</p></div></div>
+  {:else if installOutcome === 'approval_requested'}
+    <div class="return-notice" role="status"><span aria-hidden="true">…</span><div><strong>Approval requested</strong><p>An organisation owner must approve the GitHub App. This page will show the repositories after approval.</p></div></div>
+  {/if}
+
   {#if snapshot.phase === 'loading' || snapshot.phase === 'idle'}
     <SetupSkeleton />
   {:else if snapshot.phase === 'failure' && !bootstrap}
@@ -64,7 +73,6 @@
       {#if snapshot.phase === 'failure'}
         <SetupFailure message={snapshot.error} onRetry={() => void controller.retry()} />
       {/if}
-      <AccessTopology {bootstrap} />
       <GithubAccessFoundation
         {bootstrap}
         repositories={snapshot.repositories}
@@ -75,10 +83,13 @@
         onClear={() => void controller.selectRepository(null)}
         onRetry={() => void controller.retry()}
       />
-      <div class="scan-paths" data-responsive-region="scan-paths" aria-label="Scan paths">
-        <ActionsSetupLane {repository} {readiness} {workflow} {workflowFilename} {workflowError} />
-        <LocalSetupLane {repository} enabled={localEnabled} tokens={bootstrap.machine_tokens} latestRun={bootstrap.latest_local_run} />
-      </div>
+      {#if repository}
+        <AccessTopology {bootstrap} />
+        <div class="scan-paths" data-responsive-region="scan-paths" aria-label="Scan paths">
+          <ActionsSetupLane {repository} {readiness} {workflow} {workflowFilename} {workflowError} />
+          <LocalSetupLane {repository} enabled={localEnabled} tokens={bootstrap.machine_tokens} latestRun={bootstrap.latest_local_run} />
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -91,6 +102,12 @@
   .page-intro > p { color: var(--text-secondary); font-size: .82rem; line-height: 1.55; }
   .setup-content { display: grid; gap: 1rem; transition: opacity 140ms ease; }
   .setup-content.refreshing { opacity: .72; }
+  .return-notice { display: flex; align-items: flex-start; gap: .75rem; margin-bottom: 1rem; border: 1px solid color-mix(in srgb,var(--path-local) 38%,var(--border-hairline)); background: color-mix(in srgb,var(--path-local) 6%,var(--bg-panel)); padding: .9rem 1rem; }
+  .return-notice.success { border-color: color-mix(in srgb,var(--state-passed) 38%,var(--border-hairline)); background: color-mix(in srgb,var(--state-passed) 6%,var(--bg-panel)); }
+  .return-notice > span { color: var(--path-local); font: 700 .75rem 'Geist Mono',monospace; }
+  .return-notice.success > span { color: var(--state-passed); }
+  .return-notice strong { color: var(--text-primary); font-size: .78rem; }
+  .return-notice p { margin-top: .18rem; color: var(--text-secondary); font-size: .7rem; line-height: 1.5; }
   .scan-paths { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(20rem,1fr); gap: 1rem; align-items: start; }
   @media (max-width: 820px) { .page-intro { grid-template-columns: 1fr; gap: .7rem; } .scan-paths { grid-template-columns: 1fr; } }
   @media (max-width: 420px) { .setup-experience { padding-inline: .75rem; } }

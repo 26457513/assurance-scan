@@ -147,8 +147,12 @@
   {:else if error}
     <div class="text-[12px] text-state-failed font-mono">{error}</div>
   {:else if projects.length === 0}
-    <div class="py-12 text-center text-[12px] text-ink-muted font-mono">
-      No accessible projects. Install or update the GitHub App from Setup, or ask a repository administrator for access.
+    <div class="border border-line-hairline bg-surface-panel px-6 py-10 text-center">
+      <div class="text-[14px] text-ink-primary mb-2">No GitHub repositories connected yet</div>
+      <p class="max-w-xl mx-auto text-[12px] leading-relaxed text-ink-secondary mb-5">
+        Connect the GitHub organisations and repositories you choose. It usually takes under a minute, and every teammate will see only the repositories GitHub already allows them to access.
+      </p>
+      <a href="/setup" class="setup-link inline-flex min-h-10 items-center justify-center rounded-sm border px-4 py-2 font-mono text-[11px] font-semibold transition-colors">Set up GitHub access</a>
     </div>
   {:else}
     <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-panel">
@@ -230,8 +234,8 @@
         <p class="text-[12px] text-ink-secondary leading-relaxed mb-5">
           This removes the project registration and <strong>all of its data from assurance-scan</strong> —
           scans, FR catalogue, mappings, waivers, and acceptances. Nothing is deleted from GitHub:
-          CI scans return on the next <em>Retrieve from GitHub</em>, but local scans and the catalogue
-          are gone for good.
+          a future GitHub Actions upload can create the project again, but local scans and the
+          catalogue are gone for good.
         </p>
         <div class="flex justify-end gap-2">
           <button type="button" on:click={() => (deleteModalOpen = false)}
@@ -286,3 +290,13 @@
   {/if}
 
 </div>
+
+<style>
+  .setup-link {
+    border-color: var(--path-github);
+    background: color-mix(in srgb, var(--path-github) 10%, transparent);
+    color: var(--path-github);
+  }
+
+  .setup-link:hover { background: color-mix(in srgb, var(--path-github) 16%, transparent); }
+</style>

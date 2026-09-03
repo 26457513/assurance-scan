@@ -32,6 +32,11 @@ const installation: GitHubInstallation = {
   manage_url: 'https://github.com/settings/installations/55'
 };
 
+const emptyInstallation: GitHubInstallation = {
+  ...installation,
+  enabled_repository_count: 0
+};
+
 const repository: SetupRepository = {
   github_repository_id: '90071992547409931',
   full_name: 'acme/service',
@@ -58,7 +63,10 @@ function bootstrap(state: SetupState): SetupBootstrap {
       ? { status: 'selected', requested_repository_id: state.repository.github_repository_id }
       : { status: 'none', requested_repository_id: null },
     state,
-    installations: state.kind === 'signed_out' || state.kind === 'github_connected' ? [] : [installation],
+    installations:
+      state.kind === 'signed_out' || state.kind === 'github_connected'
+        ? []
+        : [state.kind === 'installed_no_repositories' ? state.installation : installation],
     installations_next_cursor: null,
     machine_tokens: [],
     latest_local_run: null
@@ -93,17 +101,17 @@ describe('Setup state presentation', () => {
     [
       'github_connected',
       { kind: 'github_connected', identity, install_url: 'https://github.com/apps/assurance-scan/installations/new' },
-      'Install GitHub App'
+      'Choose GitHub access'
     ],
     [
       'approval_pending',
       { kind: 'approval_pending', identity, request_url: 'https://github.com/settings/installations/55' },
-      'View request on GitHub'
+      'View approval request'
     ],
     [
       'installed_no_repositories',
-      { kind: 'installed_no_repositories', identity, installation },
-      'Manage repository access'
+      { kind: 'installed_no_repositories', identity, installation: emptyInstallation },
+      'Select repositories'
     ],
     ['repository_selection', { kind: 'repository_selection', identity }, 'Show enabled repositories'],
     [
@@ -165,6 +173,19 @@ describe('Setup state presentation', () => {
     expect(screen.getByText('acme/service')).toBeInTheDocument();
     expect(screen.getByText('Team visible')).toBeInTheDocument();
     expect(screen.getByText('Private to you')).toBeInTheDocument();
+  });
+
+  it('makes the one-time owner installation and teammate access model explicit', () => {
+    foundation({
+      kind: 'github_connected',
+      identity,
+      install_url: 'https://github.com/apps/assurance-scan/installations/new'
+    });
+
+    expect(screen.getByRole('list', { name: 'GitHub access setup progress' })).toBeInTheDocument();
+    expect(screen.getByText('Only select repositories')).toBeInTheDocument();
+    expect(screen.getByText(/An owner installs the GitHub App once/)).toBeInTheDocument();
+    expect(screen.getByText(/Teammates only sign in/)).toBeInTheDocument();
   });
 });
 
@@ -300,8 +321,9 @@ describe('Repository picker and narrow layout structure', () => {
     await waitFor(() => expect(screen.getByRole('link', { name: 'Sign in with GitHub' })).toBeInTheDocument());
 
     expect(container.querySelector('[data-responsive-region="setup-experience"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-responsive-region="access-topology"]')).toBeInTheDocument();
-    expect(container.querySelector('[data-responsive-region="scan-paths"]')).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'GitHub access setup progress' })).toBeInTheDocument();
+    expect(container.querySelector('[data-responsive-region="access-topology"]')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-responsive-region="scan-paths"]')).not.toBeInTheDocument();
     expect(container.querySelectorAll('[style*="width:"]')).toHaveLength(0);
   });
 });
