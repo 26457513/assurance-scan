@@ -35,6 +35,7 @@ def test_bundled_workflow_is_complete_and_parseable() -> None:
     assert "github.event.repository.default_branch" in rendered
     assert "cosign verify" in rendered
     assert "cosign verify-attestation" in rendered
+    assert 'predicate = json.loads(predicate["Data"])' in rendered
     assert "signed Assurance Scan release manifest" in rendered
     assert "@$ci_digest" in rendered
     assert "@$upload_digest" in rendered
