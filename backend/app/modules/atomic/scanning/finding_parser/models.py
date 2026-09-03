@@ -27,9 +27,13 @@ MOUNT_PREFIX = "/src"
 
 
 def strip_mount_prefix(path: str | None) -> str | None:
-    if path and path.startswith(MOUNT_PREFIX + "/"):
-        return path[len(MOUNT_PREFIX) + 1:]
-    return path
+    """Normalize scanner container paths to repository-relative locations."""
+    if not isinstance(path, str) or not path:
+        return None
+    if path.startswith(MOUNT_PREFIX + "/"):
+        return path[len(MOUNT_PREFIX) + 1 :]
+    normalized = path.lstrip("/")
+    return normalized or None
 
 
 class FindingParser(ABC):

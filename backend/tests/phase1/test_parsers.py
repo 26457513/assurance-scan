@@ -117,7 +117,7 @@ def test_grype_parser_extracts_matches() -> None:
             "artifact": {
                 "name": "express",
                 "version": "4.0.0",
-                "locations": [{"path": "package.json"}],
+                "locations": [{"path": "/yarn.lock"}],
             },
         }]
     }).encode()
@@ -126,6 +126,7 @@ def test_grype_parser_extracts_matches() -> None:
     f = findings[0]
     assert f.rule_id == "CVE-2024-2"
     assert f.severity == "HIGH"
+    assert f.file_path == "yarn.lock"
 
 
 def test_osv_scanner_parser_extracts_results() -> None:
