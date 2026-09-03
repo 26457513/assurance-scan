@@ -371,7 +371,7 @@ jobs:
           test "$(docker inspect assurance-scan-server-1 --format '{{.Image}}')" = \
             "$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
           docker exec assurance-scan-server-1 \
-            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0037_github_signin",), row'
+            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0038_github_signin_return_paths",), row'
           # Re-resolve the recreated server container's Docker-network address.
           # Caddy can retain the previous address and otherwise return 502 even
           # though the replacement application is healthy on the host port.
@@ -462,17 +462,17 @@ jobs:
             exit 1
           fi
           test "$running_image_id" = "$candidate_image_id"
-          test "$schema_revision" = 0037_github_signin
+          test "$schema_revision" = 0038_github_signin_return_paths
           curl --fail --silent --show-error http://127.0.0.1:8742/health >/dev/null
           oauth_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-            'http://127.0.0.1:8742/auth/github/start?next=%2F')"
+            'http://127.0.0.1:8742/auth/github/start?next=%2Fprojects%2F1')"
           printf 'oauth_start_status=%s\n' "$oauth_status"
           if [ "$oauth_status" != 302 ]; then
             docker logs --tail 120 assurance-scan-server-1 >&2
             exit 1
           fi
           public_oauth_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-            'https://scan.squease.ai/auth/github/start?next=%2F')"
+            'https://scan.squease.ai/auth/github/start?next=%2Fprojects%2F1')"
           printf 'public_oauth_start_status=%s\n' "$public_oauth_status"
           if [ "$public_oauth_status" != 302 ]; then
             docker logs --tail 120 assurance-scan-server-1 >&2

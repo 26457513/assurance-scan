@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
+import urllib.parse
 import uuid
 from datetime import datetime, timedelta
 from typing import Protocol
@@ -13,7 +14,23 @@ from .models import GithubSigninMaterial
 
 
 SIGNIN_TTL = timedelta(minutes=10)
-ALLOWED_RETURN_PATHS = frozenset({"/", "/projects", "/setup"})
+ALLOWED_RETURN_ROOTS = frozenset(
+    {
+        "admin",
+        "compliance",
+        "fix",
+        "frs",
+        "help",
+        "integrations",
+        "projects",
+        "regimes",
+        "scans",
+        "settings",
+        "setup",
+        "trends",
+    }
+)
+MAX_RETURN_PATH_LENGTH = 512
 _VALUE_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
 
@@ -24,7 +41,7 @@ class GithubSigninRandomPort(Protocol):
 def issue_github_signin(
     *, return_path: str, now: datetime, random: GithubSigninRandomPort
 ) -> GithubSigninMaterial:
-    if return_path not in ALLOWED_RETURN_PATHS:
+    if not _is_allowed_return_path(return_path):
         raise ValueError("GitHub sign-in return path is not allowlisted")
     if now.tzinfo is None or now.utcoffset() is None:
         raise RuntimeError("GitHub sign-in timestamp must be timezone-aware")
@@ -53,6 +70,22 @@ def digest_signin_value(value: str) -> bytes:
     if not isinstance(value, str) or _VALUE_PATTERN.fullmatch(value) is None:
         raise ValueError("GitHub sign-in proof has an invalid format")
     return hashlib.sha256(value.encode("ascii")).digest()
+
+
+def _is_allowed_return_path(value: str) -> bool:
+    if not isinstance(value, str) or not value or len(value) > MAX_RETURN_PATH_LENGTH:
+        return False
+    if "\\" in value or any(ord(character) < 32 for character in value):
+        return False
+    parsed = urllib.parse.urlsplit(value)
+    if parsed.scheme or parsed.netloc or parsed.fragment:
+        return False
+    if parsed.path == "/":
+        return True
+    if not parsed.path.startswith("/") or parsed.path.startswith("//"):
+        return False
+    root = parsed.path.split("/", maxsplit=2)[1]
+    return root in ALLOWED_RETURN_ROOTS
 
 
 def _random(random: GithubSigninRandomPort, size: int) -> bytes:

@@ -44,11 +44,14 @@ async def start_github_signin(
     _require_ready(request)
     settings = request.app.state.settings
     now = dt.datetime.now(dt.timezone.utc)
-    material = issue_github_signin(
-        return_path=next_path,
-        now=now,
-        random=SecureIdentityRandom(),
-    )
+    try:
+        material = issue_github_signin(
+            return_path=next_path,
+            now=now,
+            random=SecureIdentityRandom(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="GitHub sign-in return path is invalid") from exc
     await SqlAlchemyGithubSigninRepository(
         session, encryption_key=settings.token_encryption_key
     ).create(material)

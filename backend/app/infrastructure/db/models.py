@@ -470,7 +470,7 @@ class GithubSigninState(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     state_digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False, unique=True)
     transaction_digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
-    return_path: Mapped[str] = mapped_column(String(64), nullable=False)
+    return_path: Mapped[str] = mapped_column(String(512), nullable=False)
     pkce_verifier_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     credential_key_id: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -482,7 +482,8 @@ class GithubSigninState(Base):
         CheckConstraint("length(state_digest) = 32", name="ck_github_signin_states_state_digest"),
         CheckConstraint("length(transaction_digest) = 32", name="ck_github_signin_states_transaction_digest"),
         CheckConstraint(
-            "return_path IN ('/', '/projects', '/setup')",
+            "length(return_path) BETWEEN 1 AND 512 AND substr(return_path, 1, 1) = '/' "
+            "AND substr(return_path, 1, 2) != '//'",
             name="ck_github_signin_states_return_path",
         ),
         CheckConstraint("expires_at > created_at", name="ck_github_signin_states_expiry"),

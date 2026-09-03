@@ -12,7 +12,7 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 ALEMBIC_CONFIG = BACKEND_ROOT / "alembic.ini"
 OLD_HEAD = "0021_project_identity_provenance"
-NEW_HEAD = "0037_github_signin"
+NEW_HEAD = "0038_github_signin_return_paths"
 
 
 def _alembic(database: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:

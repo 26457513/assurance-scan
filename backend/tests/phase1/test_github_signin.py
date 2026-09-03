@@ -41,8 +41,18 @@ def test_signin_material_is_independent_and_return_path_is_allowlisted() -> None
     assert material.state not in repr(material)
     assert material.transaction_cookie not in repr(material)
     assert material.pkce_verifier not in repr(material)
+    nested = issue_github_signin(
+        return_path="/projects/1?run_id=local-12",
+        now=NOW,
+        random=DeterministicRandom(),
+    )
+    assert nested.return_path == "/projects/1?run_id=local-12"
     with pytest.raises(ValueError):
         issue_github_signin(return_path="//attacker.test", now=NOW, random=DeterministicRandom())
+    with pytest.raises(ValueError):
+        issue_github_signin(
+            return_path="/unknown/path", now=NOW, random=DeterministicRandom()
+        )
 
 
 @pytest.mark.asyncio
@@ -81,7 +91,12 @@ async def test_github_signin_provisions_by_numeric_id_and_replay_fails(tmp_path,
 
     monkeypatch.setattr(github_auth, "exchange_and_verify_github_authorization", verified)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://scan.example.test") as client:
-        started = await client.get("/auth/github/start", params={"next": "/setup"})
+        invalid = await client.get(
+            "/auth/github/start", params={"next": "https://attacker.example"}
+        )
+        assert invalid.status_code == 400
+
+        started = await client.get("/auth/github/start", params={"next": "/projects/1"})
         assert started.status_code == 302
         query = urllib.parse.parse_qs(urllib.parse.urlsplit(started.headers["location"]).query)
         assert query["redirect_uri"] == ["https://scan.example.test/auth/github/callback"]
@@ -90,7 +105,7 @@ async def test_github_signin_provisions_by_numeric_id_and_replay_fails(tmp_path,
 
         callback = await client.get("/auth/github/callback", params={"code": "code", "state": state})
         assert callback.status_code == 302
-        assert callback.headers["location"] == "/setup"
+        assert callback.headers["location"] == "/projects/1"
         assert client.cookies.get("as_session", domain="scan.example.test")
         replay = await client.get("/auth/github/callback", params={"code": "code", "state": state})
         assert replay.status_code == 401
