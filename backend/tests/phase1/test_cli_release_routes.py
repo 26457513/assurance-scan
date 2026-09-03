@@ -107,6 +107,7 @@ async def test_wrapper_and_displayed_checksum_match() -> None:
     assert b"--new-bundle-format" in wrapper.content
     assert b"--trusted-root /release/trusted-root.json" in wrapper.content
     assert b"TRUSTED_ROOT_SHA256=" in wrapper.content
+    assert b"'BEGIN { exit !(now < expires) }'" in wrapper.content
     assert checksum.text.strip() == expected
 
 

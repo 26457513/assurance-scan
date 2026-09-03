@@ -148,7 +148,8 @@ load_release() {
   esac
   [ "$(grep -Fxc "    \"$platform\"" "$MANIFEST")" = 1 ] || fail "this host platform is not in the signed release"
   now_utc=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-  [ "$now_utc" < "$expires" ] || fail "the last signed CLI release manifest has expired"
+  awk -v now="$now_utc" -v expires="$expires" \
+    'BEGIN { exit !(now < expires) }' || fail "the last signed CLI release manifest has expired"
 
   if [ "$online" = 1 ] || [ "$FORCE_UPDATE" = 1 ]; then
     resolved=$(docker buildx imagetools inspect "$IMAGE:$CHANNEL_TAG" --format '{{.Manifest.Digest}}')
