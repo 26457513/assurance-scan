@@ -94,6 +94,8 @@ jobs:
           mkdir -p "$bundle_parent"
           printf 'BUNDLE_PARENT=%s\n' "$bundle_parent" >> "$GITHUB_ENV"
           docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --group-add "$(stat -c '%g' /var/run/docker.sock)" \
             --read-only --cap-drop ALL --security-opt no-new-privileges \
             --tmpfs /tmp:rw,noexec,nosuid,size=64m \
             --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \

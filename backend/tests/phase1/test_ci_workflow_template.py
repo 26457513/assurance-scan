@@ -41,6 +41,8 @@ def test_bundled_workflow_is_complete_and_parseable() -> None:
     assert "@$upload_digest" in rendered
     assert "request_oidc | docker run --rm -i" in rendered
     assert "dst=/bundle,readonly" in rendered
+    assert '--user "$(id -u):$(id -g)"' in rendered
+    assert '--group-add "$(stat -c \'%g\' /var/run/docker.sock)"' in rendered
     assert "--user 65532:65532" in rendered
     assert "actions/upload-artifact@" in rendered
     assert "retention-days: 7" in rendered
