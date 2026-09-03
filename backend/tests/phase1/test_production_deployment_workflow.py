@@ -32,3 +32,5 @@ def test_verify_checks_github_oauth_handoff() -> None:
     assert "oauth_start_status" in verify_job
     assert "http://127.0.0.1:8742/auth/github/start?next=%2F" in verify_job
     assert 'if [ "$oauth_status" != 302 ]; then' in verify_job
+    assert "public_oauth_start_status" in verify_job
+    assert "https://scan.squease.ai/auth/github/start?next=%2F" in verify_job

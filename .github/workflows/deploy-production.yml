@@ -471,6 +471,13 @@ jobs:
             docker logs --tail 120 assurance-scan-server-1 >&2
             exit 1
           fi
+          public_oauth_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            'https://scan.squease.ai/auth/github/start?next=%2F')"
+          printf 'public_oauth_start_status=%s\n' "$public_oauth_status"
+          if [ "$public_oauth_status" != 302 ]; then
+            docker logs --tail 120 assurance-scan-server-1 >&2
+            exit 1
+          fi
           sleep 10
           final_restart_count="$(docker inspect assurance-scan-server-1 --format '{{.RestartCount}}')"
           printf 'final_restart_count=%s\n' "$final_restart_count"
