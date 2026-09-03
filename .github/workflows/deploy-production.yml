@@ -383,7 +383,9 @@ jobs:
         if: always()
         run: find "$RUNNER_TEMP/assurance-scan-runtime" -type f -delete 2>/dev/null || true
       - name: Verify the public health endpoint
-        run: curl --fail --silent --show-error --retry 5 --retry-delay 2 https://scan.squease.ai/health
+        run: >-
+          curl --fail --silent --show-error --retry 10 --retry-delay 2
+          --retry-all-errors --retry-max-time 60 https://scan.squease.ai/health
 
   verify:
     if: inputs.operation == 'verify'
@@ -484,4 +486,6 @@ jobs:
           test "$final_restart_count" = "$restart_count"
           REMOTE
       - name: Verify the public health endpoint
-        run: curl --fail --silent --show-error --retry 5 --retry-delay 2 https://scan.squease.ai/health
+        run: >-
+          curl --fail --silent --show-error --retry 10 --retry-delay 2
+          --retry-all-errors --retry-max-time 60 https://scan.squease.ai/health

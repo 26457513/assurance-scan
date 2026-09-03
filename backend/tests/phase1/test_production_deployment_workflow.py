@@ -34,3 +34,9 @@ def test_verify_checks_github_oauth_handoff() -> None:
     assert 'if [ "$oauth_status" != 302 ]; then' in verify_job
     assert "public_oauth_start_status" in verify_job
     assert "https://scan.squease.ai/auth/github/start?next=%2Fprojects%2F1" in verify_job
+
+
+def test_public_health_checks_retry_transient_proxy_errors() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert workflow.count("--retry-all-errors --retry-max-time 60") == 2
