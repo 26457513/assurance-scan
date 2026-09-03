@@ -67,7 +67,7 @@ class ScanTokenAuthenticationRecord:
     """Token row joined to the minimum user state needed for authentication."""
 
     token: ScanTokenRecord
-    user_email: str
+    account_name: str
     user_disabled_at: datetime | None = None
 
 
@@ -85,7 +85,7 @@ class ScanTokenPrincipal:
 
     token_id: str
     user_id: int
-    user_email: str
+    account_name: str
     token_label: str
     scope: str
     expires_at: datetime

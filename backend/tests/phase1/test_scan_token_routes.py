@@ -152,7 +152,11 @@ async def harness(tmp_path) -> RouteHarness:
     async def bearer_probe(
         principal: ScanTokenPrincipal = Depends(require_scan_token_principal),
     ) -> dict[str, object]:
-        return {"user_id": principal.user_id, "token_id": principal.token_id}
+        return {
+            "user_id": principal.user_id,
+            "token_id": principal.token_id,
+            "account": principal.account_name,
+        }
 
     app.dependency_overrides[get_session] = session_override
 
@@ -463,6 +467,29 @@ async def test_invalid_bearer_attempts_are_rate_limited(harness: RouteHarness) -
     )
     assert limited.status_code == 429
     assert 1 <= int(limited.headers["retry-after"]) <= 600
+
+
+async def test_github_only_account_uses_login_for_token_identity(
+    harness: RouteHarness,
+) -> None:
+    harness.sign_in("alice@example.test")
+    issued = await harness.issue("GitHub laptop")
+    plaintext = issued.json()["token"]
+    async with harness.sessions() as session:
+        user = (
+            await session.execute(select(User).where(User.email == "alice@example.test"))
+        ).scalar_one()
+        user.email = None
+        user.github_login = "alice-github"
+        await session.commit()
+
+    response = await harness.client.get(
+        "/api/test/bearer",
+        headers={"Authorization": f"Bearer {plaintext}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["account"] == "alice-github"
 
 
 async def test_revoke_is_owned_and_idempotent(harness: RouteHarness) -> None:

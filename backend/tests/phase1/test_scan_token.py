@@ -81,7 +81,7 @@ class FakeRepository:
         if outcome is ScanTokenCreateStorageDecision.CREATED:
             self.authentication_records[record.selector] = ScanTokenAuthenticationRecord(
                 token=record,
-                user_email="user@example.test",
+                account_name="user@example.test",
             )
         return outcome
 
@@ -244,7 +244,7 @@ async def test_valid_token_returns_principal_contract() -> None:
     assert result.principal is not None
     assert result.principal.token_id == record.token_id
     assert result.principal.user_id == 7
-    assert result.principal.user_email == "user@example.test"
+    assert result.principal.account_name == "user@example.test"
     assert result.principal.token_label == "Laptop"
     assert result.principal.scope == TOKEN_SCOPE
 
@@ -268,7 +268,7 @@ async def test_authenticated_secret_still_applies_account_token_and_scope_decisi
     changed = replace(record, **token_changes)
     repository.authentication_records[record.selector] = ScanTokenAuthenticationRecord(
         token=changed,
-        user_email="user@example.test",
+        account_name="user@example.test",
         user_disabled_at=user_disabled_at if isinstance(user_disabled_at, datetime) else None,
     )
 
@@ -285,7 +285,7 @@ async def test_wrong_secret_is_invalid_before_token_state_is_considered() -> Non
     plaintext, repository, record = await _issued_token()
     repository.authentication_records[record.selector] = ScanTokenAuthenticationRecord(
         token=replace(record, revoked_at=NOW),
-        user_email="user@example.test",
+        account_name="user@example.test",
     )
     prefix, _secret = plaintext.rsplit(".", 1)
     wrong = f"{prefix}.{'A' * 43}"

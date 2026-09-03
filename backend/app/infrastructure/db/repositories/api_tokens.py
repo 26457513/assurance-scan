@@ -127,7 +127,7 @@ class SqlAlchemyScanTokenRepository:
         token, user = row
         return ScanTokenAuthenticationRecord(
             token=_to_record(token),
-            user_email=user.email,
+            account_name=user.github_login or user.email or f"user-{user.id}",
             user_disabled_at=_aware_or_none(user.disabled_at),
         )
 

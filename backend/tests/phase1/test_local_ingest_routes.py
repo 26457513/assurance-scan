@@ -59,7 +59,7 @@ def _principal() -> ScanTokenPrincipal:
     return ScanTokenPrincipal(
         token_id="token-id",
         user_id=7,
-        user_email="alice@example.test",
+        account_name="alice@example.test",
         token_label="laptop",
         scope="scans:upload",
         expires_at=datetime.now(timezone.utc) + timedelta(days=30),

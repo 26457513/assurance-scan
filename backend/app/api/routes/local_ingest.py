@@ -202,7 +202,7 @@ async def whoami(
 ) -> dict[str, Any]:
     """Validate credentials before the CLI persists them on the host."""
     return {
-        "account": principal.user_email,
+        "account": principal.account_name,
         "token_label": principal.token_label,
         "scopes": [principal.scope],
         "expires_at": principal.expires_at.isoformat(),

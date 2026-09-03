@@ -193,7 +193,7 @@ async def authenticate_scan_token(
         ScanTokenPrincipal(
             token_id=token.token_id,
             user_id=token.user_id,
-            user_email=authentication_record.user_email,
+            account_name=authentication_record.account_name,
             token_label=token.label,
             scope=token.scope,
             expires_at=token.expires_at,
