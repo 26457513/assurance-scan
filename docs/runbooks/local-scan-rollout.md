@@ -351,10 +351,12 @@ The protected job refuses stale stable state, a tag/digest mismatch, a canary
 mismatch, failed/wrong automated evidence, invalid evidence URLs, missing
 acknowledgement, missing signed release metadata, or missing
 signature/attestations. It moves `latest` and `stable` together with
-`imagetools create`; it does not rebuild. Download the verified
-`cli-release-<version>` artifact from the qualified tag run, copy its two files
-into the production deployment's persistent `/data/cli-release` directory, and
-restart the server before directing users to the release.
+`imagetools create`; it does not rebuild. After promotion, a separate job under
+the protected `production` environment independently downloads and verifies
+the `cli-release-<version>` artifact, atomically installs its two files into the
+production data volume, restarts the API, and verifies both public release
+endpoints. A failed metadata deployment fails the overall promotion workflow;
+do not direct users to the release until every job is green.
 
 After completion, independently require:
 

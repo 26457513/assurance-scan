@@ -428,3 +428,124 @@ jobs:
             printf -- '- Operation: `%s`\n' "$MODE"
             printf -- '- Stable/source equality and public release-evidence verification: passed\n'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-release-metadata:
+    if: github.event_name == 'workflow_dispatch'
+    needs: promote-stable
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    environment: production
+    env:
+      DEPLOY_HOST: root@165.232.106.224
+    steps:
+      - uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+        with:
+          cosign-release: v2.6.4
+      - name: Download and independently verify qualified release metadata
+        env:
+          AUTOMATED_EVIDENCE_URL: ${{ inputs.automated_evidence_url }}
+          DIGEST: ${{ inputs.source_digest }}
+          VERSION: ${{ inputs.source_version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          run_id="${AUTOMATED_EVIDENCE_URL##*/}"
+          [[ "$run_id" =~ ^[0-9]+$ ]]
+          install -d -m 700 cli-release-evidence
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+            --name "cli-release-$VERSION" --dir cli-release-evidence
+          cosign verify-blob \
+            --bundle cli-release-evidence/cli-release.sigstore.json \
+            --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            cli-release-evidence/cli-release.json
+          python - "$VERSION" "$DIGEST" <<'PY'
+          import json
+          import sys
+
+          version, digest = sys.argv[1:]
+          with open("cli-release-evidence/cli-release.json", encoding="utf-8") as stream:
+              manifest = json.load(stream)
+          assert manifest["cli_version"] == version, "release manifest version mismatch"
+          assert manifest["oci_index_digest"] == digest, "release manifest digest mismatch"
+          assert manifest["image"] == "ghcr.io/26457513/assurance-scan-cli", "release manifest image mismatch"
+          PY
+      - name: Configure production SSH identity
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -Eeuo pipefail
+          set +x
+          test -n "$DEPLOY_KEY"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H 165.232.106.224 >> "$HOME/.ssh/known_hosts"
+      - name: Atomically install metadata and restart the API
+        env:
+          ROLLOUT_ID: ${{ github.run_id }}
+        run: |
+          set -Eeuo pipefail
+          set +x
+          remote_stage="/root/assurance-scan-cli-release/incoming-$ROLLOUT_ID"
+          ssh "$DEPLOY_HOST" "install -d -m 700 '$remote_stage'"
+          scp cli-release-evidence/cli-release.json \
+            "$DEPLOY_HOST:$remote_stage/latest.json"
+          scp cli-release-evidence/cli-release.sigstore.json \
+            "$DEPLOY_HOST:$remote_stage/latest.sigstore.json"
+          ssh "$DEPLOY_HOST" bash -s -- "$ROLLOUT_ID" <<'REMOTE'
+          set -Eeuo pipefail
+          set +x
+          rollout_id="$1"
+          case "$rollout_id" in *[!0-9]*|'') exit 2 ;; esac
+          stage="/root/assurance-scan-cli-release/incoming-$rollout_id"
+          test -s "$stage/latest.json"
+          test -s "$stage/latest.sigstore.json"
+          container=assurance-scan-server-1
+          data_volume="$(docker inspect "$container" --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
+          test -n "$data_volume"
+          data_root="$(docker volume inspect "$data_volume" --format '{{.Mountpoint}}')"
+          test -d "$data_root"
+          target="$data_root/cli-release"
+          install -d -m 700 "$target"
+          install -m 600 "$stage/latest.sigstore.json" "$target/latest.sigstore.json.new"
+          install -m 600 "$stage/latest.json" "$target/latest.json.new"
+          mv "$target/latest.sigstore.json.new" "$target/latest.sigstore.json"
+          mv "$target/latest.json.new" "$target/latest.json"
+          rm -f "$stage/latest.json" "$stage/latest.sigstore.json"
+          rmdir "$stage"
+          docker restart "$container" >/dev/null
+          REMOTE
+      - name: Verify public release endpoints match the promoted release
+        env:
+          DIGEST: ${{ inputs.source_digest }}
+          VERSION: ${{ inputs.source_version }}
+        run: |
+          set -Eeuo pipefail
+          for attempt in {1..12}; do
+            if curl --fail --silent --show-error \
+              https://scan.squease.ai/api/v2/cli/releases/latest \
+              --output deployed-release.json; then
+              break
+            fi
+            sleep 5
+          done
+          curl --fail --silent --show-error \
+            https://scan.squease.ai/api/v2/cli/releases/latest.sigstore.json \
+            --output deployed-release.sigstore.json
+          python - "$VERSION" "$DIGEST" <<'PY'
+          import json
+          import sys
+
+          version, digest = sys.argv[1:]
+          with open("deployed-release.json", encoding="utf-8") as stream:
+              manifest = json.load(stream)
+          assert manifest["cli_version"] == version, "deployed release version mismatch"
+          assert manifest["oci_index_digest"] == digest, "deployed release digest mismatch"
+          with open("deployed-release.sigstore.json", encoding="utf-8") as stream:
+              bundle = json.load(stream)
+          assert isinstance(bundle, dict) and bundle, "deployed signature bundle is empty"
+          PY
