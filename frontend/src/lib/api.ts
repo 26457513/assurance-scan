@@ -166,12 +166,6 @@ export const api = {
       }
     ),
 
-  logout: async (): Promise<void> => {
-    // Avoid following the endpoint redirect; the first response revokes the
-    // server-side session and clears the browser cookie.
-    await fetch('/auth/logout', { method: 'GET', redirect: 'manual' });
-  },
-
   getMcpTokenStatus: () =>
     getJson<{ has_token: boolean; generated_at: string | null }>('/api/users/me/mcp-token'),
 

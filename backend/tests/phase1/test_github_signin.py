@@ -110,6 +110,13 @@ async def test_github_signin_provisions_by_numeric_id_and_replay_fails(tmp_path,
         replay = await client.get("/auth/github/callback", params={"code": "code", "state": state})
         assert replay.status_code == 401
 
+        logged_out = await client.post("/auth/logout")
+        assert logged_out.status_code == 303
+        assert logged_out.headers["location"] == "/auth/login?signed_out=1"
+        assert logged_out.headers["cache-control"] == "no-store"
+        assert client.cookies.get("as_session", domain="scan.example.test") is None
+        assert (await client.get("/auth/logout")).status_code == 405
+
     async with sessions() as database_session:
         user = (await database_session.execute(select(User))).scalar_one()
         account = (await database_session.execute(select(GithubAccount))).scalar_one()
@@ -119,6 +126,7 @@ async def test_github_signin_provisions_by_numeric_id_and_replay_fails(tmp_path,
         assert (account.github_user_id, account.user_id) == (4242, user.id)
         assert state_row.consumed_at is not None
         assert browser_session.user_id == user.id
+        assert browser_session.revoked_at is not None
     await engine.dispose()
 
 

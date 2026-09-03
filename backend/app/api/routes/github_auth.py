@@ -136,15 +136,16 @@ async def finish_github_signin(
     return response
 
 
-@router.get("/auth/logout")
+@router.post("/auth/logout")
 async def github_logout(request: Request, session: AsyncSession = SessionDep) -> RedirectResponse:
     cookie = request.cookies.get(SESSION_COOKIE_NAME, "")
     repository = SqlAlchemyBrowserSessionRepository(session)
     record = await repository.find_by_cookie(cookie)
     if record is not None:
         await repository.revoke(record.session_id, now=dt.datetime.now(dt.timezone.utc))
-    response = RedirectResponse("/", status_code=302)
+    response = RedirectResponse("/auth/login?signed_out=1", status_code=303)
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 

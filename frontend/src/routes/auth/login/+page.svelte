@@ -3,6 +3,7 @@
   import { githubStartUrl } from '$lib/authNavigation';
 
   $: githubStart = githubStartUrl($page.url.searchParams.get('next'));
+  $: signedOut = $page.url.searchParams.get('signed_out') === '1';
 </script>
 
 <svelte:head>
@@ -37,6 +38,9 @@
 
   <section class="action" aria-label="Sign in">
     <div class="action-inner">
+      {#if signedOut}
+        <p class="signed-out" role="status">Signed out of Assurance Scan</p>
+      {/if}
       <h2>Continue to your workspace</h2>
       <p>
         Use the GitHub account that has access to the repositories you want to review.
@@ -56,6 +60,11 @@
           and authorised repository access.
         </p>
       </div>
+
+      <p class="provider-note">
+        On GitHub, choose your existing GitHub account. Google or Apple sign-in only works there
+        when that identity is already linked to a GitHub account.
+      </p>
     </div>
 
     <p class="footnote">Access changes in GitHub are reflected in Assurance Scan.</p>
@@ -187,6 +196,17 @@
     line-height: 1.6;
   }
 
+  .action-inner > .signed-out {
+    width: fit-content;
+    margin: 0 0 22px;
+    padding: 7px 10px;
+    border-left: 2px solid var(--accent);
+    background: var(--accent-subtle);
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
   .github-button {
     display: flex;
     align-items: center;
@@ -231,11 +251,17 @@
   }
 
   .boundary p,
+  .provider-note,
   .footnote {
     margin: 0;
     color: var(--text-muted);
     font-size: 12px;
     line-height: 1.6;
+  }
+
+  .action-inner > .provider-note {
+    margin: 18px 0 0;
+    color: var(--text-secondary);
   }
 
   .footnote {
