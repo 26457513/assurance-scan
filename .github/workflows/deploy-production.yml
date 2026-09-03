@@ -526,6 +526,13 @@ jobs:
           printf '%s\n' '--- container state ---'
           docker inspect assurance-scan-server-1 \
             --format 'status={{.State.Status}} restart_count={{.RestartCount}} created={{.Created}} image={{.Config.Image}}'
+          printf '%s\n' '--- filesystem usage ---'
+          df --human-readable /
+          printf '%s\n' '--- Docker usage ---'
+          docker system df
+          printf '%s\n' '--- Assurance Scan application images ---'
+          docker image ls ghcr.io/26457513/assurance-scan-app \
+            --format 'created={{.CreatedAt}} size={{.Size}} id={{.ID}} tag={{.Tag}}'
           printf '%s\n' '--- redacted recent application errors ---'
           docker logs --since 30m --tail 1000 assurance-scan-server-1 2>&1 \
             | sed -E 's#"(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD) [^ ]+ HTTP/[0-9.]+"#"\1 [redacted-request] HTTP"#g' \
