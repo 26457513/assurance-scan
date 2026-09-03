@@ -4,19 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Deploy with backup and migration, or verify the current production deployment
+        description: Deploy, verify, or retrieve redacted production diagnostics
         required: true
         default: deploy
         type: choice
         options:
           - deploy
           - verify
+          - diagnose
       revision:
         description: Full main-branch revision whose immutable application image will be deployed
         required: true
         type: string
       confirmation:
-        description: Type deploy-production to confirm the maintenance-window cutover
+        description: Type deploy-production for a deploy or diagnose-production for diagnostics
         required: true
         type: string
 
@@ -489,3 +490,45 @@ jobs:
         run: >-
           curl --fail --silent --show-error --retry 10 --retry-delay 2
           --retry-all-errors --retry-max-time 60 https://scan.squease.ai/health
+
+  diagnose:
+    if: inputs.operation == 'diagnose'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+      - name: Validate diagnostic request
+        env:
+          REVISION: ${{ inputs.revision }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          test "$CONFIRMATION" = diagnose-production
+          case "$REVISION" in
+            *[!0-9a-f]*|'') exit 2 ;;
+          esac
+          test "${#REVISION}" -eq 40
+          git merge-base --is-ancestor "$REVISION" origin/main
+      - name: Configure production SSH identity
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keyscan -H 165.232.106.224 >> "$HOME/.ssh/known_hosts"
+      - name: Retrieve redacted application diagnostics
+        run: |
+          ssh "$DEPLOY_HOST" bash -s <<'REMOTE'
+          set -Eeuo pipefail
+          printf '%s\n' '--- container state ---'
+          docker inspect assurance-scan-server-1 \
+            --format 'status={{.State.Status}} restart_count={{.RestartCount}} created={{.Created}} image={{.Config.Image}}'
+          printf '%s\n' '--- redacted recent application errors ---'
+          docker logs --since 30m --tail 1000 assurance-scan-server-1 2>&1 \
+            | sed -E 's#"(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD) [^ ]+ HTTP/[0-9.]+"#"\1 [redacted-request] HTTP"#g' \
+            | sed -E 's#(code|state|token|secret)=([^&[:space:]]+)#\1=[redacted]#g' \
+            | tail -n 500
+          REMOTE
