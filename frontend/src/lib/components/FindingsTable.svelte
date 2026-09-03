@@ -41,6 +41,18 @@
     untrusted_range: 'The scanner reported a source range outside the scanned file.'
   };
 
+  function unavailableLabel(reason: string | null, finding: FindingResponse): string {
+    if (finding.theme === 'dependency') {
+      if (reason === 'missing_line') {
+        return 'This dependency finding applies to the manifest as a whole; the scanner does not identify a single source line.';
+      }
+      if (reason === 'missing_path') {
+        return 'This dependency was discovered from package metadata rather than a repository source file.';
+      }
+    }
+    return UNAVAILABLE_LABELS[reason ?? ''] ?? 'Source context could not be loaded.';
+  }
+
   $: severities = Object.keys(bySeverity).filter((s) => bySeverity[s] > 0);
   $: filtered = activeSeverity ? findings.filter((f) => f.severity === activeSeverity) : findings;
   // Tribal view scopes to tribal findings only — other scanners' rule ids
@@ -264,7 +276,7 @@
                   <div class="font-mono text-[11px] text-ink-muted">loading source…</div>
                 {:else if sourceContext && !sourceContext.available}
                   <div class="font-mono text-[11px] text-ink-muted">
-                    {UNAVAILABLE_LABELS[sourceContext.unavailable_reason ?? ''] ?? 'Source context could not be loaded.'}
+                    {unavailableLabel(sourceContext.unavailable_reason, f)}
                   </div>
                 {:else if sourceContext?.available}
                   <div class="border border-line-hairline rounded-sm overflow-hidden bg-surface-base font-mono text-[11px] leading-[1.7]">

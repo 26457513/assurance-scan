@@ -10,7 +10,12 @@ import json
 import re
 from typing import Any
 
-from app.modules.atomic.scanning.finding_parser.models import FindingParser, ParsedFinding, strip_mount_prefix
+from app.modules.atomic.scanning.finding_parser.models import (
+    FindingParser,
+    ParsedFinding,
+    normalize_line_range,
+    strip_mount_prefix,
+)
 
 
 SEVERITY_RULE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
@@ -51,7 +56,10 @@ class GitleaksJsonParser(FindingParser):
             return None
 
         file_path = strip_mount_prefix(item.get("File") or item.get("file"))
-        line_start = item.get("StartLine") or item.get("startLine")
+        line_start, line_end = normalize_line_range(
+            item.get("StartLine") or item.get("startLine"),
+            item.get("EndLine") or item.get("endLine"),
+        )
 
         message = (
             item.get("Description")
@@ -63,8 +71,8 @@ class GitleaksJsonParser(FindingParser):
             rule_id=rule_id,
             severity=_severity_for_rule(rule_id),
             file_path=file_path,
-            line_start=int(line_start) if line_start is not None else None,
-            line_end=int(line_start) if line_start is not None else None,
+            line_start=line_start,
+            line_end=line_end,
             message=message,
             theme="secrets",
             fix_strategy="single-file",

@@ -9,7 +9,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.modules.atomic.scanning.finding_parser.models import FindingParser, ParsedFinding
+from app.modules.atomic.scanning.finding_parser.models import (
+    FindingParser,
+    ParsedFinding,
+    normalize_line_range,
+    strip_mount_prefix,
+)
 
 
 SEVERITY_MAP: dict[str, str] = {
@@ -74,7 +79,7 @@ class TrivyJsonParser(FindingParser):
             scanner_kind=self.scanner_kind,
             rule_id=vid,
             severity=severity,
-            file_path=target,
+            file_path=strip_mount_prefix(target),
             line_start=None,
             line_end=None,
             message=message,
@@ -93,14 +98,20 @@ class TrivyJsonParser(FindingParser):
         resolution = m.get("Resolution")
         if resolution:
             message = f"{message} Resolution: {resolution}"
+        cause = m.get("CauseMetadata")
+        cause = cause if isinstance(cause, dict) else {}
+        line_start, line_end = normalize_line_range(
+            cause.get("StartLine"),
+            cause.get("EndLine"),
+        )
 
         return ParsedFinding(
             scanner_kind=self.scanner_kind,
             rule_id=mid,
             severity=severity,
-            file_path=target,
-            line_start=None,
-            line_end=None,
+            file_path=strip_mount_prefix(target),
+            line_start=line_start,
+            line_end=line_end,
             message=message,
             theme="misconfiguration",
             fix_strategy="config-only",

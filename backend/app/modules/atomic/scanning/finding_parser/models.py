@@ -36,6 +36,25 @@ def strip_mount_prefix(path: str | None) -> str | None:
     return normalized or None
 
 
+def normalize_line_range(
+    start: object,
+    end: object = None,
+) -> tuple[int | None, int | None]:
+    """Keep a trustworthy positive scanner range without inventing a location."""
+
+    line_start = _positive_line(start)
+    if line_start is None:
+        return None, None
+    line_end = _positive_line(end)
+    if line_end is None or line_end < line_start:
+        line_end = line_start
+    return line_start, line_end
+
+
+def _positive_line(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
 class FindingParser(ABC):
     """Convert raw scanner output into normalized findings."""
 

@@ -9,7 +9,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.modules.atomic.scanning.finding_parser.models import FindingParser, ParsedFinding
+from app.modules.atomic.scanning.finding_parser.models import (
+    FindingParser,
+    ParsedFinding,
+    normalize_line_range,
+)
 
 
 # SARIF level -> our severity. Semgrep maps its own severity to SARIF levels;
@@ -108,6 +112,10 @@ class SemgrepSarifParser(FindingParser):
         file_path = artifact.get("uri")
         if file_path:
             file_path = _strip_prefix(file_path, self.project_root)
+        line_start, line_end = normalize_line_range(
+            region.get("startLine"),
+            region.get("endLine"),
+        )
 
         message = (
             result.get("message", {}).get("text")
@@ -122,8 +130,8 @@ class SemgrepSarifParser(FindingParser):
             rule_id=rule_id,
             severity=severity,
             file_path=file_path,
-            line_start=region.get("startLine"),
-            line_end=region.get("endLine"),
+            line_start=line_start,
+            line_end=line_end,
             message=message,
             theme=properties.get("tags", [None])[0] if properties.get("tags") else None,
             compliance_tags=tuple(properties.get("tags", [])),

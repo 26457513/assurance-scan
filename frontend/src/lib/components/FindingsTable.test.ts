@@ -92,4 +92,77 @@ describe('FindingsTable source context', () => {
 
     expect(await screen.findByText('This scan predates uploaded source context.')).toBeInTheDocument();
   });
+
+  it('explains that dependency findings can be manifest scoped', async () => {
+    findingSourceContext.mockResolvedValue({
+      available: false,
+      provider: null,
+      path: 'package-lock.json',
+      window_start: null,
+      window_end: null,
+      highlight_start: null,
+      highlight_end: null,
+      highlight_truncated: false,
+      lines: [],
+      source_hash: null,
+      redaction_version: null,
+      redaction_changed: false,
+      unavailable_reason: 'missing_line'
+    });
+    const dependencyFinding = {
+      ...finding,
+      scanner_kind: 'osv-scanner',
+      rule_id: 'GHSA-test',
+      file_path: 'package-lock.json',
+      line_start: null,
+      line_end: null,
+      message: 'dependency vulnerability',
+      theme: 'dependency',
+      fix_strategy: 'dependency-update'
+    };
+    render(FindingsTable, {
+      findings: [dependencyFinding],
+      total: 1,
+      bySeverity: { HIGH: 1 },
+      runId: 'local-1'
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: /package-lock.json/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /dependency vulnerability/ }));
+
+    expect(
+      await screen.findByText(
+        'This dependency finding applies to the manifest as a whole; the scanner does not identify a single source line.'
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('retains the scanner-specific missing-line message for code findings', async () => {
+    findingSourceContext.mockResolvedValue({
+      available: false,
+      provider: null,
+      path: 'src/app.py',
+      window_start: null,
+      window_end: null,
+      highlight_start: null,
+      highlight_end: null,
+      highlight_truncated: false,
+      lines: [],
+      source_hash: null,
+      redaction_version: null,
+      redaction_changed: false,
+      unavailable_reason: 'missing_line'
+    });
+    render(FindingsTable, {
+      findings: [{ ...finding, line_start: null, line_end: null }],
+      total: 1,
+      bySeverity: { HIGH: 1 },
+      runId: 'local-1'
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: /src\/app.py/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /unsafe call/ }));
+
+    expect(await screen.findByText('The scanner did not report a source line.')).toBeInTheDocument();
+  });
 });

@@ -13,7 +13,7 @@ from app.modules.atomic.ingestion.source_context import (
     validate_source_context_links,
 )
 from app.modules.atomic.local_cli.scanner_runner import findings_document
-from app.modules.atomic.scanning.finding_parser import ParsedFinding
+from app.modules.atomic.scanning.finding_parser import ParsedFinding, TrivyJsonParser
 from app.modules.atomic.scanning.result_builder import ci_payload
 from app.modules.shared.contracts.findings import FindingPayload
 
@@ -179,3 +179,47 @@ def test_local_and_github_producers_emit_equivalent_context(tmp_path: Path) -> N
 
     assert local["findings"][0]["finding_key"] == github["findings"][0]["finding_key"]
     assert local["source_contexts"] == github["source_contexts"]
+
+
+def test_trivy_configuration_range_produces_source_context(tmp_path: Path) -> None:
+    root = tmp_path / "snapshot"
+    root.mkdir()
+    (root / "Dockerfile").write_text(
+        "\n".join(
+            (
+                "FROM python:3.13-slim",
+                "WORKDIR /app",
+                "COPY . .",
+                "RUN pip install -r requirements.txt",
+                "CMD [\"python\", \"app.py\"]",
+            )
+        ),
+        encoding="utf-8",
+    )
+    raw = b"""{
+      "Results": [{
+        "Target": "/src/Dockerfile",
+        "Misconfigurations": [{
+          "ID": "DS-0002",
+          "Title": "Root user",
+          "Description": "Container runs as root.",
+          "Severity": "HIGH",
+          "CauseMetadata": {"StartLine": 1, "EndLine": 5}
+        }]
+      }]
+    }"""
+    parsed = TrivyJsonParser(scanner_kind="trivy-config", mode="config").parse(raw)
+
+    document = findings_document(
+        cast(Any, parsed),
+        [{"kind": "trivy-config", "status": "completed"}],
+        snapshot_root=root,
+    )
+
+    finding = document["findings"][0]
+    context = document["source_contexts"][0]
+    assert finding["file_path"] == "Dockerfile"
+    assert (finding["line_start"], finding["line_end"]) == (1, 5)
+    assert context["available"] is True
+    assert (context["highlight_start"], context["highlight_end"]) == (1, 5)
+    assert [line["number"] for line in context["lines"]] == [1, 2, 3, 4, 5]

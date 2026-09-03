@@ -25,7 +25,7 @@ def test_semgrep_parser_extracts_findings_from_sarif() -> None:
                     "locations": [{
                         "physicalLocation": {
                             "artifactLocation": {"uri": "/src/foo.py"},
-                            "region": {"startLine": 10, "endLine": 10},
+                            "region": {"startLine": 10, "endLine": 12},
                         }
                     }],
                 }
@@ -41,6 +41,7 @@ def test_semgrep_parser_extracts_findings_from_sarif() -> None:
     assert f.severity == "HIGH"
     assert f.file_path == "foo.py"
     assert f.line_start == 10
+    assert f.line_end == 12
 
 
 def test_gitleaks_parser_extracts_leak() -> None:
@@ -48,6 +49,7 @@ def test_gitleaks_parser_extracts_leak() -> None:
         "RuleID": "aws-access-key",
         "File": "/src/src/config.py",
         "StartLine": 5,
+        "EndLine": 7,
         "Description": "AWS access key",
         "Secret": "AKIAIOSFODNN7EXAMPLE",
     }]).encode()
@@ -57,6 +59,7 @@ def test_gitleaks_parser_extracts_leak() -> None:
     assert f.rule_id == "aws-access-key"
     assert f.severity == "HIGH"
     assert f.theme == "secrets"
+    assert (f.line_start, f.line_end) == (5, 7)
     assert "AKIAIOSFODNN7EXAMPLE" not in f.message
     assert "AKIAIOSF" not in f.message
 
@@ -87,12 +90,13 @@ def test_trivy_fs_parser_extracts_vulnerabilities() -> None:
 def test_trivy_config_parser_extracts_misconfigurations() -> None:
     raw = json.dumps({
         "Results": [{
-            "Target": "Dockerfile",
+            "Target": "/src/Dockerfile",
             "Misconfigurations": [{
                 "ID": "DS001",
                 "Title": "Root user",
                 "Description": "Container runs as root.",
                 "Severity": "MEDIUM",
+                "CauseMetadata": {"StartLine": 4, "EndLine": 6},
                 "Resolution": "Add USER directive.",
             }],
         }]
@@ -103,6 +107,36 @@ def test_trivy_config_parser_extracts_misconfigurations() -> None:
     assert f.scanner_kind == "trivy-config"
     assert f.rule_id == "DS001"
     assert f.fix_strategy == "config-only"
+    assert f.file_path == "Dockerfile"
+    assert (f.line_start, f.line_end) == (4, 6)
+
+
+def test_scanner_ranges_are_not_invented_from_invalid_values() -> None:
+    semgrep = SemgrepSarifParser().parse(json.dumps({
+        "runs": [{
+            "tool": {"driver": {"rules": []}},
+            "results": [{
+                "ruleId": "python.test",
+                "level": "warning",
+                "message": {"text": "unsafe call"},
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": "src/app.py"},
+                        "region": {"startLine": "4", "endLine": 9},
+                    }
+                }],
+            }],
+        }]
+    }).encode())[0]
+    gitleaks = GitleaksJsonParser().parse(json.dumps([{
+        "RuleID": "generic-api-key",
+        "File": "/src/app.env",
+        "StartLine": True,
+        "EndLine": 3,
+    }]).encode())[0]
+
+    assert (semgrep.line_start, semgrep.line_end) == (None, None)
+    assert (gitleaks.line_start, gitleaks.line_end) == (None, None)
 
 
 def test_grype_parser_extracts_matches() -> None:
@@ -127,6 +161,7 @@ def test_grype_parser_extracts_matches() -> None:
     assert f.rule_id == "CVE-2024-2"
     assert f.severity == "HIGH"
     assert f.file_path == "yarn.lock"
+    assert (f.line_start, f.line_end) == (None, None)
 
 
 def test_osv_scanner_parser_extracts_results() -> None:
@@ -149,6 +184,8 @@ def test_osv_scanner_parser_extracts_results() -> None:
     f = findings[0]
     assert f.scanner_kind == "osv-scanner"
     assert f.rule_id == "GHSA-1"
+    assert f.file_path == "package-lock.json"
+    assert (f.line_start, f.line_end) == (None, None)
 
 
 def test_syft_parser_emits_no_findings() -> None:
