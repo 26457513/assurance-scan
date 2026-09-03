@@ -175,7 +175,8 @@ jobs:
 
           repository=/root/assurance-scan
           runtime="/root/assurance-scan-runtime/release-$rollout_id"
-          candidate_ref="ghcr.io/26457513/assurance-scan-app:sha-$revision"
+          app_image=ghcr.io/26457513/assurance-scan-app
+          candidate_ref="$app_image:sha-$revision"
           evidence_dir="/root/assurance-scan-backups/cutover-$revision-$rollout_id"
           cutover_tool=/opt/assurance-scan/backend/scripts/local-cutover.py
           server_stopped=0
@@ -205,6 +206,21 @@ jobs:
           git merge --ff-only "$revision"
           test -r "$runtime/app.env"
           test -r "$runtime/secrets/github-app.pem"
+
+          current_image_id="$(docker inspect assurance-scan-server-1 --format '{{.Image}}')"
+          kept_image_ids=0
+          while IFS= read -r image_id; do
+            test -n "$image_id" || continue
+            if test "$image_id" = "$current_image_id" || test "$kept_image_ids" -lt 2; then
+              kept_image_ids=$((kept_image_ids + 1))
+              continue
+            fi
+            if test -n "$(docker ps --all --quiet --filter "ancestor=$image_id")"; then
+              continue
+            fi
+            docker image rm "$image_id"
+          done < <(docker image ls "$app_image" --format '{{.ID}}' | awk '!seen[$0]++')
+          docker image prune --force
 
           docker pull --quiet "$candidate_ref" >/dev/null
           test "$(docker image inspect "$candidate_ref" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$revision"
