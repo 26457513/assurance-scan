@@ -165,4 +165,52 @@ describe('FindingsTable source context', () => {
 
     expect(await screen.findByText('The scanner did not report a source line.')).toBeInTheDocument();
   });
+
+  it.each([
+    [
+      'misconfiguration',
+      'trivy-config',
+      'This configuration finding applies to the file as a whole or to a missing directive; there is no single source line.'
+    ],
+    [
+      'tribal',
+      'tribal',
+      'This project policy finding applies to the file or repository as a whole; there is no single source line.'
+    ]
+  ])('explains file-scoped %s findings', async (theme, scannerKind, expected) => {
+    findingSourceContext.mockResolvedValue({
+      available: false,
+      provider: null,
+      path: 'Dockerfile',
+      window_start: null,
+      window_end: null,
+      highlight_start: null,
+      highlight_end: null,
+      highlight_truncated: false,
+      lines: [],
+      source_hash: null,
+      redaction_version: null,
+      redaction_changed: false,
+      unavailable_reason: 'missing_line'
+    });
+    render(FindingsTable, {
+      findings: [{
+        ...finding,
+        scanner_kind: scannerKind,
+        file_path: 'Dockerfile',
+        line_start: null,
+        line_end: null,
+        message: 'file-scoped finding',
+        theme
+      }],
+      total: 1,
+      bySeverity: { HIGH: 1 },
+      runId: 'local-1'
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: /Dockerfile/ }));
+    await fireEvent.click(screen.getByRole('button', { name: /file-scoped finding/ }));
+
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+  });
 });

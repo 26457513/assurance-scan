@@ -50,6 +50,12 @@
         return 'This dependency was discovered from package metadata rather than a repository source file.';
       }
     }
+    if (reason === 'missing_line' && finding.theme === 'misconfiguration') {
+      return 'This configuration finding applies to the file as a whole or to a missing directive; there is no single source line.';
+    }
+    if (reason === 'missing_line' && finding.theme === 'tribal') {
+      return 'This project policy finding applies to the file or repository as a whole; there is no single source line.';
+    }
     return UNAVAILABLE_LABELS[reason ?? ''] ?? 'Source context could not be loaded.';
   }
 
