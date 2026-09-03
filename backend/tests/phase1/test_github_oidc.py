@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import datetime as dt
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -72,11 +73,49 @@ def test_authenticates_signed_claims_and_authorizes_default_branch(
     assert github_oidc_key_id(token) == "test-key"
 
 
+def test_accepts_github_certificate_thumbprint_header(
+    signing_material: tuple[rsa.RSAPrivateKey, dict[str, Any]],
+) -> None:
+    key, jwks = signing_material
+    token = _token(
+        key,
+        _claims(),
+        header={
+            "alg": "RS256",
+            "kid": "test-key",
+            "typ": "JWT",
+            "x5t": "W7u7j4YfKsD1XfO-pZIpxHAT4Yw",
+        },
+    )
+
+    identity = authenticate_github_oidc(
+        token,
+        audience="https://scan.squease.ai/api/v2/ingest/github-actions",
+        jwks=jwks,
+        now=NOW,
+        signature_verifier=CryptographyRsaSignatureVerifier(),
+    )
+
+    assert identity.repository_id == 424242
+    assert github_oidc_key_id(token) == "test-key"
+
+
+def test_authorizes_github_immutable_repository_subject() -> None:
+    claims = _identity_from_fixture(_claims())
+    claims = replace(
+        claims,
+        subject="repo:26457513@26457513/assurance-scan@424242:ref:refs/heads/main",
+    )
+
+    authorize_default_branch_push(claims, _trust())
+
+
 @pytest.mark.parametrize(
     ("target", "field", "value", "code"),
     (
         ("header", "alg", "HS256", "oidc_invalid"),
         ("header", "jku", "https://attacker.example/jwks", "oidc_invalid"),
+        ("header", "x5t", "not a base64url thumbprint", "oidc_invalid"),
         ("claims", "iss", "https://attacker.example", "oidc_invalid"),
         ("claims", "aud", ["https://scan.squease.ai/api/v2/ingest/github-actions"], "oidc_invalid"),
         ("claims", "repository_id", None, "oidc_invalid"),

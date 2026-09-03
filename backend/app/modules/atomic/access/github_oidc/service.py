@@ -18,6 +18,7 @@ from .ports import GithubOidcReplayRepository, RsaSignatureVerifier
 
 
 _ASCII_KID = re.compile(r"[\x21-\x7e]{1,128}\Z")
+_BASE64URL_THUMBPRINT = re.compile(r"[A-Za-z0-9_-]{20,128}\Z")
 _POSITIVE_DIGITS = re.compile(r"[1-9][0-9]*\Z")
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}\Z")
 _REF = re.compile(r"refs/heads/[^\x00-\x20~^:?*\\\[][^\x00~^:?*\\\[]*\Z")
@@ -72,16 +73,8 @@ def authenticate_github_oidc(
     claims = _json_object(_decode_segment(segments[1]))
     signature = _decode_segment(segments[2])
 
-    if set(header) != {"alg", "kid", "typ"}:
-        _invalid()
-    kid = header.get("kid")
-    if (
-        header.get("alg") != OIDC_POLICY_V2.algorithm
-        or header.get("typ") != OIDC_POLICY_V2.token_type
-        or kid != expected_kid
-        or not _ASCII_KID.fullmatch(kid)
-        or len(kid.encode("ascii")) > OIDC_POLICY_V2.maximum_kid_bytes
-    ):
+    kid = _validated_header_kid(header)
+    if kid != expected_kid:
         _invalid()
     jwk = _select_jwk(jwks, kid)
     if not signature_verifier.verify(
@@ -145,17 +138,7 @@ def github_oidc_key_id(token: str) -> str:
     if len(segments) != 3 or any(not segment for segment in segments):
         _invalid()
     header = _json_object(_decode_segment(segments[0]))
-    kid = header.get("kid")
-    if (
-        set(header) != {"alg", "kid", "typ"}
-        or header.get("alg") != OIDC_POLICY_V2.algorithm
-        or header.get("typ") != OIDC_POLICY_V2.token_type
-        or not isinstance(kid, str)
-        or not _ASCII_KID.fullmatch(kid)
-        or len(kid.encode("ascii")) > OIDC_POLICY_V2.maximum_kid_bytes
-    ):
-        _invalid()
-    return kid
+    return _validated_header_kid(header)
 
 
 def authorize_default_branch_push(
@@ -177,11 +160,19 @@ def authorize_default_branch_push(
     expected_workflow = (
         f"{trust.full_name}/.github/workflows/assurance-scan.yml@{expected_ref}"
     )
-    expected_subject = f"repo:{_encode_subject_value(trust.full_name)}:ref:{_encode_subject_value(expected_ref)}"
+    owner, repository = trust.full_name.split("/", 1)
+    expected_subjects = {
+        f"repo:{_encode_subject_value(trust.full_name)}:ref:{_encode_subject_value(expected_ref)}",
+        (
+            f"repo:{_encode_subject_value(owner)}@{trust.owner_id}/"
+            f"{_encode_subject_value(repository)}@{trust.repository_id}:"
+            f"ref:{_encode_subject_value(expected_ref)}"
+        ),
+    }
     if (
         claims.workflow_ref != expected_workflow
         or claims.workflow_sha != claims.sha
-        or claims.subject != expected_subject
+        or claims.subject not in expected_subjects
     ):
         _invalid()
 
@@ -258,6 +249,30 @@ def _select_jwk(jwks: Mapping[str, Any], kid: str) -> Mapping[str, Any]:
     ):
         _invalid()
     return key
+
+
+def _validated_header_kid(header: Mapping[str, Any]) -> str:
+    required = {"alg", "kid", "typ"}
+    if set(header) not in (required, required | {"x5t"}):
+        _invalid()
+    kid = header.get("kid")
+    thumbprint = header.get("x5t")
+    if (
+        header.get("alg") != OIDC_POLICY_V2.algorithm
+        or header.get("typ") != OIDC_POLICY_V2.token_type
+        or not isinstance(kid, str)
+        or not _ASCII_KID.fullmatch(kid)
+        or len(kid.encode("ascii")) > OIDC_POLICY_V2.maximum_kid_bytes
+        or (
+            thumbprint is not None
+            and (
+                not isinstance(thumbprint, str)
+                or not _BASE64URL_THUMBPRINT.fullmatch(thumbprint)
+            )
+        )
+    ):
+        _invalid()
+    return kid
 
 
 def _decode_segment(value: str) -> bytes:
