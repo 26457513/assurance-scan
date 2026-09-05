@@ -1,5 +1,6 @@
 import type {
   CatalogueDriftResponse,
+  ArtifactListResponse,
   CatalogueVersion,
   ComplianceListResponse,
   CompliancePack,
@@ -20,6 +21,7 @@ import type {
   ScanResponse,
   ScanStatus,
   ScanSummary,
+  SbomPackageListResponse,
   SourceContextResponse,
   TestSourceResponse,
   TrendCommits,
@@ -239,6 +241,14 @@ export const api = {
     const qs = severity ? `?severity=${encodeURIComponent(severity)}` : '';
     return getJson<FindingsListResponse>(`/api/scans/${runId}/findings${qs}`);
   },
+
+  listArtifacts: (runId: string) =>
+    getJson<ArtifactListResponse>(`/api/scans/${encodeURIComponent(runId)}/artifacts`),
+
+  listSbomPackages: (runId: string) =>
+    getJson<SbomPackageListResponse>(
+      `/api/scans/${encodeURIComponent(runId)}/artifacts/sbom/packages`
+    ),
 
   findingSourceContext: (runId: string, findingId: number) =>
     getJson<SourceContextResponse>(

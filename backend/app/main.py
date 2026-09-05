@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import (
     accounts,
+    artifacts,
     catalogue_drift,
     cli_releases,
     ci_setup,
@@ -336,6 +337,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(scans.router, prefix="/api")
+    app.include_router(artifacts.router, prefix="/api")
     app.include_router(findings.router, prefix="/api")
     app.include_router(frs.router, prefix="/api")
     app.include_router(frs_list.router, prefix="/api")

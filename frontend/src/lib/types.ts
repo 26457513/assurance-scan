@@ -192,6 +192,43 @@ export interface FindingsListResponse {
   findings: FindingResponse[];
 }
 
+export interface ArtifactSummary {
+  name: 'findings' | 'sarif' | 'sbom';
+  filename: string;
+  description: string;
+  media_type: string;
+  status: string;
+  available: boolean;
+  size_bytes: number | null;
+  content_hash: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+  download_url: string | null;
+}
+
+export interface ArtifactListResponse {
+  run_id: string;
+  retention_days: number;
+  artifacts: ArtifactSummary[];
+}
+
+export interface SbomPackage {
+  bom_ref: string | null;
+  name: string;
+  version: string | null;
+  ecosystem: string | null;
+  component_type: string | null;
+  purl: string | null;
+  licenses: string[];
+  vulnerability_count: number | null;
+}
+
+export interface SbomPackageListResponse {
+  run_id: string;
+  total: number;
+  packages: SbomPackage[];
+}
+
 export interface CodeRef {
   kind: 'file' | 'glob' | 'symbol';
   ref: string;

@@ -2,8 +2,16 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
   import FindingsTable from './FindingsTable.svelte';
+  import ArtifactsPanel from './ArtifactsPanel.svelte';
+  import SbomPackagesTable from './SbomPackagesTable.svelte';
   import ScanOriginBadge from './ScanOriginBadge.svelte';
-  import type { ScanStatus, FindingsListResponse, ScanSummary } from '$lib/types';
+  import type {
+    ArtifactListResponse,
+    ScanStatus,
+    FindingsListResponse,
+    ScanSummary,
+    SbomPackageListResponse,
+  } from '$lib/types';
   import {
     SCANNER_DESCRIPTIONS,
     scannerCategory,
@@ -14,19 +22,46 @@
 
   let detail: ScanStatus | null = null;
   let findings: FindingsListResponse | null = null;
+  let artifacts: ArtifactListResponse | null = null;
+  let inventory: SbomPackageListResponse | null = null;
+  let inventoryLoading = false;
+  let inventoryError: string | null = null;
+  let activeSurface: 'findings' | 'packages' | 'artifacts' = 'findings';
   let loading = true;
   let error: string | null = null;
   let es: EventSource | null = null;
 
   async function refresh() {
     try {
-      detail = await api.getScan(scan.run_id);
-      findings = await api.listFindings(scan.run_id);
+      [detail, findings, artifacts] = await Promise.all([
+        api.getScan(scan.run_id),
+        api.listFindings(scan.run_id),
+        api.listArtifacts(scan.run_id),
+      ]);
       error = null;
     } catch (e) {
       error = String(e);
     } finally {
       loading = false;
+    }
+  }
+
+  async function openSurface(surface: typeof activeSurface) {
+    activeSurface = surface;
+    if (surface !== 'packages' || inventory || inventoryLoading) return;
+    const sbomAvailable = artifacts?.artifacts.some((artifact) => artifact.name === 'sbom' && artifact.available);
+    if (!sbomAvailable) {
+      inventory = { run_id: scan.run_id, total: 0, packages: [] };
+      return;
+    }
+    inventoryLoading = true;
+    inventoryError = null;
+    try {
+      inventory = await api.listSbomPackages(scan.run_id);
+    } catch (e) {
+      inventoryError = String(e);
+    } finally {
+      inventoryLoading = false;
     }
   }
 
@@ -98,6 +133,12 @@
           : 'var(--state-untested)';
 
   $: scannerSummary = summarizeScannerStatuses(detail?.scanner_status ?? []);
+  $: scannerStatuses = (detail?.scanner_status ?? [])
+    .filter((status) => scannerCategory(status.kind) !== 'artifact')
+    .sort((left, right) => left.kind.localeCompare(right.kind));
+  $: artifactStatuses = (detail?.scanner_status ?? [])
+    .filter((status) => scannerCategory(status.kind) === 'artifact')
+    .sort((left, right) => left.kind.localeCompare(right.kind));
   let scannersExpanded = false;
 </script>
 
@@ -158,8 +199,10 @@
           {/if}
         </button>
         {#if scannersExpanded && detail}
-          {@const allScanners = [...detail.scanner_status].sort((a, b) => a.kind.localeCompare(b.kind))}
           <div class="border-t border-line-hairline">
+            <div class="px-3 py-1.5 bg-surface-inset text-[10px] text-ink-muted">
+              Scanners ({scannerStatuses.length})
+            </div>
             <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_70px_90px] gap-3 px-3 py-1.5 bg-surface-inset text-[10px] uppercase tracking-[0.14em] text-ink-muted items-center">
               <div>Scanner</div>
               <div>Description</div>
@@ -167,7 +210,7 @@
               <div class="text-right">s</div>
               <div class="text-right">Status</div>
             </div>
-            {#each allScanners as s (s.kind)}
+            {#each scannerStatuses as s (s.kind)}
               <div
                 class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_70px_90px] gap-3 px-3 py-1.5 items-center border-t border-line-hairline first:border-t-0"
                 title={s.error_message ?? ''}
@@ -179,22 +222,71 @@
                 <span class="text-right" style="color: {scannerColor(s.status)}">{s.status}</span>
               </div>
             {/each}
+            {#if artifactStatuses.length > 0}
+              <div class="px-3 py-1.5 border-t border-line-hairline bg-surface-inset text-[10px] text-ink-muted">
+                Generated artifacts ({artifactStatuses.length})
+              </div>
+              {#each artifactStatuses as artifact (artifact.kind)}
+                <div class="grid grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)_110px_70px_90px] gap-3 px-3 py-1.5 items-center border-t border-line-hairline">
+                  <span class="text-ink-primary truncate">{artifact.kind.replace('assurance-scan/', '')}</span>
+                  <span class="text-ink-muted truncate">{SCANNER_DESCRIPTIONS[artifact.kind] ?? 'generated scan output'}</span>
+                  <span class="text-ink-muted">artifact</span>
+                  <span class="text-right text-ink-muted">·</span>
+                  <span class="text-right" style="color: {scannerColor(artifact.status)}">{artifact.status}</span>
+                </div>
+              {/each}
+            {/if}
           </div>
         {/if}
       </div>
     </section>
 
-    {#if findings}
+    <div class="mb-3 flex items-end gap-5 border-b border-line-hairline" role="tablist" aria-label="Scan evidence">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeSurface === 'findings'}
+        class="border-b-2 px-0.5 pb-2 font-mono text-[11px] transition-colors {activeSurface === 'findings' ? 'border-accent text-ink-primary' : 'border-transparent text-ink-muted hover:text-ink-primary'}"
+        on:click={() => openSurface('findings')}
+      >Findings <span class="tabular-nums">{findings?.total ?? 0}</span></button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeSurface === 'packages'}
+        class="border-b-2 px-0.5 pb-2 font-mono text-[11px] transition-colors {activeSurface === 'packages' ? 'border-accent text-ink-primary' : 'border-transparent text-ink-muted hover:text-ink-primary'}"
+        on:click={() => openSurface('packages')}
+      >Packages {#if inventory}<span class="tabular-nums">{inventory.total}</span>{/if}</button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeSurface === 'artifacts'}
+        class="border-b-2 px-0.5 pb-2 font-mono text-[11px] transition-colors {activeSurface === 'artifacts' ? 'border-accent text-ink-primary' : 'border-transparent text-ink-muted hover:text-ink-primary'}"
+        on:click={() => openSurface('artifacts')}
+      >Artifacts <span class="tabular-nums">{artifacts?.artifacts.length ?? 0}</span></button>
+    </div>
+
+    {#if activeSurface === 'findings' && findings}
       <section>
-        <div class="text-[10px] font-mono uppercase tracking-[0.14em] text-ink-muted mb-2.5">
-          Findings · {findings.total}
-        </div>
         <FindingsTable
           findings={findings.findings}
           total={findings.total}
           bySeverity={findings.by_severity}
           runId={scan.run_id}
         />
+      </section>
+    {:else if activeSurface === 'packages'}
+      <section>
+        {#if inventoryLoading}
+          <div class="py-8 text-center font-mono text-[11px] text-ink-muted">Loading package inventory…</div>
+        {:else if inventoryError}
+          <div class="py-8 text-center font-mono text-[11px] text-state-failed">{inventoryError}</div>
+        {:else if inventory}
+          <SbomPackagesTable {inventory} />
+        {/if}
+      </section>
+    {:else if activeSurface === 'artifacts' && artifacts}
+      <section>
+        <ArtifactsPanel {artifacts} />
       </section>
     {/if}
   </div>

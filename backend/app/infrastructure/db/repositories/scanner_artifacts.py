@@ -10,7 +10,7 @@ import hashlib
 
 from sqlalchemy import select
 
-from app.infrastructure.db.models import ScannerArtifact
+from app.infrastructure.db.models import ScannerArtifact, ScannerRun
 from app.infrastructure.db.repositories.base import BaseRepository
 
 
@@ -52,6 +52,22 @@ class ScannerArtifactRepository(BaseRepository[ScannerArtifact]):
             )
         )
         return result.scalars().first()
+
+    async def list_published_for_run(
+        self,
+        run_id: str,
+    ) -> list[tuple[ScannerRun, ScannerArtifact | None]]:
+        """Return generated result artifacts, including expired payloads."""
+        result = await self.session.execute(
+            select(ScannerRun, ScannerArtifact)
+            .outerjoin(ScannerArtifact, ScannerArtifact.scanner_run_id == ScannerRun.id)
+            .where(
+                ScannerRun.run_id == run_id,
+                ScannerRun.scanner_kind.startswith("assurance-scan/"),
+            )
+            .order_by(ScannerRun.scanner_kind)
+        )
+        return list(result.tuples().all())
 
     @staticmethod
     def decompress(artifact: ScannerArtifact) -> bytes:
