@@ -356,7 +356,8 @@ jobs:
         run: |
           run_id="${AUTOMATED_EVIDENCE_URL##*/}"
           mkdir cli-release-evidence
-          gh run download "$run_id" --name "cli-release-$VERSION" --dir cli-release-evidence
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+            --name "cli-release-$VERSION" --dir cli-release-evidence
           cosign verify-blob \
             --bundle cli-release-evidence/cli-release.sigstore.json \
             --certificate-identity-regexp '^https://github.com/26457513/assurance-scan/.github/workflows/publish-cli-image.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' \

@@ -113,6 +113,7 @@ def test_release_workflow_builds_then_promotes_the_same_signed_digest() -> None:
     assert 'install -d -m 755 "$target"' in source
     assert 'install -m 644 "$stage/latest.json"' in source
     assert 'install -m 644 "$stage/latest.sigstore.json"' in source
+    assert source.count('gh run download "$run_id" --repo "$GITHUB_REPOSITORY"') == 2
     promote = source[source.index("  promote-stable:") :]
     assert "docker/build-push-action" not in promote
     assert "imagetools create --tag \"$IMAGE:stable\" \"$IMAGE@$DIGEST\"" in promote
