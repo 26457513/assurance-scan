@@ -3,13 +3,25 @@
 
   export let inventory: SbomPackageListResponse;
 
+  type PackageStatus = SbomPackageListResponse['packages'][number]['security_status'];
+
   let query = '';
+  let activeStatus: PackageStatus | null = null;
   $: normalizedQuery = query.trim().toLowerCase();
-  $: packages = normalizedQuery
-    ? inventory.packages.filter((item) =>
-        [item.name, item.version, item.ecosystem, item.component_type, item.purl, ...item.licenses]
-          .some((value) => value?.toLowerCase().includes(normalizedQuery)))
-    : inventory.packages;
+  $: statusCounts = inventory.packages.reduce<Record<PackageStatus, number>>(
+    (counts, item) => {
+      counts[item.security_status] += 1;
+      return counts;
+    },
+    { failing: 0, finding: 0, clear: 0, not_assessed: 0 }
+  );
+  $: packages = inventory.packages.filter((item) => {
+    const matchesStatus = activeStatus === null || item.security_status === activeStatus;
+    const matchesQuery = !normalizedQuery ||
+      [item.name, item.version, item.ecosystem, item.component_type, item.purl, ...item.licenses]
+        .some((value) => value?.toLowerCase().includes(normalizedQuery));
+    return matchesStatus && matchesQuery;
+  });
 
   const statusLabel = {
     failing: 'Failing',
@@ -24,19 +36,46 @@
     clear: 'var(--state-passed)',
     not_assessed: 'var(--state-untested)'
   } as const;
+
+  const statusOrder: PackageStatus[] = ['failing', 'finding', 'clear', 'not_assessed'];
 </script>
 
-<div class="mb-2.5 flex items-center justify-between gap-3">
-  <label class="relative block w-full max-w-sm">
-    <span class="sr-only">Search packages</span>
-    <input
-      bind:value={query}
-      type="search"
-      placeholder="Search package, version, ecosystem or licence"
-      class="w-full rounded-sm border border-line-hairline bg-surface-inset px-3 py-2 font-mono text-[11px] text-ink-primary outline-none focus:border-accent"
-    />
-  </label>
-  <span class="whitespace-nowrap font-mono text-[11px] text-ink-muted">{packages.length} of {inventory.total}</span>
+<div class="mb-2.5 space-y-2">
+  <div class="flex items-center justify-between gap-3">
+    <label class="relative block w-full max-w-sm">
+      <span class="sr-only">Search packages</span>
+      <input
+        bind:value={query}
+        type="search"
+        placeholder="Search package, version, ecosystem or licence"
+        class="w-full rounded-sm border border-line-hairline bg-surface-inset px-3 py-2 font-mono text-[11px] text-ink-primary outline-none focus:border-accent"
+      />
+    </label>
+    <span class="whitespace-nowrap font-mono text-[11px] text-ink-muted">{packages.length} of {inventory.total}</span>
+  </div>
+  <div class="flex flex-wrap items-center gap-1.5" aria-label="Filter packages by status">
+    <button
+      type="button"
+      aria-pressed={activeStatus === null}
+      on:click={() => (activeStatus = null)}
+      class="rounded-sm border px-2 py-1 font-mono text-[11px] transition-colors"
+      class:border-line-strong={activeStatus === null}
+      class:text-ink-primary={activeStatus === null}
+      class:border-line-hairline={activeStatus !== null}
+      class:text-ink-muted={activeStatus !== null}
+    >All ({inventory.total})</button>
+    {#each statusOrder as status (status)}
+      <button
+        type="button"
+        aria-pressed={activeStatus === status}
+        on:click={() => (activeStatus = activeStatus === status ? null : status)}
+        class="rounded-sm border px-2 py-1 font-mono text-[11px] transition-colors"
+        class:border-line-strong={activeStatus === status}
+        class:border-line-hairline={activeStatus !== status}
+        style="color: {statusColor[status]}"
+      >{statusLabel[status]} ({statusCounts[status]})</button>
+    {/each}
+  </div>
 </div>
 
 <div class="border border-line-hairline rounded-sm overflow-x-auto bg-surface-panel font-mono text-[11px]">
@@ -63,7 +102,7 @@
     </div>
   {:else}
     <div class="px-3 py-8 text-center text-ink-muted">
-      {normalizedQuery ? 'No packages match this search.' : 'The SBOM contains no package components.'}
+      {normalizedQuery || activeStatus ? 'No packages match these filters.' : 'The SBOM contains no package components.'}
     </div>
   {/each}
 </div>

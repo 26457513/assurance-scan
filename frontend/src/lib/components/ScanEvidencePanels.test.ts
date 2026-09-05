@@ -79,4 +79,32 @@ describe('scan evidence panels', () => {
     expect(screen.getByText('HIGH')).toBeInTheDocument();
     expect(screen.getByText('1 of 2')).toBeInTheDocument();
   });
+
+  it('filters the package inventory by assessment status', async () => {
+    render(SbomPackagesTable, {
+      inventory: {
+        run_id: 'run-1',
+        total: 2,
+        packages: [
+          {
+            bom_ref: 'pkg:npm/svelte@5', name: 'svelte', version: '5.0.0', ecosystem: 'npm',
+            component_type: 'library', purl: 'pkg:npm/svelte@5.0.0', licenses: ['MIT'],
+            security_status: 'clear', highest_severity: null, finding_count: 0
+          },
+          {
+            bom_ref: 'pkg:pypi/fastapi@1', name: 'fastapi', version: '1.0.0', ecosystem: 'pypi',
+            component_type: 'library', purl: 'pkg:pypi/fastapi@1.0.0', licenses: ['BSD-3-Clause'],
+            security_status: 'failing', highest_severity: 'HIGH', finding_count: 1
+          }
+        ]
+      }
+    });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Failing (1)' }));
+
+    expect(screen.queryByText('svelte')).not.toBeInTheDocument();
+    expect(screen.getByText('fastapi')).toBeInTheDocument();
+    expect(screen.getByText('1 of 2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Failing (1)' })).toHaveAttribute('aria-pressed', 'true');
+  });
 });
