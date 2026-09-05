@@ -227,6 +227,7 @@ export interface SbomPackage {
   security_status: 'failing' | 'finding' | 'clear' | 'not_assessed';
   highest_severity: FindingResponse['severity'] | null;
   finding_count: number;
+  finding_ids: number[];
 }
 
 export interface SbomPackageListResponse {

@@ -71,6 +71,22 @@ async def get_findings_json(
     return PlainTextResponse(run.findings_json, media_type="application/json")
 
 
+@router.get("/scans/{run_id}/findings/{finding_id}", response_model=FindingResponse)
+async def get_finding(
+    run_id: str,
+    finding_id: int,
+    principal: ProjectAccessDep,
+    session: AsyncSession = SessionDep,
+) -> FindingResponse:
+    """Return one authorized finding for lazy evidence disclosure."""
+    if await require_run(session, principal, run_id) is None:
+        raise HTTPException(status_code=404, detail=f"scan {run_id} not found")
+    finding = await session.get(Finding, finding_id)
+    if finding is None or finding.run_id != run_id:
+        raise HTTPException(status_code=404, detail="finding not found")
+    return _row_to_response(finding)
+
+
 @router.get(
     "/scans/{run_id}/findings/{finding_id}/source-context",
     response_model=SourceContextResponse,

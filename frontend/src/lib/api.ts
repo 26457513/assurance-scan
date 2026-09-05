@@ -7,6 +7,7 @@ import type {
   ComplianceMatrixResponse,
   ConfigResponse,
   FindingAcceptance,
+  FindingResponse,
   FindingsListResponse,
   FrDetailResponse,
   FrHistoryResponse,
@@ -241,6 +242,11 @@ export const api = {
     const qs = severity ? `?severity=${encodeURIComponent(severity)}` : '';
     return getJson<FindingsListResponse>(`/api/scans/${runId}/findings${qs}`);
   },
+
+  getFinding: (runId: string, findingId: number) =>
+    getJson<FindingResponse>(
+      `/api/scans/${encodeURIComponent(runId)}/findings/${findingId}`
+    ),
 
   listArtifacts: (runId: string) =>
     getJson<ArtifactListResponse>(`/api/scans/${encodeURIComponent(runId)}/artifacts`),

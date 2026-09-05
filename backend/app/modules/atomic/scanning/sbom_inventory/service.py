@@ -49,6 +49,7 @@ def extract_packages(content: bytes) -> list[dict[str, Any]]:
             "security_status": "not_assessed",
             "highest_severity": None,
             "finding_count": 0,
+            "finding_ids": [],
         })
     return sorted(packages, key=lambda item: (item["name"].lower(), item["version"] or ""))
 
@@ -70,6 +71,11 @@ def apply_security_status(
             for finding in linked
             if isinstance((severity := finding.get("severity")), str)
         ]
+        finding_ids = [
+            finding_id
+            for finding in linked
+            if isinstance((finding_id := finding.get("id")), int)
+        ]
         highest = max(severities, key=lambda value: _SEVERITY_WEIGHT.get(value, -1), default=None)
         if highest in {"CRITICAL", "HIGH"}:
             status = "failing"
@@ -84,6 +90,7 @@ def apply_security_status(
             "security_status": status,
             "highest_severity": highest,
             "finding_count": len(linked),
+            "finding_ids": finding_ids,
         })
     return attributed
 

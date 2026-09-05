@@ -97,6 +97,7 @@ async def list_sbom_packages(
         packages,
         [
             {
+                "id": finding.id,
                 "severity": finding.severity,
                 "package_name": finding.package_name,
                 "package_version": finding.package_version,

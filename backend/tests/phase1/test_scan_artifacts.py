@@ -108,6 +108,7 @@ def test_extract_packages_normalizes_cyclonedx() -> None:
         "security_status": "not_assessed",
         "highest_severity": None,
         "finding_count": 0,
+        "finding_ids": [],
     }]
 
 
@@ -139,6 +140,7 @@ def test_security_status_is_conservative_and_uses_structured_identity() -> None:
         "security_status": "finding",
         "highest_severity": "MEDIUM",
         "finding_count": 1,
+        "finding_ids": [],
     }
     assert apply_security_status(
         packages,
@@ -190,6 +192,17 @@ async def test_sbom_package_projection(client) -> None:
     assert response.json()["packages"][0]["security_status"] == "failing"
     assert response.json()["packages"][0]["highest_severity"] == "HIGH"
     assert response.json()["packages"][0]["finding_count"] == 1
+    finding_ids = response.json()["packages"][0]["finding_ids"]
+    assert len(finding_ids) == 1
+
+    detail = await client.get(
+        f"/api/scans/run-artifacts/findings/{finding_ids[0]}"
+    )
+    assert detail.status_code == 200
+    assert detail.json()["rule_id"] == "CVE-1"
+
+    missing = await client.get("/api/scans/run-artifacts/findings/999999")
+    assert missing.status_code == 404
 
 
 async def test_unknown_artifact_does_not_expose_storage(client) -> None:

@@ -39,6 +39,7 @@ class SbomPackage(BaseModel):
     security_status: Literal["failing", "finding", "clear", "not_assessed"]
     highest_severity: str | None = None
     finding_count: int = 0
+    finding_ids: list[int] = Field(default_factory=list)
 
 
 class SbomPackageListResponse(BaseModel):

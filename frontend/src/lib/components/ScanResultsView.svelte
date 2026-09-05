@@ -281,7 +281,7 @@
         {:else if inventoryError}
           <div class="py-8 text-center font-mono text-[11px] text-state-failed">{inventoryError}</div>
         {:else if inventory}
-          <SbomPackagesTable {inventory} />
+          <SbomPackagesTable {inventory} runId={scan.run_id} />
         {/if}
       </section>
     {:else if activeSurface === 'artifacts' && artifacts}
