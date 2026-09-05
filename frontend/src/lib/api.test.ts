@@ -21,6 +21,15 @@ describe('numeric project API contracts', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/scans?project_id=42&limit=200', undefined);
   });
 
+  it('requests trend history for one encoded branch', async () => {
+    await api.getTrends(42, 100, 'feature/package evidence');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/trends?project_id=42&limit=100&branch=feature%2Fpackage+evidence',
+      undefined
+    );
+  });
+
   it('registers canonical project fields without path aliases', async () => {
     await api.createProject('Assurance Scan', '/work/assurance-scan', '26457513/assurance-scan', 'main');
 

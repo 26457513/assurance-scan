@@ -394,6 +394,7 @@ export interface TrendDelta {
 
 export interface TrendsResponse {
   runs: TrendEntry[];
+  branches: string[];
   delta: TrendDelta | null;
 }
 

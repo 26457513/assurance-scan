@@ -293,10 +293,11 @@ export const api = {
     );
   },
 
-  getTrends: (projectId?: number, limit = 20) => {
+  getTrends: (projectId?: number, limit = 20, branch?: string) => {
     const params = new URLSearchParams();
     if (projectId != null) params.set('project_id', String(projectId));
     params.set('limit', String(limit));
+    if (branch) params.set('branch', branch);
     return getJson<TrendsResponse>(`/api/trends?${params.toString()}`);
   },
 

@@ -19,7 +19,7 @@
     { key: 'tribal', label: 'tribal', color: 'var(--accent)' }
   ] as const;
 
-  async function refresh() {
+  async function refresh(requestedBranch: string | null = branch || null) {
     if (!project) {
       data = null;
       commits = null;
@@ -27,10 +27,14 @@
     }
     loading = true;
     try {
-      data = await api.getTrends(project, 100);
-      if (data.runs.length && !branchesOf(data).includes(branch)) {
-        branch = data.runs[data.runs.length - 1].git_branch || '';
+      let nextData = await api.getTrends(project, 100, requestedBranch ?? undefined);
+      const availableBranches = nextData.branches;
+      if (!requestedBranch || !availableBranches.includes(requestedBranch)) {
+        const latestBranch = nextData.runs[nextData.runs.length - 1]?.git_branch;
+        branch = latestBranch || availableBranches[0] || '';
+        if (branch) nextData = await api.getTrends(project, 100, branch);
       }
+      data = nextData;
       error = null;
     } catch (e) {
       error = String(e);
@@ -39,11 +43,7 @@
     }
   }
 
-  function branchesOf(d: TrendsResponse): string[] {
-    return [...new Set(d.runs.map((r) => r.git_branch).filter(Boolean) as string[])];
-  }
-
-  $: branches = data ? branchesOf(data) : [];
+  $: branches = data?.branches ?? [];
 
   async function refreshCommits() {
     if (!project || !branch) {
@@ -57,12 +57,10 @@
     }
   }
 
-  $: if (project) refresh();
+  $: if (project) refresh(null);
   $: if (project && branch) refreshCommits();
 
-  $: runs = data
-    ? data.runs.filter((r) => (r.git_branch || '') === branch)
-    : [];
+  $: runs = data?.runs ?? [];
 
   // ---- shared time axis -------------------------------------------------
   const W = 860;
@@ -155,6 +153,7 @@
       {#if branches.length > 1}
         <select
           bind:value={branch}
+          on:change={() => refresh(branch)}
           class="px-2 py-1 border border-line-strong rounded-sm bg-surface-elevated font-mono text-[11px] text-ink-primary"
         >
           {#each branches as b (b)}<option value={b}>{b}</option>{/each}

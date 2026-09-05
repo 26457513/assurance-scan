@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep
@@ -14,6 +14,7 @@ from app.api.deps_project_access import ProjectAccessDep
 from app.infrastructure.db.models import Finding, Run
 from app.infrastructure.project_access import (
     require_project,
+    run_visibility_clause,
     shared_github_run_clause,
     visible_project_ids,
 )
@@ -27,6 +28,7 @@ async def trends(
     principal: ProjectAccessDep,
     project_id: int | None = Query(default=None, gt=0),
     limit: int = Query(default=20, ge=1, le=200),
+    branch: Annotated[str | None, Query(min_length=1, max_length=512)] = None,
     session: AsyncSession = SessionDep,
 ) -> dict[str, Any]:
     """Finding-count + severity-broken-down trends over recent runs.
@@ -34,30 +36,43 @@ async def trends(
     Returns runs in chronological order (oldest first), so the frontend
     can draw a sparkline. Each entry includes count + severity breakdown.
     """
-    # Shared trends intentionally exclude private local work and retained
-    # server-era runs. Local scans are available only as an owner-private
-    # overlay, never as shared project history.
-    run_stmt = select(Run).where(
-        shared_github_run_clause(),
+    # GitHub runs are shared through repository entitlement. Local runs form
+    # an owner-private overlay and must pass the same SQL visibility boundary
+    # used by scan listings. Retained server-era runs never enter trends.
+    conditions = [
+        or_(shared_github_run_clause(), Run.origin == "local"),
+        run_visibility_clause(principal),
         Run.legacy_retained.is_(False),
-    )
+    ]
     if project_id is not None:
         project = await require_project(session, principal, project_id)
         if project is None:
             from fastapi import HTTPException
 
             raise HTTPException(status_code=404, detail="project not found")
-        run_stmt = run_stmt.where(Run.project_id == project_id)
+        conditions.append(Run.project_id == project_id)
     else:
         allowed_ids = await visible_project_ids(session, principal)
         if allowed_ids is not None:
-            run_stmt = run_stmt.where(Run.project_id.in_(allowed_ids))
+            conditions.append(Run.project_id.in_(allowed_ids))
+
+    branch_stmt = (
+        select(Run.git_branch)
+        .where(*conditions, Run.git_branch.isnot(None), Run.git_branch != "")
+        .distinct()
+        .order_by(Run.git_branch)
+    )
+    branches = list((await session.execute(branch_stmt)).scalars().all())
+
+    run_stmt = select(Run).where(*conditions)
+    if branch is not None:
+        run_stmt = run_stmt.where(Run.git_branch == branch)
     run_stmt = run_stmt.order_by(Run.started_at.desc()).limit(limit)
     runs = list((await session.execute(run_stmt)).scalars().all())
     runs.reverse()  # chronological
 
     if not runs:
-        return {"runs": [], "delta": None}
+        return {"runs": [], "branches": branches, "delta": None}
 
     # One query: count findings per (run, severity).
     finding_stmt = (
@@ -109,7 +124,7 @@ async def trends(
         )
 
     delta = _compute_delta(entries)
-    return {"runs": entries, "delta": delta}
+    return {"runs": entries, "branches": branches, "delta": delta}
 
 
 def _compute_delta(entries: list[dict[str, Any]]) -> dict[str, Any] | None:

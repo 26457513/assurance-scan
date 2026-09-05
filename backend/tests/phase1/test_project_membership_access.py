@@ -158,6 +158,7 @@ async def test_local_runs_and_project_statistics_are_private_to_submitter(
                 git_object_format="sha1",
                 working_tree_dirty=False,
                 github_run_id=101,
+                git_branch="main",
             ),
             Run(
                 run_id="owner-local-private",
@@ -173,6 +174,7 @@ async def test_local_runs_and_project_statistics_are_private_to_submitter(
                 source_content_hash="b" * 64,
                 source_manifest_version="1",
                 findings_json='{"findings": [], "marker": "owner"}',
+                git_branch="owner-private",
             ),
             Run(
                 run_id="viewer-local-visible",
@@ -188,6 +190,7 @@ async def test_local_runs_and_project_statistics_are_private_to_submitter(
                 source_content_hash="c" * 64,
                 source_manifest_version="1",
                 findings_json='{"findings": [], "marker": "viewer"}',
+                git_branch="viewer-feature",
             ),
         )
     )
@@ -215,9 +218,35 @@ async def test_local_runs_and_project_statistics_are_private_to_submitter(
         principal=principal,
         project_id=project.id,
         limit=20,
+        branch=None,
         session=session,
     )
-    assert [row["run_id"] for row in trend_result["runs"]] == ["github-visible"]
+    assert [row["run_id"] for row in trend_result["runs"]] == [
+        "github-visible",
+        "viewer-local-visible",
+    ]
+    assert trend_result["branches"] == ["main", "viewer-feature"]
+
+    limited_trend = await trends(
+        principal=principal,
+        project_id=project.id,
+        limit=1,
+        branch=None,
+        session=session,
+    )
+    assert len(limited_trend["runs"]) == 1
+    assert limited_trend["branches"] == ["main", "viewer-feature"]
+
+    branch_trend = await trends(
+        principal=principal,
+        project_id=project.id,
+        limit=20,
+        branch="viewer-feature",
+        session=session,
+    )
+    assert [row["run_id"] for row in branch_trend["runs"]] == [
+        "viewer-local-visible"
+    ]
 
     monkeypatch.setattr("app.mcp.server.get_sessionmaker", lambda: session_factory)
     from app.mcp.server import build_mcp_server

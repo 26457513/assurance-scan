@@ -130,7 +130,9 @@ async def test_trends_returns_runs_array(client) -> None:
     assert res.status_code == 200
     body = res.json()
     assert "runs" in body
+    assert "branches" in body
     assert isinstance(body["runs"], list)
+    assert isinstance(body["branches"], list)
 
 
 # ---------------------------------------------------------------------------
