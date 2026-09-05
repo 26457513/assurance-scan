@@ -59,7 +59,9 @@
     return UNAVAILABLE_LABELS[reason ?? ''] ?? 'Source context could not be loaded.';
   }
 
-  $: severities = Object.keys(bySeverity).filter((s) => bySeverity[s] > 0);
+  $: severities = Object.keys(bySeverity)
+    .filter((severity) => bySeverity[severity] > 0)
+    .sort((left, right) => (SEV_WEIGHT[right] ?? -1) - (SEV_WEIGHT[left] ?? -1));
   $: filtered = activeSeverity ? findings.filter((f) => f.severity === activeSeverity) : findings;
   // Tribal view scopes to tribal findings only — other scanners' rule ids
   // would otherwise pollute the grouping.

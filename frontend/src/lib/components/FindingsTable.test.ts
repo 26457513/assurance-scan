@@ -28,6 +28,20 @@ const finding = {
 };
 
 describe('FindingsTable source context', () => {
+  it('orders Medium before Low regardless of API key order', () => {
+    render(FindingsTable, {
+      findings: [],
+      total: 5,
+      bySeverity: { LOW: 3, MEDIUM: 2 },
+      runId: 'local-1'
+    });
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.indexOf(screen.getByRole('button', { name: /MED/ }))).toBeLessThan(
+      buttons.indexOf(screen.getByRole('button', { name: /LOW/ }))
+    );
+  });
+
   it('renders uploaded snapshot context without interpreting source as HTML', async () => {
     findingSourceContext.mockResolvedValue({
       available: true,
