@@ -40,6 +40,7 @@ def test_source_neutral_workflow_and_blob_contract_are_public() -> None:
 def test_local_bundle_contains_scanner_output_only() -> None:
     document = {
         "schema_version": 1,
+        "capabilities": ["package-identity-v1"],
         "scanners": [
             {
                 "kind": "semgrep",
@@ -55,6 +56,7 @@ def test_local_bundle_contains_scanner_output_only() -> None:
     }
     bundle = build_local_result_bundle(document, {"sarif": b"{}"})
     assert bundle.schema_version == 1
+    assert bundle.capabilities == ("package-identity-v1",)
     assert bundle.scanners[0].image_digest == "sha256:" + "a" * 64
     assert not hasattr(bundle, "origin")
     assert not hasattr(bundle, "metadata")
@@ -63,6 +65,7 @@ def test_local_bundle_contains_scanner_output_only() -> None:
 def test_v2_bundle_adapts_contexts_and_canonical_artifacts_without_origin() -> None:
     findings = {
         "schema_version": 2,
+        "capabilities": ["package-identity-v1"],
         "scanners": [
             {
                 "kind": "semgrep",
@@ -80,6 +83,7 @@ def test_v2_bundle_adapts_contexts_and_canonical_artifacts_without_origin() -> N
     bundle = build_v2_result_bundle(findings, contexts, {"findings": b"{}"})
 
     assert bundle.schema_version == 2
+    assert bundle.capabilities == ("package-identity-v1",)
     assert bundle.source_contexts == ()
     assert bundle.artifacts == {"findings": b"{}"}
     assert not hasattr(bundle, "origin")
@@ -202,6 +206,7 @@ async def test_result_persister_stages_claim_then_commits_once() -> None:
     persistence = RecordingPersistence()
     bundle = ResultBundle(
         schema_version=1,
+        capabilities=("package-identity-v1",),
         scanners=(ScannerResult("semgrep", "completed"),),
         artifacts={"sarif": b"{}"},
     )
@@ -254,6 +259,7 @@ async def test_ingest_redacts_findings_artifacts_and_client_provenance() -> None
     canary = "AS_CANARY_SECRET_DO_NOT_PERSIST_123"
     bundle = ResultBundle(
         schema_version=1,
+        capabilities=("package-identity-v1",),
         scanners=(ScannerResult("semgrep", "completed"),),
         findings=(
             {
@@ -286,6 +292,7 @@ async def test_ingest_redacts_findings_artifacts_and_client_provenance() -> None
     )
     assert await ingest_result_bundle(persistence, envelope, bundle) == "ingested"
     persisted = b"\n".join(persistence.artifacts).decode()
+    assert '"capabilities":["package-identity-v1"]' in persisted
     assert canary not in persisted
     assert "/Users/alice" not in persisted
     assert canary not in persistence.findings[0]["message"]

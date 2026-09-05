@@ -53,6 +53,7 @@ def _register_project(session) -> None:
 def _payload() -> dict:
     return {
         "schema_version": 1,
+        "capabilities": ["package-identity-v1"],
         "source": "github-actions",
         "repo": "26457513/doc2context",
         "github_run_id": 32127508239,
@@ -92,6 +93,7 @@ async def test_ingest_creates_run_findings_scanner_runs_and_blobs(session) -> No
         _payload(),
         blobs,
     )
+    assert bundle.capabilities == ("package-identity-v1",)
     status = await ingest_result_bundle(
         SqlAlchemyIngestPersistence(session), envelope, bundle
     )

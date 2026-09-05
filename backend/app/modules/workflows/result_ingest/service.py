@@ -24,7 +24,10 @@ from app.modules.shared.contracts.ingest import (
     ScannerResult,
     ScannerStatus,
 )
-from app.modules.shared.contracts.findings import FindingPayload
+from app.modules.shared.contracts.findings import (
+    PACKAGE_IDENTITY_CAPABILITY,
+    FindingPayload,
+)
 
 from .models import IngestPersistencePort
 
@@ -111,6 +114,7 @@ def build_local_result_bundle(
     scanners = tuple(_local_scanner_result(item) for item in findings_document["scanners"])
     return ResultBundle(
         schema_version=int(findings_document["schema_version"]),
+        capabilities=tuple(findings_document.get("capabilities") or ()),
         scanners=scanners,
         findings=tuple(findings_document["findings"]),
         source_contexts=tuple(findings_document.get("source_contexts") or ()),
@@ -127,6 +131,7 @@ def build_v2_result_bundle(
     scanners = tuple(_local_scanner_result(item) for item in findings_document["scanners"])
     return ResultBundle(
         schema_version=int(findings_document["schema_version"]),
+        capabilities=tuple(findings_document.get("capabilities") or ()),
         scanners=scanners,
         findings=tuple(findings_document["findings"]),
         source_contexts=tuple(source_contexts_document["contexts"]),
@@ -241,6 +246,10 @@ def _run_record(envelope: IngestEnvelope, bundle: ResultBundle) -> RunRecord:
 def _validate_result_bundle(envelope: IngestEnvelope, bundle: ResultBundle) -> None:
     if bundle.schema_version not in {1, 2}:
         raise ValueError("unsupported result-bundle schema version")
+    if len(bundle.capabilities) != len(set(bundle.capabilities)):
+        raise ValueError("result bundle contains duplicate capabilities")
+    if any(capability != PACKAGE_IDENTITY_CAPABILITY for capability in bundle.capabilities):
+        raise ValueError("result bundle contains an unsupported capability")
     kinds = [result.kind for result in bundle.scanners]
     if len(kinds) != len(set(kinds)):
         raise ValueError("result bundle contains duplicate scanner kinds")
@@ -255,6 +264,7 @@ def _findings_json(bundle: ResultBundle) -> str:
     return json.dumps(
         {
             "schema_version": bundle.schema_version,
+            "capabilities": list(bundle.capabilities),
             "scanners": [asdict(result) for result in bundle.scanners],
             "findings": list(bundle.findings),
             "source_contexts": list(bundle.source_contexts),
@@ -295,6 +305,7 @@ def _redact_result_bundle(bundle: ResultBundle) -> ResultBundle:
         ).encode()
     clean_bundle = ResultBundle(
         schema_version=bundle.schema_version,
+        capabilities=tuple(bundle.capabilities),
         scanners=scanners,
         findings=findings,
         source_contexts=contexts,
@@ -338,6 +349,7 @@ def _github_result_bundle(
     )
     return ResultBundle(
         schema_version=int(payload.get("schema_version", 1)),
+        capabilities=tuple(payload.get("capabilities") or ()),
         scanners=scanners,
         findings=tuple(payload.get("findings") or ()),
         source_contexts=tuple(payload.get("source_contexts") or ()),

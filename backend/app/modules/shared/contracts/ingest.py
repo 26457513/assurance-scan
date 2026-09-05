@@ -61,6 +61,7 @@ class ResultBundle:
     """Scanner output only; origin and source provenance are deliberately absent."""
 
     schema_version: int
+    capabilities: Sequence[str] = ()
     scanners: Sequence[ScannerResult] = ()
     findings: Sequence[FindingPayload] = ()
     source_contexts: Sequence[SourceContextPayload] = ()
