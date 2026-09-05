@@ -388,7 +388,7 @@ jobs:
           test "$(docker inspect assurance-scan-server-1 --format '{{.Image}}')" = \
             "$(docker image inspect "$candidate_ref" --format '{{.Id}}')"
           docker exec assurance-scan-server-1 \
-            /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert row == ("0038_github_signin_return_paths",), row'
+            /opt/venv/bin/python -c 'import os, sqlite3; from alembic.config import Config; from alembic.script import ScriptDirectory; config=Config("/opt/assurance-scan/backend/alembic.ini"); heads=ScriptDirectory.from_config(config).get_heads(); connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); assert len(heads) == 1 and row == (heads[0],), (row, heads)'
           # Re-resolve the recreated server container's Docker-network address.
           # Caddy can retain the previous address and otherwise return 502 even
           # though the replacement application is healthy on the host port.
@@ -472,16 +472,20 @@ jobs:
           schema_revision="$(docker exec assurance-scan-server-1 \
             /opt/venv/bin/python -c 'import os, sqlite3; connection=sqlite3.connect(os.environ["ASSURANCE_SCAN_DB_PATH"]); row=connection.execute("SELECT version_num FROM alembic_version").fetchone(); connection.close(); print(row[0] if row else "missing")' 2>&1)"
           schema_status=$?
+          expected_schema_revision="$(docker exec assurance-scan-server-1 \
+            /opt/venv/bin/python -c 'from alembic.config import Config; from alembic.script import ScriptDirectory; heads=ScriptDirectory.from_config(Config("/opt/assurance-scan/backend/alembic.ini")).get_heads(); assert len(heads) == 1, heads; print(heads[0])' 2>&1)"
+          expected_schema_status=$?
           set -e
-          printf 'schema_command_status=%s\nschema_revision=%s\n' "$schema_status" "$schema_revision"
-          if [ "$schema_status" -ne 0 ]; then
+          printf 'schema_command_status=%s\nschema_revision=%s\nexpected_schema_status=%s\nexpected_schema_revision=%s\n' \
+            "$schema_status" "$schema_revision" "$expected_schema_status" "$expected_schema_revision"
+          if [ "$schema_status" -ne 0 ] || [ "$expected_schema_status" -ne 0 ]; then
             docker inspect assurance-scan-server-1 \
               --format 'status={{.State.Status}} restarting={{.State.Restarting}} exit_code={{.State.ExitCode}} restart_count={{.RestartCount}} error={{json .State.Error}}' >&2
             docker logs --tail 80 assurance-scan-server-1 >&2
             exit 1
           fi
           test "$running_image_id" = "$candidate_image_id"
-          test "$schema_revision" = 0038_github_signin_return_paths
+          test "$schema_revision" = "$expected_schema_revision"
           curl --fail --silent --show-error http://127.0.0.1:8742/health >/dev/null
           oauth_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
             'http://127.0.0.1:8742/auth/github/start?next=%2Fprojects%2F1')"

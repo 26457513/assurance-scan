@@ -40,3 +40,11 @@ def test_public_health_checks_retry_transient_proxy_errors() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert workflow.count("--retry-all-errors --retry-max-time 60") == 2
+
+
+def test_schema_verification_uses_the_candidate_image_migration_head() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert workflow.count("ScriptDirectory.from_config") == 2
+    assert 'test "$schema_revision" = "$expected_schema_revision"' in workflow
+    assert "0038_github_signin_return_paths" not in workflow
