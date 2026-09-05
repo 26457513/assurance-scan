@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.modules.atomic.local_cli.release_manifest import (
     ReleaseManifestError,
@@ -59,20 +59,22 @@ async def cli_wrapper_sha256() -> PlainTextResponse:
     )
 
 
-@router.get("/latest", response_class=JSONResponse)
-async def latest_cli_release(request: Request) -> JSONResponse:
+@router.get("/latest", response_class=Response)
+async def latest_cli_release(request: Request) -> Response:
     """Return the pre-signed manifest; never synthesize trust metadata at runtime."""
 
     path = _configured_file(request, "cli_release_manifest_path", _MAX_MANIFEST_BYTES)
     try:
-        document = json.loads(path.read_bytes())
+        content = path.read_bytes()
+        document = json.loads(content)
         if not isinstance(document, dict):
             raise ValueError
         validate_release_manifest(document)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError, ReleaseManifestError):
         raise HTTPException(status_code=503, detail="CLI release manifest is unavailable") from None
-    return JSONResponse(
-        document,
+    return Response(
+        content=content,
+        media_type="application/json",
         headers={
             "Cache-Control": "public, max-age=300, no-transform",
             "X-Content-Type-Options": "nosniff",

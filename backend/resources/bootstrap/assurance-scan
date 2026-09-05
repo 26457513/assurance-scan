@@ -88,13 +88,24 @@ fetch_release() {
   chmod 700 "$temp_dir"
   if curl -fsS --proto '=https' --tlsv1.2 "$RELEASE_ORIGIN/api/v2/cli/releases/latest" -o "$temp_dir/latest.json" && \
      curl -fsS --proto '=https' --tlsv1.2 "$RELEASE_ORIGIN/api/v2/cli/releases/latest.sigstore.json" -o "$temp_dir/latest.sigstore.json"; then
-    chmod 600 "$temp_dir/latest.json" "$temp_dir/latest.sigstore.json"
+    cp "$TRUSTED_ROOT" "$temp_dir/trusted-root.json"
+    chmod 600 "$temp_dir/latest.json" "$temp_dir/latest.sigstore.json" "$temp_dir/trusted-root.json"
     old_cache=$RELEASE_CACHE
     RELEASE_CACHE=$temp_dir
     MANIFEST=$RELEASE_CACHE/latest.json
-    verify_manifest
+    if verify_manifest; then
+      verified=1
+    else
+      verified=0
+    fi
     RELEASE_CACHE=$old_cache
     MANIFEST=$RELEASE_CACHE/latest.json
+    if [ "$verified" != 1 ]; then
+      rm -f "$temp_dir/latest.json" "$temp_dir/latest.sigstore.json" "$temp_dir/trusted-root.json"
+      rmdir "$temp_dir"
+      return 1
+    fi
+    rm -f "$temp_dir/trusted-root.json"
     mv "$temp_dir/latest.json" "$MANIFEST"
     mv "$temp_dir/latest.sigstore.json" "$RELEASE_CACHE/latest.sigstore.json"
     date +%s > "$RELEASE_CACHE/verified-at"

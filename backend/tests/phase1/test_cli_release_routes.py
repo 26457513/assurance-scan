@@ -48,7 +48,8 @@ def _manifest() -> dict[str, object]:
 async def test_serves_exact_validated_release_bytes_and_bundle(tmp_path) -> None:
     manifest_path = tmp_path / "release.json"
     bundle_path = tmp_path / "release.sigstore.json"
-    manifest_path.write_text(json.dumps(_manifest()))
+    manifest_bytes = json.dumps(_manifest(), indent=2).encode() + b"\n"
+    manifest_path.write_bytes(manifest_bytes)
     bundle_path.write_text('{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}')
     app = FastAPI()
     app.state.settings = SimpleNamespace(
@@ -64,6 +65,7 @@ async def test_serves_exact_validated_release_bytes_and_bundle(tmp_path) -> None
         bundle = await client.get("/api/v2/cli/releases/latest.sigstore.json")
 
     assert manifest.status_code == 200
+    assert manifest.content == manifest_bytes
     assert manifest.json()["cli_version"] == "v1.2.3"
     assert manifest.headers["x-content-type-options"] == "nosniff"
     assert bundle.status_code == 200

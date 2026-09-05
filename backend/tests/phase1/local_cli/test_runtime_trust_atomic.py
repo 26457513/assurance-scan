@@ -80,6 +80,8 @@ def test_wrapper_contract_uses_digest_only_cli_and_bounded_mounts() -> None:
     assert "VERIFIER_IMAGE=ghcr.io/sigstore/cosign/cosign@sha256:" in wrapper
     assert "--pull=never" in wrapper
     assert 'CLI_IMAGE=$IMAGE@$digest' in wrapper
+    assert 'cp "$TRUSTED_ROOT" "$temp_dir/trusted-root.json"' in wrapper
+    assert 'rm -f "$temp_dir/trusted-root.json"' in wrapper
     assert 'ASSURANCE_SCAN_HOST_RUN_CACHE="$run_cache"' in wrapper
     assert '"$PROJECT_ROOT:/workspace:ro"' in wrapper
     assert '"$CONFIG_ROOT:/config:ro"' in wrapper
