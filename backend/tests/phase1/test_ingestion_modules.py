@@ -113,6 +113,10 @@ def test_finding_normalizer_preserves_defaults_and_fields() -> None:
             "theme": None,
             "fix_strategy": None,
             "compliance_tags": [],
+            "package_name": None,
+            "package_version": None,
+            "package_ecosystem": None,
+            "package_purl": None,
         }
     ]
 

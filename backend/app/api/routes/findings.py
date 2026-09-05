@@ -123,6 +123,10 @@ def _row_to_response(row) -> FindingResponse:
         theme=row.theme,
         fix_strategy=row.fix_strategy,
         compliance_tags=json.loads(row.compliance_tags_json or "[]"),
+        package_name=row.package_name,
+        package_version=row.package_version,
+        package_ecosystem=row.package_ecosystem,
+        package_purl=row.package_purl,
     )
 
 

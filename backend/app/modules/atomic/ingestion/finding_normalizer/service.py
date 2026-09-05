@@ -30,6 +30,10 @@ def normalize_findings(
             "theme": finding.get("theme"),
             "fix_strategy": finding.get("fix_strategy"),
             "compliance_tags": finding.get("compliance_tags") or [],
+            "package_name": finding.get("package_name"),
+            "package_version": finding.get("package_version"),
+            "package_ecosystem": finding.get("package_ecosystem"),
+            "package_purl": finding.get("package_purl"),
         }
         for finding in findings
     ]

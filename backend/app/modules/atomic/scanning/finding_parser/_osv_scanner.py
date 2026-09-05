@@ -8,7 +8,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.modules.atomic.scanning.finding_parser.models import FindingParser, ParsedFinding, strip_mount_prefix
+from app.modules.atomic.scanning.finding_parser.models import (
+    FindingParser,
+    ParsedFinding,
+    bounded_text,
+    strip_mount_prefix,
+)
 
 
 SEVERITY_MAP: dict[str, str] = {
@@ -104,6 +109,10 @@ class OsvScannerJsonParser(FindingParser):
                         theme="dependency",
                         fix_strategy="dependency-update" if fixed_versions else "config-only",
                         compliance_tags=(),
+                        package_name=bounded_text(pkg.get("name"), 512),
+                        package_version=bounded_text(pkg.get("version"), 256),
+                        package_ecosystem=bounded_text(pkg.get("ecosystem"), 64),
+                        package_purl=bounded_text(pkg.get("purl"), 1024),
                     ))
 
         return findings

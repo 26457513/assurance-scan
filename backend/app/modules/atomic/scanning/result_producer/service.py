@@ -117,6 +117,10 @@ def _finding_document(finding: Any) -> dict[str, Any]:
         "theme": finding.theme,
         "fix_strategy": finding.fix_strategy,
         "compliance_tags": list(dict.fromkeys(finding.compliance_tags))[:64],
+        "package_name": finding.package_name,
+        "package_version": finding.package_version,
+        "package_ecosystem": finding.package_ecosystem,
+        "package_purl": finding.package_purl,
     }
 
 

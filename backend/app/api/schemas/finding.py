@@ -20,6 +20,10 @@ class FindingResponse(BaseModel):
     theme: str | None
     fix_strategy: str | None
     compliance_tags: list[str]
+    package_name: str | None = None
+    package_version: str | None = None
+    package_ecosystem: str | None = None
+    package_purl: str | None = None
 
 
 class FindingsListResponse(BaseModel):

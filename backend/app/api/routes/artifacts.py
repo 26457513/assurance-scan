@@ -18,8 +18,14 @@ from app.api.schemas.artifact import (
 )
 from app.infrastructure.db.models import ScannerArtifact
 from app.infrastructure.db.repositories.scanner_artifacts import ScannerArtifactRepository
+from app.infrastructure.db.repositories.findings import FindingRepository
+from app.infrastructure.db.repositories.scanner_runs import ScannerRunRepository
 from app.infrastructure.project_access import require_run
-from app.modules.atomic.scanning.sbom_inventory import SbomInventoryError, extract_packages
+from app.modules.atomic.scanning.sbom_inventory import (
+    SbomInventoryError,
+    apply_security_status,
+    extract_packages,
+)
 from app.modules.shared.contracts.local_scan import RETENTION_DAYS
 
 
@@ -72,6 +78,23 @@ async def list_sbom_packages(
         packages = extract_packages(ScannerArtifactRepository.decompress(artifact))
     except SbomInventoryError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finding_rows = await FindingRepository(session).list_for_run(run_id, limit=20_000)
+    scanner_rows = await ScannerRunRepository(session).list_for_run(run_id)
+    packages = apply_security_status(
+        packages,
+        [
+            {
+                "severity": finding.severity,
+                "package_name": finding.package_name,
+                "package_version": finding.package_version,
+                "package_ecosystem": finding.package_ecosystem,
+                "package_purl": finding.package_purl,
+            }
+            for finding in finding_rows
+            if finding.package_name or finding.package_purl
+        ],
+        {scanner.scanner_kind: scanner.status for scanner in scanner_rows},
+    )
     return SbomPackageListResponse(
         run_id=run_id,
         total=len(packages),

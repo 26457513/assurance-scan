@@ -72,6 +72,8 @@ def test_trivy_fs_parser_extracts_vulnerabilities() -> None:
                 "VulnerabilityID": "CVE-2024-1",
                 "PkgName": "lodash",
                 "InstalledVersion": "4.17.20",
+                "PkgType": "npm",
+                "PkgIdentifier": {"PURL": "pkg:npm/lodash@4.17.20"},
                 "FixedVersion": "4.17.21",
                 "Severity": "HIGH",
                 "Description": "Prototype pollution.",
@@ -85,6 +87,8 @@ def test_trivy_fs_parser_extracts_vulnerabilities() -> None:
     assert f.rule_id == "CVE-2024-1"
     assert f.severity == "HIGH"
     assert f.fix_strategy == "dependency-update"
+    assert (f.package_name, f.package_version, f.package_ecosystem) == ("lodash", "4.17.20", "npm")
+    assert f.package_purl == "pkg:npm/lodash@4.17.20"
 
 
 def test_trivy_config_parser_extracts_misconfigurations() -> None:
@@ -151,6 +155,8 @@ def test_grype_parser_extracts_matches() -> None:
             "artifact": {
                 "name": "express",
                 "version": "4.0.0",
+                "type": "npm",
+                "purl": "pkg:npm/express@4.0.0",
                 "locations": [{"path": "/yarn.lock"}],
             },
         }]
@@ -162,6 +168,8 @@ def test_grype_parser_extracts_matches() -> None:
     assert f.severity == "HIGH"
     assert f.file_path == "yarn.lock"
     assert (f.line_start, f.line_end) == (None, None)
+    assert (f.package_name, f.package_version, f.package_ecosystem) == ("express", "4.0.0", "npm")
+    assert f.package_purl == "pkg:npm/express@4.0.0"
 
 
 def test_osv_scanner_parser_extracts_results() -> None:
@@ -169,7 +177,12 @@ def test_osv_scanner_parser_extracts_results() -> None:
         "results": [{
             "source": {"path": "/src/package-lock.json"},
             "packages": [{
-                "package": {"name": "lodash", "version": "4.17.20"},
+                "package": {
+                    "name": "lodash",
+                    "version": "4.17.20",
+                    "ecosystem": "npm",
+                    "purl": "pkg:npm/lodash@4.17.20",
+                },
                 "vulnerabilities": [{
                     "id": "GHSA-1",
                     "summary": "Prototype pollution.",
@@ -186,6 +199,8 @@ def test_osv_scanner_parser_extracts_results() -> None:
     assert f.rule_id == "GHSA-1"
     assert f.file_path == "package-lock.json"
     assert (f.line_start, f.line_end) == (None, None)
+    assert (f.package_name, f.package_version, f.package_ecosystem) == ("lodash", "4.17.20", "npm")
+    assert f.package_purl == "pkg:npm/lodash@4.17.20"
 
 
 def test_syft_parser_emits_no_findings() -> None:

@@ -8,7 +8,11 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from app.main import create_app
-from app.modules.atomic.scanning.sbom_inventory import SbomInventoryError, extract_packages
+from app.modules.atomic.scanning.sbom_inventory import (
+    SbomInventoryError,
+    apply_security_status,
+    extract_packages,
+)
 
 
 @pytest_asyncio.fixture
@@ -16,6 +20,7 @@ async def client():
     from app.infrastructure.db.connection import get_engine, get_sessionmaker
     from app.infrastructure.db.models import Base, Project, Run, ScannerRun
     from app.infrastructure.db.repositories.scanner_artifacts import ScannerArtifactRepository
+    from app.infrastructure.db.repositories.findings import FindingRepository
 
     app = create_app()
     engine = get_engine()
@@ -41,6 +46,20 @@ async def client():
             session.add(scanner_run)
             await session.flush()
             await ScannerArtifactRepository(session).store(scanner_run.id, kind, content)
+        session.add(ScannerRun(run_id="run-artifacts", scanner_kind="grype", status="completed"))
+        await FindingRepository(session).bulk_insert([{
+            "run_id": "run-artifacts",
+            "scanner_kind": "grype",
+            "rule_id": "CVE-1",
+            "severity": "HIGH",
+            "message": "svelte 5.0.0 vulnerable to CVE-1",
+            "theme": "dependency",
+            "compliance_tags": [],
+            "package_name": "svelte",
+            "package_version": "5.0.0",
+            "package_ecosystem": "npm",
+            "package_purl": "pkg:npm/svelte@5.0.0",
+        }])
         await session.commit()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http_client:
@@ -81,7 +100,9 @@ def test_extract_packages_normalizes_cyclonedx() -> None:
         "component_type": "library",
         "purl": "pkg:npm/svelte@5.0.0",
         "licenses": ["MIT"],
-        "vulnerability_count": 1,
+        "security_status": "not_assessed",
+        "highest_severity": None,
+        "finding_count": 0,
     }]
 
 
@@ -94,10 +115,23 @@ def test_extract_packages_rejects_non_cyclonedx() -> None:
         raise AssertionError("non-CycloneDX document was accepted")
 
 
-def test_extract_packages_does_not_invent_vulnerability_zero() -> None:
-    sbom = _sbom()
-    del sbom["vulnerabilities"]
-    assert extract_packages(json.dumps(sbom).encode())[0]["vulnerability_count"] is None
+def test_security_status_is_conservative_and_uses_structured_identity() -> None:
+    packages = extract_packages(json.dumps(_sbom()).encode())
+    finding = {
+        "package_name": "svelte",
+        "package_version": "5.0.0",
+        "package_ecosystem": "npm",
+        "package_purl": "pkg:npm/svelte@5.0.0",
+        "severity": "MEDIUM",
+    }
+    assert apply_security_status(packages, [finding], {"grype": "completed"})[0] == {
+        **packages[0],
+        "security_status": "finding",
+        "highest_severity": "MEDIUM",
+        "finding_count": 1,
+    }
+    assert apply_security_status(packages, [], {"grype": "completed"})[0]["security_status"] == "clear"
+    assert apply_security_status(packages, [], {"grype": "failed"})[0]["security_status"] == "not_assessed"
 
 
 async def test_artifact_inventory_and_download(client) -> None:
@@ -119,7 +153,9 @@ async def test_sbom_package_projection(client) -> None:
     response = await client.get("/api/scans/run-artifacts/artifacts/sbom/packages")
     assert response.status_code == 200
     assert response.json()["packages"][0]["name"] == "svelte"
-    assert response.json()["packages"][0]["vulnerability_count"] == 1
+    assert response.json()["packages"][0]["security_status"] == "failing"
+    assert response.json()["packages"][0]["highest_severity"] == "HIGH"
+    assert response.json()["packages"][0]["finding_count"] == 1
 
 
 async def test_unknown_artifact_does_not_expose_storage(client) -> None:

@@ -24,7 +24,11 @@ const finding = {
   message: 'unsafe call',
   theme: 'code',
   fix_strategy: 'code-change',
-  compliance_tags: []
+  compliance_tags: [],
+  package_name: null,
+  package_version: null,
+  package_ecosystem: null,
+  package_purl: null
 };
 
 describe('FindingsTable source context', () => {

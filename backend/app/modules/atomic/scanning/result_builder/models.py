@@ -17,3 +17,7 @@ class Finding(Protocol):
     theme: str | None
     fix_strategy: str | None
     compliance_tags: tuple[str, ...]
+    package_name: str | None
+    package_version: str | None
+    package_ecosystem: str | None
+    package_purl: str | None

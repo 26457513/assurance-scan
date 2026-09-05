@@ -19,6 +19,10 @@ class ParsedFinding:
     theme: str | None = None
     fix_strategy: str | None = None
     compliance_tags: tuple[str, ...] = ()
+    package_name: str | None = None
+    package_version: str | None = None
+    package_ecosystem: str | None = None
+    package_purl: str | None = None
 
 
 # Scanner containers see the project at this mount point; some report
@@ -49,6 +53,14 @@ def normalize_line_range(
     if line_end is None or line_end < line_start:
         line_end = line_start
     return line_start, line_end
+
+
+def bounded_text(value: object, limit: int) -> str | None:
+    """Return a bounded scanner string or no structured value."""
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized[:limit] if normalized else None
 
 
 def _positive_line(value: object) -> int | None:

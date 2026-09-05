@@ -12,6 +12,7 @@ from typing import Any
 from app.modules.atomic.scanning.finding_parser.models import (
     FindingParser,
     ParsedFinding,
+    bounded_text,
     normalize_line_range,
     strip_mount_prefix,
 )
@@ -74,6 +75,8 @@ class TrivyJsonParser(FindingParser):
         if fixed:
             message += f" (fixed in {fixed})"
         message += f": {(v.get('Description') or title)[:300]}"
+        identifier = v.get("PkgIdentifier")
+        identifier = identifier if isinstance(identifier, dict) else {}
 
         return ParsedFinding(
             scanner_kind=self.scanner_kind,
@@ -86,6 +89,10 @@ class TrivyJsonParser(FindingParser):
             theme="dependency",
             fix_strategy="dependency-update" if fixed else "config-only",
             compliance_tags=tuple(v.get("CweIDs") or []),
+            package_name=bounded_text(v.get("PkgName"), 512),
+            package_version=bounded_text(installed, 256),
+            package_ecosystem=bounded_text(v.get("PkgType"), 64),
+            package_purl=bounded_text(identifier.get("PURL"), 1024),
         )
 
     def _parse_misconf(self, m: dict[str, Any], target: str | None) -> ParsedFinding | None:

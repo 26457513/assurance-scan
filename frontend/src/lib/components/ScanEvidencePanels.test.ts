@@ -49,7 +49,9 @@ describe('scan evidence panels', () => {
             component_type: 'library',
             purl: 'pkg:npm/svelte@5.0.0',
             licenses: ['MIT'],
-            vulnerability_count: null
+            security_status: 'clear',
+            highest_severity: null,
+            finding_count: 0
           },
           {
             bom_ref: 'pkg:pypi/fastapi@1',
@@ -59,7 +61,9 @@ describe('scan evidence panels', () => {
             component_type: 'library',
             purl: 'pkg:pypi/fastapi@1.0.0',
             licenses: ['BSD-3-Clause'],
-            vulnerability_count: 1
+            security_status: 'failing',
+            highest_severity: 'HIGH',
+            finding_count: 1
           }
         ]
       }
@@ -71,6 +75,8 @@ describe('scan evidence panels', () => {
 
     expect(screen.queryByText('svelte')).not.toBeInTheDocument();
     expect(screen.getByText('fastapi')).toBeInTheDocument();
+    expect(screen.getByText('Failing')).toBeInTheDocument();
+    expect(screen.getByText('HIGH')).toBeInTheDocument();
     expect(screen.getByText('1 of 2')).toBeInTheDocument();
   });
 });

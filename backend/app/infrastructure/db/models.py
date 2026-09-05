@@ -908,6 +908,10 @@ class Finding(Base):
     theme: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fix_strategy: Mapped[str | None] = mapped_column(String(32), nullable=True)
     compliance_tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    package_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    package_version: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    package_ecosystem: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    package_purl: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     __table_args__ = (
@@ -915,6 +919,7 @@ class Finding(Base):
         Index("ix_findings_run", "run_id"),
         Index("ix_findings_run_severity", "run_id", "severity"),
         Index("ix_findings_run_file", "run_id", "file_path"),
+        Index("ix_findings_run_package", "run_id", "package_purl"),
     )
 
 

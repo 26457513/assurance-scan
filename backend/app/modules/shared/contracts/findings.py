@@ -18,6 +18,10 @@ class FindingPayload(TypedDict, total=False):
     theme: str | None
     fix_strategy: str | None
     compliance_tags: list[str]
+    package_name: str | None
+    package_version: str | None
+    package_ecosystem: str | None
+    package_purl: str | None
 
 
 NormalizedFinding = dict[str, Any]

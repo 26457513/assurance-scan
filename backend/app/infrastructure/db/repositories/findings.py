@@ -39,6 +39,10 @@ class FindingRepository(BaseRepository[Finding]):
                     theme=item.get("theme"),
                     fix_strategy=item.get("fix_strategy"),
                     compliance_tags_json=json.dumps(compliance_tags),
+                    package_name=item.get("package_name"),
+                    package_version=item.get("package_version"),
+                    package_ecosystem=item.get("package_ecosystem"),
+                    package_purl=item.get("package_purl"),
                 )
             )
         await self._flush()

@@ -166,6 +166,10 @@ export interface FindingResponse {
   theme: string | null;
   fix_strategy: string | null;
   compliance_tags: string[];
+  package_name: string | null;
+  package_version: string | null;
+  package_ecosystem: string | null;
+  package_purl: string | null;
 }
 
 export interface SourceContextResponse {
@@ -220,7 +224,9 @@ export interface SbomPackage {
   component_type: string | null;
   purl: string | null;
   licenses: string[];
-  vulnerability_count: number | null;
+  security_status: 'failing' | 'finding' | 'clear' | 'not_assessed';
+  highest_severity: FindingResponse['severity'] | null;
+  finding_count: number;
 }
 
 export interface SbomPackageListResponse {

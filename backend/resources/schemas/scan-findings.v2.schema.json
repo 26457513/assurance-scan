@@ -47,7 +47,11 @@
         "message": {"type": "string", "maxLength": 8192},
         "theme": {"type": ["string", "null"], "maxLength": 64},
         "fix_strategy": {"type": ["string", "null"], "maxLength": 64},
-        "compliance_tags": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}}
+        "compliance_tags": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+        "package_name": {"type": ["string", "null"], "maxLength": 512},
+        "package_version": {"type": ["string", "null"], "maxLength": 256},
+        "package_ecosystem": {"type": ["string", "null"], "maxLength": 64},
+        "package_purl": {"type": ["string", "null"], "maxLength": 1024}
       },
       "allOf": [
         {

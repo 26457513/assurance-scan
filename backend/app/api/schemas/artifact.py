@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -35,7 +36,9 @@ class SbomPackage(BaseModel):
     component_type: str | None = None
     purl: str | None = None
     licenses: list[str] = Field(default_factory=list)
-    vulnerability_count: int | None = None
+    security_status: Literal["failing", "finding", "clear", "not_assessed"]
+    highest_severity: str | None = None
+    finding_count: int = 0
 
 
 class SbomPackageListResponse(BaseModel):
