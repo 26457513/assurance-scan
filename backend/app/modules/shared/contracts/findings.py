@@ -4,6 +4,9 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 
+PACKAGE_IDENTITY_CAPABILITY = "package-identity-v1"
+
+
 class FindingPayload(TypedDict, total=False):
     """Finding shape emitted by the existing CI findings bundle."""
 

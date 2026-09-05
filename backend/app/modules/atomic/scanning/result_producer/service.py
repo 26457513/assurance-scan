@@ -11,7 +11,10 @@ from app.modules.atomic.ingestion.envelope_contract import (
 )
 from app.modules.atomic.ingestion.source_context import extract_source_contexts
 from app.modules.atomic.scanning.result_builder import build_sarif
-from app.modules.shared.contracts.findings import FindingPayload
+from app.modules.shared.contracts.findings import (
+    PACKAGE_IDENTITY_CAPABILITY,
+    FindingPayload,
+)
 from app.modules.shared.contracts.ingest_v2 import (
     ENVELOPE_LIMITS_V2,
     SCANNER_ERROR_CODES,
@@ -40,6 +43,7 @@ def produce_envelope_v2(command: ProduceEnvelopeCommand) -> ProducedEnvelope:
     )
     findings_document: dict[str, Any] = {
         "schema_version": 2,
+        "capabilities": [PACKAGE_IDENTITY_CAPABILITY],
         "scanners": [_scanner_document(item) for item in command.scanner_outcomes],
         "findings": list(extracted.findings),
     }

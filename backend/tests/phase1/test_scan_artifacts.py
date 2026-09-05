@@ -12,6 +12,7 @@ from app.modules.atomic.scanning.sbom_inventory import (
     SbomInventoryError,
     apply_security_status,
     extract_packages,
+    supports_package_identity,
 )
 
 
@@ -34,7 +35,11 @@ async def client():
         session.add(Run(run_id="run-artifacts", project_id=project.id, origin="server", status="completed"))
         await session.flush()
         for scanner_kind, kind, content in (
-            ("assurance-scan/findings", "json", b'{"findings":[]}'),
+            (
+                "assurance-scan/findings",
+                "json",
+                b'{"capabilities":["package-identity-v1"],"findings":[]}',
+            ),
             ("assurance-scan/sarif", "sarif", b'{"version":"2.1.0","runs":[]}'),
             (
                 "assurance-scan/sbom",
@@ -124,14 +129,43 @@ def test_security_status_is_conservative_and_uses_structured_identity() -> None:
         "package_purl": "pkg:npm/svelte@5.0.0",
         "severity": "MEDIUM",
     }
-    assert apply_security_status(packages, [finding], {"grype": "completed"})[0] == {
+    assert apply_security_status(
+        packages,
+        [finding],
+        {"grype": "completed"},
+        package_identity_supported=True,
+    )[0] == {
         **packages[0],
         "security_status": "finding",
         "highest_severity": "MEDIUM",
         "finding_count": 1,
     }
-    assert apply_security_status(packages, [], {"grype": "completed"})[0]["security_status"] == "clear"
-    assert apply_security_status(packages, [], {"grype": "failed"})[0]["security_status"] == "not_assessed"
+    assert apply_security_status(
+        packages,
+        [],
+        {"grype": "completed"},
+        package_identity_supported=True,
+    )[0]["security_status"] == "clear"
+    assert apply_security_status(
+        packages,
+        [],
+        {"grype": "completed"},
+        package_identity_supported=False,
+    )[0]["security_status"] == "not_assessed"
+    assert apply_security_status(
+        packages,
+        [],
+        {"grype": "failed"},
+        package_identity_supported=True,
+    )[0]["security_status"] == "not_assessed"
+
+
+def test_package_identity_capability_is_explicit_and_fails_closed() -> None:
+    assert supports_package_identity(
+        b'{"capabilities":["package-identity-v1"]}'
+    )
+    assert not supports_package_identity(b'{"findings":[]}')
+    assert not supports_package_identity(b"not-json")
 
 
 async def test_artifact_inventory_and_download(client) -> None:

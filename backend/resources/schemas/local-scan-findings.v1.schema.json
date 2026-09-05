@@ -7,6 +7,12 @@
   "required": ["schema_version", "scanners", "findings"],
   "properties": {
     "schema_version": {"const": 1},
+    "capabilities": {
+      "type": "array",
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {"enum": ["package-identity-v1"]}
+    },
     "scanners": {
       "type": "array",
       "maxItems": 32,

@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from app.modules.atomic.scanning.finding_parser import ParsedFinding
 from app.modules.atomic.scanning.scanner_catalog import PROJECT_MOUNT_TARGET, ScannerConfig
+from app.modules.shared.contracts.findings import PACKAGE_IDENTITY_CAPABILITY
 
 
 _REQUEST_ID = re.compile(
@@ -79,6 +80,7 @@ def findings_document(
     """Render the strict source-neutral v1 findings upload document."""
     document: dict[str, Any] = {
         "schema_version": 1,
+        "capabilities": [PACKAGE_IDENTITY_CAPABILITY],
         "scanners": list(scanner_results),
         "findings": [
             {

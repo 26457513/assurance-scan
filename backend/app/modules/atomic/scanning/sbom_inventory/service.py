@@ -7,6 +7,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import unquote
 
+from app.modules.shared.contracts.findings import PACKAGE_IDENTITY_CAPABILITY
+
 
 MAX_COMPONENTS = 20_000
 
@@ -55,6 +57,8 @@ def apply_security_status(
     packages: Sequence[dict[str, Any]],
     findings: Sequence[Mapping[str, object]],
     scanner_statuses: Mapping[str, str],
+    *,
+    package_identity_supported: bool,
 ) -> list[dict[str, Any]]:
     """Correlate structured dependency findings to inventory components."""
     grype_completed = scanner_statuses.get("grype") == "completed"
@@ -71,7 +75,7 @@ def apply_security_status(
             status = "failing"
         elif linked:
             status = "finding"
-        elif grype_completed:
+        elif grype_completed and package_identity_supported:
             status = "clear"
         else:
             status = "not_assessed"
@@ -82,6 +86,21 @@ def apply_security_status(
             "finding_count": len(linked),
         })
     return attributed
+
+
+def supports_package_identity(content: bytes) -> bool:
+    """Return whether a findings artifact explicitly supports package attribution."""
+    try:
+        document = json.loads(content)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(document, dict):
+        return False
+    capabilities = document.get("capabilities")
+    return (
+        isinstance(capabilities, list)
+        and PACKAGE_IDENTITY_CAPABILITY in capabilities
+    )
 
 
 def _text(value: object) -> str | None:

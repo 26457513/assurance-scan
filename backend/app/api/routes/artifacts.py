@@ -25,6 +25,7 @@ from app.modules.atomic.scanning.sbom_inventory import (
     SbomInventoryError,
     apply_security_status,
     extract_packages,
+    supports_package_identity,
 )
 from app.modules.shared.contracts.local_scan import RETENTION_DAYS
 
@@ -80,6 +81,18 @@ async def list_sbom_packages(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     finding_rows = await FindingRepository(session).list_for_run(run_id, limit=20_000)
     scanner_rows = await ScannerRunRepository(session).list_for_run(run_id)
+    package_identity_supported = False
+    try:
+        findings_artifact = await _artifact_for_name(
+            run_id, "findings", principal, session
+        )
+    except HTTPException as exc:
+        if exc.status_code not in {404, 410}:
+            raise
+    else:
+        package_identity_supported = supports_package_identity(
+            ScannerArtifactRepository.decompress(findings_artifact)
+        )
     packages = apply_security_status(
         packages,
         [
@@ -94,6 +107,7 @@ async def list_sbom_packages(
             if finding.package_name or finding.package_purl
         ],
         {scanner.scanner_kind: scanner.status for scanner in scanner_rows},
+        package_identity_supported=package_identity_supported,
     )
     return SbomPackageListResponse(
         run_id=run_id,

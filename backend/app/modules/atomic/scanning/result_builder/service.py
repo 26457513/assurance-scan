@@ -9,6 +9,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from app.modules.shared.contracts.findings import PACKAGE_IDENTITY_CAPABILITY
+
 from .models import Finding
 
 SEVERITY_TO_LEVEL: dict[str, tuple[str, float]] = {
@@ -229,6 +231,7 @@ def ci_payload(
     """Render the existing version-one GitHub Actions findings payload."""
     payload: dict[str, Any] = {
         "schema_version": 1,
+        "capabilities": [PACKAGE_IDENTITY_CAPABILITY],
         "source": "github-actions",
         "repo": repo,
         "github_run_id": github_run_id,

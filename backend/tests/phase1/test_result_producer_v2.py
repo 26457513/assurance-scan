@@ -140,6 +140,7 @@ def test_producer_emits_valid_canonical_v2_envelope(snapshot: Path, github: bool
     ).decode()
     assert "password=hunter2" not in produced.canonical_parts["source_contexts"].decode()
     assert len(validated.findings["findings"]) == 1
+    assert validated.findings["capabilities"] == ["package-identity-v1"]
     assert validated.source_contexts["contexts"][0]["available"] is True
 
 
@@ -178,4 +179,3 @@ def test_producer_is_deterministic(snapshot: Path) -> None:
 
     assert first.canonical_parts == second.canonical_parts
     assert first.payload_hash == second.payload_hash
-

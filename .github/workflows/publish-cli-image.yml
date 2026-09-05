@@ -510,9 +510,12 @@ jobs:
           data_root="$(docker volume inspect "$data_volume" --format '{{.Mountpoint}}')"
           test -d "$data_root"
           target="$data_root/cli-release"
-          install -d -m 700 "$target"
-          install -m 600 "$stage/latest.sigstore.json" "$target/latest.sigstore.json.new"
-          install -m 600 "$stage/latest.json" "$target/latest.json.new"
+          # These signed files are intentionally public and the application
+          # may run as a non-root UID. Keep the containing volume writable only
+          # by root while allowing the API process to read release metadata.
+          install -d -m 755 "$target"
+          install -m 644 "$stage/latest.sigstore.json" "$target/latest.sigstore.json.new"
+          install -m 644 "$stage/latest.json" "$target/latest.json.new"
           mv "$target/latest.sigstore.json.new" "$target/latest.sigstore.json"
           mv "$target/latest.json.new" "$target/latest.json"
           rm -f "$stage/latest.json" "$stage/latest.sigstore.json"

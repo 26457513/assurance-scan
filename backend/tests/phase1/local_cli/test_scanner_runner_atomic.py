@@ -83,6 +83,7 @@ def test_findings_document_is_strict_bounded_and_deduplicates_tags() -> None:
     document = findings_document([finding], [scanner])
 
     assert document["schema_version"] == 1
+    assert document["capabilities"] == ["package-identity-v1"]
     assert len(document["findings"][0]["message"]) == 8192
     assert document["findings"][0]["compliance_tags"] == ["ASVS-1"]
 
